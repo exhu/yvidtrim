@@ -1,0 +1,9 @@
+{
+	"description": "video trimming app",
+	"license": "MIT",
+	"authors": [
+		"yur"
+	],
+	"copyright": "Copyright © 2026, yur",
+	"name": "yvidtrim"
+}

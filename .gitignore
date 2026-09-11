@@ -22,3 +22,13 @@ docs/
 
 # Code coverage
 *.lst
+
+# rust
+/target
+/Cargo.lock
+
+# meson/cmake
+_build
+
+# emacs backup
+*~
