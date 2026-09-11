@@ -6,5 +6,5 @@ int main(int argc, char **argv) {
         printf("%s takes no arguments.\n", argv[0]);
         return 1;
     }
-    return yvi_func();
+    return yvidtrim_sdl3_hello();
 }

@@ -1,7 +1,10 @@
 module yvidtrim.app;
+import yvidtrim.clibs.sdl3;
 import std.stdio;
+
 
 void main()
 {
-	writeln("Edit source/app.d to start your project.");
+	writeln("Edit source/app.d to start your project.", yvidtrim_sdl3_hello());
+
 }

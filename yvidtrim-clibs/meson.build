@@ -6,7 +6,7 @@ sources = [
   'yvidtrim_sdl3.c',
 ]
 
-lib = static_library(
+yvidtrim_sdl3_lib = static_library(
   'yvidtrim_sdl3',
   sources,
   install : false,
@@ -18,6 +18,6 @@ test_exe = executable(
   'yvidtrim_sdl3_test',
   'yvidtrim_sdl3_test.c',
   dependencies : dependencies,
-  link_with : lib,
+  link_with : yvidtrim_sdl3_lib,
 )
 test('yvidtrim_sdl3', test_exe)
