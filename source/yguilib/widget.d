@@ -1,14 +1,7 @@
 module yguilib.widget;
-struct RectF {
-  float x = 0;
-  float y = 0;
-  float w = 1;
-  float h = 1;
-}
 
-struct ColorF {
-  float r, g, b, a = 1.0f;
-}
+public import yguilib.render_types;
+
 
 abstract class Component {
 

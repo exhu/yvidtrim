@@ -205,3 +205,24 @@ yguilib_sdl3_GLProc yguilib_sdl3_gl_get_proc_address(const char *proc) {
   return (yguilib_sdl3_GLProc)SDL_GL_GetProcAddress(proc);
 }
 
+void yguilib_sdl3_log(const char *message) {
+  if (message) {
+    SDL_Log("%s", message);
+  }
+}
+
+void yguilib_sdl3_log_priority(
+  yguilib_sdl3_LogPriority priority,
+  const char *message
+) {
+  if (message) {
+    SDL_LogMessage(
+      SDL_LOG_CATEGORY_APPLICATION,
+      (SDL_LogPriority)priority,
+      "%s",
+      message
+    );
+  }
+}
+
+

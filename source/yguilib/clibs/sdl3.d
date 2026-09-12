@@ -17,6 +17,15 @@ struct yguilib_sdl3_Event {
 struct yguilib_sdl3_Window;
 struct yguilib_sdl3_GLContext;
 
+enum yguilib_sdl3_LogPriority : int {
+  verbose = 1,
+  debug_ = 2,
+  info = 3,
+  warn = 4,
+  error = 5,
+  critical = 6,
+}
+
 extern(C) {
   int yguilib_sdl3_init();
   void yguilib_sdl3_quit();
@@ -43,5 +52,10 @@ extern(C) {
   alias yguilib_sdl3_GLProc = extern(C) void function();
   yguilib_sdl3_GLProc yguilib_sdl3_gl_get_proc_address(const(char)* proc);
   int yguilib_sdl3_hello();
+  void yguilib_sdl3_log(const(char)* message);
+  void yguilib_sdl3_log_priority(
+    yguilib_sdl3_LogPriority priority,
+    const(char)* message
+  );
 }
 

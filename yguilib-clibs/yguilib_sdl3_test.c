@@ -49,6 +49,16 @@ int main(void) {
   yguilib_sdl3_gl_destroy_context(ctx);
   yguilib_sdl3_destroy_window(win);
 
+  yguilib_sdl3_log("Testing yguilib_sdl3_log output");
+  yguilib_sdl3_log_priority(
+    YGUILIB_SDL3_LOG_PRIORITY_INFO,
+    "Testing yguilib_sdl3_log_priority info"
+  );
+  yguilib_sdl3_log_priority(
+    YGUILIB_SDL3_LOG_PRIORITY_WARN,
+    "Testing yguilib_sdl3_log_priority warn"
+  );
+
   yguilib_sdl3_quit();
   return 0;
 }

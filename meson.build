@@ -20,7 +20,10 @@ yguilib_src = [
   'source/yguilib/clibs/sdl3.d',
   'source/yguilib/controller.d',
   'source/yguilib/events.d',
+  'source/yguilib/logger.d',
   'source/yguilib/model.d',
+  'source/yguilib/render.d',
+  'source/yguilib/render_types.d',
   'source/yguilib/uisystem.d',
   'source/yguilib/widget.d',
 ]

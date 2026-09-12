@@ -151,6 +151,34 @@ yguilib_sdl3_GLProc yguilib_sdl3_gl_get_proc_address(const char *proc);
 
 int yguilib_sdl3_hello(void);
 
+typedef enum yguilib_sdl3_LogPriority {
+  YGUILIB_SDL3_LOG_PRIORITY_VERBOSE = 1,
+  YGUILIB_SDL3_LOG_PRIORITY_DEBUG = 2,
+  YGUILIB_SDL3_LOG_PRIORITY_INFO = 3,
+  YGUILIB_SDL3_LOG_PRIORITY_WARN = 4,
+  YGUILIB_SDL3_LOG_PRIORITY_ERROR = 5,
+  YGUILIB_SDL3_LOG_PRIORITY_CRITICAL = 6,
+} yguilib_sdl3_LogPriority;
+
+/**
+ * Logs a message using SDL_Log.
+ *
+ * @param message Null-terminated UTF-8 message.
+ */
+void yguilib_sdl3_log(const char *message);
+
+/**
+ * Logs a message with specified priority using SDL_LogMessage.
+ *
+ * @param priority Log priority level.
+ * @param message Null-terminated UTF-8 message.
+ */
+void yguilib_sdl3_log_priority(
+  yguilib_sdl3_LogPriority priority,
+  const char *message
+);
+
 #ifdef __cplusplus
 }
 #endif
+
