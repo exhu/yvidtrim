@@ -7,7 +7,8 @@ Key GUI application components:
     - layout system
     - windows
     - widgets
-    - controllers: embedded, user
+    - views (widget subtrees)
+    - controllers (user code)
     - versioned view models
     - bindings
 
@@ -31,35 +32,37 @@ maintain layout, may contain other widgets and thus build a tree. Widgets that
 produce or consume events are also called controls. Invisible and disabled
 widgets do not participate in events handling.
 
-*Controllers* are either user code or embedded -- implemented by the ui
-system. They update models, receive events, initiate app shutdown, implement
-domain logic.
+A *view* is a widget that manages a subtree that accepts model instances,
+filters or propagates controls' events, and is implemented by the UI subsystem.
+
+A *controller* is user code. It updates models, receives events, initiates app
+shutdown, implements domain logic.
 
 A *window* is an object that is tied to the OS displayed application
-window/surface, has a root widget which is also the embedded controller for that
+window/surface, has a root widget which is also the view for that
 window.
 
-*Models* are versioned sets of data. When any part of the data is changed the
+A *model* is a versioned set of data. When any part of the data is changed the
 version is incremented. There may be multiple instances of the models under same
 or different names in the UI system. Version relates to the whole model
 structure, i.e. not per field. References to other models via fields do not
 increment version of the model that has a reference to the changed one.  If a
 model has many fields where most fields are not updated most of the time
-consider to split it into smaller structures grouped by update frequency to
-minimize updates.
+consider to split it into smaller models grouped by update frequency to minimize
+updates.
 
 *Bindings* are references to the model instance. A binding is an expression that
 resolves to the data field. Models' version change triggers widgets' updates.
 
-An *embedded controller* is a role of a widget in the hierarchy. It introduces
+A *view* is a role of a widget in the hierarchy. It introduces
 the boundary of model bindings down the hierarchy, filters and translates events
 from the children. It can also introduce new model instances that are evaluated
 from parameters.
 
-Only declared embedded controller's parameters are visible to the controls
-down the tree up to the next embedded controller down the tree.
+Only declared view's parameters are visible to the controls
+down the tree up to the next view down the tree.
 
-Only events declared in the embedded controller are propagated up the tree.
+Only events declared in the view are propagated up the tree.
 
 *User controllers* are managed as a stack. The last added controller receives
 events first. A controller can consume an event and prevent other controllers
@@ -69,18 +72,17 @@ dialogs.
 
 UI system is built on windows. All input, OS windowing events are first handled
 by the UI system and then sent to app logic by the following path: ui system ->
-message bus -> controls -> embedded controllers -> message bus ->
+message bus -> controls -> views -> message bus ->
 user controllers.
 
-UI controls generate custom events. Only events declared in the embedded
-controller are propagated to the parent embedded controller. Only events that
-are declared by the root embedded controller (root window widget) reach the user
-controllers.
+UI controls generate custom events. Only events declared in a view are
+propagated to the parent view. Only events that are declared by the root view
+(root window widget) reach the user's controllers.
 
 == Event types
 The following events are on the bus based on the sender:
     - system
-    - embedded controller
+    - view
     - user
 
 == Event flow
@@ -88,18 +90,18 @@ An SDL event is received by the UI system. The UI system either ignores an
 unsupported event or translates it into a message and puts into to the bus.
 
 The UI system reads events from the bus. For each control from the leaf to the
-root call handleEvent method, if the control consumes the event then stop tree
-traversal.
+root it calls handleEvent method, if the control consumes the event then stops
+tree traversal.
 
 A control may produce a new event based on the received input event, but does
 not put it on to the bus, it returns the event from handleEvent method and the
-UI system translates it via embedded controllers up the tree (stop on the first
-controller to consume).
+UI system translates it via views up the tree (stop on the first view to
+consume).
 
-If the root embedded controller translates/exports the event it is put on the
+If the root view translates/exports the event it is put on the
 bus for user controllers to consume. Events translation means exporting it under
 a different name, e.g. when reusing a subtree for an input field with a label
-the input control will send event "text_changed" but the embedded controller will
+the input control will send event "text_changed" but the view will
 export it as "email_text_changed" up the tree.
 
 After all controls are processed the UI system calls handleEvent for the user
@@ -109,14 +111,14 @@ User controllers notify the UI system if there are model changes.
 
 == Bindings update
 If user controllers notify about changes to the models, the UI system calls
-update() on embedded controllers.
+update() on views.
 
-Embedded controllers check version of their model instances and reevaluate
+Views check version of their model instances and reevaluate
 bindings expressions and call update() on widgets.
 
 Models are read-only by the widgets. They are updated by user controllers only.
 Controls that pass the new data send it via the events, e.g. when a text field
-has a changed text, it sends it via the embedded controller to the message bus.
+has a changed text, it sends it via the view to the message bus.
 
 == Bindings evaluation
 "modelInstance.field.otherModelReference.arrayField[index]"
