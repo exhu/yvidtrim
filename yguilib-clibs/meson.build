@@ -1,6 +1,5 @@
 dependencies = [
   dependency('sdl3'),
-  glad_dep,
 ]
 
 sources = [

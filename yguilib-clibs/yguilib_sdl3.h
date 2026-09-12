@@ -139,16 +139,15 @@ int yguilib_sdl3_gl_make_current(
  */
 int yguilib_sdl3_gl_swap_window(yguilib_sdl3_Window *window);
 
+typedef void (*yguilib_sdl3_GLProc)(void);
+
 /**
- * Clears the active OpenGL color buffer with the given RGBA values.
+ * Gets the address of an OpenGL ES function.
  *
- * @param r Red component [0.0, 1.0].
- * @param g Green component [0.0, 1.0].
- * @param b Blue component [0.0, 1.0].
- * @param a Alpha component [0.0, 1.0].
- * @return 0 on success, or -1 on failure.
+ * @param proc Function name (UTF-8).
+ * @return Function pointer, or NULL if unavailable.
  */
-int yguilib_sdl3_gl_clear(float r, float g, float b, float a);
+yguilib_sdl3_GLProc yguilib_sdl3_gl_get_proc_address(const char *proc);
 
 int yguilib_sdl3_hello(void);
 

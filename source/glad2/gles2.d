@@ -80,8 +80,8 @@ enum GLAD_GENERATOR_VERSION = "2.0.8";
 
 alias GLADapiproc = void function ();
 
-alias GLADloadfunc = void function (const(char)* name) function (const(char)* name);
-alias GLADuserptrloadfunc = void function (void* userptr, const(char)* name) function (void* userptr, const(char)* name);
+alias GLADloadfunc = GLADapiproc function (const(char)* name);
+alias GLADuserptrloadfunc = GLADapiproc function (void* userptr, const(char)* name);
 
 alias GLADprecallback = void function (const(char)* name, GLADapiproc apiproc, int len_args, ...);
 alias GLADpostcallback = void function (void* ret, const(char)* name, GLADapiproc apiproc, int len_args, ...);

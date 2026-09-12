@@ -40,7 +40,8 @@ extern(C) {
     yguilib_sdl3_GLContext* context
   );
   int yguilib_sdl3_gl_swap_window(yguilib_sdl3_Window* window);
-  int yguilib_sdl3_gl_clear(float r, float g, float b, float a);
+  alias yguilib_sdl3_GLProc = extern(C) void function();
+  yguilib_sdl3_GLProc yguilib_sdl3_gl_get_proc_address(const(char)* proc);
   int yguilib_sdl3_hello();
 }
 

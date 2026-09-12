@@ -4,6 +4,7 @@ import yguilib.widget;
 import yguilib.events;
 import yguilib.controller;
 import yguilib.clibs.sdl3;
+import glad2.gles2;
 
 import std.typecons;
 
@@ -221,6 +222,12 @@ class Window {
       );
     }
     makeCurrent();
+    if (!gladLoadGLES2(&yguilib_sdl3_gl_get_proc_address)) {
+      destroy();
+      throw new Exception(
+        "Failed to load OpenGL ES functions via glad for window: " ~ title
+      );
+    }
     clear();
     swapBuffers();
   }
@@ -232,7 +239,8 @@ class Window {
     float a = 1.0f
   ) {
     if (handle !is null && glContext !is null) {
-      yguilib_sdl3_gl_clear(r, g, b, a);
+      glClearColor(r, g, b, a);
+      glClear(GL_COLOR_BUFFER_BIT);
     }
   }
 

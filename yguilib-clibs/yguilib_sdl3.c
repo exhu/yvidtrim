@@ -1,7 +1,6 @@
 #include "yguilib_sdl3.h"
 
 #include <SDL3/SDL.h>
-#include <glad/gles2.h>
 #include <stdlib.h>
 
 struct yguilib_sdl3_Window {
@@ -166,7 +165,6 @@ yguilib_sdl3_GLContext *yguilib_sdl3_gl_create_context(
   if (!sdl_ctx) {
     return NULL;
   }
-  gladLoadGLES2((GLADloadfunc)SDL_GL_GetProcAddress);
   yguilib_sdl3_GLContext *ctx =
     (yguilib_sdl3_GLContext *)malloc(sizeof(yguilib_sdl3_GLContext));
   if (!ctx) {
@@ -203,9 +201,7 @@ int yguilib_sdl3_gl_swap_window(yguilib_sdl3_Window *window) {
   return SDL_GL_SwapWindow(window->handle) ? 0 : -1;
 }
 
-int yguilib_sdl3_gl_clear(float r, float g, float b, float a) {
-  glClearColor(r, g, b, a);
-  glClear(GL_COLOR_BUFFER_BIT);
-  return 0;
+yguilib_sdl3_GLProc yguilib_sdl3_gl_get_proc_address(const char *proc) {
+  return (yguilib_sdl3_GLProc)SDL_GL_GetProcAddress(proc);
 }
 
