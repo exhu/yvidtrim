@@ -1,6 +1,7 @@
 module yvidtrim.app;
 import yvidtrim.clibs.sdl3;
 import std.stdio;
+import yvidtrim.yguilib.app;
 
 
 void main()
