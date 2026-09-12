@@ -52,6 +52,7 @@ directly imports external C headers into D.
 | **C Wrapper Test** | `<proj>-clibs/<proj>_<libname>_test.c` | `yvidtrim-clibs/yvidtrim_sdl3_test.c` |
 | **D Binding Module** | `source/<proj>/clibs/<libname>.d` | `source/yvidtrim/clibs/sdl3.d` |
 | **Public C Function Symbols** | `<proj>_<libname>_<function_name>` | `yvidtrim_sdl3_hello()` |
+| **Public C Types / Structs / Enums** | `<proj>_<libname>_<TypeName>` | `yguilib_sdl3_EventType` |
 
 ### Adding a New Wrapper Library Checklist
 1. Create header `<proj>-clibs/<proj>_<libname>.h` with `#pragma once` and
@@ -86,7 +87,9 @@ All code in this repository adheres to `.editorconfig` and `codestyle.md`.
 - **Functions / Methods / Variables / Constants**: `camelCase`.
 
 ### C Language Conventions
-- **Types / Structs / Enums**: `PascalCase`.
+- **Types / Structs / Enums**: `<proj>_<libname>_<TypeName>` for public wrapper
+  types (e.g., `yguilib_sdl3_EventType`, `yguilib_sdl3_Event`), or `PascalCase`
+  for internal types.
 - **Defines / Enum values / Public constants**: `UPPER_SNAKE_CASE`.
 - **Variables / Local constants / Functions**: `snake_case`.
 - **Public wrapper symbols**: Must be prefixed with `<proj>_<libname>_`

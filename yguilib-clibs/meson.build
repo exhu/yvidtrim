@@ -1,4 +1,5 @@
 dependencies = [
+  dependency('sdl3'),
 ]
 
 sources = [

@@ -1,7 +1,9 @@
 module yguilib.uisystem;
+
 import yguilib.widget;
 import yguilib.events;
 import yguilib.controller;
+import yguilib.clibs.sdl3;
 
 import std.typecons;
 
@@ -23,8 +25,9 @@ class UiSystem {
 
   void popController() {
     auto active = getActiveControllerOrNull();
-    if (active is null)
+    if (active is null) {
       return;
+    }
 
     controllersStack = controllersStack[0..$-1];
     active.onPop();
@@ -37,27 +40,55 @@ class UiSystem {
   void pushFocusRoot(Widget w) {
     // TODO
   }
+
   void popFocuseRoot() {
     // TODO
   }
 
   void mainEventLoop() {
-    while(auto activeController = getActiveControllerOrNull()) {
-      // TODO replace with sdl wait event loop
-      // which converts sdl events to supported app events
-      // via appEventFromSdlEvent()
-      // and adds AppEvent to the end of the queue,
-      // then pulls the oldest event in the UiSystem queue and
-      // passes to activeController.handleEvent
-      // if there are move events in the messageBus then
-      // send custom sdl wake event to resume from the wait loop later
+    yguilib_sdl3_init();
+    scope(exit) yguilib_sdl3_quit();
+
+    if (hasPendingAppEvents()) {
+      synchronized (this) {
+        wakeSent = true;
+      }
+      yguilib_sdl3_send_wake_event();
+    }
+
+    int currentTimeoutMs = -1;
+
+    while (auto activeController = getActiveControllerOrNull()) {
+      yguilib_sdl3_Event sdlEv;
+      int res = yguilib_sdl3_wait_event(&sdlEv, currentTimeoutMs);
+
+      if (res > 0) {
+        Nullable!AppEvent appEv = appEventFromSdlEvent(sdlEv);
+        if (!appEv.isNull) {
+          sendAppEvent(appEv.get());
+        }
+      }
 
       Nullable!AppEvent nullableEvent = getAppEvent();
-      if (nullableEvent) {
+      if (!nullableEvent.isNull) {
         AppEvent event = nullableEvent.get();
         Controller.HandleResult result = activeController.handleEvent(event);
-        if (result.result == Controller.HandleResult.Result.quit)
+        currentTimeoutMs = result.timeoutMs;
+        if (result.result == Controller.HandleResult.Result.quit) {
           break;
+        }
+        if (result.result == Controller.HandleResult.Result.updateView) {
+          activeController.updateView();
+        }
+      } else if (res == 0 && currentTimeoutMs >= 0) {
+        activeController.updateView();
+      }
+
+      if (hasPendingAppEvents()) {
+        synchronized (this) {
+          wakeSent = true;
+        }
+        yguilib_sdl3_send_wake_event();
       }
     }
   }
@@ -69,31 +100,58 @@ class UiSystem {
     return null;
   }
 
-
-  // TODO implement
   void sendAppEvent(AppEvent ev) {
-    // TODO thread-safe add to messageBus
-    // TODO also should send wake sdl event if it's not sent already
+    bool needWake = false;
+    synchronized (this) {
+      messageBus ~= ev;
+      if (!wakeSent) {
+        wakeSent = true;
+        needWake = true;
+      }
+    }
+    if (needWake) {
+      yguilib_sdl3_send_wake_event();
+    }
   }
 
   Nullable!AppEvent getAppEvent() {
-    // TODO pull event from messageBus
-    auto event = AppEvent(AppEvent.Kind.appQuit);
-    return Nullable!AppEvent(event);
+    synchronized (this) {
+      if (messageBus.length == 0) {
+        wakeSent = false;
+        return Nullable!AppEvent.init;
+      }
+      auto ev = messageBus[0];
+      messageBus = messageBus[1..$];
+      if (messageBus.length == 0) {
+        messageBus = null;
+        wakeSent = false;
+      }
+      return Nullable!AppEvent(ev);
+    }
+  }
+
+  bool hasPendingAppEvents() {
+    synchronized (this) {
+      return messageBus.length > 0;
+    }
   }
 
 private:
-  // TODO here should accept an event type from clibs.sdl3
-  AppEvent appEventFromSdlEvent() {
-    // TODO
-    return AppEvent();
+  Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
+    if (sdlEv.type == yguilib_sdl3_EventType.quit) {
+      return Nullable!AppEvent(AppEvent(AppEvent.Kind.appQuit));
+    }
+    if (sdlEv.type == yguilib_sdl3_EventType.windowClose) {
+      return Nullable!AppEvent(
+        AppEvent(AppEvent.Kind.windowClose, sdlEv.windowId)
+      );
+    }
+    return Nullable!AppEvent.init;
   }
 
   Controller[] controllersStack;
-  AppEvent messageBus;
-  // TODO controller stack, windows, systems
-  // TODO thread-safe message queue
-
+  AppEvent[] messageBus;
+  bool wakeSent;
 }
 
 class Window {
@@ -108,4 +166,77 @@ class Window {
   string title;
 
   Widget view;
+}
+
+unittest {
+  import core.thread;
+  import core.time;
+
+  class ThreadTestController : DefaultController {
+    const(AppEvent)[] received;
+
+    override HandleResult handleEvent(in AppEvent ev) {
+      received ~= ev;
+      if (ev.kind == AppEvent.Kind.user && ev.eventId == 999) {
+        return HandleResult(HandleResult.Result.quit);
+      }
+      return HandleResult(HandleResult.Result.nothing);
+    }
+  }
+
+  auto ui = new UiSystem;
+  auto ctrl = new ThreadTestController;
+  ui.pushController(ctrl);
+
+  auto worker = new Thread({
+    Thread.sleep(msecs(20));
+    ui.sendAppEvent(AppEvent(AppEvent.Kind.user, 101));
+    ui.sendAppEvent(AppEvent(AppEvent.Kind.user, 102));
+    ui.sendAppEvent(AppEvent(AppEvent.Kind.user, 999));
+  });
+  worker.start();
+
+  ui.mainEventLoop();
+  worker.join();
+
+  assert(ctrl.received.length == 3);
+  assert(ctrl.received[0].kind == AppEvent.Kind.user);
+  assert(ctrl.received[0].eventId == 101);
+  assert(ctrl.received[1].eventId == 102);
+  assert(ctrl.received[2].eventId == 999);
+}
+
+unittest {
+  class TickController : DefaultController {
+    UiSystem ui;
+    int ticks = 0;
+    this(UiSystem ui) {
+      this.ui = ui;
+    }
+
+    override HandleResult handleEvent(in AppEvent ev) {
+      if (ev.kind == AppEvent.Kind.appQuit) {
+        return HandleResult(HandleResult.Result.quit);
+      }
+      HandleResult res;
+      res.result = HandleResult.Result.nothing;
+      res.timeoutMs = 10;
+      return res;
+    }
+
+    override void updateView() {
+      ticks++;
+      if (ticks >= 2) {
+        ui.sendAppEvent(AppEvent(AppEvent.Kind.appQuit));
+      }
+    }
+  }
+
+  auto uiTick = new UiSystem;
+  auto tickCtrl = new TickController(uiTick);
+  uiTick.pushController(tickCtrl);
+  uiTick.sendAppEvent(AppEvent(AppEvent.Kind.user, 1));
+
+  uiTick.mainEventLoop();
+  assert(tickCtrl.ticks >= 2);
 }
