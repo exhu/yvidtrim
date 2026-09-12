@@ -113,6 +113,16 @@ class UiSystem {
               event.eventId == mainWindow.id) {
             mainWindow.onResize(event.width, event.height);
           }
+        } else if (event.kind == AppEvent.Kind.windowExposed &&
+                   mainWindow !is null) {
+          if (event.eventId == 0 || mainWindow.id == 0 ||
+              event.eventId == mainWindow.id) {
+            if (event.width > 0 && event.height > 0 &&
+                (event.width != mainWindow.width ||
+                 event.height != mainWindow.height)) {
+              mainWindow.onResize(event.width, event.height);
+            }
+          }
         }
         Controller.HandleResult result = activeController.handleEvent(event);
         currentTimeoutMs = result.timeoutMs;
@@ -204,6 +214,16 @@ private:
       return Nullable!AppEvent(
         AppEvent(
           AppEvent.Kind.windowResized,
+          sdlEv.windowId,
+          sdlEv.width,
+          sdlEv.height
+        )
+      );
+    }
+    if (sdlEv.type == yguilib_sdl3_EventType.windowExposed) {
+      return Nullable!AppEvent(
+        AppEvent(
+          AppEvent.Kind.windowExposed,
           sdlEv.windowId,
           sdlEv.width,
           sdlEv.height
@@ -337,6 +357,40 @@ unittest {
   assert(window.renderer !is null);
   assert(window.renderer.getViewportWidth() == 640);
   assert(window.renderer.getViewportHeight() == 480);
+  assert(ctrl.updateCount >= 1);
+}
+
+unittest {
+  class ExposeTestController : DefaultController {
+    const(AppEvent)[] received;
+    int updateCount = 0;
+
+    override HandleResult handleEvent(in AppEvent ev) {
+      received ~= ev;
+      if (ev.kind == AppEvent.Kind.user && ev.eventId == 999) {
+        return HandleResult(HandleResult.Result.quit);
+      }
+      return super.handleEvent(ev);
+    }
+
+    override void updateView() {
+      updateCount++;
+    }
+  }
+
+  auto window = new Window(320, 240, "test_expose_window");
+  auto ui = new UiSystem(window);
+  auto ctrl = new ExposeTestController();
+  ui.pushController(ctrl);
+
+  ui.sendAppEvent(AppEvent(AppEvent.Kind.windowExposed, 0, 320, 240));
+  ui.sendAppEvent(AppEvent(AppEvent.Kind.user, 999));
+
+  ui.mainEventLoop();
+
+  assert(ctrl.received.length == 2);
+  assert(ctrl.received[0].kind == AppEvent.Kind.windowExposed);
+  assert(ctrl.received[1].kind == AppEvent.Kind.user);
   assert(ctrl.updateCount >= 1);
 }
 

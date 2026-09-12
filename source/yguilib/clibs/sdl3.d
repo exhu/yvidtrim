@@ -6,6 +6,7 @@ enum yguilib_sdl3_EventType : int {
   quit,
   windowClose,
   windowResized,
+  windowExposed,
   wake,
   unknown,
 }

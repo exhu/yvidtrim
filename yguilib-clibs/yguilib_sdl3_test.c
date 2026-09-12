@@ -7,6 +7,7 @@ int main(void) {
 
   int init_res = yguilib_sdl3_init();
   assert(init_res == 0);
+  assert(YGUILIB_SDL3_EVENT_WINDOW_EXPOSED > 0);
 
   uint32_t wake_type = yguilib_sdl3_register_wake_event();
   assert(wake_type > 0);

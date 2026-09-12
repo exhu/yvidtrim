@@ -30,6 +30,19 @@ static int convert_sdl_event(const SDL_Event *src, yguilib_sdl3_Event *dst) {
       dst->type = YGUILIB_SDL3_EVENT_WINDOW_CLOSE;
       dst->window_id = src->window.windowID;
       return 1;
+    case SDL_EVENT_WINDOW_EXPOSED: {
+      dst->type = YGUILIB_SDL3_EVENT_WINDOW_EXPOSED;
+      dst->window_id = src->window.windowID;
+      int pw = 0;
+      int ph = 0;
+      SDL_Window *win = SDL_GetWindowFromID(src->window.windowID);
+      if (win) {
+        SDL_GetWindowSizeInPixels(win, &pw, &ph);
+      }
+      dst->width = pw;
+      dst->height = ph;
+      return 1;
+    }
     case SDL_EVENT_WINDOW_RESIZED:
     case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: {
       dst->type = YGUILIB_SDL3_EVENT_WINDOW_RESIZED;

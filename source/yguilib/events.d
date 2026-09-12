@@ -8,6 +8,7 @@ struct AppEvent {
     view,
     windowClose,
     windowResized,
+    windowExposed,
     appQuit,
   }
 

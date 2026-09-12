@@ -31,10 +31,11 @@ class DefaultController : Controller {
   override HandleResult handleEvent(in AppEvent ev) {
     if (ev.kind == AppEvent.Kind.windowClose ||
         ev.kind == AppEvent.Kind.appQuit)
-      return HandleResult(HandleResult.result.quit);
-    if (ev.kind == AppEvent.Kind.windowResized)
+      return HandleResult(HandleResult.Result.quit);
+    if (ev.kind == AppEvent.Kind.windowResized ||
+        ev.kind == AppEvent.Kind.windowExposed)
       return HandleResult(HandleResult.Result.updateView);
-    return HandleResult(HandleResult.result.nothing);
+    return HandleResult(HandleResult.Result.nothing);
   }
   override void updateView() {
   }
