@@ -8,6 +8,9 @@ import yguilib.clibs.sdl3;
 import std.typecons;
 
 class UiSystem {
+  this(Window w) {
+    mainWindow = w;
+  }
 
   void pushController(Controller c) {
     controllersStack ~= c;
@@ -152,6 +155,7 @@ private:
   Controller[] controllersStack;
   AppEvent[] messageBus;
   bool wakeSent;
+  Window mainWindow;
 }
 
 class Window {
@@ -184,7 +188,8 @@ unittest {
     }
   }
 
-  auto ui = new UiSystem;
+  auto window = new Window(100,100,"aaa");
+  auto ui = new UiSystem(window);
   auto ctrl = new ThreadTestController;
   ui.pushController(ctrl);
 
@@ -232,7 +237,8 @@ unittest {
     }
   }
 
-  auto uiTick = new UiSystem;
+  auto window = new Window(100,100,"aaa");
+  auto uiTick = new UiSystem(window);
   auto tickCtrl = new TickController(uiTick);
   uiTick.pushController(tickCtrl);
   uiTick.sendAppEvent(AppEvent(AppEvent.Kind.user, 1));

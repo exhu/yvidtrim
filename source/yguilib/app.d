@@ -6,6 +6,9 @@ import yguilib.uisystem;
 import yguilib.controller;
 
 class App {
+  this(Window w) {
+    ui = new UiSystem(w);
+  }
   /// entry point
   void run(Controller mainController) {
     ui.pushController(mainController);
@@ -13,7 +16,7 @@ class App {
     ui.popController();
   }
 
-  UiSystem ui = new UiSystem;
+  UiSystem ui;
 }
 
 version(none) {
