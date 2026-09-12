@@ -3,6 +3,8 @@ import yguilib.widget;
 import yguilib.events;
 import yguilib.controller;
 
+import std.typecons.nullable;
+
 class UiSystem {
 
   void pushController(Controller c) {
@@ -41,7 +43,6 @@ class UiSystem {
 
   void mainEventLoop() {
     while(auto activeController = getActiveControllerOrNull()) {
-      AppEvent event;
       // TODO replace with sdl wait event loop
       // which converts sdl events to supported app events
       // via appEventFromSdlEvent()
@@ -50,10 +51,13 @@ class UiSystem {
       // passes to activeController.handleEvent
       // if there are move events in the messageBus then
       // send custom sdl wake event to resume from the wait loop later
-      event.kind = AppEvent.Kind.appQuit;
-      Controller.HandleResult result = activeController.handleEvent(event);
-      if (result.result == Controller.HandleResult.Result.quit)
-        break;
+
+      Nullable!AppEvent event = getAppEvent();
+      if (event) {
+        Controller.HandleResult result = activeController.handleEvent(event);
+        if (result.result == Controller.HandleResult.Result.quit)
+          break;
+      }
     }
   }
 
@@ -69,6 +73,11 @@ class UiSystem {
   void sendAppEvent(AppEvent ev) {
     // TODO thread-safe add to messageBus
     // TODO also should send wake sdl event if it's not sent already
+  }
+
+  Nullable!AppEvent getAppEvent() {
+    // TODO pull event from messageBus
+    return AppEvent(AppEvent.Kind.appQuit);
   }
 
 private:
