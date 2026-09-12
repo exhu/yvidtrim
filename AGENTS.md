@@ -159,3 +159,4 @@ All code in this repository adheres to `.editorconfig` and `codestyle.md`.
   SDL3 (via `yguilib-clibs`). Sources in `./source/yguilib/` and
   `./yguilib-clibs/` must not depend on code from `./source/yvidtrim/` or
   `./yvidtrim-clibs/`.
+- Calls to opengl es only in D code via ./source/glad2/gles2.d
