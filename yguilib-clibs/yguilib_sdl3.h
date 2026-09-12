@@ -67,6 +67,89 @@ int yguilib_sdl3_wait_event(yguilib_sdl3_Event *event, int timeout_ms);
  */
 int yguilib_sdl3_poll_event(yguilib_sdl3_Event *event);
 
+typedef struct yguilib_sdl3_Window yguilib_sdl3_Window;
+typedef struct yguilib_sdl3_GLContext yguilib_sdl3_GLContext;
+
+/**
+ * Creates an SDL window configured for OpenGL ES 3.0.
+ *
+ * Sets SDL OpenGL attributes for OpenGL ES 3.0 and creates the window
+ * with the SDL_WINDOW_OPENGL flag.
+ *
+ * @param title Window title (UTF-8).
+ * @param w Window width in pixels.
+ * @param h Window height in pixels.
+ * @return Pointer to yguilib_sdl3_Window on success, or NULL on failure.
+ */
+yguilib_sdl3_Window *yguilib_sdl3_create_window(
+  const char *title,
+  int w,
+  int h
+);
+
+/**
+ * Destroys an SDL window created by yguilib_sdl3_create_window.
+ *
+ * @param window Pointer to the window handle to destroy.
+ */
+void yguilib_sdl3_destroy_window(yguilib_sdl3_Window *window);
+
+/**
+ * Gets the SDL window ID for the given window.
+ *
+ * @param window Pointer to the window handle.
+ * @return Window ID, or 0 on error.
+ */
+uint32_t yguilib_sdl3_get_window_id(const yguilib_sdl3_Window *window);
+
+/**
+ * Creates an OpenGL ES 3.0 context for the given window.
+ *
+ * @param window Pointer to the window handle.
+ * @return Pointer to yguilib_sdl3_GLContext on success, or NULL on failure.
+ */
+yguilib_sdl3_GLContext *yguilib_sdl3_gl_create_context(
+  yguilib_sdl3_Window *window
+);
+
+/**
+ * Destroys an OpenGL context created by yguilib_sdl3_gl_create_context.
+ *
+ * @param context Pointer to the context handle to destroy.
+ */
+void yguilib_sdl3_gl_destroy_context(yguilib_sdl3_GLContext *context);
+
+/**
+ * Makes the specified OpenGL context current on the given window.
+ *
+ * @param window Pointer to the window handle.
+ * @param context Pointer to the GL context handle.
+ * @return 0 on success, or -1 on failure.
+ */
+int yguilib_sdl3_gl_make_current(
+  yguilib_sdl3_Window *window,
+  yguilib_sdl3_GLContext *context
+);
+
+/**
+ * Swaps the OpenGL display buffers for the specified window.
+ *
+ * @param window Pointer to the window handle.
+ * @return 0 on success, or -1 on failure.
+ */
+int yguilib_sdl3_gl_swap_window(yguilib_sdl3_Window *window);
+
+/**
+ * Clears the active OpenGL color buffer with the given RGBA values.
+ *
+ * @param r Red component [0.0, 1.0].
+ * @param g Green component [0.0, 1.0].
+ * @param b Blue component [0.0, 1.0].
+ * @param a Alpha component [0.0, 1.0].
+ * @return 0 on success, or -1 on failure.
+ */
+int yguilib_sdl3_gl_clear(float r, float g, float b, float a);
+
 int yguilib_sdl3_hello(void);
 
 #ifdef __cplusplus

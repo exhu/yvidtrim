@@ -1,6 +1,15 @@
 #include "yguilib_sdl3.h"
 
 #include <SDL3/SDL.h>
+#include <stdlib.h>
+
+struct yguilib_sdl3_Window {
+  SDL_Window *handle;
+};
+
+struct yguilib_sdl3_GLContext {
+  SDL_GLContext handle;
+};
 
 static int g_sdl_initialized = 0;
 static uint32_t g_wake_event_type = 0;
@@ -104,3 +113,112 @@ int yguilib_sdl3_poll_event(yguilib_sdl3_Event *event) {
 int yguilib_sdl3_hello(void) {
   return 0;
 }
+
+yguilib_sdl3_Window *yguilib_sdl3_create_window(
+  const char *title,
+  int w,
+  int h
+) {
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+
+  SDL_Window *sdl_win = SDL_CreateWindow(title, w, h, SDL_WINDOW_OPENGL);
+  if (!sdl_win) {
+    return NULL;
+  }
+  SDL_ShowWindow(sdl_win);
+  SDL_SyncWindow(sdl_win);
+  yguilib_sdl3_Window *win =
+    (yguilib_sdl3_Window *)malloc(sizeof(yguilib_sdl3_Window));
+  if (!win) {
+    SDL_DestroyWindow(sdl_win);
+    return NULL;
+  }
+  win->handle = sdl_win;
+  return win;
+}
+
+void yguilib_sdl3_destroy_window(yguilib_sdl3_Window *window) {
+  if (window) {
+    if (window->handle) {
+      SDL_DestroyWindow(window->handle);
+    }
+    free(window);
+  }
+}
+
+uint32_t yguilib_sdl3_get_window_id(const yguilib_sdl3_Window *window) {
+  if (!window || !window->handle) {
+    return 0;
+  }
+  return SDL_GetWindowID(window->handle);
+}
+
+yguilib_sdl3_GLContext *yguilib_sdl3_gl_create_context(
+  yguilib_sdl3_Window *window
+) {
+  if (!window || !window->handle) {
+    return NULL;
+  }
+  SDL_GLContext sdl_ctx = SDL_GL_CreateContext(window->handle);
+  if (!sdl_ctx) {
+    return NULL;
+  }
+  yguilib_sdl3_GLContext *ctx =
+    (yguilib_sdl3_GLContext *)malloc(sizeof(yguilib_sdl3_GLContext));
+  if (!ctx) {
+    SDL_GL_DestroyContext(sdl_ctx);
+    return NULL;
+  }
+  ctx->handle = sdl_ctx;
+  return ctx;
+}
+
+void yguilib_sdl3_gl_destroy_context(yguilib_sdl3_GLContext *context) {
+  if (context) {
+    if (context->handle) {
+      SDL_GL_DestroyContext(context->handle);
+    }
+    free(context);
+  }
+}
+
+int yguilib_sdl3_gl_make_current(
+  yguilib_sdl3_Window *window,
+  yguilib_sdl3_GLContext *context
+) {
+  if (!window || !window->handle || !context || !context->handle) {
+    return -1;
+  }
+  return SDL_GL_MakeCurrent(window->handle, context->handle) ? 0 : -1;
+}
+
+int yguilib_sdl3_gl_swap_window(yguilib_sdl3_Window *window) {
+  if (!window || !window->handle) {
+    return -1;
+  }
+  return SDL_GL_SwapWindow(window->handle) ? 0 : -1;
+}
+
+int yguilib_sdl3_gl_clear(float r, float g, float b, float a) {
+  typedef void (*PFNGLCLEARCOLORPROC)(float, float, float, float);
+  typedef void (*PFNGLCLEARPROC)(uint32_t);
+  static PFNGLCLEARCOLORPROC gl_clear_color = NULL;
+  static PFNGLCLEARPROC gl_clear = NULL;
+
+  if (!gl_clear_color) {
+    gl_clear_color =
+      (PFNGLCLEARCOLORPROC)SDL_GL_GetProcAddress("glClearColor");
+  }
+  if (!gl_clear) {
+    gl_clear = (PFNGLCLEARPROC)SDL_GL_GetProcAddress("glClear");
+  }
+  if (!gl_clear_color || !gl_clear) {
+    return -1;
+  }
+  gl_clear_color(r, g, b, a);
+  gl_clear(0x00004000 /* GL_COLOR_BUFFER_BIT */);
+  return 0;
+}
+

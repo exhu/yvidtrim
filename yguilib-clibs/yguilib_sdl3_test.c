@@ -1,5 +1,6 @@
 #include "yguilib_sdl3.h"
 #include <assert.h>
+#include <stddef.h>
 
 int main(void) {
   assert(yguilib_sdl3_hello() == 0);
@@ -25,6 +26,25 @@ int main(void) {
   int timeout_res = yguilib_sdl3_wait_event(&ev, 10);
   assert(timeout_res == 0);
   assert(ev.type == YGUILIB_SDL3_EVENT_NONE);
+
+  yguilib_sdl3_Window *win =
+    yguilib_sdl3_create_window("test_window", 320, 240);
+  assert(win != NULL);
+
+  uint32_t wid = yguilib_sdl3_get_window_id(win);
+  assert(wid > 0);
+
+  yguilib_sdl3_GLContext *ctx = yguilib_sdl3_gl_create_context(win);
+  assert(ctx != NULL);
+
+  int make_curr_res = yguilib_sdl3_gl_make_current(win, ctx);
+  assert(make_curr_res == 0);
+
+  int swap_res = yguilib_sdl3_gl_swap_window(win);
+  assert(swap_res == 0);
+
+  yguilib_sdl3_gl_destroy_context(ctx);
+  yguilib_sdl3_destroy_window(win);
 
   yguilib_sdl3_quit();
   return 0;
