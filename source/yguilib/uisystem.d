@@ -3,7 +3,7 @@ import yguilib.widget;
 import yguilib.events;
 import yguilib.controller;
 
-import std.typecons.nullable;
+import std.typecons;
 
 class UiSystem {
 
@@ -52,8 +52,9 @@ class UiSystem {
       // if there are move events in the messageBus then
       // send custom sdl wake event to resume from the wait loop later
 
-      Nullable!AppEvent event = getAppEvent();
-      if (event) {
+      Nullable!AppEvent nullableEvent = getAppEvent();
+      if (nullableEvent) {
+        AppEvent event = nullableEvent.get();
         Controller.HandleResult result = activeController.handleEvent(event);
         if (result.result == Controller.HandleResult.Result.quit)
           break;
@@ -77,7 +78,8 @@ class UiSystem {
 
   Nullable!AppEvent getAppEvent() {
     // TODO pull event from messageBus
-    return AppEvent(AppEvent.Kind.appQuit);
+    auto event = AppEvent(AppEvent.Kind.appQuit);
+    return Nullable!AppEvent(event);
   }
 
 private:
