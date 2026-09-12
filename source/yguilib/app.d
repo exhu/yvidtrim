@@ -6,14 +6,14 @@ import yguilib.uisystem;
 import yguilib.controller;
 
 class App {
-  // TODO controller stack, windows, systems
-
   /// entry point
   void run(Controller mainController) {
-
+    ui.pushController(mainController);
+    ui.mainEventLoop();
+    ui.popController();
   }
 
-  UiSystem ui;
+  UiSystem ui = new UiSystem;
 }
 
 version(none) {

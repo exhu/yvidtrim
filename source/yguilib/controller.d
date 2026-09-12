@@ -10,7 +10,7 @@ interface Controller {
       /// do not consume, but still force updateView
       updateView,
     }
-    Result result;
+    Result result = Result.nothing;
 
     /// wait for the next event no longer than (<0 = forever)
     /// useful in case of active video playback
@@ -18,11 +18,31 @@ interface Controller {
   }
 
   /// handleEvent may be called more than once before updateView
-  HandleResult handleEvent(AppEvent ev);
+  HandleResult handleEvent(in AppEvent ev);
   /// called once, and then uisystem is called to recheck models and update
   void updateView();
   void onPush();
   void onPop();
   void onSuspendByModal();
   void onResumeByModal();
+}
+
+class DefaultController : Controller {
+  override HandleResult handleEvent(in AppEvent ev) {
+    if (ev.kind == AppEvent.Kind.windowClose ||
+        ev.kind == AppEvent.Kind.appQuit)
+      return HandleResult(HandleResult.result.quit);
+    return HandleResult(HandleResult.result.nothing);
+  }
+  override void updateView() {
+  }
+  override void onPush() {
+  }
+  override void onPop() {
+  }
+  override void onSuspendByModal() {
+  }
+  override void onResumeByModal() {
+  }
+
 }
