@@ -8,6 +8,9 @@ abstract class Component {
 }
 
 class Background : Component {
+  this(ColorF color) {
+    this.color = color;
+  }
   ColorF color;
 }
 
@@ -51,6 +54,7 @@ abstract class View : Component {
 }
 
 struct WidgetComponents {
+  Background background;
   View view;
   InputEnabled inputEnabled;
   Focus focus;
@@ -58,8 +62,14 @@ struct WidgetComponents {
 }
 
 class Widget {
+  this(Widget parent, RectF rect) {
+    this.parent = parent;
+    this.rect = rect;
+  }
+
+  Widget parent;
   RectF rect;
   WidgetComponents components;
   bool handleInput;
-  bool visible;
+  bool visible = true;
 }

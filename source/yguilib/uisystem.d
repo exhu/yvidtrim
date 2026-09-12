@@ -5,6 +5,7 @@ import yguilib.events;
 import yguilib.controller;
 import yguilib.clibs.sdl3;
 import glad2.gles2;
+import yguilib.render;
 
 import std.typecons;
 
@@ -49,6 +50,15 @@ class UiSystem {
     // TODO
   }
 
+  private void drawUi() {
+    // TODO render hierarchy
+    if (mainWindow.view) {
+      if (mainWindow.view.components.background) {
+        mainWindow.renderer.drawFillRect(mainWindow.view.rect, mainWindow.view.components.background.color);
+      }
+    }
+  }
+
   void mainEventLoop() {
     yguilib_sdl3_init();
     scope(exit) yguilib_sdl3_quit();
@@ -66,6 +76,7 @@ class UiSystem {
     if (initialController !is null) {
       initialController.updateView();
       if (mainWindow !is null) {
+        drawUi();
         mainWindow.swapBuffers();
       }
     }
@@ -101,12 +112,14 @@ class UiSystem {
         if (result.result == Controller.HandleResult.Result.updateView) {
           activeController.updateView();
           if (mainWindow !is null) {
+            drawUi();
             mainWindow.swapBuffers();
           }
         }
       } else if (res == 0 && currentTimeoutMs >= 0) {
         activeController.updateView();
         if (mainWindow !is null) {
+          drawUi();
           mainWindow.swapBuffers();
         }
       }
@@ -230,6 +243,8 @@ class Window {
     }
     clear();
     swapBuffers();
+
+    renderer = new Renderer(w, h);
   }
 
   void clear(
@@ -271,6 +286,9 @@ class Window {
   ~this() {
     destroy();
   }
+
+private:
+  Renderer renderer;
 }
 
 unittest {
