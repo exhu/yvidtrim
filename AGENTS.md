@@ -109,3 +109,4 @@ All code in this repository adheres to `.editorconfig` and `codestyle.md`.
 - **Verify Changes**: Always run `ninja -C _build` and `meson test -C _build` to verify compilation and test passes after modifying code.
 - **Preserve Documentation**: Retain all existing docstrings, comments, and licenses unless explicitly instructed otherwise.
 - **Enforce Opaque Boundaries**: Never bypass the `yvidtrim-clibs` wrapper layer to directly invoke external C/C++ APIs from D.
+- ./source/yguilib is an independet gui library, it must not depend on code from ./source/yvidtrim/
