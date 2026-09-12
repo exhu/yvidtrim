@@ -1,15 +1,23 @@
+/** see ./documentation/gui-overview.adoc
+
+ */
 module yvidtrim.yguilib.app;
+
+
 
 struct AppEvent {
   enum Kind {
+    /// user defined global events
     user,
+    /// events that are produced by uisystem controls
+    ui,
     windowClose,
     appQuit,
   }
 
   Kind kind;
-  int userEvent;
-  Object userData;
+  uint eventId;
+  Object data;
 }
 
 class Widget {
@@ -40,8 +48,10 @@ interface Controller {
   /// handleEvent may be called more than once before updateView
   HandleResult handleEvent(AppEvent ev);
   void updateView();
-  void onEnter();
-  void onLeave();
+  void onPush();
+  void onPop();
+  void onSuspendByModal();
+  void onResumeByModal();
 }
 
 class App {
@@ -55,13 +65,32 @@ class App {
   UiSystem ui;
 }
 
-class UiView {
-  Widget root; // = Window.contents
+class ViewModel {
+    // TODO
+}
 
-  void update();
+/// widgets can have this component to mark a root view
+class UiEmbeddedController {
+  ViewModel[string] params;
+  /// exported events, if values are not null/empty then the event is exported
+  /// under a new name up the tree
+  string[string] events;
+  // TODO
 }
 
 class UiSystem {
+
+  void pushController(Controller c) {
+    // TODO
+  }
+
+  void pushModalController(Controller c) {
+    // TODO
+  }
+
+  void popController() {
+    // TODO
+  }
 
 
 }
