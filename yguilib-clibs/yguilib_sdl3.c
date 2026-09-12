@@ -56,7 +56,6 @@ int yguilib_sdl3_init(void) {
       SDL_Quit();
       return -1;
     }
-    gladLoadGLES2((GLADloadfunc)SDL_GL_GetProcAddress);
     g_sdl_initialized = 1;
   }
   return 0;
@@ -194,11 +193,7 @@ int yguilib_sdl3_gl_make_current(
   if (!window || !window->handle || !context || !context->handle) {
     return -1;
   }
-  if (!SDL_GL_MakeCurrent(window->handle, context->handle)) {
-    return -1;
-  }
-  gladLoadGLES2((GLADloadfunc)SDL_GL_GetProcAddress);
-  return 0;
+  return SDL_GL_MakeCurrent(window->handle, context->handle) ? 0 : -1;
 }
 
 int yguilib_sdl3_gl_swap_window(yguilib_sdl3_Window *window) {
@@ -209,11 +204,6 @@ int yguilib_sdl3_gl_swap_window(yguilib_sdl3_Window *window) {
 }
 
 int yguilib_sdl3_gl_clear(float r, float g, float b, float a) {
-  if (!glad_glClearColor || !glad_glClear) {
-    if (!gladLoadGLES2((GLADloadfunc)SDL_GL_GetProcAddress)) {
-      return -1;
-    }
-  }
   glClearColor(r, g, b, a);
   glClear(GL_COLOR_BUFFER_BIT);
   return 0;
