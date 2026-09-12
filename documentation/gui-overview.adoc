@@ -32,6 +32,9 @@ maintain layout, may contain other widgets and thus build a tree. Widgets that
 produce or consume events are also called controls. Invisible and disabled
 widgets do not participate in events handling.
 
+A widget is a simple tree node, an entity in an ECS with additional features
+added as components, e.g. layout, background, text, input components.
+
 A *view* is a widget that manages a subtree that accepts model instances,
 filters or propagates controls' events, and is implemented by the UI subsystem.
 
