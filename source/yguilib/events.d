@@ -1,4 +1,5 @@
 module yguilib.events;
+
 struct AppEvent {
   enum Kind {
     /// user defined global events
@@ -6,10 +7,28 @@ struct AppEvent {
     /// events that are produced by uisystem controls
     view,
     windowClose,
+    windowResized,
     appQuit,
   }
 
   Kind kind;
-  uint eventId;
-  Object data;
+  uint eventId = 0;
+  int width = 0;
+  int height = 0;
+  Object data = null;
+
+  this(
+    Kind kind,
+    uint eventId = 0,
+    int width = 0,
+    int height = 0,
+    Object data = null
+  ) {
+    this.kind = kind;
+    this.eventId = eventId;
+    this.width = width;
+    this.height = height;
+    this.data = data;
+  }
 }
+

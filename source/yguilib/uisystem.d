@@ -53,9 +53,12 @@ class UiSystem {
 
   private void drawUi() {
     // TODO render hierarchy
-    if (mainWindow.view) {
-      if (mainWindow.view.components.background) {
-        mainWindow.renderer.drawFillRect(mainWindow.view.rect, mainWindow.view.components.background.color);
+    if (mainWindow !is null && mainWindow.view !is null) {
+      if (mainWindow.view.components.background !is null) {
+        mainWindow.renderer.drawFillRect(
+          mainWindow.view.rect,
+          mainWindow.view.components.background.color
+        );
       }
     }
   }
@@ -105,6 +108,12 @@ class UiSystem {
       Nullable!AppEvent nullableEvent = getAppEvent();
       if (!nullableEvent.isNull) {
         AppEvent event = nullableEvent.get();
+        if (event.kind == AppEvent.Kind.windowResized && mainWindow !is null) {
+          if (event.eventId == 0 || mainWindow.id == 0 ||
+              event.eventId == mainWindow.id) {
+            mainWindow.onResize(event.width, event.height);
+          }
+        }
         Controller.HandleResult result = activeController.handleEvent(event);
         currentTimeoutMs = result.timeoutMs;
         if (result.result == Controller.HandleResult.Result.quit) {
@@ -191,6 +200,16 @@ private:
         AppEvent(AppEvent.Kind.windowClose, sdlEv.windowId)
       );
     }
+    if (sdlEv.type == yguilib_sdl3_EventType.windowResized) {
+      return Nullable!AppEvent(
+        AppEvent(
+          AppEvent.Kind.windowResized,
+          sdlEv.windowId,
+          sdlEv.width,
+          sdlEv.height
+        )
+      );
+    }
     return Nullable!AppEvent.init;
   }
 
@@ -265,7 +284,7 @@ unittest {
     }
   }
 
-  auto window = new Window(100,100,"aaa");
+  auto window = new Window(100, 100, "aaa");
   auto uiTick = new UiSystem(window);
   auto tickCtrl = new TickController(uiTick);
   uiTick.pushController(tickCtrl);
@@ -274,3 +293,50 @@ unittest {
   uiTick.mainEventLoop();
   assert(tickCtrl.ticks >= 2);
 }
+
+unittest {
+  class ResizeTestController : DefaultController {
+    const(AppEvent)[] received;
+    int updateCount = 0;
+
+    override HandleResult handleEvent(in AppEvent ev) {
+      received ~= ev;
+      if (ev.kind == AppEvent.Kind.windowResized) {
+        return HandleResult(HandleResult.Result.updateView);
+      }
+      if (ev.kind == AppEvent.Kind.user && ev.eventId == 999) {
+        return HandleResult(HandleResult.Result.quit);
+      }
+      return super.handleEvent(ev);
+    }
+
+    override void updateView() {
+      updateCount++;
+    }
+  }
+
+  auto window = new Window(320, 240, "test_resize_window");
+  auto ui = new UiSystem(window);
+  auto ctrl = new ResizeTestController();
+  ui.pushController(ctrl);
+
+  ui.sendAppEvent(
+    AppEvent(AppEvent.Kind.windowResized, 0, 640, 480)
+  );
+  ui.sendAppEvent(AppEvent(AppEvent.Kind.user, 999));
+
+  ui.mainEventLoop();
+
+  assert(ctrl.received.length == 2);
+  assert(ctrl.received[0].kind == AppEvent.Kind.windowResized);
+  assert(ctrl.received[0].width == 640);
+  assert(ctrl.received[0].height == 480);
+  assert(ctrl.received[1].kind == AppEvent.Kind.user);
+  assert(window.width == 640);
+  assert(window.height == 480);
+  assert(window.renderer !is null);
+  assert(window.renderer.getViewportWidth() == 640);
+  assert(window.renderer.getViewportHeight() == 480);
+  assert(ctrl.updateCount >= 1);
+}
+

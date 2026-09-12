@@ -46,6 +46,19 @@ int main(void) {
   int swap_res = yguilib_sdl3_gl_swap_window(win);
   assert(swap_res == 0);
 
+  int set_size_res = yguilib_sdl3_set_window_size(win, 640, 480);
+  assert(set_size_res == 0);
+
+  int cur_w = 0;
+  int cur_h = 0;
+  int get_size_res = yguilib_sdl3_get_window_size_in_pixels(
+    win,
+    &cur_w,
+    &cur_h
+  );
+  assert(get_size_res == 0);
+  assert(cur_w > 0 && cur_h > 0);
+
   yguilib_sdl3_gl_destroy_context(ctx);
   yguilib_sdl3_destroy_window(win);
 

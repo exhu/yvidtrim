@@ -5,6 +5,7 @@ enum yguilib_sdl3_EventType : int {
   none = 0,
   quit,
   windowClose,
+  windowResized,
   wake,
   unknown,
 }
@@ -12,6 +13,8 @@ enum yguilib_sdl3_EventType : int {
 struct yguilib_sdl3_Event {
   yguilib_sdl3_EventType type;
   uint windowId;
+  int width;
+  int height;
 }
 
 struct yguilib_sdl3_Window;
@@ -40,6 +43,16 @@ extern(C) {
   );
   void yguilib_sdl3_destroy_window(yguilib_sdl3_Window* window);
   uint yguilib_sdl3_get_window_id(const(yguilib_sdl3_Window)* window);
+  int yguilib_sdl3_set_window_size(
+    yguilib_sdl3_Window* window,
+    int width,
+    int height
+  );
+  int yguilib_sdl3_get_window_size_in_pixels(
+    const(yguilib_sdl3_Window)* window,
+    int* width,
+    int* height
+  );
   yguilib_sdl3_GLContext* yguilib_sdl3_gl_create_context(
     yguilib_sdl3_Window* window
   );

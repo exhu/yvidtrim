@@ -32,6 +32,8 @@ class DefaultController : Controller {
     if (ev.kind == AppEvent.Kind.windowClose ||
         ev.kind == AppEvent.Kind.appQuit)
       return HandleResult(HandleResult.result.quit);
+    if (ev.kind == AppEvent.Kind.windowResized)
+      return HandleResult(HandleResult.Result.updateView);
     return HandleResult(HandleResult.result.nothing);
   }
   override void updateView() {

@@ -10,6 +10,7 @@ typedef enum yguilib_sdl3_EventType {
   YGUILIB_SDL3_EVENT_NONE = 0,
   YGUILIB_SDL3_EVENT_QUIT,
   YGUILIB_SDL3_EVENT_WINDOW_CLOSE,
+  YGUILIB_SDL3_EVENT_WINDOW_RESIZED,
   YGUILIB_SDL3_EVENT_WAKE,
   YGUILIB_SDL3_EVENT_UNKNOWN,
 } yguilib_sdl3_EventType;
@@ -17,6 +18,8 @@ typedef enum yguilib_sdl3_EventType {
 typedef struct yguilib_sdl3_Event {
   yguilib_sdl3_EventType type;
   uint32_t window_id;
+  int32_t width;
+  int32_t height;
 } yguilib_sdl3_Event;
 
 /**
@@ -101,6 +104,34 @@ void yguilib_sdl3_destroy_window(yguilib_sdl3_Window *window);
  * @return Window ID, or 0 on error.
  */
 uint32_t yguilib_sdl3_get_window_id(const yguilib_sdl3_Window *window);
+
+/**
+ * Sets the window size in pixels / screen coordinates.
+ *
+ * @param window Pointer to the window handle.
+ * @param width New width.
+ * @param height New height.
+ * @return 0 on success, or -1 on failure.
+ */
+int yguilib_sdl3_set_window_size(
+  yguilib_sdl3_Window *window,
+  int width,
+  int height
+);
+
+/**
+ * Gets the size of the window in pixels.
+ *
+ * @param window Pointer to the window handle.
+ * @param width Pointer to int receiving width.
+ * @param height Pointer to int receiving height.
+ * @return 0 on success, or -1 on failure.
+ */
+int yguilib_sdl3_get_window_size_in_pixels(
+  const yguilib_sdl3_Window *window,
+  int *width,
+  int *height
+);
 
 /**
  * Creates an OpenGL ES 3.0 context for the given window.

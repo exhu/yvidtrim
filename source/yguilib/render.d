@@ -116,8 +116,8 @@ final class Renderer {
   void drawFillRect(RectF rect, ColorF color) {
     float x0 = rect.x;
     float y0 = rect.y;
-    float x1 = rect.x + rect.w;
-    float y1 = rect.y + rect.h;
+    float x1 = rect.x + rect.width;
+    float y1 = rect.y + rect.height;
 
     float[12] vertices = [
       x0, y0,
@@ -143,8 +143,8 @@ final class Renderer {
   void drawRect(RectF rect, ColorF color) {
     float x0 = rect.x;
     float y0 = rect.y;
-    float x1 = rect.x + rect.w;
-    float y1 = rect.y + rect.h;
+    float x1 = rect.x + rect.width;
+    float y1 = rect.y + rect.height;
 
     float[8] vertices = [
       x0, y0,
@@ -228,8 +228,8 @@ private:
   void applyScissor(in RectF rect) {
     float clampedX = max(0.0f, rect.x);
     float clampedY = max(0.0f, rect.y);
-    float clampedRight = min(cast(float)viewportWidth, rect.x + rect.w);
-    float clampedBottom = min(cast(float)viewportHeight, rect.y + rect.h);
+    float clampedRight = min(cast(float)viewportWidth, rect.x + rect.width);
+    float clampedBottom = min(cast(float)viewportHeight, rect.y + rect.height);
 
     float w = clampedRight - clampedX;
     float h = clampedBottom - clampedY;
@@ -252,8 +252,8 @@ private:
   static RectF intersectRects(in RectF a, in RectF b) {
     float x1 = max(a.x, b.x);
     float y1 = max(a.y, b.y);
-    float x2 = min(a.x + a.w, b.x + b.w);
-    float y2 = min(a.y + a.h, b.y + b.h);
+    float x2 = min(a.x + a.width, b.x + b.width);
+    float y2 = min(a.y + a.height, b.y + b.height);
     float w = x2 - x1;
     float h = y2 - y1;
     if (w < 0.0f) {

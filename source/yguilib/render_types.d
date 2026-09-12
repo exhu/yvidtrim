@@ -8,8 +8,8 @@ struct PointF {
 struct RectF {
   float x = 0.0f;
   float y = 0.0f;
-  float w = 1.0f;
-  float h = 1.0f;
+  float width = 1.0f;
+  float height = 1.0f;
 }
 
 struct ColorF {
@@ -29,8 +29,8 @@ unittest {
   RectF r = RectF(5.0f, 6.0f, 100.0f, 200.0f);
   assert(r.x == 5.0f);
   assert(r.y == 6.0f);
-  assert(r.w == 100.0f);
-  assert(r.h == 200.0f);
+  assert(r.width == 100.0f);
+  assert(r.height == 200.0f);
 
   ColorF c = ColorF(0.2f, 0.4f, 0.6f, 0.8f);
   assert(c.r == 0.2f);

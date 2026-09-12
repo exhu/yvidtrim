@@ -16,6 +16,8 @@ static uint32_t g_wake_event_type = 0;
 
 static int convert_sdl_event(const SDL_Event *src, yguilib_sdl3_Event *dst) {
   dst->window_id = 0;
+  dst->width = 0;
+  dst->height = 0;
   if (g_wake_event_type != 0 && src->type == g_wake_event_type) {
     dst->type = YGUILIB_SDL3_EVENT_WAKE;
     return 1;
@@ -28,6 +30,20 @@ static int convert_sdl_event(const SDL_Event *src, yguilib_sdl3_Event *dst) {
       dst->type = YGUILIB_SDL3_EVENT_WINDOW_CLOSE;
       dst->window_id = src->window.windowID;
       return 1;
+    case SDL_EVENT_WINDOW_RESIZED:
+    case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: {
+      dst->type = YGUILIB_SDL3_EVENT_WINDOW_RESIZED;
+      dst->window_id = src->window.windowID;
+      int pw = (int)src->window.data1;
+      int ph = (int)src->window.data2;
+      SDL_Window *win = SDL_GetWindowFromID(src->window.windowID);
+      if (win) {
+        SDL_GetWindowSizeInPixels(win, &pw, &ph);
+      }
+      dst->width = pw;
+      dst->height = ph;
+      return 1;
+    }
     default:
       dst->type = YGUILIB_SDL3_EVENT_UNKNOWN;
       return 1;
@@ -123,7 +139,8 @@ yguilib_sdl3_Window *yguilib_sdl3_create_window(
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
-  SDL_Window *sdl_win = SDL_CreateWindow(title, w, h, SDL_WINDOW_OPENGL);
+  SDL_Window *sdl_win =
+    SDL_CreateWindow(title, w, h, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
   if (!sdl_win) {
     return NULL;
   }
@@ -153,6 +170,28 @@ uint32_t yguilib_sdl3_get_window_id(const yguilib_sdl3_Window *window) {
     return 0;
   }
   return SDL_GetWindowID(window->handle);
+}
+
+int yguilib_sdl3_set_window_size(
+  yguilib_sdl3_Window *window,
+  int width,
+  int height
+) {
+  if (!window || !window->handle) {
+    return -1;
+  }
+  return SDL_SetWindowSize(window->handle, width, height) ? 0 : -1;
+}
+
+int yguilib_sdl3_get_window_size_in_pixels(
+  const yguilib_sdl3_Window *window,
+  int *width,
+  int *height
+) {
+  if (!window || !window->handle || !width || !height) {
+    return -1;
+  }
+  return SDL_GetWindowSizeInPixels(window->handle, width, height) ? 0 : -1;
 }
 
 yguilib_sdl3_GLContext *yguilib_sdl3_gl_create_context(

@@ -5,14 +5,14 @@ import yguilib.render;
 import yguilib.widget;
 
 class Window {
-  this(int w, int h, string title) {
-    this.w = w;
-    this.h = h;
+  this(int width, int height, string title) {
+    this.width = width;
+    this.height = height;
     this.title = title;
   }
 
-  int w;
-  int h;
+  int width;
+  int height;
   string title;
 
   Widget view;
@@ -27,7 +27,7 @@ class Window {
     }
     import std.string : toStringz;
 
-    handle = yguilib_sdl3_create_window(title.toStringz, w, h);
+    handle = yguilib_sdl3_create_window(title.toStringz, width, height);
     if (handle is null) {
       throw new Exception("Failed to create SDL window: " ~ title);
     }
@@ -49,7 +49,25 @@ class Window {
     clear();
     swapBuffers();
 
-    renderer = new Renderer(w, h);
+    renderer = new Renderer(width, height);
+  }
+
+  void onResize(int newWidth, int newHeight) {
+    this.width = newWidth;
+    this.height = newHeight;
+    if (renderer !is null) {
+      renderer.setViewport(newWidth, newHeight);
+    }
+    if (view !is null) {
+      view.rect = RectF(0, 0, cast(float)newWidth, cast(float)newHeight);
+    }
+  }
+
+  void setSize(int newWidth, int newHeight) {
+    if (handle !is null) {
+      yguilib_sdl3_set_window_size(handle, newWidth, newHeight);
+    }
+    onResize(newWidth, newHeight);
   }
 
   void clear(
@@ -95,14 +113,13 @@ class Window {
   Renderer renderer;
 }
 
-
 unittest {
   yguilib_sdl3_init();
   scope(exit) yguilib_sdl3_quit();
 
   auto window = new Window(320, 240, "test_gl_window");
-  assert(window.w == 320);
-  assert(window.h == 240);
+  assert(window.width == 320);
+  assert(window.height == 240);
   assert(window.title == "test_gl_window");
   assert(window.handle is null);
 
@@ -112,6 +129,15 @@ unittest {
   assert(window.handle !is null);
   assert(window.glContext !is null);
   assert(window.id > 0);
+  assert(window.renderer !is null);
+  assert(window.renderer.getViewportWidth() == 320);
+  assert(window.renderer.getViewportHeight() == 240);
+
+  window.onResize(640, 480);
+  assert(window.width == 640);
+  assert(window.height == 480);
+  assert(window.renderer.getViewportWidth() == 640);
+  assert(window.renderer.getViewportHeight() == 480);
 
   window.makeCurrent();
   window.swapBuffers();
