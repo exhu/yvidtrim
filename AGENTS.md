@@ -43,7 +43,7 @@ directly imports external C headers into D.
   For each wrapper library, matching `extern(C)` declarations are placed in
   `source/<proj>/clibs/<libname>.d`.
 - **OpenGL ES Loader (`glad2gles31/`)**: OpenGL ES 3.1 functions are used via
-  `glad2gles31`.
+  `glad2gles31`, D bindings for it are in ./source/glad2/ .
 
 ### Naming Conventions for Wrappers
 | Component | Convention | Example |
