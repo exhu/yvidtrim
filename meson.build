@@ -7,6 +7,7 @@ project(
 )
 
 subdir('yvidtrim-clibs')
+subdir('glad2gles31')
 subdir('yguilib-clibs')
 
 src = [
@@ -23,7 +24,7 @@ src = [
 
 executable('yvidtrim',
            src,
-           link_with: [yvidtrim_sdl3_lib, yguilib_sdl3_lib],
+           link_with: [yvidtrim_sdl3_lib, yguilib_sdl3_lib, glad_lib],
            include_directories: ['source'])
 
 yguilib_test_src = [
@@ -41,7 +42,7 @@ yguilib_test_exe = executable(
   'yguilib_test',
   yguilib_test_src,
   d_unittest: true,
-  link_with: [yguilib_sdl3_lib],
+  link_with: [yguilib_sdl3_lib, glad_lib],
   include_directories: ['source'],
 )
 test('yguilib_test', yguilib_test_exe)

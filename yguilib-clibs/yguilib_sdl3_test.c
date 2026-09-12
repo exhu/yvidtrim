@@ -40,6 +40,9 @@ int main(void) {
   int make_curr_res = yguilib_sdl3_gl_make_current(win, ctx);
   assert(make_curr_res == 0);
 
+  int clear_res = yguilib_sdl3_gl_clear(0.2f, 0.3f, 0.4f, 1.0f);
+  assert(clear_res == 0);
+
   int swap_res = yguilib_sdl3_gl_swap_window(win);
   assert(swap_res == 0);
 

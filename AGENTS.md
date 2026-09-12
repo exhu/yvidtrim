@@ -42,6 +42,8 @@ directly imports external C headers into D.
 - **D Interface Bindings (`source/yvidtrim/clibs/`, `source/yguilib/clibs/`)**:
   For each wrapper library, matching `extern(C)` declarations are placed in
   `source/<proj>/clibs/<libname>.d`.
+- **OpenGL ES Loader (`glad2gles31/`)**: OpenGL ES 3.1 functions are used via
+  `glad2gles31`.
 
 ### Naming Conventions for Wrappers
 | Component | Convention | Example |
@@ -116,6 +118,15 @@ All code in this repository adheres to `.editorconfig` and `codestyle.md`.
 │       ├── app.d               # Main D application entry point
 │       └── clibs/              # D bindings matching yvidtrim-clibs headers
 │           └── sdl3.d
+├── glad2gles31/                # GLAD OpenGL ES 3.1 loader static library
+│   ├── include/
+│   │   ├── KHR/
+│   │   │   └── khrplatform.h
+│   │   └── glad/
+│   │       └── gles2.h
+│   ├── src/
+│   │   └── gles2.c
+│   └── meson.build
 ├── yguilib-clibs/              # C/C++ private wrapper static libraries for yguilib
 │   ├── meson.build
 │   ├── yguilib_sdl3.h

@@ -1,6 +1,7 @@
 #include "yguilib_sdl3.h"
 
 #include <SDL3/SDL.h>
+#include <glad/gles2.h>
 #include <stdlib.h>
 
 struct yguilib_sdl3_Window {
@@ -55,6 +56,7 @@ int yguilib_sdl3_init(void) {
       SDL_Quit();
       return -1;
     }
+    gladLoadGLES2((GLADloadfunc)SDL_GL_GetProcAddress);
     g_sdl_initialized = 1;
   }
   return 0;
@@ -165,6 +167,7 @@ yguilib_sdl3_GLContext *yguilib_sdl3_gl_create_context(
   if (!sdl_ctx) {
     return NULL;
   }
+  gladLoadGLES2((GLADloadfunc)SDL_GL_GetProcAddress);
   yguilib_sdl3_GLContext *ctx =
     (yguilib_sdl3_GLContext *)malloc(sizeof(yguilib_sdl3_GLContext));
   if (!ctx) {
@@ -191,7 +194,11 @@ int yguilib_sdl3_gl_make_current(
   if (!window || !window->handle || !context || !context->handle) {
     return -1;
   }
-  return SDL_GL_MakeCurrent(window->handle, context->handle) ? 0 : -1;
+  if (!SDL_GL_MakeCurrent(window->handle, context->handle)) {
+    return -1;
+  }
+  gladLoadGLES2((GLADloadfunc)SDL_GL_GetProcAddress);
+  return 0;
 }
 
 int yguilib_sdl3_gl_swap_window(yguilib_sdl3_Window *window) {
@@ -202,23 +209,13 @@ int yguilib_sdl3_gl_swap_window(yguilib_sdl3_Window *window) {
 }
 
 int yguilib_sdl3_gl_clear(float r, float g, float b, float a) {
-  typedef void (*PFNGLCLEARCOLORPROC)(float, float, float, float);
-  typedef void (*PFNGLCLEARPROC)(uint32_t);
-  static PFNGLCLEARCOLORPROC gl_clear_color = NULL;
-  static PFNGLCLEARPROC gl_clear = NULL;
-
-  if (!gl_clear_color) {
-    gl_clear_color =
-      (PFNGLCLEARCOLORPROC)SDL_GL_GetProcAddress("glClearColor");
+  if (!glad_glClearColor || !glad_glClear) {
+    if (!gladLoadGLES2((GLADloadfunc)SDL_GL_GetProcAddress)) {
+      return -1;
+    }
   }
-  if (!gl_clear) {
-    gl_clear = (PFNGLCLEARPROC)SDL_GL_GetProcAddress("glClear");
-  }
-  if (!gl_clear_color || !gl_clear) {
-    return -1;
-  }
-  gl_clear_color(r, g, b, a);
-  gl_clear(0x00004000 /* GL_COLOR_BUFFER_BIT */);
+  glClearColor(r, g, b, a);
+  glClear(GL_COLOR_BUFFER_BIT);
   return 0;
 }
 
