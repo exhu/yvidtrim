@@ -337,7 +337,7 @@ private:
 
 unittest {
   import yguilib.clibs.sdl3;
-  import yguilib.uisystem : Window;
+  import yguilib.window : Window;
 
   yguilib_sdl3_init();
   scope(exit) yguilib_sdl3_quit();

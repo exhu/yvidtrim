@@ -26,6 +26,7 @@ yguilib_src = [
   'source/yguilib/render_types.d',
   'source/yguilib/uisystem.d',
   'source/yguilib/widget.d',
+  'source/yguilib/window.d',
 ]
 
 src = glad2_src + yguilib_src + [

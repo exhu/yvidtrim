@@ -7,6 +7,7 @@ import yguilib.events;
 import yguilib.uisystem;
 import yguilib.widget;
 import yguilib.render_types;
+import yguilib.window;
 
 class MainController : DefaultController {
   override HandleResult handleEvent(in AppEvent ev) {

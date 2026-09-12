@@ -4,6 +4,7 @@
 module yguilib.app;
 import yguilib.uisystem;
 import yguilib.controller;
+import yguilib.window;
 
 class App {
   this(Window w) {
