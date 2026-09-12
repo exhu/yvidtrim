@@ -1,4 +1,4 @@
-module yvidtrim.yguilib.widget;
+module yguilib.widget;
 struct RectF {
   float x = 0;
   float y = 0;

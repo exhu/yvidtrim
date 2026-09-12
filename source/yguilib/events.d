@@ -1,4 +1,4 @@
-module yvidtrim.yguilib.events;
+module yguilib.events;
 struct AppEvent {
   enum Kind {
     /// user defined global events

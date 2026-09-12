@@ -1,7 +1,7 @@
-module yvidtrim.yguilib.uisystem;
-import yvidtrim.yguilib.widget;
-import yvidtrim.yguilib.events;
-import yvidtrim.yguilib.controller;
+module yguilib.uisystem;
+import yguilib.widget;
+import yguilib.events;
+import yguilib.controller;
 
 class UiSystem {
 

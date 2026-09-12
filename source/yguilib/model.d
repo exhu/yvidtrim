@@ -1,4 +1,4 @@
-module yvidtrim.yguilib.model;
+module yguilib.model;
 abstract class Model {
   @property uint modelVersion() {
     return version_;

@@ -1,5 +1,5 @@
-module yvidtrim.yguilib.controller;
-import yvidtrim.yguilib.events;
+module yguilib.controller;
+import yguilib.events;
 
 interface Controller {
   struct HandleResult {

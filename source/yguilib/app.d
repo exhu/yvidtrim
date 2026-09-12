@@ -1,9 +1,9 @@
 /** see ./documentation/gui-overview.adoc
 
  */
-module yvidtrim.yguilib.app;
-import yvidtrim.yguilib.uisystem;
-import yvidtrim.yguilib.controller;
+module yguilib.app;
+import yguilib.uisystem;
+import yguilib.controller;
 
 class App {
   // TODO controller stack, windows, systems

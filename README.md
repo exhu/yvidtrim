@@ -33,3 +33,6 @@ Each public symbol in a wrapper library is prefixed with the library name,
 e.g. "yvidtrim\_sdl3\_" for "yvidtrim\_sdl3" library.
 
 This is why meson is used to build D code as well as the wrappers.
+
+## yguilib
+Sources in ./source/yguilib/ must not depend on ./source/yvidtrim.

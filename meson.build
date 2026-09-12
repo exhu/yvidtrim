@@ -8,7 +8,16 @@ project(
 
 subdir('yvidtrim-clibs')
 
-src = ['source/yvidtrim/app.d']
+src = [
+  'source/yvidtrim/app.d',
+  'source/yvidtrim/clibs/sdl3.d',
+  'source/yguilib/app.d',
+  'source/yguilib/controller.d',
+  'source/yguilib/events.d',
+  'source/yguilib/model.d',
+  'source/yguilib/uisystem.d',
+  'source/yguilib/widget.d',
+]
 
 executable('yvidtrim',
            src,
