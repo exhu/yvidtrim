@@ -63,14 +63,19 @@ private:
 }
 
 private struct MessageBus {
+  @disable this();
   this(Object lockObj) {
     assert(lockObj !is null);
     this.lock = lockObj;
   }
 
+  invariant {
+    assert(lock !is null);
+  }
+
   void send(AppEvent ev) {
     bool needWake = false;
-    synchronized (getLock()) {
+    synchronized (lock) {
       if (head >= events.length) {
         events.length = 0;
         head = 0;
@@ -87,7 +92,7 @@ private struct MessageBus {
   }
 
   Nullable!AppEvent get() {
-    synchronized (getLock()) {
+    synchronized (lock) {
       if (head >= events.length) {
         events.length = 0;
         head = 0;
@@ -105,14 +110,14 @@ private struct MessageBus {
   }
 
   bool hasPending() {
-    synchronized (getLock()) {
+    synchronized (lock) {
       return head < events.length;
     }
   }
 
   void ensureWake() {
     bool needWake = false;
-    synchronized (getLock()) {
+    synchronized (lock) {
       if (head < events.length) {
         wakeSent = true;
         needWake = true;
@@ -124,13 +129,6 @@ private struct MessageBus {
   }
 
 private:
-  Object getLock() {
-    if (lock is null) {
-      lock = new Object();
-    }
-    return lock;
-  }
-
   AppEvent[] events;
   size_t head = 0;
   bool wakeSent = false;
@@ -557,7 +555,7 @@ unittest {
 
 // Verifies MessageBus event queueing, retrieval, and buffer reuse.
 unittest {
-  MessageBus bus;
+  MessageBus bus = MessageBus(new Object);
   assert(!bus.hasPending());
   assert(bus.get().isNull);
 
