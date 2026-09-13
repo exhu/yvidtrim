@@ -27,6 +27,7 @@ void main()
   smaller.components.background = new Background(ColorF(0.5, 1, 0.5, 0.3));
   auto smaller2 = new Widget(view, RectF(35, 45, 150, 190));
   smaller2.components.background = new Background(ColorF(0.0, 1, 0.5, 0.3));
+  smaller2.components.textLabel = new TextLabel("Hello-0123456789", ColorF(0,0,1,1));
   auto app = new App(window);
 
   app.run(new MainController);

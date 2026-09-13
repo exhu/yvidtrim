@@ -11,6 +11,8 @@ public import yguilib.render_types;
 enum string defaultTtfFontData =
   import("yguilib/fonts/GoogleSansCode-Regular.ttf");
 
+enum float defaultFontPtSize = 16f;
+
 final class Font {
   this(const(void)[] fontData, float ptSize) {
     assert(fontData.length > 0, "fontData must not be empty");
@@ -267,7 +269,12 @@ final class Renderer {
   }
 
   void setDisplayScaling(float scaling) {
-    displayScaling = scaling > 0.0f ? scaling : 1.0f;
+    if (scaling != displayScaling) {
+      displayScaling = scaling > 0.0f ? scaling : 1.0f;
+      // release fonts, they don't match new dpi
+      clearTextCache();
+      setDefaultFont(null);
+    }
   }
 
   float getDefaultScaling() const {
@@ -434,7 +441,7 @@ final class Renderer {
 
   Font getDefaultFont() {
     if (defaultFont_ is null) {
-      defaultFont_ = new Font(cast(const(void)[])defaultTtfFontData, 16.0f);
+      defaultFont_ = new Font(cast(const(void)[])defaultTtfFontData, defaultFontPtSize * displayScaling);
       ownsDefaultFont_ = true;
     }
     return defaultFont_;

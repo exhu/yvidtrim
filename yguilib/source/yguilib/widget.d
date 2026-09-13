@@ -12,10 +12,14 @@ class CustomDraw : Component {
 }
 
 class TextLabel : Component {
+  this(string caption, ColorF color) {
+    this.caption = caption;
+    this.color = color;
+  }
   string font;
-  uint fontSize;
-  string caption;
-  ColorF color;
+  uint fontSize = 16;
+  string caption = "TextLabel";
+  ColorF color = ColorF(1,1,1,1);
 }
 
 class Background : Component {

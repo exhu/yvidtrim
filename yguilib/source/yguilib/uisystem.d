@@ -193,14 +193,17 @@ class UiSystem {
 
 private:
   void drawWidget(Widget w) {
+    Renderer r = mainWindow.renderer;
       if (w.components.background !is null) {
-          mainWindow.renderer.drawFillRect(
+          r.drawFillRect(
           w.rect,
           w.components.background.color
         );
       }
       if (w.components.textLabel !is null) {
-        // TODO
+        auto comp = w.components.textLabel;
+        r.pushClipRect(w.rect);
+        r.drawText(comp.caption, PointF(w.rect.x, w.rect.y), comp.color);
       }
   }
 
