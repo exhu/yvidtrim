@@ -37,3 +37,8 @@ Adhere to `.editorconfig` and `codestyle.md`:
   `snake_case`.
 - **Verify**: Always run `ninja -C _build && meson test -C _build`.
 - **Preserve**: Keep existing docstrings and comments.
+
+## Skills & Automation
+- Skill helper scripts must be written in D using the standard library.
+- Launch skill scripts using `rdmd` (e.g., `rdmd .agents/skills/.../script.d`).
+
