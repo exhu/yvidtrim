@@ -120,6 +120,10 @@ class Window {
     }
   }
 
+  void setDisplayScaling(float scaling) {
+    onDisplayScaleChanged(scaling);
+  }
+
   void redraw() {
     makeCurrent();
     if (view !is null && view.components.background !is null &&

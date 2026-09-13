@@ -601,13 +601,25 @@ final class Renderer {
     if (!tex.isValid()) {
       return;
     }
+    import std.math : round;
+
+    float screenX = round(toPixels(pos.x));
+    float screenY = round(toPixels(pos.y));
+    float screenW = cast(float)tex.width;
+    float screenH = cast(float)tex.height;
+
+    float logicX0 = toLogic(screenX);
+    float logicY0 = toLogic(screenY);
+    float logicX1 = toLogic(screenX + screenW);
+    float logicY1 = toLogic(screenY + screenH);
+
     drawTexture(
       tex.textureId,
       RectF(
-        pos.x,
-        pos.y,
-        toLogic(cast(float)tex.width),
-        toLogic(cast(float)tex.height)
+        logicX0,
+        logicY0,
+        logicX1 - logicX0,
+        logicY1 - logicY0
       ),
       color
     );
@@ -1127,6 +1139,29 @@ unittest {
   }
   assert(litCount > 0);
   renderer.setUnitsScaling(1.0f);
+
+  // Scaled text drawing test: displayScaling = 1.5
+  renderer.setDisplayScaling(1.5f);
+  renderer.setUnitsScaling(1.0f);
+  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.drawText(
+    "ABC",
+    PointF(35.0f, 45.0f),
+    ColorF(1.0f, 1.0f, 1.0f, 1.0f)
+  );
+  litCount = 0;
+  // 35 * 1.5 = 52.5 -> snapped to 53
+  // 45 * 1.5 = 67.5 -> snapped to 68
+  foreach (x; 53 .. 120) {
+    foreach (y; 68 .. 100) {
+      glReadPixels(x, 240 - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+      if (pixel[0] > 100 && pixel[1] > 100 && pixel[2] > 100) {
+        litCount++;
+      }
+    }
+  }
+  assert(litCount > 0);
+  renderer.setDisplayScaling(1.0f);
 
   assert(glGetError() == GL_NO_ERROR);
 }

@@ -203,6 +203,7 @@ private:
       if (w.components.textLabel !is null) {
         auto comp = w.components.textLabel;
         r.pushClipRect(w.rect);
+        scope(exit) r.popClipRect();
         r.drawText(comp.caption, PointF(w.rect.x, w.rect.y), comp.color);
       }
   }
@@ -258,6 +259,9 @@ private:
       return;
     }
     if (event.kind == AppEvent.Kind.windowResized) {
+      if (event.scale > 0.0f && event.scale != mainWindow.getDisplayScaling()) {
+        mainWindow.onDisplayScaleChanged(event.scale);
+      }
       mainWindow.onResize(event.width, event.height);
     } else if (event.kind == AppEvent.Kind.windowExposed) {
       if (event.width > 0 && event.height > 0 &&
@@ -369,6 +373,13 @@ private:
     return 1.0f;
   }
 
+  void setDisplayScaling(float scaling) {
+    if (mainWindow !is null) {
+      mainWindow.setDisplayScaling(scaling);
+    }
+    redraw();
+  }
+
   float getDefaultScaling() const {
     if (mainWindow !is null) {
       return mainWindow.getDefaultScaling();
@@ -391,7 +402,11 @@ private:
             AppEvent.Kind.windowResized,
             sdlEv.windowId,
             sdlEv.width,
-            sdlEv.height
+            sdlEv.height,
+            null,
+            0.0f,
+            0.0f,
+            sdlEv.scale
           )
         );
       case yguilib_sdl3_EventType.windowExposed:
