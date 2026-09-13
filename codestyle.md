@@ -18,6 +18,10 @@ If a struct or class field must not be null in all cases, add struct or class
 empty objects, or placing null checks everywhere. Disable default constructor if
 the field must be initialized via an argument to a non-null value.
 
+## Resources and string import
+Essencial static resources like fonts, images, shaders, texts are embedded into
+final program via D's import strings.
+
 # C coding style
 C code uses the same formatting: 2 spaces, open curly brance on the same line.
 
