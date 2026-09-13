@@ -152,8 +152,8 @@ yguilib_sdl3_Window *yguilib_sdl3_create_window(
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
-  SDL_Window *sdl_win =
-    SDL_CreateWindow(title, w, h, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+  SDL_Window *sdl_win = SDL_CreateWindow(title, w, h, SDL_WINDOW_OPENGL |
+    SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
   if (!sdl_win) {
     return NULL;
   }
@@ -276,5 +276,3 @@ void yguilib_sdl3_log_priority(
     );
   }
 }
-
-
