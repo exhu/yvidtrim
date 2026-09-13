@@ -1,4 +1,6 @@
-- make yguilib a static library
-- make glad reusable both from standalone gui lib and any app that uses that lib
-- add sdl3_ttf dependencies to build scripts
+- text label
+- button
+- focus
+- modal dialog
+- text input
 - implement simple ui: control hierarchy system with input: window, widget, label, view, controller, models
