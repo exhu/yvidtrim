@@ -35,7 +35,9 @@ class DefaultController : Controller {
         ev.kind == AppEvent.Kind.appQuit)
       return HandleResult(HandleResult.Result.quit);
     if (ev.kind == AppEvent.Kind.windowResized ||
-        ev.kind == AppEvent.Kind.windowExposed)
+        ev.kind == AppEvent.Kind.windowExposed ||
+        ev.kind == AppEvent.Kind.windowDisplayScaleChanged ||
+        ev.kind == AppEvent.Kind.windowRedraw)
       return HandleResult(HandleResult.Result.updateView);
     return HandleResult(HandleResult.Result.nothing);
   }

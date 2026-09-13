@@ -7,6 +7,10 @@ enum yguilib_sdl3_EventType : int {
   windowClose,
   windowResized,
   windowExposed,
+  windowDisplayScaleChanged,
+  mouseMotion,
+  mouseButtonDown,
+  mouseButtonUp,
   wake,
   unknown,
 }
@@ -16,6 +20,9 @@ struct yguilib_sdl3_Event {
   uint windowId;
   int width;
   int height;
+  float x;
+  float y;
+  float scale;
 }
 
 struct yguilib_sdl3_Window;
@@ -53,6 +60,9 @@ extern(C) {
     const(yguilib_sdl3_Window)* window,
     int* width,
     int* height
+  );
+  float yguilib_sdl3_get_window_display_scale(
+    const(yguilib_sdl3_Window)* window
   );
   yguilib_sdl3_GLContext* yguilib_sdl3_gl_create_context(
     yguilib_sdl3_Window* window

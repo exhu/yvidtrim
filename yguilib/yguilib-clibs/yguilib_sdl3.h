@@ -12,6 +12,10 @@ typedef enum yguilib_sdl3_EventType {
   YGUILIB_SDL3_EVENT_WINDOW_CLOSE,
   YGUILIB_SDL3_EVENT_WINDOW_RESIZED,
   YGUILIB_SDL3_EVENT_WINDOW_EXPOSED,
+  YGUILIB_SDL3_EVENT_WINDOW_DISPLAY_SCALE_CHANGED,
+  YGUILIB_SDL3_EVENT_MOUSE_MOTION,
+  YGUILIB_SDL3_EVENT_MOUSE_BUTTON_DOWN,
+  YGUILIB_SDL3_EVENT_MOUSE_BUTTON_UP,
   YGUILIB_SDL3_EVENT_WAKE,
   YGUILIB_SDL3_EVENT_UNKNOWN,
 } yguilib_sdl3_EventType;
@@ -21,6 +25,9 @@ typedef struct yguilib_sdl3_Event {
   uint32_t window_id;
   int32_t width;
   int32_t height;
+  float x;
+  float y;
+  float scale;
 } yguilib_sdl3_Event;
 
 /**
@@ -133,6 +140,15 @@ int yguilib_sdl3_get_window_size_in_pixels(
   int *width,
   int *height
 );
+
+/**
+ * Gets the display scale factor for the given window.
+ *
+ * @param window Pointer to the window handle.
+ * @return Display scale factor (e.g. 1.0 for 100%, 2.0 for 200%), or
+ *         0.0f on failure.
+ */
+float yguilib_sdl3_get_window_display_scale(const yguilib_sdl3_Window *window);
 
 /**
  * Creates an OpenGL ES 3.0 context for the given window.

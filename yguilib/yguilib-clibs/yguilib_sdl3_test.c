@@ -60,6 +60,9 @@ int main(void) {
   assert(get_size_res == 0);
   assert(cur_w > 0 && cur_h > 0);
 
+  float display_scale = yguilib_sdl3_get_window_display_scale(win);
+  assert(display_scale > 0.0f);
+
   yguilib_sdl3_gl_destroy_context(ctx);
   yguilib_sdl3_destroy_window(win);
 

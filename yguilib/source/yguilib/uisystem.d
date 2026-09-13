@@ -200,8 +200,13 @@ class UiSystem {
       mainWindow.onResize(event.width, event.height);
     } else if (event.kind == AppEvent.Kind.windowExposed) {
       if (event.width > 0 && event.height > 0 &&
-          (event.width != mainWindow.width ||
-           event.height != mainWindow.height)) {
+          (event.width != mainWindow.pixelWidth ||
+           event.height != mainWindow.pixelHeight)) {
+        mainWindow.onResize(event.width, event.height);
+      }
+    } else if (event.kind == AppEvent.Kind.windowDisplayScaleChanged) {
+      mainWindow.onDisplayScaleChanged(event.scale);
+      if (event.width > 0 && event.height > 0) {
         mainWindow.onResize(event.width, event.height);
       }
     }
@@ -295,6 +300,36 @@ class UiSystem {
     return mainWindow;
   }
 
+  void redraw() {
+    auto active = getActiveControllerOrNull();
+    if (active !is null) {
+      updateAndRender(active);
+    } else {
+      renderFrame();
+    }
+  }
+
+  void setUnitsScaling(float scaling) {
+    if (mainWindow !is null) {
+      mainWindow.setUnitsScaling(scaling);
+    }
+    redraw();
+  }
+
+  float getUnitsScaling() const {
+    if (mainWindow !is null) {
+      return mainWindow.getUnitsScaling();
+    }
+    return 1.0f;
+  }
+
+  float getDefaultScaling() const {
+    if (mainWindow !is null) {
+      return mainWindow.getDefaultScaling();
+    }
+    return 1.0f;
+  }
+
 private:
   Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
     switch (sdlEv.type) {
@@ -320,6 +355,55 @@ private:
             sdlEv.windowId,
             sdlEv.width,
             sdlEv.height
+          )
+        );
+      case yguilib_sdl3_EventType.windowDisplayScaleChanged:
+        return Nullable!AppEvent(
+          AppEvent(
+            AppEvent.Kind.windowDisplayScaleChanged,
+            sdlEv.windowId,
+            sdlEv.width,
+            sdlEv.height,
+            null,
+            0.0f,
+            0.0f,
+            sdlEv.scale
+          )
+        );
+      case yguilib_sdl3_EventType.mouseMotion:
+        return Nullable!AppEvent(
+          AppEvent(
+            AppEvent.Kind.mouseMotion,
+            sdlEv.windowId,
+            0,
+            0,
+            null,
+            sdlEv.x,
+            sdlEv.y
+          )
+        );
+      case yguilib_sdl3_EventType.mouseButtonDown:
+        return Nullable!AppEvent(
+          AppEvent(
+            AppEvent.Kind.mouseButtonDown,
+            sdlEv.windowId,
+            0,
+            0,
+            null,
+            sdlEv.x,
+            sdlEv.y
+          )
+        );
+      case yguilib_sdl3_EventType.mouseButtonUp:
+        return Nullable!AppEvent(
+          AppEvent(
+            AppEvent.Kind.mouseButtonUp,
+            sdlEv.windowId,
+            0,
+            0,
+            null,
+            sdlEv.x,
+            sdlEv.y
           )
         );
       default:
@@ -578,4 +662,45 @@ unittest {
   auto ev3 = bus.get();
   assert(!ev3.isNull && ev3.get().eventId == 3);
   assert(!bus.hasPending());
+}
+
+// Verifies UiSystem scaling and redraw APIs.
+unittest {
+  auto window = new Window(320, 240, "test_ui_scaling");
+  auto ui = new UiSystem(window);
+
+  assert(ui.getDefaultScaling() == 1.0f);
+  assert(ui.getUnitsScaling() == 1.0f);
+
+  ui.setUnitsScaling(2.0f);
+  assert(ui.getUnitsScaling() == 2.0f);
+
+  // appEventFromSdlEvent conversions
+  yguilib_sdl3_Event scaleSdl;
+  scaleSdl.type = yguilib_sdl3_EventType.windowDisplayScaleChanged;
+  scaleSdl.windowId = 42;
+  scaleSdl.width = 640;
+  scaleSdl.height = 480;
+  scaleSdl.scale = 2.0f;
+
+  auto scaleApp = ui.appEventFromSdlEvent(scaleSdl);
+  assert(!scaleApp.isNull);
+  assert(scaleApp.get().kind == AppEvent.Kind.windowDisplayScaleChanged);
+  assert(scaleApp.get().eventId == 42);
+  assert(scaleApp.get().width == 640);
+  assert(scaleApp.get().height == 480);
+  assert(scaleApp.get().scale == 2.0f);
+
+  yguilib_sdl3_Event mouseSdl;
+  mouseSdl.type = yguilib_sdl3_EventType.mouseMotion;
+  mouseSdl.windowId = 42;
+  mouseSdl.x = 123.5f;
+  mouseSdl.y = 234.5f;
+
+  auto mouseApp = ui.appEventFromSdlEvent(mouseSdl);
+  assert(!mouseApp.isNull);
+  assert(mouseApp.get().kind == AppEvent.Kind.mouseMotion);
+  assert(mouseApp.get().eventId == 42);
+  assert(mouseApp.get().x == 123.5f);
+  assert(mouseApp.get().y == 234.5f);
 }

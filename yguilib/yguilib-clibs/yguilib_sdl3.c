@@ -18,6 +18,9 @@ static int convert_sdl_event(const SDL_Event *src, yguilib_sdl3_Event *dst) {
   dst->window_id = 0;
   dst->width = 0;
   dst->height = 0;
+  dst->x = 0.0f;
+  dst->y = 0.0f;
+  dst->scale = 1.0f;
   if (g_wake_event_type != 0 && src->type == g_wake_event_type) {
     dst->type = YGUILIB_SDL3_EVENT_WAKE;
     return 1;
@@ -38,6 +41,7 @@ static int convert_sdl_event(const SDL_Event *src, yguilib_sdl3_Event *dst) {
       SDL_Window *win = SDL_GetWindowFromID(src->window.windowID);
       if (win) {
         SDL_GetWindowSizeInPixels(win, &pw, &ph);
+        dst->scale = SDL_GetWindowDisplayScale(win);
       }
       dst->width = pw;
       dst->height = ph;
@@ -52,9 +56,45 @@ static int convert_sdl_event(const SDL_Event *src, yguilib_sdl3_Event *dst) {
       SDL_Window *win = SDL_GetWindowFromID(src->window.windowID);
       if (win) {
         SDL_GetWindowSizeInPixels(win, &pw, &ph);
+        dst->scale = SDL_GetWindowDisplayScale(win);
       }
       dst->width = pw;
       dst->height = ph;
+      return 1;
+    }
+    case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED: {
+      dst->type = YGUILIB_SDL3_EVENT_WINDOW_DISPLAY_SCALE_CHANGED;
+      dst->window_id = src->window.windowID;
+      SDL_Window *win = SDL_GetWindowFromID(src->window.windowID);
+      if (win) {
+        int pw = 0;
+        int ph = 0;
+        SDL_GetWindowSizeInPixels(win, &pw, &ph);
+        dst->width = pw;
+        dst->height = ph;
+        dst->scale = SDL_GetWindowDisplayScale(win);
+      }
+      return 1;
+    }
+    case SDL_EVENT_MOUSE_MOTION: {
+      dst->type = YGUILIB_SDL3_EVENT_MOUSE_MOTION;
+      dst->window_id = src->motion.windowID;
+      dst->x = src->motion.x;
+      dst->y = src->motion.y;
+      return 1;
+    }
+    case SDL_EVENT_MOUSE_BUTTON_DOWN: {
+      dst->type = YGUILIB_SDL3_EVENT_MOUSE_BUTTON_DOWN;
+      dst->window_id = src->button.windowID;
+      dst->x = src->button.x;
+      dst->y = src->button.y;
+      return 1;
+    }
+    case SDL_EVENT_MOUSE_BUTTON_UP: {
+      dst->type = YGUILIB_SDL3_EVENT_MOUSE_BUTTON_UP;
+      dst->window_id = src->button.windowID;
+      dst->x = src->button.x;
+      dst->y = src->button.y;
       return 1;
     }
     default:
@@ -205,6 +245,13 @@ int yguilib_sdl3_get_window_size_in_pixels(
     return -1;
   }
   return SDL_GetWindowSizeInPixels(window->handle, width, height) ? 0 : -1;
+}
+
+float yguilib_sdl3_get_window_display_scale(const yguilib_sdl3_Window *window) {
+  if (!window || !window->handle) {
+    return 0.0f;
+  }
+  return SDL_GetWindowDisplayScale(window->handle);
 }
 
 yguilib_sdl3_GLContext *yguilib_sdl3_gl_create_context(

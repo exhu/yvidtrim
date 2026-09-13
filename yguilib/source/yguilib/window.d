@@ -8,11 +8,16 @@ class Window {
   this(int width, int height, string title) {
     this.width = width;
     this.height = height;
+    this.pixelWidth = width;
+    this.pixelHeight = height;
     this.title = title;
   }
 
   int width;
   int height;
+  int pixelWidth;
+  int pixelHeight;
+  float customUnitsScaling = 0.0f;
   string title;
 
   Widget view;
@@ -49,25 +54,110 @@ class Window {
     clear();
     swapBuffers();
 
-    renderer = new Renderer(width, height);
+    int pw = width;
+    int ph = height;
+    yguilib_sdl3_get_window_size_in_pixels(handle, &pw, &ph);
+    pixelWidth = pw;
+    pixelHeight = ph;
+
+    float defaultScale = getDefaultScaling();
+    renderer = new Renderer(pw, ph, defaultScale);
+    if (customUnitsScaling > 0.0f) {
+      renderer.setUnitsScaling(customUnitsScaling);
+    }
+    this.width = renderer.getViewportWidth();
+    this.height = renderer.getViewportHeight();
+    updateViewRect();
   }
 
-  void onResize(int newWidth, int newHeight) {
-    this.width = newWidth;
-    this.height = newHeight;
+  float getDefaultScaling() const {
+    if (handle !is null) {
+      float scale = yguilib_sdl3_get_window_display_scale(handle);
+      if (scale > 0.0f) {
+        return scale;
+      }
+    }
+    return 1.0f;
+  }
+
+  void setUnitsScaling(float scaling) {
+    customUnitsScaling = scaling;
     if (renderer !is null) {
-      renderer.setViewport(newWidth, newHeight);
+      renderer.setUnitsScaling(scaling);
+      this.width = renderer.getViewportWidth();
+      this.height = renderer.getViewportHeight();
+      updateViewRect();
     }
-    if (view !is null) {
-      view.rect = RectF(0, 0, cast(float)newWidth, cast(float)newHeight);
+  }
+
+  float getUnitsScaling() const {
+    if (renderer !is null) {
+      return renderer.getUnitsScaling();
     }
+    if (customUnitsScaling > 0.0f) {
+      return customUnitsScaling;
+    }
+    return getDefaultScaling();
+  }
+
+  void onDisplayScaleChanged(float newScale) {
+    if (renderer !is null) {
+      renderer.setDisplayScaling(newScale);
+      if (customUnitsScaling <= 0.0f) {
+        renderer.setUnitsScaling(newScale);
+      }
+      this.width = renderer.getViewportWidth();
+      this.height = renderer.getViewportHeight();
+      updateViewRect();
+    }
+  }
+
+  void redraw() {
+    makeCurrent();
+    if (view !is null && view.components.background !is null &&
+        renderer !is null) {
+      renderer.clearCanvas(view.components.background.color);
+    } else {
+      clear();
+    }
+    swapBuffers();
+  }
+
+  private void updateViewRect() {
+    if (view !is null && renderer !is null) {
+      view.rect = RectF(
+        0,
+        0,
+        renderer.getLogicWidth(),
+        renderer.getLogicHeight()
+      );
+    }
+  }
+
+  void onResize(int newPixelWidth, int newPixelHeight) {
+    this.pixelWidth = newPixelWidth;
+    this.pixelHeight = newPixelHeight;
+    if (renderer !is null) {
+      renderer.setViewport(newPixelWidth, newPixelHeight);
+      this.width = renderer.getViewportWidth();
+      this.height = renderer.getViewportHeight();
+    } else {
+      this.width = newPixelWidth;
+      this.height = newPixelHeight;
+    }
+    updateViewRect();
   }
 
   void setSize(int newWidth, int newHeight) {
     if (handle !is null) {
       yguilib_sdl3_set_window_size(handle, newWidth, newHeight);
+      int pw = newWidth;
+      int ph = newHeight;
+      yguilib_sdl3_get_window_size_in_pixels(handle, &pw, &ph);
+      onResize(pw, ph);
+    } else {
+      onResize(newWidth, newHeight);
     }
-    onResize(newWidth, newHeight);
   }
 
   void clear(
@@ -141,4 +231,18 @@ unittest {
 
   window.makeCurrent();
   window.swapBuffers();
+
+  assert(window.getDefaultScaling() >= 1.0f);
+  assert(window.getUnitsScaling() == 1.0f);
+
+  window.setUnitsScaling(2.0f);
+  assert(window.getUnitsScaling() == 2.0f);
+  assert(window.width == 320);
+  assert(window.height == 240);
+
+  window.onDisplayScaleChanged(1.5f);
+  // Custom scaling was set to 2.0f, so it retains custom scaling
+  assert(window.getUnitsScaling() == 2.0f);
+
+  window.redraw();
 }
