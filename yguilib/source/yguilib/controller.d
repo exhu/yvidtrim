@@ -3,6 +3,9 @@ import yguilib.events;
 
 interface Controller {
   struct HandleResult {
+    bool isQuit() {
+      return result == Result.quit;
+    }
     enum Result {
       nothing,
       consume,

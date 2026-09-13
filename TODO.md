@@ -1,4 +1,3 @@
-- text label
 - button
 - focus
 - modal dialog

@@ -7,6 +7,7 @@ import yguilib.clibs.sdl3;
 import glad2.gles2;
 import yguilib.render;
 import yguilib.window;
+import yguilib.widget_painter;
 
 import std.typecons;
 
@@ -141,6 +142,10 @@ class UiSystem {
     messageBus = MessageBus(this);
   }
 
+  inout(Window) getMainWindow() inout {
+    return mainWindow;
+  }
+
   void pushController(Controller c) {
     controllers.push(c);
   }
@@ -192,22 +197,6 @@ class UiSystem {
 
 
 private:
-  void drawWidget(Widget w) {
-    Renderer r = mainWindow.renderer;
-      if (w.components.background !is null) {
-          r.drawFillRect(
-          w.rect,
-          w.components.background.color
-        );
-      }
-      if (w.components.textLabel !is null) {
-        auto comp = w.components.textLabel;
-        r.pushClipRect(w.rect);
-        scope(exit) r.popClipRect();
-        r.drawText(comp.caption, PointF(w.rect.x, w.rect.y), comp.color);
-      }
-  }
-
   // TODO optimize
   Widget[] collectVisibleWidgets(Widget root) {
     if (!root.visible)
@@ -226,7 +215,7 @@ private:
   void drawWidgetTree(Widget root) {
     Widget[] collected = [root] ~ collectVisibleWidgets(root);
     foreach(w; collected)
-      drawWidget(w);
+      drawWidget(w, mainWindow.renderer);
   }
 
   void drawUi() {
@@ -305,7 +294,7 @@ private:
       if (result.result == Controller.HandleResult.Result.quit) {
         return false;
       }
-      if (result.result == Controller.HandleResult.Result.updateView) {
+      if (result.result != Controller.HandleResult.Result.nothing) {
         updateAndRender(activeController);
       }
     } else if (waitRes == 0 && currentTimeoutMs >= 0) {
@@ -330,10 +319,6 @@ private:
 
   bool hasPendingAppEvents() {
     return messageBus.hasPending();
-  }
-
-  inout(Window) getMainWindow() inout {
-    return mainWindow;
   }
 
   void redraw() {

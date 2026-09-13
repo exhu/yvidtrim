@@ -17,6 +17,7 @@ yguilib_src = files(
   'source/yguilib/render_types.d',
   'source/yguilib/uisystem.d',
   'source/yguilib/widget.d',
+  'source/yguilib/widget_painter.d',
   'source/yguilib/window.d',
 )
 
@@ -51,4 +52,3 @@ yguilib_test_exe = executable(
   dependencies : yguilib_deps,
 )
 test('yguilib_test', yguilib_test_exe)
-

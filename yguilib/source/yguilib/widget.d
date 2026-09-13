@@ -23,10 +23,32 @@ class TextLabel : Component {
 }
 
 class Background : Component {
-  this(ColorF color) {
+  enum Style {
+    rect,
+    round,
+    none,
+  }
+  this(ColorF color, Style style = Style.rect) {
     this.color = color;
+    this.style = style;
   }
   ColorF color;
+  Style style;
+}
+
+class Border : Component {
+  enum Style {
+    rect,
+    round,
+    roundDashed,
+    none,
+  }
+  this(ColorF color, Style style = Style.rect) {
+    this.color = color;
+    this.style = style;
+  }
+  ColorF color;
+  Style style;
 }
 
 class InputEnabled : Component {
@@ -76,7 +98,7 @@ struct WidgetComponents {
   Focus focus;
   DefaultButton defaultButton;
   CustomDraw customDraw;
-
+  Border border;
 }
 
 class Widget {
@@ -92,5 +114,7 @@ class Widget {
   WidgetComponents components;
   bool handleInput;
   bool visible = true;
+  bool clipContents = true;
+  bool clipChildren = false;
   Widget[] children;
 }
