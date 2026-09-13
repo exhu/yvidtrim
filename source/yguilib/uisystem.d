@@ -10,37 +10,146 @@ import yguilib.window;
 
 import std.typecons;
 
-class UiSystem {
-  this(Window w) {
-    mainWindow = w;
-  }
-
-  void pushController(Controller c) {
-    controllersStack ~= c;
+private struct ControllerStack {
+  void push(Controller c) {
+    assert(c !is null);
+    stack ~= c;
     c.onPush();
   }
 
-  void pushModalController(Controller c) {
-    auto active = getActiveControllerOrNull();
+  void pushModal(Controller c) {
+    assert(c !is null);
+    // TODO mark c as modal
+    auto active = getActiveOrNull();
     if (active !is null) {
       active.onSuspendByModal();
     }
-    controllersStack ~= c;
-    getActiveControllerOrNull().onPush();
+    stack ~= c;
+    c.onPush();
   }
 
-  void popController() {
-    auto active = getActiveControllerOrNull();
+  void pop() {
+    auto active = getActiveOrNull();
     if (active is null) {
       return;
     }
-
-    controllersStack = controllersStack[0..$-1];
+    stack.length -= 1;
     active.onPop();
-    active = getActiveControllerOrNull();
-    if (active !is null) {
+    // TODO check if active is modal
+    const bool wasModal = false;
+    active = getActiveOrNull();
+    if (active !is null && wasModal) {
       active.onResumeByModal();
     }
+  }
+
+  Controller getActiveOrNull() {
+    if (stack.length != 0) {
+      return stack[$ - 1];
+    }
+    return null;
+  }
+
+  bool empty() const {
+    return stack.length == 0;
+  }
+
+  size_t length() const {
+    return stack.length;
+  }
+
+private:
+  Controller[] stack;
+}
+
+private struct MessageBus {
+  this(Object lockObj) {
+    assert(lockObj !is null);
+    this.lock = lockObj;
+  }
+
+  void send(AppEvent ev) {
+    bool needWake = false;
+    synchronized (getLock()) {
+      if (head >= events.length) {
+        events.length = 0;
+        head = 0;
+      }
+      events ~= ev;
+      if (!wakeSent) {
+        wakeSent = true;
+        needWake = true;
+      }
+    }
+    if (needWake) {
+      yguilib_sdl3_send_wake_event();
+    }
+  }
+
+  Nullable!AppEvent get() {
+    synchronized (getLock()) {
+      if (head >= events.length) {
+        events.length = 0;
+        head = 0;
+        wakeSent = false;
+        return Nullable!AppEvent.init;
+      }
+      auto ev = events[head++];
+      if (head >= events.length) {
+        events.length = 0;
+        head = 0;
+        wakeSent = false;
+      }
+      return Nullable!AppEvent(ev);
+    }
+  }
+
+  bool hasPending() {
+    synchronized (getLock()) {
+      return head < events.length;
+    }
+  }
+
+  void ensureWake() {
+    bool needWake = false;
+    synchronized (getLock()) {
+      if (head < events.length) {
+        wakeSent = true;
+        needWake = true;
+      }
+    }
+    if (needWake) {
+      yguilib_sdl3_send_wake_event();
+    }
+  }
+
+private:
+  Object getLock() {
+    return lock;
+  }
+
+  AppEvent[] events;
+  size_t head = 0;
+  bool wakeSent = false;
+  Object lock;
+}
+
+class UiSystem {
+  this(Window w) {
+    mainWindow = w;
+    messageBus = MessageBus(this);
+  }
+
+  void pushController(Controller c) {
+    controllers.push(c);
+  }
+
+  void pushModalController(Controller c) {
+    controllers.pushModal(c);
+  }
+
+  void popController() {
+    controllers.pop();
   }
 
   void pushFocusRoot(Widget w) {
@@ -63,6 +172,79 @@ class UiSystem {
     }
   }
 
+  private void renderFrame() {
+    if (mainWindow !is null) {
+      drawUi();
+      mainWindow.swapBuffers();
+    }
+  }
+
+  private void updateAndRender(Controller controller) {
+    if (controller !is null) {
+      controller.updateView();
+    }
+    renderFrame();
+  }
+
+  private bool isMainWindowEvent(uint eventId) const {
+    return mainWindow !is null &&
+      (eventId == 0 || mainWindow.id == 0 || eventId == mainWindow.id);
+  }
+
+  private void handleWindowEvent(in AppEvent event) {
+    if (!isMainWindowEvent(event.eventId)) {
+      return;
+    }
+    if (event.kind == AppEvent.Kind.windowResized) {
+      mainWindow.onResize(event.width, event.height);
+    } else if (event.kind == AppEvent.Kind.windowExposed) {
+      if (event.width > 0 && event.height > 0 &&
+          (event.width != mainWindow.width ||
+           event.height != mainWindow.height)) {
+        mainWindow.onResize(event.width, event.height);
+      }
+    }
+  }
+
+  private int pollSdlEvent(int timeoutMs) {
+    yguilib_sdl3_Event sdlEv;
+    int res = yguilib_sdl3_wait_event(&sdlEv, timeoutMs);
+    if (res > 0) {
+      Nullable!AppEvent appEv = appEventFromSdlEvent(sdlEv);
+      if (!appEv.isNull) {
+        sendAppEvent(appEv.get());
+      }
+    }
+    return res;
+  }
+
+  private bool runEventLoopStep(
+    Controller activeController,
+    ref int currentTimeoutMs
+  ) {
+    int waitRes = pollSdlEvent(currentTimeoutMs);
+
+    Nullable!AppEvent nullableEvent = getAppEvent();
+    if (!nullableEvent.isNull) {
+      AppEvent event = nullableEvent.get();
+      handleWindowEvent(event);
+
+      Controller.HandleResult result = activeController.handleEvent(event);
+      currentTimeoutMs = result.timeoutMs;
+      if (result.result == Controller.HandleResult.Result.quit) {
+        return false;
+      }
+      if (result.result == Controller.HandleResult.Result.updateView) {
+        updateAndRender(activeController);
+      }
+    } else if (waitRes == 0 && currentTimeoutMs >= 0) {
+      updateAndRender(activeController);
+    }
+
+    messageBus.ensureWake();
+    return true;
+  }
+
   void mainEventLoop() {
     yguilib_sdl3_init();
     scope(exit) yguilib_sdl3_quit();
@@ -78,122 +260,34 @@ class UiSystem {
 
     auto initialController = getActiveControllerOrNull();
     if (initialController !is null) {
-      initialController.updateView();
-      if (mainWindow !is null) {
-        drawUi();
-        mainWindow.swapBuffers();
-      }
+      updateAndRender(initialController);
     }
 
-    if (hasPendingAppEvents()) {
-      synchronized (this) {
-        wakeSent = true;
-      }
-      yguilib_sdl3_send_wake_event();
-    }
+    messageBus.ensureWake();
 
     int currentTimeoutMs = -1;
 
     while (auto activeController = getActiveControllerOrNull()) {
-      yguilib_sdl3_Event sdlEv;
-      int res = yguilib_sdl3_wait_event(&sdlEv, currentTimeoutMs);
-
-      if (res > 0) {
-        Nullable!AppEvent appEv = appEventFromSdlEvent(sdlEv);
-        if (!appEv.isNull) {
-          sendAppEvent(appEv.get());
-        }
-      }
-
-      Nullable!AppEvent nullableEvent = getAppEvent();
-      if (!nullableEvent.isNull) {
-        AppEvent event = nullableEvent.get();
-        if (event.kind == AppEvent.Kind.windowResized && mainWindow !is null) {
-          if (event.eventId == 0 || mainWindow.id == 0 ||
-              event.eventId == mainWindow.id) {
-            mainWindow.onResize(event.width, event.height);
-          }
-        } else if (event.kind == AppEvent.Kind.windowExposed &&
-                   mainWindow !is null) {
-          if (event.eventId == 0 || mainWindow.id == 0 ||
-              event.eventId == mainWindow.id) {
-            if (event.width > 0 && event.height > 0 &&
-                (event.width != mainWindow.width ||
-                 event.height != mainWindow.height)) {
-              mainWindow.onResize(event.width, event.height);
-            }
-          }
-        }
-        Controller.HandleResult result = activeController.handleEvent(event);
-        currentTimeoutMs = result.timeoutMs;
-        if (result.result == Controller.HandleResult.Result.quit) {
-          break;
-        }
-        if (result.result == Controller.HandleResult.Result.updateView) {
-          activeController.updateView();
-          if (mainWindow !is null) {
-            drawUi();
-            mainWindow.swapBuffers();
-          }
-        }
-      } else if (res == 0 && currentTimeoutMs >= 0) {
-        activeController.updateView();
-        if (mainWindow !is null) {
-          drawUi();
-          mainWindow.swapBuffers();
-        }
-      }
-
-      if (hasPendingAppEvents()) {
-        synchronized (this) {
-          wakeSent = true;
-        }
-        yguilib_sdl3_send_wake_event();
+      if (!runEventLoopStep(activeController, currentTimeoutMs)) {
+        break;
       }
     }
   }
 
   Controller getActiveControllerOrNull() {
-    if (controllersStack.length != 0) {
-      return controllersStack[$-1];
-    }
-    return null;
+    return controllers.getActiveOrNull();
   }
 
   void sendAppEvent(AppEvent ev) {
-    bool needWake = false;
-    synchronized (this) {
-      messageBus ~= ev;
-      if (!wakeSent) {
-        wakeSent = true;
-        needWake = true;
-      }
-    }
-    if (needWake) {
-      yguilib_sdl3_send_wake_event();
-    }
+    messageBus.send(ev);
   }
 
   Nullable!AppEvent getAppEvent() {
-    synchronized (this) {
-      if (messageBus.length == 0) {
-        wakeSent = false;
-        return Nullable!AppEvent.init;
-      }
-      auto ev = messageBus[0];
-      messageBus = messageBus[1..$];
-      if (messageBus.length == 0) {
-        messageBus = null;
-        wakeSent = false;
-      }
-      return Nullable!AppEvent(ev);
-    }
+    return messageBus.get();
   }
 
   bool hasPendingAppEvents() {
-    synchronized (this) {
-      return messageBus.length > 0;
-    }
+    return messageBus.hasPending();
   }
 
   inout(Window) getMainWindow() inout {
@@ -233,11 +327,10 @@ private:
     return Nullable!AppEvent.init;
   }
 
-  Controller[] controllersStack;
-  AppEvent[] messageBus;
-  bool wakeSent;
+  ControllerStack controllers;
+  MessageBus messageBus;
   Window mainWindow;
-}
+} // -UiSystem
 
 unittest {
   import core.thread;
@@ -394,3 +487,89 @@ unittest {
   assert(ctrl.updateCount >= 1);
 }
 
+unittest {
+  class ModalTrackController : DefaultController {
+    string[]* log;
+    string name;
+
+    this(string name, string[]* log) {
+      this.name = name;
+      this.log = log;
+    }
+
+    override void onPush() {
+      *log ~= name ~ ":onPush";
+    }
+
+    override void onPop() {
+      *log ~= name ~ ":onPop";
+    }
+
+    override void onSuspendByModal() {
+      *log ~= name ~ ":onSuspend";
+    }
+
+    override void onResumeByModal() {
+      *log ~= name ~ ":onResume";
+    }
+  }
+
+  string[] log;
+  ControllerStack stack;
+  assert(stack.empty());
+  assert(stack.length == 0);
+
+  auto c1 = new ModalTrackController("c1", &log);
+  auto c2 = new ModalTrackController("c2", &log);
+
+  stack.push(c1);
+  assert(stack.getActiveOrNull() is c1);
+  assert(stack.length == 1);
+
+  stack.pushModal(c2);
+  assert(stack.getActiveOrNull() is c2);
+  assert(stack.length == 2);
+
+  stack.pop();
+  assert(stack.getActiveOrNull() is c1);
+  assert(stack.length == 1);
+
+  stack.pop();
+  assert(stack.empty());
+  assert(stack.getActiveOrNull() is null);
+
+  assert(log == [
+    "c1:onPush",
+    "c1:onSuspend",
+    "c2:onPush",
+    "c2:onPop",
+    "c1:onResume",
+    "c1:onPop"
+  ]);
+}
+
+unittest {
+  MessageBus bus;
+  assert(!bus.hasPending());
+  assert(bus.get().isNull);
+
+  bus.send(AppEvent(AppEvent.Kind.user, 1));
+  bus.send(AppEvent(AppEvent.Kind.user, 2));
+  assert(bus.hasPending());
+
+  auto ev1 = bus.get();
+  assert(!ev1.isNull && ev1.get().eventId == 1);
+  assert(bus.hasPending());
+
+  auto ev2 = bus.get();
+  assert(!ev2.isNull && ev2.get().eventId == 2);
+  assert(!bus.hasPending());
+  assert(bus.get().isNull);
+
+  // Re-enqueue to verify queue reuse without reallocation
+  bus.send(AppEvent(AppEvent.Kind.user, 3));
+  assert(bus.hasPending());
+  auto ev3 = bus.get();
+  assert(!ev3.isNull && ev3.get().eventId == 3);
+  assert(!bus.hasPending());
+}
