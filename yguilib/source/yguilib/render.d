@@ -292,6 +292,63 @@ final class Renderer {
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+    enum string rrVertexShaderSource =
+      import("yguilib/shaders/roundrect.vert.glsl");
+    enum string rrFragmentShaderSource =
+      import("yguilib/shaders/roundrect.frag.glsl");
+
+    GLuint rrVert = compileShader(
+      GL_VERTEX_SHADER,
+      rrVertexShaderSource
+    );
+    scope(exit) glDeleteShader(rrVert);
+
+    GLuint rrFrag = compileShader(
+      GL_FRAGMENT_SHADER,
+      rrFragmentShaderSource
+    );
+    scope(exit) glDeleteShader(rrFrag);
+
+    rrProgram = linkProgram(rrVert, rrFrag);
+    uRrResolutionLoc =
+      glGetUniformLocation(rrProgram, "uResolution\0".ptr);
+    uRrColorLoc = glGetUniformLocation(rrProgram, "uColor\0".ptr);
+    uRrHalfSizeLoc = glGetUniformLocation(rrProgram, "uHalfSize\0".ptr);
+    uRrRadiusLoc = glGetUniformLocation(rrProgram, "uRadius\0".ptr);
+    uRrLineWidthLoc = glGetUniformLocation(rrProgram, "uLineWidth\0".ptr);
+    uRrDashLenLoc = glGetUniformLocation(rrProgram, "uDashLen\0".ptr);
+    uRrGapLenLoc = glGetUniformLocation(rrProgram, "uGapLen\0".ptr);
+    uRrPixelSizeLoc = glGetUniformLocation(rrProgram, "uPixelSize\0".ptr);
+
+    glGenVertexArrays(1, &rrVao);
+    glBindVertexArray(rrVao);
+
+    glGenBuffers(1, &rrVbo);
+    glBindBuffer(GL_ARRAY_BUFFER, rrVbo);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(
+      0,
+      2,
+      GL_FLOAT,
+      GL_FALSE,
+      4 * float.sizeof,
+      null
+    );
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(
+      1,
+      2,
+      GL_FLOAT,
+      GL_FALSE,
+      4 * float.sizeof,
+      cast(const(void)*)(2 * float.sizeof)
+    );
+
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
     initialized = true;
   }
 
@@ -304,6 +361,18 @@ final class Renderer {
     if (ownsDefaultFont_ && defaultFont_ !is null) {
       defaultFont_.destroy();
       defaultFont_ = null;
+    }
+    if (rrVbo != 0) {
+      glDeleteBuffers(1, &rrVbo);
+      rrVbo = 0;
+    }
+    if (rrVao != 0) {
+      glDeleteVertexArrays(1, &rrVao);
+      rrVao = 0;
+    }
+    if (rrProgram != 0) {
+      glDeleteProgram(rrProgram);
+      rrProgram = 0;
     }
     if (texVbo != 0) {
       glDeleteBuffers(1, &texVbo);
@@ -516,6 +585,57 @@ final class Renderer {
     ];
 
     drawArrays(GL_LINE_LOOP, vertices, color);
+  }
+
+  /**
+   * Draws a filled rounded rectangle with anti-aliased corners.
+   *
+   * @param rect Bounding rectangle in logic-space units.
+   * @param radius Corner radius (clamped to half the smallest dimension).
+   * @param color Fill color.
+   */
+  void drawFillRoundRect(RectF rect, float radius, ColorF color) {
+    drawRoundRectImpl(rect, radius, 0.0f, 0.0f, 0.0f, color);
+  }
+
+  /**
+   * Draws a rounded rectangle outline with configurable line width
+   * and anti-aliased corners.
+   *
+   * @param rect Bounding rectangle in logic-space units.
+   * @param radius Corner radius (clamped to half the smallest dimension).
+   * @param lineWidth Outline thickness in logic-space units.
+   * @param color Outline color.
+   */
+  void drawRoundRect(
+    RectF rect,
+    float radius,
+    float lineWidth,
+    ColorF color
+  ) {
+    drawRoundRectImpl(rect, radius, lineWidth, 0.0f, 0.0f, color);
+  }
+
+  /**
+   * Draws a dashed rounded rectangle outline with configurable line
+   * width and dash pattern.
+   *
+   * @param rect Bounding rectangle in logic-space units.
+   * @param radius Corner radius (clamped to half the smallest dimension).
+   * @param lineWidth Outline thickness in logic-space units.
+   * @param dashLen Length of each visible dash segment.
+   * @param gapLen Length of each gap between dashes.
+   * @param color Outline color.
+   */
+  void drawRoundRectDashed(
+    RectF rect,
+    float radius,
+    float lineWidth,
+    float dashLen,
+    float gapLen,
+    ColorF color
+  ) {
+    drawRoundRectImpl(rect, radius, lineWidth, dashLen, gapLen, color);
   }
 
   void pushClipRect(RectF rect) {
@@ -808,6 +928,92 @@ final class Renderer {
   }
 
 private:
+  private void drawRoundRectImpl(
+    RectF rect,
+    float radius,
+    float lineWidth,
+    float dashLen,
+    float gapLen,
+    in ColorF color
+  ) {
+    import std.algorithm : min;
+    if (!initialized) {
+      return;
+    }
+
+    float halfW = rect.width * 0.5f;
+    float halfH = rect.height * 0.5f;
+    float r = min(radius, min(halfW, halfH));
+    if (r < 0.0f) {
+      r = 0.0f;
+    }
+
+    // Expand the quad slightly for AA margin
+    float totalScale = getTotalScaling();
+    float px = totalScale > 0.0f ? (1.0f / totalScale) : 1.0f;
+    float margin = px * 2.0f;
+
+    float cx = rect.x + halfW;
+    float cy = rect.y + halfH;
+
+    float qx0 = cx - halfW - margin;
+    float qy0 = cy - halfH - margin;
+    float qx1 = cx + halfW + margin;
+    float qy1 = cy + halfH + margin;
+
+    float lx0 = -(halfW + margin);
+    float ly0 = -(halfH + margin);
+    float lx1 = halfW + margin;
+    float ly1 = halfH + margin;
+
+    float[24] vertices = [
+      qx0, qy0, lx0, ly0,
+      qx1, qy0, lx1, ly0,
+      qx0, qy1, lx0, ly1,
+      qx0, qy1, lx0, ly1,
+      qx1, qy0, lx1, ly0,
+      qx1, qy1, lx1, ly1,
+    ];
+
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glUseProgram(rrProgram);
+    glUniform2f(
+      uRrResolutionLoc,
+      getLogicWidth(),
+      getLogicHeight()
+    );
+    glUniform4f(
+      uRrColorLoc,
+      color.r,
+      color.g,
+      color.b,
+      color.a
+    );
+    glUniform2f(uRrHalfSizeLoc, halfW, halfH);
+    glUniform1f(uRrRadiusLoc, r);
+    glUniform1f(uRrLineWidthLoc, lineWidth);
+    glUniform1f(uRrDashLenLoc, dashLen);
+    glUniform1f(uRrGapLenLoc, gapLen);
+    glUniform1f(uRrPixelSizeLoc, px);
+
+    glBindVertexArray(rrVao);
+    glBindBuffer(GL_ARRAY_BUFFER, rrVbo);
+    glBufferData(
+      GL_ARRAY_BUFFER,
+      cast(GLsizeiptr)(vertices.length * float.sizeof),
+      vertices.ptr,
+      GL_DYNAMIC_DRAW
+    );
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+  }
+
   void drawArrays(GLenum mode, const(float)[] vertices, in ColorF color) {
     if (!initialized) {
       return;
@@ -963,6 +1169,18 @@ private:
   GLint uTexResolutionLoc = -1;
   GLint uTexColorLoc = -1;
   GLint uTextureLoc = -1;
+
+  GLuint rrProgram;
+  GLuint rrVao;
+  GLuint rrVbo;
+  GLint uRrResolutionLoc = -1;
+  GLint uRrColorLoc = -1;
+  GLint uRrHalfSizeLoc = -1;
+  GLint uRrRadiusLoc = -1;
+  GLint uRrLineWidthLoc = -1;
+  GLint uRrDashLenLoc = -1;
+  GLint uRrGapLenLoc = -1;
+  GLint uRrPixelSizeLoc = -1;
 
   private struct TextCacheKey {
     void* fontHandle;
@@ -1339,6 +1557,90 @@ unittest {
   assert(factoryFont.scaledSize == 20.0f);
 
   renderer.setDisplayScaling(1.0f);
+  renderer.setUnitsScaling(1.0f);
+
+  assert(glGetError() == GL_NO_ERROR);
+
+  // 10. Rounded rectangle drawing tests (fill, outline, dashed, clamping, scaling)
+  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+
+  // Test fill mode: draw green filled round rect at (20, 20, 60, 40) with radius 10
+  renderer.drawFillRoundRect(
+    RectF(20.0f, 20.0f, 60.0f, 40.0f),
+    10.0f,
+    ColorF(0.0f, 1.0f, 0.0f, 1.0f)
+  );
+  // Center pixel (50, 40) -> GL y = 240 - 40 = 200 should be green
+  glReadPixels(50, 200, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[0] == 0 && pixel[1] == 255 && pixel[2] == 0 && pixel[3] == 255);
+  // Outside corner pixel (21, 21) -> GL y = 240 - 21 = 219 should be black (clipped by corner radius)
+  glReadPixels(21, 219, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0);
+  // Far outside pixel (5, 5) -> GL y = 235 should be black
+  glReadPixels(5, 235, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0);
+
+  // Test outline mode: draw blue outline at (100, 100, 80, 60), radius 8, line width 4
+  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.drawRoundRect(
+    RectF(100.0f, 100.0f, 80.0f, 60.0f),
+    8.0f,
+    4.0f,
+    ColorF(0.0f, 0.0f, 1.0f, 1.0f)
+  );
+  // Center of outline rect (140, 130) -> GL y = 240 - 130 = 110 should be hollow (black)
+  glReadPixels(140, 110, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0);
+  // On top edge border: (140, 101) -> GL y = 240 - 101 = 139 should be blue
+  glReadPixels(140, 139, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[2] > 100);
+
+  // Test dashed mode: draw dashed round rect, verify border has colored pixels
+  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.drawRoundRectDashed(
+    RectF(50.0f, 50.0f, 100.0f, 60.0f),
+    10.0f,
+    3.0f,
+    8.0f,
+    6.0f,
+    ColorF(1.0f, 1.0f, 0.0f, 1.0f)
+  );
+  // Center (100, 80) -> GL y = 160 should be hollow (black)
+  glReadPixels(100, 160, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0);
+  // Along top edge, some pixels should be yellow
+  int yellowPixels = 0;
+  foreach (x; 60 .. 140) {
+    glReadPixels(x, 240 - 51, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+    if (pixel[0] > 100 && pixel[1] > 100) {
+      yellowPixels++;
+    }
+  }
+  assert(yellowPixels > 0);
+
+  // Test radius clamping: radius larger than half dimensions does not crash
+  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.drawFillRoundRect(
+    RectF(10.0f, 10.0f, 40.0f, 40.0f),
+    100.0f, // excess radius clamped to 20
+    ColorF(1.0f, 0.0f, 0.0f, 1.0f)
+  );
+  // Center (30, 30) -> GL y = 210 should be red
+  glReadPixels(30, 210, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[0] == 255 && pixel[1] == 0 && pixel[2] == 0 && pixel[3] == 255);
+
+  // Test units scaling with rounded rect
+  renderer.setUnitsScaling(2.0f);
+  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  // Logic (10, 10, 50, 50) maps to screen (20, 20, 100, 100)
+  renderer.drawFillRoundRect(
+    RectF(10.0f, 10.0f, 50.0f, 50.0f),
+    5.0f,
+    ColorF(0.0f, 1.0f, 1.0f, 1.0f)
+  );
+  // Screen center of rect is (70, 70) -> GL y = 240 - 70 = 170
+  glReadPixels(70, 170, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[1] == 255 && pixel[2] == 255);
   renderer.setUnitsScaling(1.0f);
 
   assert(glGetError() == GL_NO_ERROR);
