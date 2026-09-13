@@ -108,6 +108,26 @@ int main(void) {
   );
   assert(mem_w > 0 && mem_h > 0);
 
+  // In-place dynamic resizing test
+  int initial_height = yguilib_sdl3_ttf_get_font_height(mem_font);
+  assert(initial_height > 0);
+  assert(yguilib_sdl3_ttf_set_font_size(mem_font, 28.0f) == 0);
+  int resized_height = yguilib_sdl3_ttf_get_font_height(mem_font);
+  assert(resized_height > initial_height);
+
+  int resized_w = 0;
+  int resized_h = 0;
+  assert(
+    yguilib_sdl3_ttf_get_text_size(mem_font, "Test", 4, &resized_w, &resized_h)
+      == 0
+  );
+  assert(resized_w > mem_w && resized_h > mem_h);
+
+  // Invalid parameters
+  assert(yguilib_sdl3_ttf_set_font_size(NULL, 16.0f) == -1);
+  assert(yguilib_sdl3_ttf_set_font_size(mem_font, -1.0f) == -1);
+  assert(yguilib_sdl3_ttf_set_font_size(mem_font, 0.0f) == -1);
+
   yguilib_sdl3_ttf_close_font(mem_font);
   free(buffer);
 

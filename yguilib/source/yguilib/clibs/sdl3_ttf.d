@@ -21,6 +21,11 @@ extern(C) {
 
   void yguilib_sdl3_ttf_close_font(yguilib_sdl3_ttf_Font* font);
 
+  int yguilib_sdl3_ttf_set_font_size(
+    yguilib_sdl3_ttf_Font* font,
+    float ptSize
+  );
+
   int yguilib_sdl3_ttf_get_font_height(const(yguilib_sdl3_ttf_Font)* font);
   int yguilib_sdl3_ttf_get_font_ascent(const(yguilib_sdl3_ttf_Font)* font);
   int yguilib_sdl3_ttf_get_font_descent(const(yguilib_sdl3_ttf_Font)* font);

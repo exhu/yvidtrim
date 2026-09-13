@@ -56,6 +56,18 @@ yguilib_sdl3_ttf_Font *yguilib_sdl3_ttf_open_font_from_mem(
 void yguilib_sdl3_ttf_close_font(yguilib_sdl3_ttf_Font *font);
 
 /**
+ * Dynamically updates the point size of an opened font.
+ *
+ * @param font Font handle.
+ * @param pt_size New point size in points (scaled for rendering resolution).
+ * @return 0 on success, or -1 on error.
+ */
+int yguilib_sdl3_ttf_set_font_size(
+  yguilib_sdl3_ttf_Font *font,
+  float pt_size
+);
+
+/**
  * Gets the total font height in pixels.
  *
  * @param font Font handle.

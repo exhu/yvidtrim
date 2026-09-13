@@ -14,28 +14,57 @@ enum string defaultTtfFontData =
 enum float defaultFontPtSize = 16f;
 
 final class Font {
-  this(const(void)[] fontData, float ptSize) {
+  /**
+   * Loads a font from memory data.
+   *
+   * Font point sizes (`ptSize`) in user space are unscaled logical points.
+   * Scaling (`scale = displayScaling * unitsScaling`) is an internal renderer
+   * detail used to rasterize glyphs at native display resolution.
+   *
+   * @param fontData TTF binary data in memory.
+   * @param ptSize Unscaled logical point size in user space.
+   * @param scale Rendering scaling factor (defaults to 1.0f).
+   */
+  this(const(void)[] fontData, float ptSize, float scale = 1.0f) {
     assert(fontData.length > 0, "fontData must not be empty");
     assert(ptSize > 0.0f, "ptSize must be positive");
+    float effectiveScale = scale > 0.0f ? scale : 1.0f;
     handle = yguilib_sdl3_ttf_open_font_from_mem(
       fontData.ptr,
       fontData.length,
-      ptSize
+      ptSize * effectiveScale
     );
     if (!handle) {
       throw new Exception("Failed to load font from memory");
     }
-    this.ptSize = ptSize;
+    this.logicalPtSize = ptSize;
+    this.currentScale = effectiveScale;
   }
 
-  this(string filePath, float ptSize) {
+  /**
+   * Loads a font from a file path.
+   *
+   * Font point sizes (`ptSize`) in user space are unscaled logical points.
+   * Scaling (`scale = displayScaling * unitsScaling`) is an internal renderer
+   * detail used to rasterize glyphs at native display resolution.
+   *
+   * @param filePath Path to the TTF font file.
+   * @param ptSize Unscaled logical point size in user space.
+   * @param scale Rendering scaling factor (defaults to 1.0f).
+   */
+  this(string filePath, float ptSize, float scale = 1.0f) {
     assert(filePath.length > 0, "filePath must not be empty");
     assert(ptSize > 0.0f, "ptSize must be positive");
-    handle = yguilib_sdl3_ttf_open_font(filePath.toStringz(), ptSize);
+    float effectiveScale = scale > 0.0f ? scale : 1.0f;
+    handle = yguilib_sdl3_ttf_open_font(
+      filePath.toStringz(),
+      ptSize * effectiveScale
+    );
     if (!handle) {
       throw new Exception("Failed to load font from file: " ~ filePath);
     }
-    this.ptSize = ptSize;
+    this.logicalPtSize = ptSize;
+    this.currentScale = effectiveScale;
   }
 
   ~this() {
@@ -49,8 +78,61 @@ final class Font {
     }
   }
 
+  /**
+   * Gets the unscaled logical point size of the font in user space.
+   */
   @property float size() const {
-    return ptSize;
+    return logicalPtSize;
+  }
+
+  /**
+   * Gets the rasterization point size currently applied to the font handle.
+   */
+  @property float scaledSize() const {
+    return logicalPtSize * currentScale;
+  }
+
+  /**
+   * Dynamically updates the unscaled logical point size of the font.
+   *
+   * Font point units are kept unscaled in user space. The renderer's current
+   * scaling factor is reapplied internally to update the raster size in place.
+   *
+   * @param newPtSize New unscaled point size in logical units.
+   * @return true if resized successfully, false otherwise.
+   */
+  bool setSize(float newPtSize) {
+    if (!handle || newPtSize <= 0.0f) {
+      return false;
+    }
+    float targetSize = newPtSize * currentScale;
+    if (yguilib_sdl3_ttf_set_font_size(handle, targetSize) == 0) {
+      logicalPtSize = newPtSize;
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Dynamically updates the rendering scaling factor of the font.
+   *
+   * Kept as an internal renderer detail so the font rasterizer matches
+   * display and units zoom changes without reallocating font resources.
+   *
+   * @param newScale New scaling multiplier (displayScaling * unitsScaling).
+   * @return true if resized successfully, false otherwise.
+   */
+  bool setScale(float newScale) {
+    if (!handle) {
+      return false;
+    }
+    float effectiveScale = newScale > 0.0f ? newScale : 1.0f;
+    float targetSize = logicalPtSize * effectiveScale;
+    if (yguilib_sdl3_ttf_set_font_size(handle, targetSize) == 0) {
+      currentScale = effectiveScale;
+      return true;
+    }
+    return false;
   }
 
   int height() const {
@@ -88,7 +170,8 @@ final class Font {
   }
 
   package yguilib_sdl3_ttf_Font* handle;
-  private float ptSize;
+  private float logicalPtSize;
+  private float currentScale = 1.0f;
 }
 
 struct TextTexture {
@@ -268,9 +351,13 @@ final class Renderer {
     float newScale = scaling > 0.0f ? scaling : 1.0f;
     if (newScale != unitsScaling) {
       unitsScaling = newScale;
-      // release fonts, they don't match new zoom scale
+      float totalScale = getTotalScaling();
+      if (ownsDefaultFont_ && defaultFont_ !is null) {
+        defaultFont_.setScale(totalScale);
+      } else {
+        setDefaultFont(null);
+      }
       clearTextCache();
-      setDefaultFont(null);
     }
   }
 
@@ -285,9 +372,13 @@ final class Renderer {
     float newScale = scaling > 0.0f ? scaling : 1.0f;
     if (newScale != displayScaling) {
       displayScaling = newScale;
-      // release fonts, they don't match new dpi
+      float totalScale = getTotalScaling();
+      if (ownsDefaultFont_ && defaultFont_ !is null) {
+        defaultFont_.setScale(totalScale);
+      } else {
+        setDefaultFont(null);
+      }
       clearTextCache();
-      setDefaultFont(null);
     }
   }
 
@@ -296,6 +387,13 @@ final class Renderer {
   }
 
   alias getDefaultScaling = getDisplayScaling;
+
+  /**
+   * Gets the combined scaling factor (displayScaling * unitsScaling).
+   */
+  float getTotalScaling() const {
+    return displayScaling * unitsScaling;
+  }
 
   float toPixels(float logicUnits) const {
     return logicUnits * (displayScaling * unitsScaling);
@@ -459,11 +557,42 @@ final class Renderer {
     if (defaultFont_ is null) {
       defaultFont_ = new Font(
         cast(const(void)[])defaultTtfFontData,
-        defaultFontPtSize * (displayScaling * unitsScaling)
+        defaultFontPtSize,
+        getTotalScaling()
       );
       ownsDefaultFont_ = true;
     }
     return defaultFont_;
+  }
+
+  /**
+   * Creates a font from memory data scaled to the renderer's current display
+   * and units resolution.
+   *
+   * Font point sizes (`ptSize`) in user space are unscaled logical points.
+   * Scaling is automatically applied by the renderer as an internal detail.
+   *
+   * @param fontData TTF binary data in memory.
+   * @param ptSize Unscaled logical point size in user space.
+   * @return A newly allocated Font instance.
+   */
+  Font createFont(const(void)[] fontData, float ptSize) {
+    return new Font(fontData, ptSize, getTotalScaling());
+  }
+
+  /**
+   * Creates a font from a file path scaled to the renderer's current display
+   * and units resolution.
+   *
+   * Font point sizes (`ptSize`) in user space are unscaled logical points.
+   * Scaling is automatically applied by the renderer as an internal detail.
+   *
+   * @param filePath Path to the TTF font file.
+   * @param ptSize Unscaled logical point size in user space.
+   * @return A newly allocated Font instance.
+   */
+  Font createFont(string filePath, float ptSize) {
+    return new Font(filePath, ptSize, getTotalScaling());
   }
 
   void setDefaultFont(Font font) {
@@ -637,7 +766,7 @@ final class Renderer {
     }
 
     // TODO move text cache data and functions to its own separate struct/class
-    TextCacheKey key = TextCacheKey(f.handle, f.size, text);
+    TextCacheKey key = TextCacheKey(f.handle, f.scaledSize, text);
     auto p = key in textCache;
     TextTexture tex;
     if (p !is null) {
@@ -1162,6 +1291,55 @@ unittest {
   }
   assert(litCount > 0);
   renderer.setDisplayScaling(1.0f);
+
+  // In-place dynamic resizing & unscaled user-space size tests
+  Font defaultF = renderer.getDefaultFont();
+  assert(defaultF !is null);
+  assert(defaultF.size == defaultFontPtSize);
+  assert(defaultF.scaledSize == defaultFontPtSize);
+  int initialH = defaultF.height;
+
+  // Scale display: defaultFont instance is preserved and resized in place
+  renderer.setDisplayScaling(2.0f);
+  assert(renderer.getDefaultFont() is defaultF);
+  assert(defaultF.size == defaultFontPtSize);
+  assert(defaultF.scaledSize == defaultFontPtSize * 2.0f);
+  assert(defaultF.height > initialH);
+
+  // Scale units: defaultFont instance is preserved and resized in place
+  renderer.setUnitsScaling(1.5f);
+  assert(renderer.getDefaultFont() is defaultF);
+  assert(defaultF.size == defaultFontPtSize);
+  assert(defaultF.scaledSize == defaultFontPtSize * 3.0f);
+
+  renderer.setDisplayScaling(1.0f);
+  renderer.setUnitsScaling(1.0f);
+  assert(defaultF.size == defaultFontPtSize);
+  assert(defaultF.scaledSize == defaultFontPtSize);
+
+  // Factory createFont automatically applies renderer's current scaling
+  renderer.setDisplayScaling(2.0f);
+  Font factoryFont = renderer.createFont(
+    cast(const(void)[])defaultTtfFontData,
+    14.0f
+  );
+  scope(exit) factoryFont.destroy();
+  assert(factoryFont.size == 14.0f);
+  assert(factoryFont.scaledSize == 28.0f);
+  assert(factoryFont.height > 0);
+
+  // In-place setSize updates unscaled size and re-applies current scale
+  assert(factoryFont.setSize(20.0f));
+  assert(factoryFont.size == 20.0f);
+  assert(factoryFont.scaledSize == 40.0f);
+
+  // In-place setScale updates raster size while preserving unscaled size
+  assert(factoryFont.setScale(1.0f));
+  assert(factoryFont.size == 20.0f);
+  assert(factoryFont.scaledSize == 20.0f);
+
+  renderer.setDisplayScaling(1.0f);
+  renderer.setUnitsScaling(1.0f);
 
   assert(glGetError() == GL_NO_ERROR);
 }

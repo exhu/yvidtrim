@@ -62,6 +62,19 @@ void yguilib_sdl3_ttf_close_font(yguilib_sdl3_ttf_Font *font) {
   }
 }
 
+int yguilib_sdl3_ttf_set_font_size(
+  yguilib_sdl3_ttf_Font *font,
+  float pt_size
+) {
+  if (!font || pt_size <= 0.0f) {
+    return -1;
+  }
+  if (!TTF_SetFontSize((TTF_Font *)font, pt_size)) {
+    return -1;
+  }
+  return 0;
+}
+
 int yguilib_sdl3_ttf_get_font_height(const yguilib_sdl3_ttf_Font *font) {
   if (!font) {
     return 0;
