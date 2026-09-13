@@ -12,6 +12,6 @@
 	},
 	"stringImportPaths": [
 		"source",
-		"yguilib/source"
+		"yguilib/assets"
 	]
 }

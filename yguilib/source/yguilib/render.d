@@ -19,9 +19,9 @@ final class Renderer {
     }
 
     enum string vertexShaderSource =
-      import("yguilib/shaders/color.vert.glsl");
+      import("shaders/color.vert.glsl");
     enum string fragmentShaderSource =
-      import("yguilib/shaders/color.frag.glsl");
+      import("shaders/color.frag.glsl");
 
     GLuint vertShader = compileShader(
       GL_VERTEX_SHADER,
