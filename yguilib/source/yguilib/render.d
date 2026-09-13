@@ -115,7 +115,7 @@ final class Renderer {
     viewportPixelWidth = width;
     viewportPixelHeight = height;
     this.displayScaling = displayScaling > 0.0f ? displayScaling : 1.0f;
-    this.unitsScaling = this.displayScaling;
+    this.unitsScaling = 1.0f;
     initialize();
   }
 
@@ -260,33 +260,50 @@ final class Renderer {
     glViewport(0, 0, pixelWidth, pixelHeight);
   }
 
+  /**
+   * Sets the additional scaling factor above displayScaling (e.g. to support
+   * zooming in/out UI for user preferences). Defaults to 1.0.
+   */
   void setUnitsScaling(float scaling) {
-    unitsScaling = scaling > 0.0f ? scaling : 1.0f;
+    float newScale = scaling > 0.0f ? scaling : 1.0f;
+    if (newScale != unitsScaling) {
+      unitsScaling = newScale;
+      // release fonts, they don't match new zoom scale
+      clearTextCache();
+      setDefaultFont(null);
+    }
   }
 
+  /**
+   * Gets the additional scaling factor above displayScaling (defaults to 1.0).
+   */
   float getUnitsScaling() const {
     return unitsScaling;
   }
 
   void setDisplayScaling(float scaling) {
-    if (scaling != displayScaling) {
-      displayScaling = scaling > 0.0f ? scaling : 1.0f;
+    float newScale = scaling > 0.0f ? scaling : 1.0f;
+    if (newScale != displayScaling) {
+      displayScaling = newScale;
       // release fonts, they don't match new dpi
       clearTextCache();
       setDefaultFont(null);
     }
   }
 
-  float getDefaultScaling() const {
+  float getDisplayScaling() const {
     return displayScaling;
   }
 
+  alias getDefaultScaling = getDisplayScaling;
+
   float toPixels(float logicUnits) const {
-    return logicUnits * unitsScaling;
+    return logicUnits * (displayScaling * unitsScaling);
   }
 
   float toLogic(float pixels) const {
-    return unitsScaling > 0.0f ? (pixels / unitsScaling) : pixels;
+    float totalScale = displayScaling * unitsScaling;
+    return totalScale > 0.0f ? (pixels / totalScale) : pixels;
   }
 
   PointF toPixels(in PointF logicPoint) const {
@@ -343,12 +360,11 @@ final class Renderer {
   }
 
   PointF coordinatesFromEvent(in AppEvent event) const {
-    float factor = unitsScaling > 0.0f ? (displayScaling / unitsScaling) : 1.0f;
-    return PointF(event.x * factor, event.y * factor);
+    return coordinatesFromEvent(event.x, event.y);
   }
 
   PointF coordinatesFromEvent(float x, float y) const {
-    float factor = unitsScaling > 0.0f ? (displayScaling / unitsScaling) : 1.0f;
+    float factor = unitsScaling > 0.0f ? (1.0f / unitsScaling) : 1.0f;
     return PointF(x * factor, y * factor);
   }
 
@@ -441,7 +457,10 @@ final class Renderer {
 
   Font getDefaultFont() {
     if (defaultFont_ is null) {
-      defaultFont_ = new Font(cast(const(void)[])defaultTtfFontData, defaultFontPtSize * displayScaling);
+      defaultFont_ = new Font(
+        cast(const(void)[])defaultTtfFontData,
+        defaultFontPtSize * (displayScaling * unitsScaling)
+      );
       ownsDefaultFont_ = true;
     }
     return defaultFont_;
@@ -584,7 +603,12 @@ final class Renderer {
     }
     drawTexture(
       tex.textureId,
-      RectF(pos.x, pos.y, cast(float)tex.width, cast(float)tex.height),
+      RectF(
+        pos.x,
+        pos.y,
+        toLogic(cast(float)tex.width),
+        toLogic(cast(float)tex.height)
+      ),
       color
     );
   }
@@ -635,7 +659,7 @@ final class Renderer {
     if (f is null || text.length == 0) {
       return PointF(0.0f, 0.0f);
     }
-    return f.measureText(text);
+    return toLogic(f.measureText(text));
   }
 
   PointF measureText(Font font, string text) {
@@ -887,6 +911,7 @@ unittest {
 
   // 6. Test units scaling and pixel conversions
   assert(renderer.getDefaultScaling() == 1.0f);
+  assert(renderer.getDisplayScaling() == 1.0f);
   assert(renderer.getUnitsScaling() == 1.0f);
   assert(renderer.toPixels(10.0f) == 10.0f);
   assert(renderer.toLogic(10.0f) == 10.0f);
@@ -921,8 +946,19 @@ unittest {
   assert(renderer.getViewportWidth() == 160);
   assert(renderer.getViewportHeight() == 120);
 
+  // Combined scaling: displayScaling = 2.0f, unitsScaling = 1.5f
+  // (effective scale = 3.0f)
+  renderer.setDisplayScaling(2.0f);
+  renderer.setUnitsScaling(1.5f);
+  assert(renderer.getDisplayScaling() == 2.0f);
+  assert(renderer.getUnitsScaling() == 1.5f);
+  assert(renderer.toPixels(10.0f) == 30.0f);
+  assert(renderer.toLogic(30.0f) == 10.0f);
+  assert(renderer.getViewportWidth() == 106);
+  assert(renderer.getViewportHeight() == 80);
+
   // 7. Test coordinatesFromEvent
-  // Case A: 200% display scale, Renderer forced to 100% scale (ratio = 2.0)
+  // Case A: 200% display scale, zoom = 1.0 (1:1 window points to logic)
   renderer.setDisplayScaling(2.0f);
   renderer.setUnitsScaling(1.0f);
   assert(renderer.getDefaultScaling() == 2.0f);
@@ -938,27 +974,29 @@ unittest {
     50.0f
   );
   PointF converted = renderer.coordinatesFromEvent(evMotion);
-  assert(converted.x == 200.0f);
-  assert(converted.y == 100.0f);
-
-  PointF fromFloat = renderer.coordinatesFromEvent(100.0f, 50.0f);
-  assert(fromFloat.x == 200.0f);
-  assert(fromFloat.y == 100.0f);
-
-  // Case B: 200% display scale, Renderer at 200% scale (ratio = 1.0)
-  renderer.setUnitsScaling(2.0f);
-  converted = renderer.coordinatesFromEvent(evMotion);
   assert(converted.x == 100.0f);
   assert(converted.y == 50.0f);
 
-  // Case C: 100% display scale, Renderer forced to 200% scale (ratio = 0.5)
-  renderer.setDisplayScaling(1.0f);
+  PointF fromFloat = renderer.coordinatesFromEvent(100.0f, 50.0f);
+  assert(fromFloat.x == 100.0f);
+  assert(fromFloat.y == 50.0f);
+
+  // Case B: 200% display scale, zoom = 2.0 (logic coords halved)
   renderer.setUnitsScaling(2.0f);
   converted = renderer.coordinatesFromEvent(evMotion);
   assert(converted.x == 50.0f);
   assert(converted.y == 25.0f);
 
+  // Case C: 100% display scale, zoom = 0.5 (logic coords doubled)
+  renderer.setDisplayScaling(1.0f);
+  renderer.setUnitsScaling(0.5f);
+  converted = renderer.coordinatesFromEvent(evMotion);
+  assert(converted.x == 200.0f);
+  assert(converted.y == 100.0f);
+
   // 8. Scaled drawing test: unitsScaling = 2.0
+  renderer.setDisplayScaling(1.0f);
+  renderer.setUnitsScaling(2.0f);
   // Drawing rect (0, 0, 160, 120) logic units covers all 320x240 pixels.
   renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawFillRect(
@@ -1070,10 +1108,10 @@ unittest {
   }
 
   // Scaled text drawing test: unitsScaling = 2.0
+  renderer.setDisplayScaling(1.0f);
   renderer.setUnitsScaling(2.0f);
   renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawText(
-    customFont,
     "ABC",
     PointF(10.0f, 10.0f),
     ColorF(1.0f, 1.0f, 1.0f, 1.0f)

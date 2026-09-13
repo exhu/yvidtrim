@@ -17,7 +17,7 @@ class Window {
   int height;
   int pixelWidth;
   int pixelHeight;
-  float customUnitsScaling = 0.0f;
+  float customUnitsScaling = 1.0f;
   string title;
 
   Widget view;
@@ -62,7 +62,7 @@ class Window {
 
     float defaultScale = getDefaultScaling();
     renderer = new Renderer(pw, ph, defaultScale);
-    if (customUnitsScaling > 0.0f) {
+    if (customUnitsScaling != 1.0f) {
       renderer.setUnitsScaling(customUnitsScaling);
     }
     this.width = renderer.getViewportWidth();
@@ -80,6 +80,10 @@ class Window {
     return 1.0f;
   }
 
+  /**
+   * Sets the additional scaling factor above displayScaling (e.g. to support
+   * zooming in/out UI for user preferences). Defaults to 1.0.
+   */
   void setUnitsScaling(float scaling) {
     customUnitsScaling = scaling;
     if (renderer !is null) {
@@ -90,12 +94,19 @@ class Window {
     }
   }
 
+  /**
+   * Gets the additional scaling factor above displayScaling (defaults to 1.0).
+   */
   float getUnitsScaling() const {
     if (renderer !is null) {
       return renderer.getUnitsScaling();
     }
-    if (customUnitsScaling > 0.0f) {
-      return customUnitsScaling;
+    return customUnitsScaling;
+  }
+
+  float getDisplayScaling() const {
+    if (renderer !is null) {
+      return renderer.getDisplayScaling();
     }
     return getDefaultScaling();
   }
@@ -103,9 +114,6 @@ class Window {
   void onDisplayScaleChanged(float newScale) {
     if (renderer !is null) {
       renderer.setDisplayScaling(newScale);
-      if (customUnitsScaling <= 0.0f) {
-        renderer.setUnitsScaling(newScale);
-      }
       this.width = renderer.getViewportWidth();
       this.height = renderer.getViewportHeight();
       updateViewRect();
@@ -243,6 +251,9 @@ unittest {
   window.onDisplayScaleChanged(1.5f);
   // Custom scaling was set to 2.0f, so it retains custom scaling
   assert(window.getUnitsScaling() == 2.0f);
+  assert(window.getDisplayScaling() == 1.5f);
+  assert(window.width == 213);
+  assert(window.height == 160);
 
   window.redraw();
 }

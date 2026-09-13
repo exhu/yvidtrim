@@ -341,6 +341,10 @@ private:
     }
   }
 
+  /**
+   * Sets the additional scaling factor above displayScaling (e.g. to support
+   * zooming in/out UI for user preferences). Defaults to 1.0.
+   */
   void setUnitsScaling(float scaling) {
     if (mainWindow !is null) {
       mainWindow.setUnitsScaling(scaling);
@@ -348,9 +352,19 @@ private:
     redraw();
   }
 
+  /**
+   * Gets the additional scaling factor above displayScaling (defaults to 1.0).
+   */
   float getUnitsScaling() const {
     if (mainWindow !is null) {
       return mainWindow.getUnitsScaling();
+    }
+    return 1.0f;
+  }
+
+  float getDisplayScaling() const {
+    if (mainWindow !is null) {
+      return mainWindow.getDisplayScaling();
     }
     return 1.0f;
   }
@@ -457,7 +471,9 @@ unittest {
     const(AppEvent)[] received;
 
     override HandleResult handleEvent(in AppEvent ev) {
-      received ~= ev;
+      if (ev.kind == AppEvent.Kind.user) {
+        received ~= ev;
+      }
       if (ev.kind == AppEvent.Kind.user && ev.eventId == 999) {
         return HandleResult(HandleResult.Result.quit);
       }
@@ -702,6 +718,7 @@ unittest {
   auto ui = new UiSystem(window);
 
   assert(ui.getDefaultScaling() == 1.0f);
+  assert(ui.getDisplayScaling() == 1.0f);
   assert(ui.getUnitsScaling() == 1.0f);
 
   ui.setUnitsScaling(2.0f);
