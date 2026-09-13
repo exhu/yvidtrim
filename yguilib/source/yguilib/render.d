@@ -7,6 +7,8 @@ import std.string : toStringz;
 import yguilib.events : AppEvent;
 public import yguilib.render_types;
 
+enum string defaultTtfFontData = import("yguilib/fonts/GoogleSansCode-Regular.ttf");
+
 final class Renderer {
   this(int width = 0, int height = 0, float displayScaling = 1.0f) {
     viewportPixelWidth = width;
