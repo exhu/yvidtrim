@@ -6,7 +6,11 @@
 	],
 	"copyright": "Copyright © 2026, yur",
 	"name": "yvidtrim",
+	"dependencies": {
+		"yguilib": { "path": "yguilib" }
+	},
 	"stringImportPaths": [
-		"source"
+		"source",
+		"yguilib/source"
 	]
 }

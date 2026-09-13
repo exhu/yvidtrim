@@ -18,14 +18,16 @@ libraries in private C static libraries and exposing minimal D bindings.
    into D or auto-bind full C headers. Third-party dependencies must stay
    strictly in C.
 2. **Private C Static Wrappers**: External libraries are wrapped in static
-   libraries under `<proj>-clibs/` with opaque handles, minimal APIs, and
-   hidden symbols (`gnu_symbol_visibility : 'hidden'`).
+   libraries under `<proj>-clibs/` (`yvidtrim-clibs/` for `yvidtrim`,
+   `yguilib/yguilib-clibs/` for `yguilib`) with opaque handles, minimal APIs,
+   and hidden symbols (`gnu_symbol_visibility : 'hidden'`).
 3. **D Bindings**: Hand-written `extern(C)` declarations matching the wrapper
-   header are placed in `source/<proj>/clibs/<libname>.d`.
+   header are placed in `source/<proj>/clibs/<libname>.d` (or
+   `yguilib/source/yguilib/clibs/<libname>.d` for `yguilib`).
 4. **Symbol & File Naming**:
-   - Files: `<proj>-clibs/<proj>_<libname>.[c|h]`,
-     `<proj>-clibs/<proj>_<libname>_test.c`,
-     `source/<proj>/clibs/<libname>.d`.
+   - Files: `<c-dir>/<proj>_<libname>.[c|h]`,
+     `<c-dir>/<proj>_<libname>_test.c`,
+     `<d-dir>/<libname>.d`.
    - C functions: `<proj>_<libname>_<function_name>`.
    - C types: `<proj>_<libname>_<TypeName>`.
    - C enums / defines: `<PROJ>_<LIBNAME>_<VALUE>`.
@@ -108,12 +110,13 @@ Edit `source/<proj>/clibs/<libname>.d`:
 - Declare matching `struct` definitions (opaque or value) and `enum` values.
 - Declare matching `extern(C)` functions.
 
-### 6. Link in Root `meson.build` and `dub.json`
-- In `meson.build`:
-  - Add `'source/<proj>/clibs/<libname>.d'` to the relevant source list.
+### 6. Link in Meson and `dub.json`
+- In `meson.build` (or `yguilib/meson.build` for `yguilib`):
+  - Add the D binding file to the relevant source list (`yvidtrim_src` or
+    `yguilib_src`).
   - Add `<proj>_<libname>_lib` to the `link_with` list of the executable/test.
-- In `dub.json`:
-  - Add the new D binding module to `sourceFiles` if needed for LSP/IDE.
+- In `dub.json` (or `yguilib/dub.json`):
+  - The module is automatically picked up by LSP via configured `sourcePaths`.
 
 ### 7. Build and Verify
 Run the build and test suite:

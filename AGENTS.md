@@ -12,20 +12,24 @@ meson setup _build .        # Setup (or --reconfigure)
 
 ## Architecture & Wrapper Rules
 - **No Direct C/C++ in D**: Never import external C headers or auto-bind.
-- **Private C Wrappers (`yvidtrim-clibs/`, `yguilib-clibs/`)**: Wrap third-party
-  libraries in static C libraries with opaque handles and minimal APIs.
-- **D Bindings**: Put matching `extern(C)` in `source/<proj>/clibs/<libname>.d`.
+- **Private C Wrappers (`yvidtrim-clibs/`, `yguilib/yguilib-clibs/`)**: Wrap
+  third-party libraries in static C libraries with opaque handles and minimal
+  APIs.
+- **D Bindings**: Put matching `extern(C)` in
+  `source/yvidtrim/clibs/<libname>.d` (for `yvidtrim`) or
+  `yguilib/source/yguilib/clibs/<libname>.d` (for `yguilib`).
 - **Naming**: Public symbols use `<proj>_<libname>_` prefix (files:
   `<proj>_<libname>.[c|h]`, funcs: `yvidtrim_sdl3_hello()`, types:
   `yguilib_sdl3_EventType`).
 - **New Wrapper Steps**:
-  1. Add header & source in `<proj>-clibs/<proj>_<libname>.[c|h]`.
+  1. Add header & source in `<proj>-clibs/<proj>_<libname>.[c|h]`
+     (under `yguilib/` for `yguilib`).
   2. Add test `<proj>-clibs/<proj>_<libname>_test.c` in
-     `<proj>-clibs/meson.build`.
-  3. Add D binding `source/<proj>/clibs/<libname>.d` & link in `meson.build`.
+     matching `<proj>-clibs/meson.build`.
+  3. Add D binding & link in matching `meson.build`.
 - **OpenGL ES**: Only call GLES in D code via `source/glad2/gles2.d` (loader in
   `glad2gles31/`).
-- **Independence**: `source/yguilib/` and `yguilib-clibs/` must not depend on
+- **Independence**: `yguilib/` (sources and wrappers) must not depend on
   `source/yvidtrim/` or `yvidtrim-clibs/`.
 
 ## Code Style & Workflow

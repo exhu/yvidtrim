@@ -1,4 +1,4 @@
-- review main loop
-- for the first complete version we place all D code in source, and C in ./yvidtrim-clibs; after that we can refactor a separate gui library.
-- add sdl3, sdl3_ttf dependencies to build scripts
+- make yguilib a static library
+- make glad reusable both from standalone gui lib and any app that uses that lib
+- add sdl3_ttf dependencies to build scripts
 - implement simple ui: control hierarchy system with input: window, widget, label, view, controller, models

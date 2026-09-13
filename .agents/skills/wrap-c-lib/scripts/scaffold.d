@@ -77,8 +77,21 @@ bool isValidLibName(string name) {
 
 int runScaffold(const ref Config cfg) {
   string prefix = format("%s_%s", cfg.proj, cfg.libName);
-  string cDir = format("%s-clibs", cfg.proj);
-  string dDir = buildPath("source", cfg.proj, "clibs");
+  string cDir;
+  string dDir;
+
+  if (cfg.proj == "yguilib") {
+    if (exists("yguilib-clibs")) {
+      cDir = "yguilib-clibs";
+      dDir = buildPath("source", "yguilib", "clibs");
+    } else {
+      cDir = buildPath("yguilib", "yguilib-clibs");
+      dDir = buildPath("yguilib", "source", "yguilib", "clibs");
+    }
+  } else {
+    cDir = format("%s-clibs", cfg.proj);
+    dDir = buildPath("source", cfg.proj, "clibs");
+  }
 
   string cHeader = buildPath(cDir, prefix ~ ".h");
   string cSource = buildPath(cDir, prefix ~ ".c");
@@ -226,9 +239,25 @@ void printMesonInstructions(
     testExe,
   );
   writeln("------------------------------------------------------------");
-  writefln("2. Link '%s' into the executable in root meson.build.", libTarget);
-  writefln("3. Add 'source/%s/clibs/%s.d' to the sources list in meson.build.",
-    cfg.proj, cfg.libName);
+  if (cfg.proj == "yguilib") {
+    writefln(
+      "2. Add 'source/yguilib/clibs/%s.d' to yguilib_src in yguilib/meson.build.",
+      cfg.libName,
+    );
+    writefln(
+      "3. Link '%s' into yguilib_test in yguilib/meson.build " ~
+      "(and root meson.build if used by yvidtrim).",
+      libTarget,
+    );
+  } else {
+    writefln(
+      "2. Add 'source/%s/clibs/%s.d' to %s_src in root meson.build.",
+      cfg.proj,
+      cfg.libName,
+      cfg.proj,
+    );
+    writefln("3. Link '%s' into executable in root meson.build.", libTarget);
+  }
   writeln("4. Run verification:");
   writeln("   meson setup _build --reconfigure && " ~
     "ninja -C _build && meson test -C _build");
