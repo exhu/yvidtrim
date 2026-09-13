@@ -467,6 +467,40 @@ private:
             sdlEv.y
           )
         );
+      case yguilib_sdl3_EventType.keyDown: {
+        AppEvent ev = AppEvent(AppEvent.Kind.keyDown, sdlEv.windowId);
+        ev.key = sdlEv.key;
+        ev.scancode = sdlEv.scancode;
+        ev.mod = sdlEv.mod;
+        ev.repeat = sdlEv.repeat != 0;
+        return Nullable!AppEvent(ev);
+      }
+      case yguilib_sdl3_EventType.keyUp: {
+        AppEvent ev = AppEvent(AppEvent.Kind.keyUp, sdlEv.windowId);
+        ev.key = sdlEv.key;
+        ev.scancode = sdlEv.scancode;
+        ev.mod = sdlEv.mod;
+        ev.repeat = sdlEv.repeat != 0;
+        return Nullable!AppEvent(ev);
+      }
+      case yguilib_sdl3_EventType.textEditing: {
+        import core.stdc.string : strlen;
+        AppEvent ev = AppEvent(AppEvent.Kind.textEditing, sdlEv.windowId);
+        if (sdlEv.text !is null) {
+          ev.text = sdlEv.text[0 .. strlen(sdlEv.text)].idup;
+        }
+        ev.editStart = sdlEv.start;
+        ev.editLength = sdlEv.length;
+        return Nullable!AppEvent(ev);
+      }
+      case yguilib_sdl3_EventType.textInput: {
+        import core.stdc.string : strlen;
+        AppEvent ev = AppEvent(AppEvent.Kind.textInput, sdlEv.windowId);
+        if (sdlEv.text !is null) {
+          ev.text = sdlEv.text[0 .. strlen(sdlEv.text)].idup;
+        }
+        return Nullable!AppEvent(ev);
+      }
       default:
         return Nullable!AppEvent.init;
     }
@@ -767,4 +801,47 @@ unittest {
   assert(mouseApp.get().eventId == 42);
   assert(mouseApp.get().x == 123.5f);
   assert(mouseApp.get().y == 234.5f);
+
+  yguilib_sdl3_Event keySdl;
+  keySdl.type = yguilib_sdl3_EventType.keyDown;
+  keySdl.windowId = 42;
+  keySdl.key = 13;
+  keySdl.scancode = 40;
+  keySdl.mod = 0x0001;
+  keySdl.repeat = 1;
+
+  auto keyApp = ui.appEventFromSdlEvent(keySdl);
+  assert(!keyApp.isNull);
+  assert(keyApp.get().kind == AppEvent.Kind.keyDown);
+  assert(keyApp.get().eventId == 42);
+  assert(keyApp.get().key == 13);
+  assert(keyApp.get().scancode == 40);
+  assert(keyApp.get().mod == 1);
+  assert(keyApp.get().repeat);
+
+  yguilib_sdl3_Event textSdl;
+  textSdl.type = yguilib_sdl3_EventType.textInput;
+  textSdl.windowId = 42;
+  textSdl.text = "abc\0".ptr;
+
+  auto textApp = ui.appEventFromSdlEvent(textSdl);
+  assert(!textApp.isNull);
+  assert(textApp.get().kind == AppEvent.Kind.textInput);
+  assert(textApp.get().eventId == 42);
+  assert(textApp.get().text == "abc");
+
+  yguilib_sdl3_Event editSdl;
+  editSdl.type = yguilib_sdl3_EventType.textEditing;
+  editSdl.windowId = 42;
+  editSdl.text = "def\0".ptr;
+  editSdl.start = 1;
+  editSdl.length = 2;
+
+  auto editApp = ui.appEventFromSdlEvent(editSdl);
+  assert(!editApp.isNull);
+  assert(editApp.get().kind == AppEvent.Kind.textEditing);
+  assert(editApp.get().eventId == 42);
+  assert(editApp.get().text == "def");
+  assert(editApp.get().editStart == 1);
+  assert(editApp.get().editLength == 2);
 }

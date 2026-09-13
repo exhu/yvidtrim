@@ -21,6 +21,14 @@ static int convert_sdl_event(const SDL_Event *src, yguilib_sdl3_Event *dst) {
   dst->x = 0.0f;
   dst->y = 0.0f;
   dst->scale = 1.0f;
+  dst->key = 0;
+  dst->scancode = 0;
+  dst->mod = 0;
+  dst->repeat = 0;
+  dst->padding = 0;
+  dst->text = NULL;
+  dst->start = 0;
+  dst->length = 0;
   if (g_wake_event_type != 0 && src->type == g_wake_event_type) {
     dst->type = YGUILIB_SDL3_EVENT_WAKE;
     return 1;
@@ -95,6 +103,32 @@ static int convert_sdl_event(const SDL_Event *src, yguilib_sdl3_Event *dst) {
       dst->window_id = src->button.windowID;
       dst->x = src->button.x;
       dst->y = src->button.y;
+      return 1;
+    }
+    case SDL_EVENT_KEY_DOWN:
+    case SDL_EVENT_KEY_UP: {
+      dst->type = (src->type == SDL_EVENT_KEY_DOWN)
+        ? YGUILIB_SDL3_EVENT_KEY_DOWN
+        : YGUILIB_SDL3_EVENT_KEY_UP;
+      dst->window_id = src->key.windowID;
+      dst->key = (uint32_t)src->key.key;
+      dst->scancode = (uint32_t)src->key.scancode;
+      dst->mod = (uint16_t)src->key.mod;
+      dst->repeat = src->key.repeat ? 1 : 0;
+      return 1;
+    }
+    case SDL_EVENT_TEXT_EDITING: {
+      dst->type = YGUILIB_SDL3_EVENT_TEXT_EDITING;
+      dst->window_id = src->edit.windowID;
+      dst->text = src->edit.text;
+      dst->start = src->edit.start;
+      dst->length = src->edit.length;
+      return 1;
+    }
+    case SDL_EVENT_TEXT_INPUT: {
+      dst->type = YGUILIB_SDL3_EVENT_TEXT_INPUT;
+      dst->window_id = src->text.windowID;
+      dst->text = src->text.text;
       return 1;
     }
     default:
@@ -322,4 +356,72 @@ void yguilib_sdl3_log_priority(
       message
     );
   }
+}
+
+int yguilib_sdl3_start_text_input(yguilib_sdl3_Window *window) {
+  if (!window || !window->handle) {
+    return -1;
+  }
+  return SDL_StartTextInput(window->handle) ? 0 : -1;
+}
+
+int yguilib_sdl3_stop_text_input(yguilib_sdl3_Window *window) {
+  if (!window || !window->handle) {
+    return -1;
+  }
+  return SDL_StopTextInput(window->handle) ? 0 : -1;
+}
+
+int yguilib_sdl3_set_text_input_area(
+  yguilib_sdl3_Window *window,
+  const yguilib_sdl3_Rect *rect,
+  int cursor
+) {
+  if (!window || !window->handle) {
+    return -1;
+  }
+  SDL_Rect sdl_rect;
+  const SDL_Rect *p_sdl_rect = NULL;
+  if (rect) {
+    sdl_rect.x = rect->x;
+    sdl_rect.y = rect->y;
+    sdl_rect.w = rect->w;
+    sdl_rect.h = rect->h;
+    p_sdl_rect = &sdl_rect;
+  }
+  return SDL_SetTextInputArea(window->handle, p_sdl_rect, cursor) ? 0 : -1;
+}
+
+uint32_t yguilib_sdl3_get_key_from_scancode(
+  uint32_t scancode,
+  uint16_t modstate,
+  int key_event
+) {
+  return (uint32_t)SDL_GetKeyFromScancode(
+    (SDL_Scancode)scancode,
+    (SDL_Keymod)modstate,
+    key_event != 0
+  );
+}
+
+const char *yguilib_sdl3_get_key_name(uint32_t key) {
+  return SDL_GetKeyName((SDL_Keycode)key);
+}
+
+uint32_t yguilib_sdl3_get_key_from_name(const char *name) {
+  if (!name) {
+    return 0;
+  }
+  return (uint32_t)SDL_GetKeyFromName(name);
+}
+
+uint32_t yguilib_sdl3_get_scancode_from_name(const char *name) {
+  if (!name) {
+    return 0;
+  }
+  return (uint32_t)SDL_GetScancodeFromName(name);
+}
+
+const char *yguilib_sdl3_get_scancode_name(uint32_t scancode) {
+  return SDL_GetScancodeName((SDL_Scancode)scancode);
 }

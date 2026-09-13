@@ -14,6 +14,10 @@ struct AppEvent {
     mouseMotion,
     mouseButtonDown,
     mouseButtonUp,
+    keyDown,
+    keyUp,
+    textEditing,
+    textInput,
     appQuit,
   }
 
@@ -25,6 +29,13 @@ struct AppEvent {
   float x = 0.0f;
   float y = 0.0f;
   float scale = 1.0f;
+  uint key = 0;
+  uint scancode = 0;
+  ushort mod = 0;
+  bool repeat = false;
+  string text = null;
+  int editStart = 0;
+  int editLength = 0;
 
   this(
     Kind kind,
@@ -34,7 +45,14 @@ struct AppEvent {
     Object data = null,
     float x = 0.0f,
     float y = 0.0f,
-    float scale = 1.0f
+    float scale = 1.0f,
+    uint key = 0,
+    uint scancode = 0,
+    ushort mod = 0,
+    bool repeat = false,
+    string text = null,
+    int editStart = 0,
+    int editLength = 0
   ) {
     this.kind = kind;
     this.eventId = eventId;
@@ -44,6 +62,13 @@ struct AppEvent {
     this.x = x;
     this.y = y;
     this.scale = scale;
+    this.key = key;
+    this.scancode = scancode;
+    this.mod = mod;
+    this.repeat = repeat;
+    this.text = text;
+    this.editStart = editStart;
+    this.editLength = editLength;
   }
 }
 
@@ -67,5 +92,30 @@ unittest {
   assert(mouseEv.kind == AppEvent.Kind.mouseMotion);
   assert(mouseEv.x == 150.5f);
   assert(mouseEv.y == 250.0f);
+
+  AppEvent keyEv = AppEvent(AppEvent.Kind.keyDown, 1);
+  keyEv.key = 13;
+  keyEv.scancode = 40;
+  keyEv.mod = 0x0001;
+  keyEv.repeat = true;
+  assert(keyEv.kind == AppEvent.Kind.keyDown);
+  assert(keyEv.key == 13);
+  assert(keyEv.scancode == 40);
+  assert(keyEv.mod == 1);
+  assert(keyEv.repeat);
+
+  AppEvent textEv = AppEvent(AppEvent.Kind.textInput, 1);
+  textEv.text = "hello";
+  assert(textEv.kind == AppEvent.Kind.textInput);
+  assert(textEv.text == "hello");
+
+  AppEvent editEv = AppEvent(AppEvent.Kind.textEditing, 1);
+  editEv.text = "comp";
+  editEv.editStart = 2;
+  editEv.editLength = 1;
+  assert(editEv.kind == AppEvent.Kind.textEditing);
+  assert(editEv.text == "comp");
+  assert(editEv.editStart == 2);
+  assert(editEv.editLength == 1);
 }
 

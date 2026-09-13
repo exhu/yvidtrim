@@ -1,6 +1,7 @@
 #include "yguilib_sdl3.h"
 #include <assert.h>
 #include <stddef.h>
+#include <string.h>
 
 int main(void) {
   assert(yguilib_sdl3_hello() == 0);
@@ -62,9 +63,38 @@ int main(void) {
 
   float display_scale = yguilib_sdl3_get_window_display_scale(win);
   assert(display_scale > 0.0f);
+  assert(sizeof(yguilib_sdl3_Event) == 56);
+
+  int start_text_res = yguilib_sdl3_start_text_input(win);
+  assert(start_text_res == 0);
+
+  yguilib_sdl3_Rect text_area = {10, 20, 100, 30};
+  int set_area_res = yguilib_sdl3_set_text_input_area(win, &text_area, 5);
+  assert(set_area_res == 0);
+
+  int clear_area_res = yguilib_sdl3_set_text_input_area(win, NULL, 0);
+  assert(clear_area_res == 0);
+
+  int stop_text_res = yguilib_sdl3_stop_text_input(win);
+  assert(stop_text_res == 0);
 
   yguilib_sdl3_gl_destroy_context(ctx);
   yguilib_sdl3_destroy_window(win);
+
+  uint32_t scancode_a = yguilib_sdl3_get_scancode_from_name("A");
+  assert(scancode_a == 4);
+
+  const char *scancode_name = yguilib_sdl3_get_scancode_name(4);
+  assert(scancode_name != NULL && strcmp(scancode_name, "A") == 0);
+
+  uint32_t key_a = yguilib_sdl3_get_key_from_scancode(4, 0, 0);
+  assert(key_a == 'a');
+
+  const char *key_name = yguilib_sdl3_get_key_name('a');
+  assert(key_name != NULL && strcmp(key_name, "A") == 0);
+
+  uint32_t key_ret = yguilib_sdl3_get_key_from_name("Return");
+  assert(key_ret == 13);
 
   yguilib_sdl3_log("Testing yguilib_sdl3_log output");
   yguilib_sdl3_log_priority(

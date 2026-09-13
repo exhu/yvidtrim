@@ -16,9 +16,20 @@ typedef enum yguilib_sdl3_EventType {
   YGUILIB_SDL3_EVENT_MOUSE_MOTION,
   YGUILIB_SDL3_EVENT_MOUSE_BUTTON_DOWN,
   YGUILIB_SDL3_EVENT_MOUSE_BUTTON_UP,
+  YGUILIB_SDL3_EVENT_KEY_DOWN,
+  YGUILIB_SDL3_EVENT_KEY_UP,
+  YGUILIB_SDL3_EVENT_TEXT_EDITING,
+  YGUILIB_SDL3_EVENT_TEXT_INPUT,
   YGUILIB_SDL3_EVENT_WAKE,
   YGUILIB_SDL3_EVENT_UNKNOWN,
 } yguilib_sdl3_EventType;
+
+typedef struct yguilib_sdl3_Rect {
+  int32_t x;
+  int32_t y;
+  int32_t w;
+  int32_t h;
+} yguilib_sdl3_Rect;
 
 typedef struct yguilib_sdl3_Event {
   yguilib_sdl3_EventType type;
@@ -28,6 +39,14 @@ typedef struct yguilib_sdl3_Event {
   float x;
   float y;
   float scale;
+  uint32_t key;
+  uint32_t scancode;
+  uint16_t mod;
+  uint8_t repeat;
+  uint8_t padding;
+  const char *text;
+  int32_t start;
+  int32_t length;
 } yguilib_sdl3_Event;
 
 /**
@@ -225,6 +244,83 @@ void yguilib_sdl3_log_priority(
   yguilib_sdl3_LogPriority priority,
   const char *message
 );
+
+/**
+ * Starts accepting Unicode text input in the given window.
+ *
+ * @param window Pointer to the window handle.
+ * @return 0 on success, or -1 on failure.
+ */
+int yguilib_sdl3_start_text_input(yguilib_sdl3_Window *window);
+
+/**
+ * Stops accepting Unicode text input in the given window.
+ *
+ * @param window Pointer to the window handle.
+ * @return 0 on success, or -1 on failure.
+ */
+int yguilib_sdl3_stop_text_input(yguilib_sdl3_Window *window);
+
+/**
+ * Sets the rectangle used to type Unicode text input and position IME candidate
+ * windows.
+ *
+ * @param window Pointer to the window handle.
+ * @param rect Pointer to the area rectangle, or NULL to clear it.
+ * @param cursor Cursor offset relative to rect->x.
+ * @return 0 on success, or -1 on failure.
+ */
+int yguilib_sdl3_set_text_input_area(
+  yguilib_sdl3_Window *window,
+  const yguilib_sdl3_Rect *rect,
+  int cursor
+);
+
+/**
+ * Gets the key code corresponding to the given scancode and modifier state.
+ *
+ * @param scancode SDL scancode value.
+ * @param modstate Modifier state.
+ * @param key_event Non-zero if the keycode will be used in key events.
+ * @return The keycode value, or 0 on failure.
+ */
+uint32_t yguilib_sdl3_get_key_from_scancode(
+  uint32_t scancode,
+  uint16_t modstate,
+  int key_event
+);
+
+/**
+ * Gets a human-readable name for a key.
+ *
+ * @param key The keycode value.
+ * @return Pointer to UTF-8 name string, or "" if not found.
+ */
+const char *yguilib_sdl3_get_key_name(uint32_t key);
+
+/**
+ * Gets a key code from a human-readable name.
+ *
+ * @param name UTF-8 key name.
+ * @return Key code, or 0 if not recognized.
+ */
+uint32_t yguilib_sdl3_get_key_from_name(const char *name);
+
+/**
+ * Gets a scancode from a human-readable name.
+ *
+ * @param name UTF-8 scancode name.
+ * @return Scancode value, or 0 if not recognized.
+ */
+uint32_t yguilib_sdl3_get_scancode_from_name(const char *name);
+
+/**
+ * Gets a human-readable name for a scancode.
+ *
+ * @param scancode Scancode value.
+ * @return Pointer to UTF-8 name string, or "" if not found.
+ */
+const char *yguilib_sdl3_get_scancode_name(uint32_t scancode);
 
 #ifdef __cplusplus
 }

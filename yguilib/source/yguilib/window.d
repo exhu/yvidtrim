@@ -208,6 +208,31 @@ class Window {
     }
   }
 
+  void startTextInput() {
+    if (handle !is null) {
+      yguilib_sdl3_start_text_input(handle);
+    }
+  }
+
+  void stopTextInput() {
+    if (handle !is null) {
+      yguilib_sdl3_stop_text_input(handle);
+    }
+  }
+
+  void setTextInputArea(int x, int y, int w, int h, int cursor = 0) {
+    if (handle !is null) {
+      yguilib_sdl3_Rect rect = yguilib_sdl3_Rect(x, y, w, h);
+      yguilib_sdl3_set_text_input_area(handle, &rect, cursor);
+    }
+  }
+
+  void clearTextInputArea() {
+    if (handle !is null) {
+      yguilib_sdl3_set_text_input_area(handle, null, 0);
+    }
+  }
+
   ~this() {
     destroy();
   }
@@ -234,6 +259,11 @@ unittest {
   assert(window.renderer !is null);
   assert(window.renderer.getViewportWidth() == 320);
   assert(window.renderer.getViewportHeight() == 240);
+
+  window.startTextInput();
+  window.setTextInputArea(10, 10, 100, 20, 2);
+  window.clearTextInputArea();
+  window.stopTextInput();
 
   window.onResize(640, 480);
   assert(window.width == 640);
