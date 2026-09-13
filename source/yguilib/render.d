@@ -19,24 +19,9 @@ final class Renderer {
     }
 
     enum string vertexShaderSource =
-      "#version 300 es\n" ~
-      "layout(location = 0) in vec2 aPosition;\n" ~
-      "uniform vec2 uResolution;\n" ~
-      "void main() {\n" ~
-      "  vec2 zeroToOne = aPosition / uResolution;\n" ~
-      "  vec2 zeroToTwo = zeroToOne * 2.0;\n" ~
-      "  vec2 clipSpace = vec2(zeroToTwo.x - 1.0, 1.0 - zeroToTwo.y);\n" ~
-      "  gl_Position = vec4(clipSpace, 0.0, 1.0);\n" ~
-      "}\n";
-
+      import("yguilib/shaders/color.vert.glsl");
     enum string fragmentShaderSource =
-      "#version 300 es\n" ~
-      "precision mediump float;\n" ~
-      "uniform vec4 uColor;\n" ~
-      "out vec4 fragColor;\n" ~
-      "void main() {\n" ~
-      "  fragColor = uColor;\n" ~
-      "}\n";
+      import("yguilib/shaders/color.frag.glsl");
 
     GLuint vertShader = compileShader(
       GL_VERTEX_SHADER,

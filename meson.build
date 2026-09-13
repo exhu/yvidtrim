@@ -37,6 +37,7 @@ src = glad2_src + yguilib_src + [
 executable('yvidtrim',
            src,
            link_with: [yvidtrim_sdl3_lib, yguilib_sdl3_lib, glad_lib],
+           d_import_dirs: ['source'],
            include_directories: ['source'])
 
 yguilib_test_src = yguilib_src + [
@@ -48,6 +49,7 @@ yguilib_test_exe = executable(
   yguilib_test_src,
   d_unittest: true,
   link_with: [yguilib_sdl3_lib, glad_lib],
+  d_import_dirs: ['source'],
   include_directories: ['source'],
 )
 test('yguilib_test', yguilib_test_exe)
