@@ -18,6 +18,9 @@ If a struct or class field must not be null in all cases, add struct or class
 empty objects, or placing null checks everywhere. Disable default constructor if
 the field must be initialized via an argument to a non-null value.
 
+## const for local variables
+Prefer declaring local variables const if they don't change.
+
 ## Resources and string import
 Essencial static resources for GUI like fonts, images, shaders, texts are
 embedded into final program via D's import strings if they are small.
@@ -48,3 +51,17 @@ typedef enum my_lib_WindowStyle {
 } my_lib_WindowStyle;
 
 ```
+
+## Types and documentation
+Add doc comments describing return values and arguments especially if they
+are of plain types like `int`.
+
+## NULL
+Always document whether NULL is a valid function argument or return value for
+accepted or returned pointers.
+
+If a function uses third-party library and it's unknown if it accepts or
+returns NULL declare it in the comment that it's undefined.
+
+## const for local variables
+Prefer declaring local variables const if they don't change.
