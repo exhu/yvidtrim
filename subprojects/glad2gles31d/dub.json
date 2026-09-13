@@ -1,0 +1,11 @@
+{
+  "name": "glad2gles31d",
+  "description": "glad2 OpenGL ES 3.1 D bindings",
+  "targetType": "library",
+  "sourcePaths": [
+    "source"
+  ],
+  "importPaths": [
+    "source"
+  ]
+}

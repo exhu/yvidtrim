@@ -1,0 +1,18 @@
+{
+  "name": "yguilib",
+  "description": "GUI library using SDL3 and OpenGL ES",
+  "targetType": "library",
+  "dependencies": {
+    "glad2gles31d": { "path": "../subprojects/glad2gles31d" }
+  },
+  "sourcePaths": [
+    "source"
+  ],
+  "importPaths": [
+    "source"
+  ],
+  "stringImportPaths": [
+    "source"
+  ]
+}
+
