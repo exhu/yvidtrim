@@ -13,13 +13,14 @@ import std.typecons;
 private struct ControllerStack {
   void push(Controller c) {
     assert(c !is null);
+    c.isModal = false;
     stack ~= c;
     c.onPush();
   }
 
   void pushModal(Controller c) {
     assert(c !is null);
-    // TODO mark c as modal
+    c.isModal = true;
     auto active = getActiveOrNull();
     if (active !is null) {
       active.onSuspendByModal();
@@ -33,10 +34,9 @@ private struct ControllerStack {
     if (active is null) {
       return;
     }
+    const bool wasModal = active.isModal;
     stack.length -= 1;
     active.onPop();
-    // TODO check if active is modal
-    const bool wasModal = false;
     active = getActiveOrNull();
     if (active !is null && wasModal) {
       active.onResumeByModal();
@@ -125,6 +125,9 @@ private struct MessageBus {
 
 private:
   Object getLock() {
+    if (lock is null) {
+      lock = new Object();
+    }
     return lock;
   }
 
@@ -296,35 +299,34 @@ class UiSystem {
 
 private:
   Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
-    if (sdlEv.type == yguilib_sdl3_EventType.quit) {
-      return Nullable!AppEvent(AppEvent(AppEvent.Kind.appQuit));
+    switch (sdlEv.type) {
+      case yguilib_sdl3_EventType.quit:
+        return Nullable!AppEvent(AppEvent(AppEvent.Kind.appQuit));
+      case yguilib_sdl3_EventType.windowClose:
+        return Nullable!AppEvent(
+          AppEvent(AppEvent.Kind.windowClose, sdlEv.windowId)
+        );
+      case yguilib_sdl3_EventType.windowResized:
+        return Nullable!AppEvent(
+          AppEvent(
+            AppEvent.Kind.windowResized,
+            sdlEv.windowId,
+            sdlEv.width,
+            sdlEv.height
+          )
+        );
+      case yguilib_sdl3_EventType.windowExposed:
+        return Nullable!AppEvent(
+          AppEvent(
+            AppEvent.Kind.windowExposed,
+            sdlEv.windowId,
+            sdlEv.width,
+            sdlEv.height
+          )
+        );
+      default:
+        return Nullable!AppEvent.init;
     }
-    if (sdlEv.type == yguilib_sdl3_EventType.windowClose) {
-      return Nullable!AppEvent(
-        AppEvent(AppEvent.Kind.windowClose, sdlEv.windowId)
-      );
-    }
-    if (sdlEv.type == yguilib_sdl3_EventType.windowResized) {
-      return Nullable!AppEvent(
-        AppEvent(
-          AppEvent.Kind.windowResized,
-          sdlEv.windowId,
-          sdlEv.width,
-          sdlEv.height
-        )
-      );
-    }
-    if (sdlEv.type == yguilib_sdl3_EventType.windowExposed) {
-      return Nullable!AppEvent(
-        AppEvent(
-          AppEvent.Kind.windowExposed,
-          sdlEv.windowId,
-          sdlEv.width,
-          sdlEv.height
-        )
-      );
-    }
-    return Nullable!AppEvent.init;
   }
 
   ControllerStack controllers;
@@ -332,6 +334,7 @@ private:
   Window mainWindow;
 } // -UiSystem
 
+// Verifies cross-thread event dispatch to the active controller.
 unittest {
   import core.thread;
   import core.time;
@@ -371,6 +374,7 @@ unittest {
   assert(ctrl.received[2].eventId == 999);
 }
 
+// Verifies timeout-driven periodic view updates in the main event loop.
 unittest {
   class TickController : DefaultController {
     UiSystem ui;
@@ -407,6 +411,7 @@ unittest {
   assert(tickCtrl.ticks >= 2);
 }
 
+// Verifies window resize event handling and renderer viewport updates.
 unittest {
   class ResizeTestController : DefaultController {
     const(AppEvent)[] received;
@@ -453,6 +458,7 @@ unittest {
   assert(ctrl.updateCount >= 1);
 }
 
+// Verifies window expose event handling and controller notification.
 unittest {
   class ExposeTestController : DefaultController {
     const(AppEvent)[] received;
@@ -487,6 +493,7 @@ unittest {
   assert(ctrl.updateCount >= 1);
 }
 
+// Verifies ControllerStack push, modal push, and pop lifecycle transitions.
 unittest {
   class ModalTrackController : DefaultController {
     string[]* log;
@@ -548,6 +555,7 @@ unittest {
   ]);
 }
 
+// Verifies MessageBus event queueing, retrieval, and buffer reuse.
 unittest {
   MessageBus bus;
   assert(!bus.hasPending());

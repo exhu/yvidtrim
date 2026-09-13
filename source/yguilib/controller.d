@@ -25,6 +25,8 @@ interface Controller {
   void onPop();
   void onSuspendByModal();
   void onResumeByModal();
+  @property bool isModal() const;
+  @property void isModal(bool value);
 }
 
 class DefaultController : Controller {
@@ -47,5 +49,13 @@ class DefaultController : Controller {
   }
   override void onResumeByModal() {
   }
+  @property override bool isModal() const {
+    return isModal_;
+  }
+  @property override void isModal(bool value) {
+    isModal_ = value;
+  }
 
+private:
+  bool isModal_ = false;
 }
