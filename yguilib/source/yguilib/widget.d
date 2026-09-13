@@ -65,6 +65,8 @@ class Widget {
   this(Widget parent, RectF rect) {
     this.parent = parent;
     this.rect = rect;
+    if (parent)
+      parent.children ~= this;
   }
 
   Widget parent;
@@ -72,4 +74,5 @@ class Widget {
   WidgetComponents components;
   bool handleInput;
   bool visible = true;
+  Widget[] children;
 }

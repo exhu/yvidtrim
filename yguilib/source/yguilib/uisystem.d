@@ -161,96 +161,6 @@ class UiSystem {
     // TODO
   }
 
-  private void drawUi() {
-    // TODO render hierarchy
-    if (mainWindow !is null && mainWindow.view !is null) {
-      if (mainWindow.view.components.background !is null) {
-        mainWindow.renderer.drawFillRect(
-          mainWindow.view.rect,
-          mainWindow.view.components.background.color
-        );
-      }
-    }
-  }
-
-  private void renderFrame() {
-    if (mainWindow !is null) {
-      drawUi();
-      mainWindow.swapBuffers();
-    }
-  }
-
-  private void updateAndRender(Controller controller) {
-    if (controller !is null) {
-      controller.updateView();
-    }
-    renderFrame();
-  }
-
-  private bool isMainWindowEvent(uint eventId) const {
-    return mainWindow !is null &&
-      (eventId == 0 || mainWindow.id == 0 || eventId == mainWindow.id);
-  }
-
-  private void handleWindowEvent(in AppEvent event) {
-    if (!isMainWindowEvent(event.eventId)) {
-      return;
-    }
-    if (event.kind == AppEvent.Kind.windowResized) {
-      mainWindow.onResize(event.width, event.height);
-    } else if (event.kind == AppEvent.Kind.windowExposed) {
-      if (event.width > 0 && event.height > 0 &&
-          (event.width != mainWindow.pixelWidth ||
-           event.height != mainWindow.pixelHeight)) {
-        mainWindow.onResize(event.width, event.height);
-      }
-    } else if (event.kind == AppEvent.Kind.windowDisplayScaleChanged) {
-      mainWindow.onDisplayScaleChanged(event.scale);
-      if (event.width > 0 && event.height > 0) {
-        mainWindow.onResize(event.width, event.height);
-      }
-    }
-  }
-
-  private int pollSdlEvent(int timeoutMs) {
-    yguilib_sdl3_Event sdlEv;
-    int res = yguilib_sdl3_wait_event(&sdlEv, timeoutMs);
-    if (res > 0) {
-      Nullable!AppEvent appEv = appEventFromSdlEvent(sdlEv);
-      if (!appEv.isNull) {
-        sendAppEvent(appEv.get());
-      }
-    }
-    return res;
-  }
-
-  private bool runEventLoopStep(
-    Controller activeController,
-    ref int currentTimeoutMs
-  ) {
-    int waitRes = pollSdlEvent(currentTimeoutMs);
-
-    Nullable!AppEvent nullableEvent = getAppEvent();
-    if (!nullableEvent.isNull) {
-      AppEvent event = nullableEvent.get();
-      handleWindowEvent(event);
-
-      Controller.HandleResult result = activeController.handleEvent(event);
-      currentTimeoutMs = result.timeoutMs;
-      if (result.result == Controller.HandleResult.Result.quit) {
-        return false;
-      }
-      if (result.result == Controller.HandleResult.Result.updateView) {
-        updateAndRender(activeController);
-      }
-    } else if (waitRes == 0 && currentTimeoutMs >= 0) {
-      updateAndRender(activeController);
-    }
-
-    messageBus.ensureWake();
-    return true;
-  }
-
   void mainEventLoop() {
     yguilib_sdl3_init();
     scope(exit) yguilib_sdl3_quit();
@@ -278,6 +188,117 @@ class UiSystem {
         break;
       }
     }
+  }
+
+
+private:
+  void drawWidget(Widget w) {
+      if (w.components.background !is null) {
+          mainWindow.renderer.drawFillRect(
+          w.rect,
+          w.components.background.color
+        );
+      }
+  }
+
+  // TODO optimize
+  Widget[] collectVisibleWidgets(Widget root) {
+    Widget[] result = [];
+    result ~= root.children;
+    foreach(w; root.children) {
+      result ~= collectVisibleWidgets(w);
+    }
+    return result;
+  }
+
+  void drawWidgetTree(Widget root) {
+    Widget[] collected = [root] ~ collectVisibleWidgets(root);
+    foreach(w; collected)
+      drawWidget(w);
+  }
+
+  void drawUi() {
+    if (mainWindow !is null && mainWindow.view !is null) {
+      drawWidgetTree(mainWindow.view);
+    }
+  }
+
+  void renderFrame() {
+    if (mainWindow !is null) {
+      drawUi();
+      mainWindow.swapBuffers();
+    }
+  }
+
+  void updateAndRender(Controller controller) {
+    if (controller !is null) {
+      controller.updateView();
+    }
+    renderFrame();
+  }
+
+  bool isMainWindowEvent(uint eventId) const {
+    return mainWindow !is null &&
+      (eventId == 0 || mainWindow.id == 0 || eventId == mainWindow.id);
+  }
+
+  void handleWindowEvent(in AppEvent event) {
+    if (!isMainWindowEvent(event.eventId)) {
+      return;
+    }
+    if (event.kind == AppEvent.Kind.windowResized) {
+      mainWindow.onResize(event.width, event.height);
+    } else if (event.kind == AppEvent.Kind.windowExposed) {
+      if (event.width > 0 && event.height > 0 &&
+          (event.width != mainWindow.pixelWidth ||
+           event.height != mainWindow.pixelHeight)) {
+        mainWindow.onResize(event.width, event.height);
+      }
+    } else if (event.kind == AppEvent.Kind.windowDisplayScaleChanged) {
+      mainWindow.onDisplayScaleChanged(event.scale);
+      if (event.width > 0 && event.height > 0) {
+        mainWindow.onResize(event.width, event.height);
+      }
+    }
+  }
+
+  int pollSdlEvent(int timeoutMs) {
+    yguilib_sdl3_Event sdlEv;
+    int res = yguilib_sdl3_wait_event(&sdlEv, timeoutMs);
+    if (res > 0) {
+      Nullable!AppEvent appEv = appEventFromSdlEvent(sdlEv);
+      if (!appEv.isNull) {
+        sendAppEvent(appEv.get());
+      }
+    }
+    return res;
+  }
+
+  bool runEventLoopStep(
+    Controller activeController,
+    ref int currentTimeoutMs
+  ) {
+    int waitRes = pollSdlEvent(currentTimeoutMs);
+
+    Nullable!AppEvent nullableEvent = getAppEvent();
+    if (!nullableEvent.isNull) {
+      AppEvent event = nullableEvent.get();
+      handleWindowEvent(event);
+
+      Controller.HandleResult result = activeController.handleEvent(event);
+      currentTimeoutMs = result.timeoutMs;
+      if (result.result == Controller.HandleResult.Result.quit) {
+        return false;
+      }
+      if (result.result == Controller.HandleResult.Result.updateView) {
+        updateAndRender(activeController);
+      }
+    } else if (waitRes == 0 && currentTimeoutMs >= 0) {
+      updateAndRender(activeController);
+    }
+
+    messageBus.ensureWake();
+    return true;
   }
 
   Controller getActiveControllerOrNull() {

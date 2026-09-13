@@ -20,9 +20,11 @@ class MainController : DefaultController {
 void main()
 {
   auto window = new Window(1280, 720, "yvidtrim");
-  auto widget = new Widget(null, RectF(10, 10, 200, 200));
-  widget.components.background = new Background(ColorF(0.5, 0.5, 0, 1));
-  window.view = widget;
+  auto view = new Widget(null, RectF(10, 10, 200, 200));
+  view.components.background = new Background(ColorF(0.5, 0.5, 0, 1));
+  window.view = view;
+  auto smaller = new Widget(view, RectF(15, 15, 130, 90));
+  smaller.components.background = new Background(ColorF(0.5, 1, 0.5, 1));
   auto app = new App(window);
 
   app.run(new MainController);
