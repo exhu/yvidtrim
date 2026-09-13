@@ -4,10 +4,109 @@ import glad2.gles2;
 import std.algorithm : max, min;
 import std.logger;
 import std.string : toStringz;
+import yguilib.clibs.sdl3_ttf;
 import yguilib.events : AppEvent;
 public import yguilib.render_types;
 
-enum string defaultTtfFontData = import("yguilib/fonts/GoogleSansCode-Regular.ttf");
+enum string defaultTtfFontData =
+  import("yguilib/fonts/GoogleSansCode-Regular.ttf");
+
+final class Font {
+  this(const(void)[] fontData, float ptSize) {
+    assert(fontData.length > 0, "fontData must not be empty");
+    assert(ptSize > 0.0f, "ptSize must be positive");
+    handle = yguilib_sdl3_ttf_open_font_from_mem(
+      fontData.ptr,
+      fontData.length,
+      ptSize
+    );
+    if (!handle) {
+      throw new Exception("Failed to load font from memory");
+    }
+    this.ptSize = ptSize;
+  }
+
+  this(string filePath, float ptSize) {
+    assert(filePath.length > 0, "filePath must not be empty");
+    assert(ptSize > 0.0f, "ptSize must be positive");
+    handle = yguilib_sdl3_ttf_open_font(filePath.toStringz(), ptSize);
+    if (!handle) {
+      throw new Exception("Failed to load font from file: " ~ filePath);
+    }
+    this.ptSize = ptSize;
+  }
+
+  ~this() {
+    destroy();
+  }
+
+  void destroy() {
+    if (handle !is null) {
+      yguilib_sdl3_ttf_close_font(handle);
+      handle = null;
+    }
+  }
+
+  @property float size() const {
+    return ptSize;
+  }
+
+  int height() const {
+    return handle ? yguilib_sdl3_ttf_get_font_height(handle) : 0;
+  }
+
+  int ascent() const {
+    return handle ? yguilib_sdl3_ttf_get_font_ascent(handle) : 0;
+  }
+
+  int descent() const {
+    return handle ? yguilib_sdl3_ttf_get_font_descent(handle) : 0;
+  }
+
+  int lineSkip() const {
+    return handle ? yguilib_sdl3_ttf_get_font_line_skip(handle) : 0;
+  }
+
+  PointF measureText(string text) const {
+    if (!handle || text.length == 0) {
+      return PointF(0.0f, 0.0f);
+    }
+    int w = 0;
+    int h = 0;
+    if (yguilib_sdl3_ttf_get_text_size(
+      handle,
+      text.ptr,
+      text.length,
+      &w,
+      &h
+    ) == 0) {
+      return PointF(cast(float)w, cast(float)h);
+    }
+    return PointF(0.0f, 0.0f);
+  }
+
+  package yguilib_sdl3_ttf_Font* handle;
+  private float ptSize;
+}
+
+struct TextTexture {
+  GLuint textureId = 0;
+  int width = 0;
+  int height = 0;
+
+  bool isValid() const {
+    return textureId != 0;
+  }
+
+  void destroy() {
+    if (textureId != 0) {
+      glDeleteTextures(1, &textureId);
+      textureId = 0;
+    }
+    width = 0;
+    height = 0;
+  }
+}
 
 final class Renderer {
   this(int width = 0, int height = 0, float displayScaling = 1.0f) {
@@ -56,6 +155,58 @@ final class Renderer {
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+    enum string texVertexShaderSource =
+      import("yguilib/shaders/texture.vert.glsl");
+    enum string texFragmentShaderSource =
+      import("yguilib/shaders/texture.frag.glsl");
+
+    GLuint texVert = compileShader(
+      GL_VERTEX_SHADER,
+      texVertexShaderSource
+    );
+    scope(exit) glDeleteShader(texVert);
+
+    GLuint texFrag = compileShader(
+      GL_FRAGMENT_SHADER,
+      texFragmentShaderSource
+    );
+    scope(exit) glDeleteShader(texFrag);
+
+    texProgram = linkProgram(texVert, texFrag);
+    uTexResolutionLoc =
+      glGetUniformLocation(texProgram, "uResolution\0".ptr);
+    uTexColorLoc = glGetUniformLocation(texProgram, "uColor\0".ptr);
+    uTextureLoc = glGetUniformLocation(texProgram, "uTexture\0".ptr);
+
+    glGenVertexArrays(1, &texVao);
+    glBindVertexArray(texVao);
+
+    glGenBuffers(1, &texVbo);
+    glBindBuffer(GL_ARRAY_BUFFER, texVbo);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(
+      0,
+      2,
+      GL_FLOAT,
+      GL_FALSE,
+      4 * float.sizeof,
+      null
+    );
+
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(
+      1,
+      2,
+      GL_FLOAT,
+      GL_FALSE,
+      4 * float.sizeof,
+      cast(const(void)*)(2 * float.sizeof)
+    );
+
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
     initialized = true;
   }
 
@@ -64,6 +215,23 @@ final class Renderer {
       return;
     }
 
+    clearTextCache();
+    if (ownsDefaultFont_ && defaultFont_ !is null) {
+      defaultFont_.destroy();
+      defaultFont_ = null;
+    }
+    if (texVbo != 0) {
+      glDeleteBuffers(1, &texVbo);
+      texVbo = 0;
+    }
+    if (texVao != 0) {
+      glDeleteVertexArrays(1, &texVao);
+      texVao = 0;
+    }
+    if (texProgram != 0) {
+      glDeleteProgram(texProgram);
+      texProgram = 0;
+    }
     if (vbo != 0) {
       glDeleteBuffers(1, &vbo);
       vbo = 0;
@@ -264,6 +432,209 @@ final class Renderer {
     glDisable(GL_SCISSOR_TEST);
   }
 
+  Font getDefaultFont() {
+    if (defaultFont_ is null) {
+      defaultFont_ = new Font(cast(const(void)[])defaultTtfFontData, 16.0f);
+      ownsDefaultFont_ = true;
+    }
+    return defaultFont_;
+  }
+
+  void setDefaultFont(Font font) {
+    if (ownsDefaultFont_ && defaultFont_ !is null) {
+      defaultFont_.destroy();
+    }
+    defaultFont_ = font;
+    ownsDefaultFont_ = false;
+  }
+
+  void clearTextCache() {
+    foreach (key, tex; textCache) {
+      tex.destroy();
+    }
+    textCache.clear();
+  }
+
+  TextTexture createTextTexture(Font font, string text) {
+    if (!initialized || font is null || font.handle is null || text.length == 0)
+    {
+      return TextTexture();
+    }
+
+    auto surf = yguilib_sdl3_ttf_render_text_blended(
+      font.handle,
+      text.ptr,
+      text.length,
+      255,
+      255,
+      255,
+      255
+    );
+    if (surf is null) {
+      return TextTexture();
+    }
+    scope(exit) yguilib_sdl3_ttf_destroy_surface(surf);
+
+    int w = 0;
+    int h = 0;
+    yguilib_sdl3_ttf_get_surface_size(surf, &w, &h);
+    int pitch = yguilib_sdl3_ttf_get_surface_pitch(surf);
+    const void* pixels = yguilib_sdl3_ttf_get_surface_pixels(surf);
+    if (w <= 0 || h <= 0 || pixels is null) {
+      return TextTexture();
+    }
+
+    GLuint texId;
+    glGenTextures(1, &texId);
+    glBindTexture(GL_TEXTURE_2D, texId);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    if (pitch != w * 4) {
+      glPixelStorei(GL_UNPACK_ROW_LENGTH, pitch / 4);
+    }
+    glTexImage2D(
+      GL_TEXTURE_2D,
+      0,
+      GL_RGBA,
+      w,
+      h,
+      0,
+      GL_RGBA,
+      GL_UNSIGNED_BYTE,
+      pixels
+    );
+    if (pitch != w * 4) {
+      glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    }
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    return TextTexture(texId, w, h);
+  }
+
+  void drawTexture(GLuint texId, RectF destRect, ColorF color) {
+    if (!initialized || texId == 0) {
+      return;
+    }
+
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glUseProgram(texProgram);
+    glUniform2f(
+      uTexResolutionLoc,
+      getLogicWidth(),
+      getLogicHeight()
+    );
+    glUniform4f(uTexColorLoc, color.r, color.g, color.b, color.a);
+    glUniform1i(uTextureLoc, 0);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texId);
+
+    float x0 = destRect.x;
+    float y0 = destRect.y;
+    float x1 = destRect.x + destRect.width;
+    float y1 = destRect.y + destRect.height;
+
+    float[24] vertices = [
+      x0, y0, 0.0f, 0.0f,
+      x1, y0, 1.0f, 0.0f,
+      x0, y1, 0.0f, 1.0f,
+      x0, y1, 0.0f, 1.0f,
+      x1, y0, 1.0f, 0.0f,
+      x1, y1, 1.0f, 1.0f,
+    ];
+
+    glBindVertexArray(texVao);
+    glBindBuffer(GL_ARRAY_BUFFER, texVbo);
+    glBufferData(
+      GL_ARRAY_BUFFER,
+      cast(GLsizeiptr)(vertices.length * float.sizeof),
+      vertices.ptr,
+      GL_DYNAMIC_DRAW
+    );
+
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+  }
+
+  void drawTextTexture(
+    in TextTexture tex,
+    PointF pos,
+    ColorF color = ColorF(1.0f, 1.0f, 1.0f, 1.0f)
+  ) {
+    if (!tex.isValid()) {
+      return;
+    }
+    drawTexture(
+      tex.textureId,
+      RectF(pos.x, pos.y, cast(float)tex.width, cast(float)tex.height),
+      color
+    );
+  }
+
+  void drawText(
+    string text,
+    PointF pos,
+    ColorF color = ColorF(1.0f, 1.0f, 1.0f, 1.0f),
+    Font font = null
+  ) {
+    Font f = font !is null ? font : getDefaultFont();
+    if (f is null || f.handle is null || text.length == 0) {
+      return;
+    }
+
+    // TODO move text cache data and functions to its own separate struct/class
+    TextCacheKey key = TextCacheKey(f.handle, f.size, text);
+    auto p = key in textCache;
+    TextTexture tex;
+    if (p !is null) {
+      tex = *p;
+    } else {
+      if (textCache.length >= 512) {
+        clearTextCache();
+      }
+      tex = createTextTexture(f, text);
+      if (tex.isValid()) {
+        textCache[key] = tex;
+      }
+    }
+
+    if (tex.isValid()) {
+      drawTextTexture(tex, pos, color);
+    }
+  }
+
+  void drawText(
+    Font font,
+    string text,
+    PointF pos,
+    ColorF color = ColorF(1.0f, 1.0f, 1.0f, 1.0f)
+  ) {
+    drawText(text, pos, color, font);
+  }
+
+  PointF measureText(string text, Font font = null) {
+    Font f = font !is null ? font : getDefaultFont();
+    if (f is null || text.length == 0) {
+      return PointF(0.0f, 0.0f);
+    }
+    return f.measureText(text);
+  }
+
+  PointF measureText(Font font, string text) {
+    return measureText(text, font);
+  }
+
 private:
   void drawArrays(GLenum mode, const(float)[] vertices, in ColorF color) {
     if (!initialized) {
@@ -413,6 +784,23 @@ private:
   GLuint vbo;
   GLint uResolutionLoc = -1;
   GLint uColorLoc = -1;
+
+  GLuint texProgram;
+  GLuint texVao;
+  GLuint texVbo;
+  GLint uTexResolutionLoc = -1;
+  GLint uTexColorLoc = -1;
+  GLint uTextureLoc = -1;
+
+  private struct TextCacheKey {
+    void* fontHandle;
+    float ptSize;
+    string text;
+  }
+  private TextTexture[TextCacheKey] textCache;
+  private Font defaultFont_;
+  private bool ownsDefaultFont_;
+
   bool initialized;
   RectF[] clipStack;
 }
@@ -576,4 +964,124 @@ unittest {
   // Near top-right corner pixel (318, 238) should be green
   glReadPixels(318, 238, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
   assert(pixel[0] == 0 && pixel[1] == 255 && pixel[2] == 0 && pixel[3] == 255);
+
+  // 9. Font loading, metrics, text measurement, and rendering tests
+  renderer.setUnitsScaling(1.0f);
+  renderer.setDisplayScaling(1.0f);
+
+  Font customFont = new Font(
+    cast(const(void)[])defaultTtfFontData,
+    16.0f
+  );
+  scope(exit) customFont.destroy();
+
+  assert(customFont.size == 16.0f);
+  assert(customFont.height > 0);
+  assert(customFont.ascent > 0);
+  assert(customFont.lineSkip > 0);
+
+  PointF mEmpty = renderer.measureText("", customFont);
+  assert(mEmpty.x == 0.0f && mEmpty.y == 0.0f);
+
+  PointF mShort = renderer.measureText("Hi", customFont);
+  assert(mShort.x > 0.0f && mShort.y > 0.0f);
+
+  PointF mLong = renderer.measureText("Hello World!", customFont);
+  assert(mLong.x > mShort.x);
+
+  PointF mFirst = renderer.measureText(customFont, "Hi");
+  assert(mFirst.x == mShort.x && mFirst.y == mShort.y);
+
+  // Render text blended in white on black background
+  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.drawText(
+    "ABC",
+    PointF(20.0f, 30.0f),
+    ColorF(1.0f, 1.0f, 1.0f, 1.0f),
+    customFont
+  );
+
+  int litCount = 0;
+  int checkW = min(cast(int)mLong.x, 50);
+  int checkH = min(customFont.height, 30);
+  foreach (x; 20 .. 20 + checkW) {
+    foreach (y; 30 .. 30 + checkH) {
+      glReadPixels(x, 240 - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+      if (pixel[0] > 100 && pixel[1] > 100 && pixel[2] > 100) {
+        litCount++;
+      }
+    }
+  }
+  assert(litCount > 0);
+
+  // Render text in green color
+  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.drawText(
+    customFont,
+    "ABC",
+    PointF(20.0f, 30.0f),
+    ColorF(0.0f, 1.0f, 0.0f, 1.0f)
+  );
+  litCount = 0;
+  foreach (x; 20 .. 20 + checkW) {
+    foreach (y; 30 .. 30 + checkH) {
+      glReadPixels(x, 240 - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+      if (pixel[1] > 100 && pixel[0] == 0 && pixel[2] == 0) {
+        litCount++;
+      }
+    }
+  }
+  assert(litCount > 0);
+
+  // Render using default font (embedded defaultTtfFontData)
+  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.drawText(
+    "DefaultFont",
+    PointF(10.0f, 10.0f),
+    ColorF(1.0f, 1.0f, 1.0f, 1.0f)
+  );
+  assert(renderer.getDefaultFont() !is null);
+  assert(renderer.getDefaultFont().height > 0);
+
+  // Text clipped outside clip rect
+  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.pushClipRect(RectF(0.0f, 0.0f, 10.0f, 10.0f));
+  renderer.drawText(
+    "Clipped",
+    PointF(50.0f, 50.0f),
+    ColorF(1.0f, 1.0f, 1.0f, 1.0f),
+    customFont
+  );
+  renderer.popClipRect();
+
+  // (50..80, 50..70) should have stayed black because it was clipped
+  foreach (x; 50 .. 80) {
+    foreach (y; 50 .. 70) {
+      glReadPixels(x, 240 - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+      assert(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0);
+    }
+  }
+
+  // Scaled text drawing test: unitsScaling = 2.0
+  renderer.setUnitsScaling(2.0f);
+  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.drawText(
+    customFont,
+    "ABC",
+    PointF(10.0f, 10.0f),
+    ColorF(1.0f, 1.0f, 1.0f, 1.0f)
+  );
+  litCount = 0;
+  foreach (x; 20 .. 80) {
+    foreach (y; 20 .. 60) {
+      glReadPixels(x, 240 - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+      if (pixel[0] > 100 && pixel[1] > 100 && pixel[2] > 100) {
+        litCount++;
+      }
+    }
+  }
+  assert(litCount > 0);
+  renderer.setUnitsScaling(1.0f);
+
+  assert(glGetError() == GL_NO_ERROR);
 }
