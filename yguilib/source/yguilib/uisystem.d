@@ -199,14 +199,22 @@ private:
           w.components.background.color
         );
       }
+      if (w.components.textLabel !is null) {
+        // TODO
+      }
   }
 
   // TODO optimize
   Widget[] collectVisibleWidgets(Widget root) {
+    if (!root.visible)
+      return null;
+
     Widget[] result = [];
-    result ~= root.children;
     foreach(w; root.children) {
-      result ~= collectVisibleWidgets(w);
+      if (w.visible) {
+        result ~= w;
+        result ~= collectVisibleWidgets(w);
+      }
     }
     return result;
   }

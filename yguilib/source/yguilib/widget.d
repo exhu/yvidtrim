@@ -1,10 +1,21 @@
 module yguilib.widget;
 
-public import yguilib.render_types;
-
+import yguilib.render_types;
+import yguilib.render;
 
 abstract class Component {
 
+}
+
+class CustomDraw : Component {
+  void delegate(in Renderer r, in Widget w) drawFunc;
+}
+
+class TextLabel : Component {
+  string font;
+  uint fontSize;
+  string caption;
+  ColorF color;
 }
 
 class Background : Component {
@@ -55,10 +66,13 @@ abstract class View : Component {
 
 struct WidgetComponents {
   Background background;
+  TextLabel textLabel;
   View view;
   InputEnabled inputEnabled;
   Focus focus;
   DefaultButton defaultButton;
+  CustomDraw customDraw;
+
 }
 
 class Widget {
