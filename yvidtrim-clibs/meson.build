@@ -21,3 +21,9 @@ test_exe = executable(
   link_with : yvidtrim_sdl3_lib,
 )
 test('yvidtrim_sdl3', test_exe)
+
+yvidtrim_sdl3_dep = declare_dependency(
+  link_with : yvidtrim_sdl3_lib,
+  include_directories : include_directories('.'),
+  dependencies : dependencies,
+)

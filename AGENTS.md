@@ -27,10 +27,11 @@ meson setup _build .        # Setup (or --reconfigure)
   2. Add test `<proj>-clibs/<proj>_<libname>_test.c` in
      matching `<proj>-clibs/meson.build`.
   3. Add D binding & link in matching `meson.build`.
-- **OpenGL ES**: Only call GLES in D code via `source/glad2/gles2.d` (loader in
-  `glad2gles31/`).
+- **OpenGL ES**: Only call GLES in D code via `glad2.gles2` (loader and bindings
+  in `subprojects/glad2gles31/` and `subprojects/glad2gles31d/`).
 - **Independence**: `yguilib/` (sources and wrappers) must not depend on
   `source/yvidtrim/` or `yvidtrim-clibs/`.
+
 
 ## Code Style & Workflow
 Adhere to `.editorconfig` and `codestyle.md`:

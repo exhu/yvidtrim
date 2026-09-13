@@ -21,3 +21,9 @@ test_exe = executable(
   link_with : yguilib_sdl3_lib,
 )
 test('yguilib_sdl3', test_exe)
+
+yguilib_sdl3_dep = declare_dependency(
+  link_with : yguilib_sdl3_lib,
+  include_directories : include_directories('.'),
+  dependencies : dependencies,
+)

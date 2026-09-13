@@ -29,6 +29,9 @@ docs/
 
 # meson/cmake
 _build
+*.wraplock
+subprojects/.wraplock
 
 # emacs backup
 *~
+
