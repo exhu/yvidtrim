@@ -248,6 +248,114 @@ void drawWidgets(Widget[] widgets, Renderer r) {
 > **Painter's algorithm (back-to-front draw order) is the correct approach
 > for a 2D UI renderer built around alpha blending.**
 
+#### When to Profile §3a
+
+**1. Instrument draw call counts (cheapest, do first).** Add counters to
+`Renderer` that track per-frame stats — no external tools needed:
+
+```d
+// In Renderer, reset at frame start, read at frame end
+struct FrameStats {
+  uint drawCalls;
+  uint shaderSwitches;
+  uint bufferUploads;
+}
+```
+
+Increment in `drawArrays`, `drawRoundRectImpl`, `drawTexture`, and wherever
+`glUseProgram` is called. Log or overlay the numbers. This tells you **how
+many** calls you're making but not **how expensive** each one is.
+
+**2. Wall-clock frame timing (simple, catches gross problems).** Wrap
+`drawWidgets` with a monotonic clock:
+
+```d
+import core.time : MonoTime;
+auto t0 = MonoTime.currTime;
+glFinish();  // force GPU to complete — essential for accurate timing
+auto elapsed = MonoTime.currTime - t0;
+```
+
+`glFinish()` is critical — without it you're only measuring CPU-side command
+submission, not actual GPU work. Compare elapsed time with growing widget
+counts (50, 200, 500) to see if it scales linearly or worse.
+
+**3. Synthetic stress test (the decision-maker).** Create a throwaway test
+that builds a flat tree of N widgets (all with background + text + border)
+and times `drawWidgets`. Run it with N = 50, 200, 500, 1000. Plot frame
+time vs N. If the curve is **linear**, shader switches aren't the
+bottleneck (the per-call overhead is constant and tolerable). If it's
+**super-linear**, driver overhead from state changes is compounding.
+
+**4. `apitrace` (when you need the full picture).**
+
+```bash
+apitrace trace --api egl ./your_app    # capture GL call stream
+apitrace replay app.trace              # replay
+qapitrace app.trace                    # GUI: see every call, state, timing
+```
+
+This shows the exact sequence of `glUseProgram` → `glUniform*` →
+`glBufferData` → `glDrawArrays` calls per frame with timing. You can
+visually spot redundant shader switches.
+
+**5. `GALLIUM_HUD` (Mesa drivers only, zero code changes).**
+
+```bash
+GALLIUM_HUD="fps,cpu+GPU-load" ./your_app
+```
+
+Overlays live FPS and GPU utilization. If GPU load is low while frame times
+are high, it's likely CPU-side driver overhead (draw call submission) —
+which is exactly what batching fixes.
+
+**When to act.** The batching optimization (§3a) is worth pursuing when:
+
+- Draw call count exceeds **~200–300 per frame** (a rough rule of thumb for
+  GLES on embedded/mobile — desktop GPUs tolerate much more).
+- Frame time for `drawWidgets` exceeds your frame budget (e.g. >4ms for
+  60fps leaves room for event handling and layout).
+- `apitrace` shows repeated `glUseProgram` calls alternating between the
+  same 2–3 programs.
+
+#### Alternative: Uber-Shader (Merging Programs)
+
+Instead of batching by shader program (§3a), merge all three programs
+(`color`, `texture`, `roundrect`) into a single shader with a
+`uniform int uMode;` branch:
+
+```glsl
+if (uMode == 0) {        // solid color
+  fragColor = uColor;
+} else if (uMode == 1) { // textured quad
+  fragColor = texture(uTexture, vTexCoord) * uColor;
+} else {                  // SDF round rect
+  // ... distance field, dash, AA logic
+}
+```
+
+Since `uMode` is a **uniform** (not per-fragment), all fragments in a draw
+call take the same branch — no warp/wavefront divergence within a call.
+Modern GPU compilers handle this well.
+
+**Tradeoffs:**
+
+| Concern | Impact |
+|---|---|
+| **Register pressure** | The GPU compiler allocates registers for the worst-case path (the SDF round rect with dash/AA logic). On mobile GLES (Mali, Adreno, PowerVR) this reduces occupancy — fewer concurrent fragment threads. Every `drawFillRect` pays for round-rect complexity it doesn't use. |
+| **Uniform bloat** | All uniforms from all three shaders must exist (`uHalfSize`, `uRadius`, `uDashLen`, `uTexture`, etc.) even when unused. Minor on desktop, noticeable on GLES with small uniform banks. |
+| **Texture sampler binding** | The texture path needs a `sampler2D`. Non-texture draw calls must still have a valid texture bound (or guard the sample). Some GLES drivers may still touch the texture unit. |
+| **Maintenance** | One 80+ line fragment shader with three interleaved code paths vs. three focused 10–20 line shaders. Harder to reason about and modify. |
+
+**Verdict.** The uber-shader alone is a **marginal win with real maintenance
+cost** — it removes `glUseProgram` switches but keeps per-widget
+`glBufferData` + `glDrawArrays` calls, which are usually the larger overhead.
+It becomes a **major win** when combined with **geometry batching** — packing
+multiple quads into a single VBO with mode as a per-vertex attribute,
+reducing the entire frame to 1–3 draw calls. That is a substantially larger
+refactor (per-vertex attributes, text texture atlas, etc.) and should only
+be pursued when profiling confirms draw-call overhead is the bottleneck.
+
 ### 3b. `glBufferSubData` Instead of `glBufferData` — Quick Win
 
 In `Renderer.drawArrays`, `drawRoundRectImpl`, and `drawTexture`, each call

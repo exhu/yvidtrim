@@ -43,3 +43,6 @@ This is why meson is used to build D code as well as the wrappers.
 ./yguilib is an independent GUI library that uses SDL3 (via
 yguilib/yguilib-clibs). Sources in ./yguilib/ must not depend on
 ./source/yvidtrim or ./yvidtrim-clibs.
+
+## Profiling
+GALLIUM_HUD="fps,cpu+GPU-load" ./_build/yvidtrim

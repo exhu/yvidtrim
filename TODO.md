@@ -1,3 +1,4 @@
+- mouse movement events trigger redraw when not necessary
 - button
 - focus
 - modal dialog
