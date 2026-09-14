@@ -224,7 +224,7 @@ private:
       return;
     }
 
-    visibleBuf ~= w;
+    visibleBuf ~= VisibleWidget(w, absRect);
 
     foreach (child; w.children) {
       collectVisible(child, absX, absY, vw, vh);
@@ -237,10 +237,11 @@ private:
       return;
     }
     visibleBuf.clear();
-    const float vw = mainWindow.renderer.getLogicWidth();
-    const float vh = mainWindow.renderer.getLogicHeight();
+    auto r = mainWindow.renderer;
+    const float vw = r.getLogicWidth();
+    const float vh = r.getLogicHeight();
     collectVisible(root, 0.0f, 0.0f, vw, vh);
-    painterSystem.drawWidgets(visibleBuf[], mainWindow.renderer);
+    painterSystem.drawWidgets(visibleBuf[], r);
   }
 
   void drawUi() {
@@ -519,7 +520,7 @@ private:
   MessageBus messageBus;
   Window mainWindow;
   WidgetPainterSystem painterSystem;
-  Appender!(Widget[]) visibleBuf;
+  Appender!(VisibleWidget[]) visibleBuf;
 } // -UiSystem
 
 // Verifies cross-thread event dispatch to the active controller.
@@ -907,8 +908,10 @@ unittest {
 
   auto collected = ui.visibleBuf[];
   assert(collected.length == 3);
-  assert(collected[0] is root);
-  assert(collected[1] is onScreenChild);
-  assert(collected[2] is nestedOnScreen);
+  assert(collected[0].widget is root);
+  assert(collected[0].absRect == RectF(0, 0, 640, 480));
+  assert(collected[1].widget is onScreenChild);
+  assert(collected[1].absRect == RectF(10, 10, 100, 100));
+  assert(collected[2].widget is nestedOnScreen);
+  assert(collected[2].absRect == RectF(20, 20, 40, 40));
 }
-

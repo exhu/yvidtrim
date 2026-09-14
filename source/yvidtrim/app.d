@@ -11,13 +11,14 @@ import yguilib.window;
 import yguilib.clibs.sdl3;
 
 class MainController : DefaultController {
-  this(App app) {
+  this(App app, Widget toggleWidget) {
     this.app = app;
+    this.toggleWidget = toggleWidget;
   }
   override HandleResult handleEvent(in AppEvent ev) {
     writeln("event = %s", ev);
 
-    app.ui.getMainWindow().view.children[0].visible ^= true;
+    toggleWidget.visible ^= true;
     if (ev.kind == AppEvent.Kind.keyUp && ev.key == SDL_Keycode.q)
       return HandleResult(HandleResult.Result.quit);
 
@@ -26,6 +27,7 @@ class MainController : DefaultController {
   }
 
   App app;
+  Widget toggleWidget;
 }
 
 void main()
@@ -34,13 +36,14 @@ void main()
   auto view = new Widget(null, RectF(10, 10, 200, 200));
   view.components.background = new Background(ColorF(0.5, 0.5, 0, 1));
   window.view = view;
-  auto smaller = new Widget(view, RectF(15, 15, 130, 90));
-  smaller.components.background = new Background(ColorF(0.5, 1, 0.5, 0.3), Background.Style.round);
   auto smaller2 = new Widget(view, RectF(35, 45, 150, 190));
   smaller2.components.background = new Background(ColorF(0.0, 1, 0.5, 0.3));
   smaller2.components.border = new Border(ColorF(0.0, 0, 0.5, 1), Border.style.roundDashed);
   smaller2.components.textLabel = new TextLabel("Hello-0123456789", ColorF(0,0,1,1));
+  auto smaller = new Widget(smaller2, RectF(15, 15, 200, 90));
+  smaller.components.background = new Background(ColorF(0.5, 1, 0.5, 0.3), Background.Style.round);
   auto app = new App(window);
+  smaller2.clipChildren = true;
 
-  app.run(new MainController(app));
+  app.run(new MainController(app, smaller));
 }

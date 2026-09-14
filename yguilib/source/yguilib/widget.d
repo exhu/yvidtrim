@@ -118,3 +118,8 @@ class Widget {
   bool clipChildren = false;
   Widget[] children;
 }
+
+struct VisibleWidget {
+  Widget widget;
+  RectF absRect;
+}
