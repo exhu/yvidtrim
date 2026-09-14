@@ -140,6 +140,7 @@ class UiSystem {
   this(Window w) {
     mainWindow = w;
     messageBus = MessageBus(this);
+    painterSystem = new WidgetPainterSystem;
   }
 
   inout(Window) getMainWindow() inout {
@@ -214,8 +215,7 @@ private:
 
   void drawWidgetTree(Widget root) {
     Widget[] collected = [root] ~ collectVisibleWidgets(root);
-    foreach(w; collected)
-      drawWidget(w, mainWindow.renderer);
+    painterSystem.drawWidgets(collected, mainWindow.renderer);
   }
 
   void drawUi() {
@@ -372,7 +372,6 @@ private:
     return 1.0f;
   }
 
-private:
   Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
     switch (sdlEv.type) {
       case yguilib_sdl3_EventType.quit:
@@ -494,6 +493,7 @@ private:
   ControllerStack controllers;
   MessageBus messageBus;
   Window mainWindow;
+  WidgetPainterSystem painterSystem;
 } // -UiSystem
 
 // Verifies cross-thread event dispatch to the active controller.
