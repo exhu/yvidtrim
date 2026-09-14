@@ -2,6 +2,7 @@ module yguilib.render;
 
 import glad2.gles2;
 import std.algorithm : max, min;
+import std.array : Appender;
 import std.logger;
 import std.string : toStringz;
 import yguilib.clibs.sdl3_ttf;
@@ -398,7 +399,7 @@ final class Renderer {
       glDeleteProgram(program);
       program = 0;
     }
-    clipStack.length = 0;
+    clipStack.clear();
     initialized = false;
   }
 
@@ -639,11 +640,12 @@ final class Renderer {
   }
 
   void pushClipRect(RectF rect) {
+    const auto stackData = clipStack[];
     RectF active;
-    if (clipStack.length == 0) {
+    if (stackData.length == 0) {
       active = RectF(0, 0, getLogicWidth(), getLogicHeight());
     } else {
-      active = clipStack[$ - 1];
+      active = stackData[$ - 1];
     }
     RectF clipped = intersectRects(active, rect);
     clipStack ~= clipped;
@@ -651,25 +653,27 @@ final class Renderer {
   }
 
   void popClipRect() {
-    if (clipStack.length == 0) {
+    auto stackData = clipStack[];
+    if (stackData.length == 0) {
       return;
     }
-    clipStack = clipStack[0 .. $ - 1];
-    if (clipStack.length == 0) {
+    clipStack.shrinkTo(stackData.length - 1);
+    stackData = clipStack[];
+    if (stackData.length == 0) {
       glDisable(GL_SCISSOR_TEST);
     } else {
-      applyScissor(clipStack[$ - 1]);
+      applyScissor(stackData[$ - 1]);
     }
   }
 
   void setClipRect(RectF rect) {
-    clipStack.length = 0;
+    clipStack.clear();
     clipStack ~= rect;
     applyScissor(rect);
   }
 
   void resetClipRect() {
-    clipStack.length = 0;
+    clipStack.clear();
     glDisable(GL_SCISSOR_TEST);
   }
 
@@ -1192,7 +1196,7 @@ private:
   private bool ownsDefaultFont_;
 
   bool initialized;
-  RectF[] clipStack;
+  Appender!(RectF[]) clipStack;
 }
 
 unittest {

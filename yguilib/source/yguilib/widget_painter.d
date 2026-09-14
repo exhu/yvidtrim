@@ -2,6 +2,14 @@ module yguilib.widget_painter;
 import yguilib.widget;
 import yguilib.render;
 
+/**
+ * System responsible for rendering visible widgets.
+ *
+ * Off-screen widgets and their children are culled during visibility
+ * collection in UiSystem (taking parent-relative coordinates into account).
+ * Therefore, if a parent widget is off-screen, neither the parent nor any of
+ * its children are drawn, and no Renderer calls are performed for them.
+ */
 class WidgetPainterSystem {
   void drawWidgets(Widget[] widgets, Renderer r) {
     foreach(w; widgets)

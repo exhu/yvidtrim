@@ -1,3 +1,4 @@
+- make drawing rects relative to parent
 - mouse movement events trigger redraw when not necessary
 - button
 - focus
