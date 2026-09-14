@@ -212,7 +212,9 @@ private:
     float parentX,
     float parentY,
     float vw,
-    float vh
+    float vh,
+    bool parentHasClip = false,
+    RectF parentClipRect = RectF.init
   ) {
     if (!w.visible) {
       return;
@@ -224,10 +226,19 @@ private:
       return;
     }
 
-    visibleBuf ~= VisibleWidget(w, absRect);
+    visibleBuf ~= VisibleWidget(w, absRect, parentHasClip, parentClipRect);
+
+    bool childHasClip = parentHasClip;
+    RectF childClipRect = parentClipRect;
+    if (w.clipChildren) {
+      childClipRect = parentHasClip
+        ? intersectRects(parentClipRect, absRect)
+        : absRect;
+      childHasClip = true;
+    }
 
     foreach (child; w.children) {
-      collectVisible(child, absX, absY, vw, vh);
+      collectVisible(child, absX, absY, vw, vh, childHasClip, childClipRect);
     }
   }
 
@@ -915,3 +926,51 @@ unittest {
   assert(collected[2].widget is nestedOnScreen);
   assert(collected[2].absRect == RectF(20, 20, 40, 40));
 }
+
+// Verifies collectVisible clipChildren propagation.
+unittest {
+  auto win = new Window(640, 480, "test_clip_win");
+  auto ui = new UiSystem(win);
+
+  auto root = new Widget(null, RectF(0, 0, 640, 480));
+  root.clipChildren = false;
+
+  auto parent = new Widget(root, RectF(50, 50, 200, 100));
+  parent.clipChildren = true;
+
+  auto child = new Widget(parent, RectF(10, 10, 300, 50));
+  child.clipChildren = false;
+
+  auto grandChild = new Widget(child, RectF(5, 5, 20, 20));
+
+  auto sibling = new Widget(root, RectF(300, 50, 100, 100));
+
+  ui.visibleBuf.clear();
+  ui.collectVisible(root, 0.0f, 0.0f, 640.0f, 480.0f);
+
+  auto collected = ui.visibleBuf[];
+  assert(collected.length == 5);
+
+  // root: no clip
+  assert(collected[0].widget is root);
+  assert(!collected[0].hasClip);
+
+  // parent: no clip (its ancestors do not clip)
+  assert(collected[1].widget is parent);
+  assert(!collected[1].hasClip);
+
+  // child: should have parent's absRect as clipRect
+  assert(collected[2].widget is child);
+  assert(collected[2].hasClip);
+  assert(collected[2].clipRect == RectF(50, 50, 200, 100));
+
+  // grandChild: should also inherit parent's clipRect
+  assert(collected[3].widget is grandChild);
+  assert(collected[3].hasClip);
+  assert(collected[3].clipRect == RectF(50, 50, 200, 100));
+
+  // sibling: should not have clip
+  assert(collected[4].widget is sibling);
+  assert(!collected[4].hasClip);
+}
+

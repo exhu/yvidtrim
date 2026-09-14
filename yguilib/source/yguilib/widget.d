@@ -122,4 +122,6 @@ class Widget {
 struct VisibleWidget {
   Widget widget;
   RectF absRect;
+  bool hasClip;
+  RectF clipRect;
 }

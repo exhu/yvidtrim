@@ -16,14 +16,13 @@ import yguilib.render;
 class WidgetPainterSystem {
   void drawWidgets(VisibleWidget[] widgets, Renderer r) {
     foreach (ref vw; widgets) {
-      // FIXME: this is not working, clipping should be passed along VisibleWidget
-      // during tree traversal for collection of visible widgets
-      // because a parent widget may have clipping on and have multiple children
-      if (vw.widget.clipChildren)
-        r.pushClipRect(vw.absRect);
+      if (vw.hasClip) {
+        r.pushClipRect(vw.clipRect);
+      }
       drawWidget(vw.widget, vw.absRect, r);
-      if (vw.widget.clipChildren)
+      if (vw.hasClip) {
         r.popClipRect();
+      }
     }
   }
 private:

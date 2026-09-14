@@ -12,7 +12,7 @@ public import yguilib.render_types;
 enum string defaultTtfFontData =
   import("yguilib/fonts/GoogleSansCode-Regular.ttf");
 
-enum float defaultFontPtSize = 16f;
+enum float defaultFontPtSize = 16.0 * 96.0/72.0;
 
 final class Font {
   /**
@@ -1080,22 +1080,6 @@ private:
 
     glEnable(GL_SCISSOR_TEST);
     glScissor(glX, glY, glW, glH);
-  }
-
-  static RectF intersectRects(in RectF a, in RectF b) {
-    float x1 = max(a.x, b.x);
-    float y1 = max(a.y, b.y);
-    float x2 = min(a.x + a.width, b.x + b.width);
-    float y2 = min(a.y + a.height, b.y + b.height);
-    float w = x2 - x1;
-    float h = y2 - y1;
-    if (w < 0.0f) {
-      w = 0.0f;
-    }
-    if (h < 0.0f) {
-      h = 0.0f;
-    }
-    return RectF(x1, y1, w, h);
   }
 
   static GLuint compileShader(GLenum type, string source) {

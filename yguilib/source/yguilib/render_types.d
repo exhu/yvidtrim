@@ -21,6 +21,28 @@ struct ColorF {
 
 alias Color = ColorF;
 
+import std.algorithm : max, min;
+
+/**
+ * Returns the intersection of two rectangles.
+ * Width/height are clamped to zero if they would be negative (no overlap).
+ */
+RectF intersectRects(in RectF a, in RectF b) {
+  float x1 = max(a.x, b.x);
+  float y1 = max(a.y, b.y);
+  float x2 = min(a.x + a.width, b.x + b.width);
+  float y2 = min(a.y + a.height, b.y + b.height);
+  float w = x2 - x1;
+  float h = y2 - y1;
+  if (w < 0.0f) {
+    w = 0.0f;
+  }
+  if (h < 0.0f) {
+    h = 0.0f;
+  }
+  return RectF(x1, y1, w, h);
+}
+
 unittest {
   PointF p = PointF(10.0f, 20.0f);
   assert(p.x == 10.0f);
@@ -40,4 +62,15 @@ unittest {
 
   Color c2 = Color(1.0f, 1.0f, 1.0f, 1.0f);
   assert(c2.r == 1.0f);
+
+  // intersectRects tests
+  RectF r1 = RectF(10, 10, 50, 50);
+  RectF r2 = RectF(20, 30, 60, 40);
+  RectF inter = intersectRects(r1, r2);
+  assert(inter.x == 20 && inter.y == 30 && inter.width == 40 && inter.height == 30);
+
+  // Disjoint rects
+  RectF r3 = RectF(100, 100, 10, 10);
+  RectF disjoint = intersectRects(r1, r3);
+  assert(disjoint.width == 0.0f && disjoint.height == 0.0f);
 }
