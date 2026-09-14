@@ -10,15 +10,21 @@ import yguilib.render_types;
 import yguilib.window;
 import yguilib.clibs.sdl3;
 
+import std.algorithm;
+
 class MainController : DefaultController {
-  this(App app, Widget toggleWidget) {
+  this(App app, Widget toggleWidget, Widget alphaWidget) {
     this.app = app;
     this.toggleWidget = toggleWidget;
+    this.alphaWidget = alphaWidget;
   }
   override HandleResult handleEvent(in AppEvent ev) {
     writeln("event = %s", ev);
 
     toggleWidget.visible ^= true;
+    alphaWidget.components.background.color.a =
+      clamp((alphaWidget.components.background.color.a + 0.01)%1.0, 0.1, 1.0);
+
     if (ev.kind == AppEvent.Kind.keyUp && ev.key == SDL_Keycode.q)
       return HandleResult(HandleResult.Result.quit);
 
@@ -28,6 +34,7 @@ class MainController : DefaultController {
 
   App app;
   Widget toggleWidget;
+  Widget alphaWidget;
 }
 
 void main()
@@ -45,5 +52,5 @@ void main()
   auto app = new App(window);
   smaller2.clipChildren = true;
 
-  app.run(new MainController(app, smaller));
+  app.run(new MainController(app, smaller, smaller2));
 }
