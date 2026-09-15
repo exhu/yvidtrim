@@ -9,6 +9,7 @@ import yguilib.widget;
 import yguilib.render_types;
 import yguilib.window;
 import yguilib.clibs.sdl3;
+import yguilib.model;
 
 import std.algorithm;
 
