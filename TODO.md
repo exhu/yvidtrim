@@ -1,3 +1,5 @@
+- all changes via model
+- add modal dialog displayed by model on key (and closed by click)
 - button
 - focus
 - modal dialog
