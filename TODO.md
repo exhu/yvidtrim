@@ -1,4 +1,5 @@
-- all changes via model
+- add events propagation to other controllers
+- define modal controller rules (some controllers must still handle events, when modal is active)
 - add modal dialog displayed by model on key (and closed by click)
 - button
 - focus
