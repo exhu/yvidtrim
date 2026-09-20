@@ -7,7 +7,7 @@ abstract class VersionedModel {
     return version_;
   }
 
-  void mutate(T : VersionedModel)(void delegate(T m) func) {
+  void mutate(T : typeof(this))(void delegate(T m) func) {
     func(cast(T)this);
     version_ += 1;
   }
@@ -26,8 +26,11 @@ unittest {
 
 }
 
-struct TrackedModel {
-  VersionedModel model;
+struct TrackedModel(T : VersionedModel) {
+  this(T m) {
+    model = m;
+  }
+  T model;
   ModelVersion lastSeenVersion;
 
   bool isChanged() {

@@ -12,29 +12,73 @@ import yguilib.keyboard;
 
 import std.algorithm;
 
-class MainController : DefaultController {
-  this(App app, Widget toggleWidget, Widget alphaWidget) {
-    this.app = app;
+final class MainModel : VersionedModel {
+  bool toggleVisible = true;
+  float alphaValue = 0.3f;
+  bool shouldQuit;
+  bool qPressed;
+}
+
+
+final class MainView {
+  this(MainModel model, Widget toggleWidget, Widget alphaWidget) {
+    this.model = TrackedModel!MainModel(model);
     this.toggleWidget = toggleWidget;
     this.alphaWidget = alphaWidget;
   }
+
+  void update() {
+    if (model.isChanged()) {
+      toggleWidget.visible = model.model.toggleVisible;
+      alphaWidget.components.background.color.a = model.model.alphaValue;
+    }
+  }
+
+  TrackedModel!MainModel model;
+
+  Widget toggleWidget;
+  Widget alphaWidget;
+}
+
+final class MainController : DefaultController {
+  this(App app, Widget toggleWidget, Widget alphaWidget) {
+    this.app = app;
+    this.view = new MainView(model, toggleWidget, alphaWidget);
+  }
+
+  override void updateView() {
+    view.update();
+  }
+
+  void update() {
+    model.mutate((MainModel m) {
+        if (m.qPressed)
+          m.shouldQuit = true;
+
+        m.toggleVisible ^= true;
+        m.alphaValue = clamp((m.alphaValue + 0.01)%1.0, 0.1, 1.0);
+      });
+  }
+
   override HandleResult handleEvent(in AppEvent ev) {
     writeln("event = %s", ev);
 
-    toggleWidget.visible ^= true;
-    alphaWidget.components.background.color.a =
-      clamp((alphaWidget.components.background.color.a + 0.01)%1.0, 0.1, 1.0);
-
     if (ev.kind == AppEvent.Kind.keyUp && ev.key == KeyCode.q)
+      model.mutate((MainModel m) {m.qPressed = true;});
+
+    update();
+
+    if (model.shouldQuit)
       return HandleResult(HandleResult.Result.quit);
+
 
     auto res = super.handleEvent(ev);
     return res.isQuit() ? res : HandleResult(HandleResult.Result.updateView);
   }
 
   App app;
-  Widget toggleWidget;
-  Widget alphaWidget;
+  MainView view;
+  MainModel model = new MainModel;
 }
 
 void main()
