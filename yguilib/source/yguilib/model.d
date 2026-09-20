@@ -39,6 +39,7 @@ unittest {
 
 struct ModelTracker(T : VersionedModel) {
   this(T m) {
+    assert(m !is null);
     this.m = m;
   }
   this(ref ModelTracker!T other) {
@@ -53,6 +54,12 @@ struct ModelTracker(T : VersionedModel) {
   T edit() {
     m.edit();
     return m;
+  }
+
+  void commit(ref T pm) {
+    assert(pm is m);
+    m.commit();
+    pm = null;
   }
 
   ModelVersion lastSeenVersion;

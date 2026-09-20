@@ -58,7 +58,7 @@ final class MainController : DefaultController {
 
     model.toggleVisible ^= true;
     model.alphaValue = clamp((model.alphaValue + 0.01)%1.0, 0.1, 1.0);
-    model.commit();
+    t.commit(model);
   }
 
   override HandleResult handleEvent(in AppEvent ev) {
@@ -68,7 +68,7 @@ final class MainController : DefaultController {
     if (ev.kind == AppEvent.Kind.keyUp && ev.key == KeyCode.q) {
       auto model = t.edit();
       model.qPressed = true;
-      model.commit();
+      t.commit(model);
       sendAppEvent(AppEvent(AppEvent.Kind.update));
     } else if (ev.kind == AppEvent.Kind.update) {
       update();
