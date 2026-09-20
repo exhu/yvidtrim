@@ -8,6 +8,7 @@ import glad2.gles2;
 import yguilib.render;
 import yguilib.window;
 import yguilib.widget_painter;
+import yguilib.keyboard;
 
 import std.array : Appender;
 import std.typecons;
@@ -490,16 +491,16 @@ private:
         );
       case yguilib_sdl3_EventType.keyDown: {
         AppEvent ev = AppEvent(AppEvent.Kind.keyDown, sdlEv.windowId);
-        ev.key = sdlEv.key;
-        ev.scancode = sdlEv.scancode;
+        ev.key = cast(KeyCode)sdlEv.key;
+        ev.scancode = cast(ScanCode)sdlEv.scancode;
         ev.mod = sdlEv.mod;
         ev.repeat = sdlEv.repeat != 0;
         return Nullable!AppEvent(ev);
       }
       case yguilib_sdl3_EventType.keyUp: {
         AppEvent ev = AppEvent(AppEvent.Kind.keyUp, sdlEv.windowId);
-        ev.key = sdlEv.key;
-        ev.scancode = sdlEv.scancode;
+        ev.key = cast(KeyCode)sdlEv.key;
+        ev.scancode = cast(ScanCode)sdlEv.scancode;
         ev.mod = sdlEv.mod;
         ev.repeat = sdlEv.repeat != 0;
         return Nullable!AppEvent(ev);
@@ -973,4 +974,3 @@ unittest {
   assert(collected[4].widget is sibling);
   assert(!collected[4].hasClip);
 }
-

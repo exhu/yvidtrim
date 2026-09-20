@@ -1,5 +1,4 @@
 module yvidtrim.app;
-import yvidtrim.clibs.sdl3;
 import std.stdio;
 import yguilib.app;
 import yguilib.controller;
@@ -8,8 +7,8 @@ import yguilib.uisystem;
 import yguilib.widget;
 import yguilib.render_types;
 import yguilib.window;
-import yguilib.clibs.sdl3;
 import yguilib.model;
+import yguilib.keyboard;
 
 import std.algorithm;
 
@@ -26,7 +25,7 @@ class MainController : DefaultController {
     alphaWidget.components.background.color.a =
       clamp((alphaWidget.components.background.color.a + 0.01)%1.0, 0.1, 1.0);
 
-    if (ev.kind == AppEvent.Kind.keyUp && ev.key == SDL_Keycode.q)
+    if (ev.kind == AppEvent.Kind.keyUp && ev.key == KeyCode.q)
       return HandleResult(HandleResult.Result.quit);
 
     auto res = super.handleEvent(ev);

@@ -1,4 +1,5 @@
 module yguilib.events;
+import yguilib.keyboard;
 
 struct AppEvent {
   enum Kind {
@@ -29,8 +30,8 @@ struct AppEvent {
   float x = 0.0f;
   float y = 0.0f;
   float scale = 1.0f;
-  uint key = 0;
-  uint scancode = 0;
+  KeyCode key;
+  ScanCode scancode;
   ushort mod = 0;
   bool repeat = false;
   string text = null;
@@ -62,8 +63,8 @@ struct AppEvent {
     this.x = x;
     this.y = y;
     this.scale = scale;
-    this.key = key;
-    this.scancode = scancode;
+    this.key = cast(KeyCode)key;
+    this.scancode = cast(ScanCode)scancode;
     this.mod = mod;
     this.repeat = repeat;
     this.text = text;
@@ -94,13 +95,13 @@ unittest {
   assert(mouseEv.y == 250.0f);
 
   AppEvent keyEv = AppEvent(AppEvent.Kind.keyDown, 1);
-  keyEv.key = 13;
-  keyEv.scancode = 40;
+  keyEv.key = KeyCode.return_;
+  keyEv.scancode = ScanCode.return_;
   keyEv.mod = 0x0001;
   keyEv.repeat = true;
   assert(keyEv.kind == AppEvent.Kind.keyDown);
-  assert(keyEv.key == 13);
-  assert(keyEv.scancode == 40);
+  assert((cast(uint)keyEv.key) == 13);
+  assert((cast(uint)keyEv.scancode) == 40);
   assert(keyEv.mod == 1);
   assert(keyEv.repeat);
 
@@ -118,4 +119,3 @@ unittest {
   assert(editEv.editStart == 2);
   assert(editEv.editLength == 1);
 }
-
