@@ -22,19 +22,19 @@ final class MainModel : VersionedModel {
 
 final class MainView {
   this(MainModel model, Widget toggleWidget, Widget alphaWidget) {
-    this.model = TrackedModel!MainModel(model);
+    this.tracker = ModelTracker!MainModel(model);
     this.toggleWidget = toggleWidget;
     this.alphaWidget = alphaWidget;
   }
 
   void update() {
-    if (model.isChanged()) {
-      toggleWidget.visible = model.model.toggleVisible;
-      alphaWidget.components.background.color.a = model.model.alphaValue;
+    if (tracker.update()) {
+      toggleWidget.visible = tracker.model.toggleVisible;
+      alphaWidget.components.background.color.a = tracker.model.alphaValue;
     }
   }
 
-  TrackedModel!MainModel model;
+  ModelTracker!MainModel tracker;
 
   Widget toggleWidget;
   Widget alphaWidget;
