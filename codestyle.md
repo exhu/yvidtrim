@@ -65,3 +65,8 @@ returns NULL declare it in the comment that it's undefined.
 
 ## const for local variables
 Prefer declaring local variables const if they don't change.
+
+## Private modules
+For library packages put private types and functions that are not part of
+user-facing api (not meant to be used outside) into "priv" directory/package,
+e.g. "yguilib/priv/message_bus.d".
