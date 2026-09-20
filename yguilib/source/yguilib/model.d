@@ -2,25 +2,24 @@ module yguilib.model;
 
 alias ModelVersion = size_t;
 
+/// helps with versioning changes. Put code which updates fields between calls
+/// to edit() and commit().
 abstract class VersionedModel {
   @property ModelVersion modelVersion() {
     return version_;
   }
 
+  /// mark dirty
   void edit() {
-    assert(!editStarted);
+    assert(!editStarted, "contains previously undeclared changes");
     editStarted = true;
   }
 
+  /// finish editing, increment version
   void commit() {
+    assert(editStarted, "changes not previously declared");
     version_ += 1;
     editStarted = false;
-  }
-
-  deprecated
-  void mutate(T : typeof(this))(void delegate(T m) func) {
-    func(cast(T)this);
-    version_ += 1;
   }
 
 protected:
@@ -33,11 +32,9 @@ private:
 unittest {
   static class MyModel : VersionedModel {}
   auto m = new MyModel;
-  m.mutate((MyModel m) {
-      import std.stdio;
-      writeln("mutate test");
-    });
-
+  m.edit();
+  m.commit();
+  assert(m.version_ == 2);
 }
 
 struct ModelTracker(T : VersionedModel) {

@@ -51,20 +51,23 @@ final class MainController : DefaultController {
   }
 
   void update() {
-    model.mutate((MainModel m) {
-        if (m.qPressed)
-          m.shouldQuit = true;
+    model.edit();
+    if (model.qPressed)
+      model.shouldQuit = true;
 
-        m.toggleVisible ^= true;
-        m.alphaValue = clamp((m.alphaValue + 0.01)%1.0, 0.1, 1.0);
-      });
+    model.toggleVisible ^= true;
+    model.alphaValue = clamp((model.alphaValue + 0.01)%1.0, 0.1, 1.0);
+    model.commit();
   }
 
   override HandleResult handleEvent(in AppEvent ev) {
     writeln("event = %s", ev);
 
-    if (ev.kind == AppEvent.Kind.keyUp && ev.key == KeyCode.q)
-      model.mutate((MainModel m) {m.qPressed = true;});
+    if (ev.kind == AppEvent.Kind.keyUp && ev.key == KeyCode.q) {
+      model.edit();
+      model.qPressed = true;
+      model.commit();
+    }
 
     update();
 
