@@ -334,13 +334,19 @@ private:
 
       Controller.HandleResult result = activeController.handleEvent(event);
       currentTimeoutMs = result.timeoutMs;
-      if (result.result == Controller.HandleResult.Result.quit) {
+      final switch(result.result) {
+      case Controller.HandleResult.Result.quit:
         return false;
-      }
-      if (result.result != Controller.HandleResult.Result.nothing) {
+      case Controller.HandleResult.Result.nothing: {}
+      case Controller.HandleResult.Result.update:
+        sendAppEvent(AppEvent(AppEvent.kind.update));
+        break;
+      case Controller.HandleResult.Result.updateView:
         updateAndRender(activeController);
       }
-      // TODO support controller stack (unconsumed must reach other controllers)
+
+      // TODO handle result.consume to support controller stack (unconsumed must
+      // reach other controllers)
     } else if (waitRes == 0 && currentTimeoutMs >= 0) {
       updateAndRender(activeController);
     }
@@ -607,7 +613,7 @@ unittest {
     const(AppEvent)[] received;
     int updateCount = 0;
 
-    override HandleResult handleEvent(in AppEvent ev) {
+    override HandleResult handleEvent(AppEvent ev) {
       received ~= ev;
       if (ev.kind == AppEvent.Kind.windowResized) {
         return HandleResult(HandleResult.Result.updateView);
@@ -657,7 +663,7 @@ unittest {
     const(AppEvent)[] received;
     int updateCount = 0;
 
-    override HandleResult handleEvent(in AppEvent ev) {
+    override HandleResult handleEvent(AppEvent ev) {
       received ~= ev;
       if (ev.kind == AppEvent.Kind.user && ev.eventId == 999) {
         return HandleResult(HandleResult.Result.quit);

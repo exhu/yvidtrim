@@ -62,23 +62,23 @@ final class MainController : DefaultController {
     return t.update();
   }
 
-  override HandleResult handleEvent(in AppEvent ev) {
+  override HandleResult handleEvent(AppEvent ev) {
     bool consume = false;
     writefln("event = %s", ev);
+
+    if (ev.Kind.update)
+      return HandleResult(HandleResult.Result.nothing);
 
     if (ev.kind == AppEvent.Kind.keyUp && ev.key == KeyCode.q) {
       auto model = t.edit();
       model.qPressed = true;
       t.commit(model);
-      sendUpdate();
       consume = true;
-    } else if (ev.kind != AppEvent.Kind.update)
-      sendUpdate();
+    }
 
     auto res = super.handleEvent(ev);
     return res.isQuit() || res.isUpdateView() ? res :
-      HandleResult(consume ? HandleResult.Result.consume :
-        HandleResult.Result.nothing);
+      HandleResult(HandleResult.Result.update, consume);
   }
 
   App app;

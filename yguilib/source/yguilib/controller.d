@@ -11,23 +11,28 @@ interface Controller {
     }
     enum Result {
       nothing,
-      consume,
-      quit,
-      /// do not consume, but still force updateView
+      update,
       updateView,
+      quit,
     }
     Result result = Result.nothing;
+    /// this controller consumes the event
+    bool consume;
 
     /// wait for the next event no longer than (<0 = forever)
     /// useful in case of active video playback
     int timeoutMs = -1;
   }
 
-  /// handleEvent may be called more than once before updateView
-  HandleResult handleEvent(in AppEvent ev);
+  /// handleEvent may be called more than once before updateView or update,
+  /// and it should be lightweight and quick.
+  /// Move complex event handling to `update` method.
+  HandleResult handleEvent(AppEvent ev);
   /// called once, and then uisystem is called to recheck models and update
+  /// put view model update code (or calls to ui) there
   void updateView();
-  /// return true if the view needs update
+  /// return true if the view needs update.
+  /// put heavy logic into update.
   bool update();
   void onPush();
   void onPop();
@@ -52,7 +57,7 @@ class DefaultController : Controller {
     return false;
   }
 
-  override HandleResult handleEvent(in AppEvent ev) {
+  override HandleResult handleEvent(AppEvent ev) {
     if (ev.kind == AppEvent.Kind.windowClose ||
         ev.kind == AppEvent.Kind.appQuit)
       return HandleResult(HandleResult.Result.quit);
@@ -88,6 +93,7 @@ class DefaultController : Controller {
     sendAppEventFunc(ev);
   }
 
+  /// request additional update (e.g. when thread updated the model)
   void sendUpdate() {
     sendAppEvent(AppEvent(AppEvent.kind.update));
   }
