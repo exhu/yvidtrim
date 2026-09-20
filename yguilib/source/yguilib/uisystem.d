@@ -61,6 +61,15 @@ private struct ControllerStack {
     return stack.length;
   }
 
+  inout(Controller[]) getAll() inout {
+    return stack;
+  }
+
+  inout(Controller) opIndex(size_t i) inout {
+    assert(i < stack.length);
+    return stack[i];
+  }
+
 private:
   Controller[] stack;
 }
@@ -332,21 +341,89 @@ private:
       AppEvent event = nullableEvent.get();
       handleWindowEvent(event);
 
-      Controller.HandleResult result = activeController.handleEvent(event);
-      currentTimeoutMs = result.timeoutMs;
-      final switch(result.result) {
-      case Controller.HandleResult.Result.quit:
-        return false;
-      case Controller.HandleResult.Result.nothing: {}
-      case Controller.HandleResult.Result.update:
-        sendAppEvent(AppEvent(AppEvent.kind.update));
-        break;
-      case Controller.HandleResult.Result.updateView:
-        updateAndRender(activeController);
+      // Snapshot active controllers to a local stack buffer to avoid GC
+      // allocations and protect against stack mutations during handleEvent.
+      Controller[16] stackBuf;
+      Controller[] activeList;
+      const size_t numControllers = controllers.length;
+      if (numControllers <= stackBuf.length) {
+        stackBuf[0 .. numControllers] =
+          controllers.getAll()[0 .. numControllers];
+        activeList = stackBuf[0 .. numControllers];
+      } else {
+        activeList = controllers.getAll().dup;
       }
 
-      // TODO handle result.consume to support controller stack (unconsumed must
-      // reach other controllers)
+      bool needUpdate = false;
+      Controller[16] viewUpdateBuf;
+      size_t viewUpdateCount = 0;
+      bool allControllersVisited = true;
+
+      int nextTimeoutMs = -1;
+      bool hasTimeout = false;
+
+      // Pass unconsumed event from newest (active) to oldest controller.
+      for (ptrdiff_t i = cast(ptrdiff_t)activeList.length - 1; i >= 0; --i) {
+        Controller c = activeList[i];
+        if (c is null) {
+          continue;
+        }
+
+        Controller.HandleResult result = c.handleEvent(event);
+
+        if (result.timeoutMs >= 0) {
+          if (!hasTimeout || result.timeoutMs < nextTimeoutMs) {
+            nextTimeoutMs = result.timeoutMs;
+            hasTimeout = true;
+          }
+        }
+
+        final switch (result.result) {
+        case Controller.HandleResult.Result.quit:
+          return false;
+        case Controller.HandleResult.Result.nothing:
+          break;
+        case Controller.HandleResult.Result.update:
+          needUpdate = true;
+          break;
+        case Controller.HandleResult.Result.updateView:
+          if (viewUpdateCount < viewUpdateBuf.length) {
+            viewUpdateBuf[viewUpdateCount++] = c;
+          }
+          break;
+        }
+
+        if (result.consume) {
+          allControllersVisited = (i == 0);
+          break;
+        }
+      }
+
+      // If at least one visited controller specified a timeout, use minimum.
+      // If all controllers were visited and none specified timeout,
+      // reset to -1.
+      // If consumed early without timeout, keep previous timeout for
+      // unvisited controllers.
+      if (hasTimeout) {
+        currentTimeoutMs = nextTimeoutMs;
+      } else if (allControllersVisited) {
+        currentTimeoutMs = -1;
+      }
+
+      // Update views in oldest-to-newest order (base views before overlays).
+      for (ptrdiff_t i = cast(ptrdiff_t)viewUpdateCount - 1; i >= 0; --i) {
+        viewUpdateBuf[i].updateView();
+      }
+
+      // Batch rendering to at most once per event loop step.
+      if (viewUpdateCount > 0) {
+        renderFrame();
+      }
+
+      // Send update event only once across all controllers for this step.
+      if (needUpdate) {
+        sendAppEvent(AppEvent(AppEvent.Kind.update));
+      }
     } else if (waitRes == 0 && currentTimeoutMs >= 0) {
       updateAndRender(activeController);
     }
@@ -970,4 +1047,298 @@ unittest {
   // sibling: should not have clip
   assert(collected[4].widget is sibling);
   assert(!collected[4].hasClip);
+}
+
+// Verifies unconsumed event propagation from newest to oldest controller.
+unittest {
+  class PropagationTestController : DefaultController {
+    string name;
+    string[]* log;
+    bool shouldConsume;
+    this(string name, string[]* log, bool shouldConsume = false) {
+      super(null);
+      this.name = name;
+      this.log = log;
+      this.shouldConsume = shouldConsume;
+    }
+
+    override HandleResult handleEvent(AppEvent ev) {
+      if (ev.kind == AppEvent.Kind.user && ev.eventId == 42) {
+        *log ~= name ~ ":handleEvent";
+        HandleResult res;
+        res.result = HandleResult.Result.nothing;
+        res.consume = shouldConsume;
+        return res;
+      }
+      if (ev.kind == AppEvent.Kind.user && ev.eventId == 999) {
+        return HandleResult(HandleResult.Result.quit);
+      }
+      return super.handleEvent(ev);
+    }
+  }
+
+  string[] log;
+  auto window = new Window(100, 100, "test_prop");
+  auto ui = new UiSystem(window);
+
+  auto cOldest = new PropagationTestController("oldest", &log, false);
+  auto cNewest = new PropagationTestController("newest", &log, false);
+
+  ui.pushController(cOldest);
+  ui.pushController(cNewest);
+
+  ui.sendAppEvent(AppEvent(AppEvent.Kind.user, 42));
+  ui.sendAppEvent(AppEvent(AppEvent.Kind.user, 999));
+
+  ui.mainEventLoop();
+
+  assert(log == ["newest:handleEvent", "oldest:handleEvent"]);
+}
+
+// Verifies event consumption stopping propagation down the controller stack.
+unittest {
+  class ConsumeTestController : DefaultController {
+    string name;
+    string[]* log;
+    bool shouldConsume;
+    this(string name, string[]* log, bool shouldConsume) {
+      super(null);
+      this.name = name;
+      this.log = log;
+      this.shouldConsume = shouldConsume;
+    }
+
+    override HandleResult handleEvent(AppEvent ev) {
+      if (ev.kind == AppEvent.Kind.user && ev.eventId == 42) {
+        *log ~= name ~ ":handleEvent";
+        HandleResult res;
+        res.result = HandleResult.Result.nothing;
+        res.consume = shouldConsume;
+        return res;
+      }
+      if (ev.kind == AppEvent.Kind.user && ev.eventId == 999) {
+        return HandleResult(HandleResult.Result.quit);
+      }
+      return super.handleEvent(ev);
+    }
+  }
+
+  string[] log;
+  auto window = new Window(100, 100, "test_consume");
+  auto ui = new UiSystem(window);
+
+  auto cOldest = new ConsumeTestController("oldest", &log, false);
+  auto cNewest = new ConsumeTestController("newest", &log, true);
+
+  ui.pushController(cOldest);
+  ui.pushController(cNewest);
+
+  ui.sendAppEvent(AppEvent(AppEvent.Kind.user, 42));
+  ui.sendAppEvent(AppEvent(AppEvent.Kind.user, 999));
+
+  ui.mainEventLoop();
+
+  assert(log == ["newest:handleEvent"]);
+}
+
+// Verifies updateView ordering and batched view updates across stack.
+unittest {
+  class ViewOrderTestController : DefaultController {
+    string name;
+    string[]* log;
+    this(string name, string[]* log) {
+      super(null);
+      this.name = name;
+      this.log = log;
+    }
+
+    override HandleResult handleEvent(AppEvent ev) {
+      if (ev.kind == AppEvent.Kind.user && ev.eventId == 42) {
+        HandleResult res;
+        res.result = HandleResult.Result.updateView;
+        res.consume = false;
+        return res;
+      }
+      if (ev.kind == AppEvent.Kind.user && ev.eventId == 999) {
+        return HandleResult(HandleResult.Result.quit);
+      }
+      return super.handleEvent(ev);
+    }
+
+    override void updateView() {
+      *log ~= name ~ ":updateView";
+    }
+  }
+
+  string[] log;
+  auto window = new Window(100, 100, "test_view_order");
+  auto ui = new UiSystem(window);
+
+  auto cOldest = new ViewOrderTestController("oldest", &log);
+  auto cNewest = new ViewOrderTestController("newest", &log);
+
+  ui.pushController(cOldest);
+  ui.pushController(cNewest);
+
+  ui.sendAppEvent(AppEvent(AppEvent.Kind.user, 42));
+  ui.sendAppEvent(AppEvent(AppEvent.Kind.user, 999));
+
+  ui.mainEventLoop();
+
+  // "newest:updateView" from initial setup in mainEventLoop, then
+  // "oldest:updateView" followed by "newest:updateView" for event 42.
+  assert(log == [
+    "newest:updateView",
+    "oldest:updateView",
+    "newest:updateView"
+  ]);
+}
+
+// Verifies multiple Result.update returns send only one AppEvent.Kind.update.
+unittest {
+  class MultiUpdateTestController : DefaultController {
+    UiSystem ui;
+    int* updateEventCount;
+    this(UiSystem ui, int* count) {
+      super(null);
+      this.ui = ui;
+      this.updateEventCount = count;
+    }
+
+    override HandleResult handleEvent(AppEvent ev) {
+      if (ev.kind == AppEvent.Kind.user && ev.eventId == 42) {
+        HandleResult res;
+        res.result = HandleResult.Result.update;
+        res.consume = false;
+        return res;
+      }
+      if (ev.kind == AppEvent.Kind.update) {
+        (*updateEventCount)++;
+        if (*updateEventCount >= 2) {
+          ui.sendAppEvent(AppEvent(AppEvent.Kind.appQuit));
+        }
+        return HandleResult(HandleResult.Result.nothing);
+      }
+      if (ev.kind == AppEvent.Kind.appQuit) {
+        return HandleResult(HandleResult.Result.quit);
+      }
+      return super.handleEvent(ev);
+    }
+  }
+
+  int updateEventCount = 0;
+  auto window = new Window(100, 100, "test_multi_update");
+  auto ui = new UiSystem(window);
+
+  auto cOldest = new MultiUpdateTestController(ui, &updateEventCount);
+  auto cNewest = new MultiUpdateTestController(ui, &updateEventCount);
+
+  ui.pushController(cOldest);
+  ui.pushController(cNewest);
+
+  ui.sendAppEvent(AppEvent(AppEvent.Kind.user, 42));
+
+  ui.mainEventLoop();
+
+  // Both controllers handled event 42 and returned Result.update.
+  // UiSystem sent exactly ONE AppEvent.Kind.update.
+  // Both controllers received that single update event (1 increment each).
+  assert(updateEventCount == 2);
+}
+
+// Verifies Result.quit immediately terminates event loop without propagation.
+unittest {
+  class QuitTestController : DefaultController {
+    string name;
+    string[]* log;
+    bool shouldQuit;
+    this(string name, string[]* log, bool shouldQuit) {
+      super(null);
+      this.name = name;
+      this.log = log;
+      this.shouldQuit = shouldQuit;
+    }
+
+    override HandleResult handleEvent(AppEvent ev) {
+      *log ~= name ~ ":handleEvent";
+      if (shouldQuit) {
+        return HandleResult(HandleResult.Result.quit);
+      }
+      return HandleResult(HandleResult.Result.nothing);
+    }
+  }
+
+  string[] log;
+  auto window = new Window(100, 100, "test_quit");
+  auto ui = new UiSystem(window);
+
+  auto cOldest = new QuitTestController("oldest", &log, false);
+  auto cNewest = new QuitTestController("newest", &log, true);
+
+  ui.pushController(cOldest);
+  ui.pushController(cNewest);
+
+  ui.sendAppEvent(AppEvent(AppEvent.Kind.user, 1));
+  ui.mainEventLoop();
+
+  assert(log == ["newest:handleEvent"]);
+}
+
+// Verifies timeout resolution across multiple controllers in stack.
+unittest {
+  class TimeoutTestController : DefaultController {
+    int myTimeout;
+    bool shouldConsume;
+    this(int timeout, bool shouldConsume = false) {
+      super(null);
+      this.myTimeout = timeout;
+      this.shouldConsume = shouldConsume;
+    }
+
+    override HandleResult handleEvent(AppEvent ev) {
+      HandleResult res;
+      res.result = HandleResult.Result.nothing;
+      res.timeoutMs = myTimeout;
+      res.consume = shouldConsume;
+      return res;
+    }
+  }
+
+  auto window = new Window(100, 100, "test_timeout");
+  auto ui = new UiSystem(window);
+
+  auto cOldest = new TimeoutTestController(100, false);
+  auto cNewest = new TimeoutTestController(20, false);
+
+  ui.pushController(cOldest);
+  ui.pushController(cNewest);
+
+  ui.sendAppEvent(AppEvent(AppEvent.Kind.user, 1));
+
+  int timeoutMs = -1;
+  // Step 1: Unconsumed event visited both controllers.
+  // Minimum timeout between 100 and 20 is 20.
+  bool cont = ui.runEventLoopStep(cNewest, timeoutMs);
+  assert(cont);
+  assert(timeoutMs == 20);
+
+  // Step 2: cNewest consumes event with timeout -1.
+  // cOldest's pending timeout of 20 should be preserved because cOldest
+  // was not visited.
+  cNewest.myTimeout = -1;
+  cNewest.shouldConsume = true;
+  ui.sendAppEvent(AppEvent(AppEvent.Kind.user, 2));
+  cont = ui.runEventLoopStep(cNewest, timeoutMs);
+  assert(cont);
+  assert(timeoutMs == 20);
+
+  // Step 3: cNewest does not consume event with timeout -1, and cOldest
+  // also returns -1.
+  // All controllers visited and none requested timeout => reset to -1.
+  cNewest.shouldConsume = false;
+  cOldest.myTimeout = -1;
+  ui.sendAppEvent(AppEvent(AppEvent.Kind.user, 3));
+  cont = ui.runEventLoopStep(cNewest, timeoutMs);
+  assert(cont);
+  assert(timeoutMs == -1);
 }
