@@ -5,7 +5,7 @@ alias ModelVersion = size_t;
 /// helps with versioning changes. Put code which updates fields between calls
 /// to edit() and commit().
 abstract class VersionedModel {
-  @property ModelVersion modelVersion() {
+  @property ModelVersion modelVersion() const {
     return version_;
   }
 
@@ -39,9 +39,22 @@ unittest {
 
 struct ModelTracker(T : VersionedModel) {
   this(T m) {
-    model = m;
+    this.m = m;
   }
-  T model;
+  this(ref ModelTracker!T other) {
+    this.m = other.m;
+  }
+  private T m;
+
+  @property const(T) model() {
+    return m;
+  }
+
+  T edit() {
+    m.edit();
+    return m;
+  }
+
   ModelVersion lastSeenVersion;
 
   /// true if new version

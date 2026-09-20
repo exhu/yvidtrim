@@ -145,6 +145,10 @@ class UiSystem {
     painterSystem = new WidgetPainterSystem;
   }
 
+  void sendAppEvent(AppEvent ev) {
+    messageBus.send(ev);
+  }
+
   inout(Window) getMainWindow() inout {
     return mainWindow;
   }
@@ -335,6 +339,7 @@ private:
       if (result.result != Controller.HandleResult.Result.nothing) {
         updateAndRender(activeController);
       }
+      // TODO support controller stack (unconsumed must reach other controllers)
     } else if (waitRes == 0 && currentTimeoutMs >= 0) {
       updateAndRender(activeController);
     }
@@ -345,10 +350,6 @@ private:
 
   Controller getActiveControllerOrNull() {
     return controllers.getActiveOrNull();
-  }
-
-  void sendAppEvent(AppEvent ev) {
-    messageBus.send(ev);
   }
 
   Nullable!AppEvent getAppEvent() {

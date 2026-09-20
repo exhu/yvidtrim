@@ -21,8 +21,8 @@ final class MainModel : VersionedModel {
 
 
 final class MainView {
-  this(MainModel model, Widget toggleWidget, Widget alphaWidget) {
-    this.tracker = ModelTracker!MainModel(model);
+  this(ref ModelTracker!MainModel otherTracker, Widget toggleWidget, Widget alphaWidget) {
+    this.tracker = ModelTracker!MainModel(otherTracker);
     this.toggleWidget = toggleWidget;
     this.alphaWidget = alphaWidget;
   }
@@ -43,7 +43,7 @@ final class MainView {
 final class MainController : DefaultController {
   this(App app, Widget toggleWidget, Widget alphaWidget) {
     this.app = app;
-    this.view = new MainView(model, toggleWidget, alphaWidget);
+    this.view = new MainView(t, toggleWidget, alphaWidget);
   }
 
   override void updateView() {
@@ -51,7 +51,7 @@ final class MainController : DefaultController {
   }
 
   void update() {
-    model.edit();
+    auto model = t.edit();
     if (model.qPressed)
       model.shouldQuit = true;
 
@@ -61,27 +61,31 @@ final class MainController : DefaultController {
   }
 
   override HandleResult handleEvent(in AppEvent ev) {
+    bool shouldUpdateView = false;
     writeln("event = %s", ev);
 
     if (ev.kind == AppEvent.Kind.keyUp && ev.key == KeyCode.q) {
-      model.edit();
+      auto model = t.edit();
       model.qPressed = true;
       model.commit();
-    }
+      app.ui.sendAppEvent(AppEvent(AppEvent.Kind.update));
+    } else if (ev.kind == AppEvent.Kind.update) {
+      update();
+      shouldUpdateView = t.update();
+    } else
+      app.ui.sendAppEvent(AppEvent(AppEvent.Kind.update));
 
-    update();
 
-    if (model.shouldQuit)
+    if (t.model.shouldQuit)
       return HandleResult(HandleResult.Result.quit);
 
-
     auto res = super.handleEvent(ev);
-    return res.isQuit() ? res : HandleResult(HandleResult.Result.updateView);
+    return res.isQuit() ? res : HandleResult(shouldUpdateView ? HandleResult.Result.consume : HandleResult.Result.nothing);
   }
 
   App app;
   MainView view;
-  MainModel model = new MainModel;
+  ModelTracker!MainModel t = ModelTracker!MainModel(new MainModel);
 }
 
 void main()

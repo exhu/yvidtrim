@@ -3,6 +3,8 @@ import yguilib.keyboard;
 
 struct AppEvent {
   enum Kind {
+    /// when this event is received controller should run update logic
+    update,
     /// user defined global events
     user,
     /// events that are produced by uisystem controls
