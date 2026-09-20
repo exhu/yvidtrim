@@ -15,7 +15,6 @@ import std.algorithm;
 final class MainModel : VersionedModel {
   bool toggleVisible = true;
   float alphaValue = 0.3f;
-  bool shouldQuit;
   bool qPressed;
 }
 
@@ -51,41 +50,35 @@ final class MainController : DefaultController {
     view.update();
   }
 
-  void update() {
+  override bool update() {
     auto model = t.edit();
     if (model.qPressed)
-      model.shouldQuit = true;
+      sendQuit();
 
     model.toggleVisible ^= true;
     model.alphaValue = clamp((model.alphaValue + 0.01)%1.0, 0.1, 1.0);
     t.commit(model);
+
+    return t.update();
   }
 
   override HandleResult handleEvent(in AppEvent ev) {
-    bool shouldUpdateView = false;
-    writeln("event = %s", ev);
+    bool consume = false;
+    writefln("event = %s", ev);
 
     if (ev.kind == AppEvent.Kind.keyUp && ev.key == KeyCode.q) {
       auto model = t.edit();
       model.qPressed = true;
       t.commit(model);
-      sendAppEvent(AppEvent(AppEvent.Kind.update));
-    } else if (ev.kind == AppEvent.Kind.update) {
-      update();
-      shouldUpdateView = t.update();
-    } else
-      sendAppEvent(AppEvent(AppEvent.Kind.update));
-
-
-    if (t.model.shouldQuit)
-      return HandleResult(HandleResult.Result.quit);
-
-    // TODO make bool update() virtual, update event handling to default handleEvent
+      sendUpdate();
+      consume = true;
+    } else if (ev.kind != AppEvent.Kind.update)
+      sendUpdate();
 
     auto res = super.handleEvent(ev);
     return res.isQuit() || res.isUpdateView() ? res :
-      HandleResult(shouldUpdateView ? HandleResult.Result.consume :
-      HandleResult.Result.nothing);
+      HandleResult(consume ? HandleResult.Result.consume :
+        HandleResult.Result.nothing);
   }
 
   App app;

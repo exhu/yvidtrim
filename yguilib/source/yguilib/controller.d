@@ -27,6 +27,8 @@ interface Controller {
   HandleResult handleEvent(in AppEvent ev);
   /// called once, and then uisystem is called to recheck models and update
   void updateView();
+  /// return true if the view needs update
+  bool update();
   void onPush();
   void onPop();
   void onSuspendByModal();
@@ -46,6 +48,10 @@ class DefaultController : Controller {
     this.sendAppEventFunc = sendAppEventFunc;
   }
 
+  override bool update() {
+    return false;
+  }
+
   override HandleResult handleEvent(in AppEvent ev) {
     if (ev.kind == AppEvent.Kind.windowClose ||
         ev.kind == AppEvent.Kind.appQuit)
@@ -55,6 +61,9 @@ class DefaultController : Controller {
         ev.kind == AppEvent.Kind.windowDisplayScaleChanged ||
         ev.kind == AppEvent.Kind.windowRedraw)
       return HandleResult(HandleResult.Result.updateView);
+    if (ev.kind == AppEvent.Kind.update)
+      return HandleResult(update() ? HandleResult.Result.updateView : HandleResult.Result.nothing);
+
     return HandleResult(HandleResult.Result.nothing);
   }
   override void updateView() {
@@ -77,6 +86,14 @@ class DefaultController : Controller {
   override void sendAppEvent(AppEvent ev) {
     assert(sendAppEventFunc !is null);
     sendAppEventFunc(ev);
+  }
+
+  void sendUpdate() {
+    sendAppEvent(AppEvent(AppEvent.kind.update));
+  }
+
+  void sendQuit() {
+    sendAppEvent(AppEvent(AppEvent.kind.appQuit));
   }
 private:
   bool isModal_ = false;

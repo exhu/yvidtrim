@@ -1,6 +1,9 @@
 module yguilib.events;
 import yguilib.keyboard;
 
+// TODO make it clear what events are consumed, which propagated up the
+// controller stack
+// TODO convert to union?
 struct AppEvent {
   enum Kind {
     /// when this event is received controller should run update logic
@@ -29,6 +32,7 @@ struct AppEvent {
   uint windowId = 0;
   int width = 0;
   int height = 0;
+  /// custom user data
   Object data = null;
   float x = 0.0f;
   float y = 0.0f;
