@@ -53,3 +53,17 @@ struct ModelTracker(T : VersionedModel) {
     return changed;
   }
 }
+
+unittest {
+  static class MyModel : VersionedModel {}
+  auto m = new MyModel;
+  auto t = ModelTracker!MyModel(m);
+  assert(t.update());
+  assert(!t.update());
+  m.edit();
+  m.commit();
+  assert(t.update());
+  assert(!t.update());
+  assert(m.version_ == 2);
+  assert(t.lastSeenVersion == 2);
+}
