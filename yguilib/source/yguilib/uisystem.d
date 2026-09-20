@@ -330,6 +330,121 @@ private:
     return res;
   }
 
+  /**
+   * Snapshots active controllers to a local stack buffer to avoid GC
+   * allocations and protect against stack mutations during handleEvent.
+   */
+  Controller[] snapshotControllers(ref Controller[16] stackBuf) {
+    const size_t numControllers = controllers.length;
+    if (numControllers <= stackBuf.length) {
+      stackBuf[0 .. numControllers] =
+        controllers.getAll()[0 .. numControllers];
+      return stackBuf[0 .. numControllers];
+    }
+    return controllers.getAll().dup;
+  }
+
+  /**
+   * Applies timeout resolution rules:
+   * - If visited controllers specified a timeout, use minimum non-negative.
+   * - If all controllers in stack were visited without timeout, reset to -1.
+   * - If consumed early without timeout, preserve pending timeout for
+   *   unvisited controllers.
+   */
+  static void applyTimeout(
+    ref int currentTimeoutMs,
+    bool hasTimeout,
+    int nextTimeoutMs,
+    bool allControllersVisited
+  ) {
+    if (hasTimeout) {
+      currentTimeoutMs = nextTimeoutMs;
+    } else if (allControllersVisited) {
+      currentTimeoutMs = -1;
+    }
+  }
+
+  /**
+   * Updates views in oldest-to-newest order (base views before overlays)
+   * and renders the frame at most once.
+   */
+  void applyViewUpdatesAndRender(Controller[] viewsToUpdate) {
+    for (ptrdiff_t i = cast(ptrdiff_t)viewsToUpdate.length - 1; i >= 0; --i) {
+      viewsToUpdate[i].updateView();
+    }
+    if (viewsToUpdate.length > 0) {
+      renderFrame();
+    }
+  }
+
+  /**
+   * Dispatches an event through the controller stack from newest (active) to
+   * oldest, stopping early when consumed. Batches update and view renders.
+   * Returns false if quit was requested.
+   */
+  bool dispatchEvent(
+    AppEvent event,
+    ref int currentTimeoutMs
+  ) {
+    Controller[16] stackBuf;
+    Controller[] activeList = snapshotControllers(stackBuf);
+
+    bool needUpdate = false;
+    Controller[16] viewUpdateBuf;
+    size_t viewUpdateCount = 0;
+    bool allControllersVisited = true;
+
+    int nextTimeoutMs = -1;
+    bool hasTimeout = false;
+
+    // Pass unconsumed event from newest (active) to oldest controller.
+    for (ptrdiff_t i = cast(ptrdiff_t)activeList.length - 1; i >= 0; --i) {
+      Controller c = activeList[i];
+      if (c is null) {
+        continue;
+      }
+
+      Controller.HandleResult result = c.handleEvent(event);
+
+      if (result.timeoutMs >= 0) {
+        if (!hasTimeout || result.timeoutMs < nextTimeoutMs) {
+          nextTimeoutMs = result.timeoutMs;
+          hasTimeout = true;
+        }
+      }
+
+      final switch (result.result) {
+      case Controller.HandleResult.Result.quit:
+        return false;
+      case Controller.HandleResult.Result.nothing:
+        break;
+      case Controller.HandleResult.Result.update:
+        needUpdate = true;
+        break;
+      case Controller.HandleResult.Result.updateView:
+        if (viewUpdateCount < viewUpdateBuf.length) {
+          viewUpdateBuf[viewUpdateCount++] = c;
+        }
+        break;
+      }
+
+      if (result.consume) {
+        allControllersVisited = (i == 0);
+        break;
+      }
+    }
+
+    applyTimeout(currentTimeoutMs, hasTimeout, nextTimeoutMs,
+      allControllersVisited);
+    applyViewUpdatesAndRender(viewUpdateBuf[0 .. viewUpdateCount]);
+
+    if (needUpdate) {
+      sendAppEvent(AppEvent(AppEvent.Kind.update));
+    }
+
+    return true;
+  }
+
   bool runEventLoopStep(
     Controller activeController,
     ref int currentTimeoutMs
@@ -340,89 +455,8 @@ private:
     if (!nullableEvent.isNull) {
       AppEvent event = nullableEvent.get();
       handleWindowEvent(event);
-
-      // Snapshot active controllers to a local stack buffer to avoid GC
-      // allocations and protect against stack mutations during handleEvent.
-      Controller[16] stackBuf;
-      Controller[] activeList;
-      const size_t numControllers = controllers.length;
-      if (numControllers <= stackBuf.length) {
-        stackBuf[0 .. numControllers] =
-          controllers.getAll()[0 .. numControllers];
-        activeList = stackBuf[0 .. numControllers];
-      } else {
-        activeList = controllers.getAll().dup;
-      }
-
-      bool needUpdate = false;
-      Controller[16] viewUpdateBuf;
-      size_t viewUpdateCount = 0;
-      bool allControllersVisited = true;
-
-      int nextTimeoutMs = -1;
-      bool hasTimeout = false;
-
-      // Pass unconsumed event from newest (active) to oldest controller.
-      for (ptrdiff_t i = cast(ptrdiff_t)activeList.length - 1; i >= 0; --i) {
-        Controller c = activeList[i];
-        if (c is null) {
-          continue;
-        }
-
-        Controller.HandleResult result = c.handleEvent(event);
-
-        if (result.timeoutMs >= 0) {
-          if (!hasTimeout || result.timeoutMs < nextTimeoutMs) {
-            nextTimeoutMs = result.timeoutMs;
-            hasTimeout = true;
-          }
-        }
-
-        final switch (result.result) {
-        case Controller.HandleResult.Result.quit:
-          return false;
-        case Controller.HandleResult.Result.nothing:
-          break;
-        case Controller.HandleResult.Result.update:
-          needUpdate = true;
-          break;
-        case Controller.HandleResult.Result.updateView:
-          if (viewUpdateCount < viewUpdateBuf.length) {
-            viewUpdateBuf[viewUpdateCount++] = c;
-          }
-          break;
-        }
-
-        if (result.consume) {
-          allControllersVisited = (i == 0);
-          break;
-        }
-      }
-
-      // If at least one visited controller specified a timeout, use minimum.
-      // If all controllers were visited and none specified timeout,
-      // reset to -1.
-      // If consumed early without timeout, keep previous timeout for
-      // unvisited controllers.
-      if (hasTimeout) {
-        currentTimeoutMs = nextTimeoutMs;
-      } else if (allControllersVisited) {
-        currentTimeoutMs = -1;
-      }
-
-      // Update views in oldest-to-newest order (base views before overlays).
-      for (ptrdiff_t i = cast(ptrdiff_t)viewUpdateCount - 1; i >= 0; --i) {
-        viewUpdateBuf[i].updateView();
-      }
-
-      // Batch rendering to at most once per event loop step.
-      if (viewUpdateCount > 0) {
-        renderFrame();
-      }
-
-      // Send update event only once across all controllers for this step.
-      if (needUpdate) {
-        sendAppEvent(AppEvent(AppEvent.Kind.update));
+      if (!dispatchEvent(event, currentTimeoutMs)) {
+        return false;
       }
     } else if (waitRes == 0 && currentTimeoutMs >= 0) {
       updateAndRender(activeController);
@@ -597,6 +631,8 @@ private:
   WidgetPainterSystem painterSystem;
   Appender!(VisibleWidget[]) visibleBuf;
 } // -UiSystem
+
+////// TESTS /////
 
 // Verifies cross-thread event dispatch to the active controller.
 unittest {
