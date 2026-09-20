@@ -3,8 +3,11 @@ import yguilib.events;
 
 interface Controller {
   struct HandleResult {
-    bool isQuit() {
+    bool isQuit() const {
       return result == Result.quit;
+    }
+    bool isUpdateView() const {
+      return result == Result.updateView;
     }
     enum Result {
       nothing,
@@ -30,9 +33,19 @@ interface Controller {
   void onResumeByModal();
   @property bool isModal() const;
   @property void isModal(bool value);
+
+  void sendAppEvent(AppEvent ev);
 }
 
 class DefaultController : Controller {
+  alias SendAppEventFunc = void delegate(AppEvent ev);
+
+  @disable this();
+
+  this(SendAppEventFunc sendAppEventFunc) {
+    this.sendAppEventFunc = sendAppEventFunc;
+  }
+
   override HandleResult handleEvent(in AppEvent ev) {
     if (ev.kind == AppEvent.Kind.windowClose ||
         ev.kind == AppEvent.Kind.appQuit)
@@ -61,6 +74,11 @@ class DefaultController : Controller {
     isModal_ = value;
   }
 
+  override void sendAppEvent(AppEvent ev) {
+    assert(sendAppEventFunc !is null);
+    sendAppEventFunc(ev);
+  }
 private:
   bool isModal_ = false;
+  SendAppEventFunc sendAppEventFunc;
 }

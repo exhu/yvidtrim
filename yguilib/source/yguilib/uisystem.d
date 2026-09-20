@@ -118,6 +118,7 @@ private struct MessageBus {
     }
   }
 
+  /// make sure we resume if bus not empty
   void ensureWake() {
     bool needWake = false;
     synchronized (lock) {
@@ -542,6 +543,9 @@ unittest {
   import core.time;
 
   class ThreadTestController : DefaultController {
+    this() {
+      super(null);
+    }
     const(AppEvent)[] received;
 
     override HandleResult handleEvent(in AppEvent ev) {
@@ -584,6 +588,7 @@ unittest {
     UiSystem ui;
     int ticks = 0;
     this(UiSystem ui) {
+      super(null);
       this.ui = ui;
     }
 
@@ -618,6 +623,9 @@ unittest {
 // Verifies window resize event handling and renderer viewport updates.
 unittest {
   class ResizeTestController : DefaultController {
+    this() {
+      super(null);
+    }
     const(AppEvent)[] received;
     int updateCount = 0;
 
@@ -665,6 +673,9 @@ unittest {
 // Verifies window expose event handling and controller notification.
 unittest {
   class ExposeTestController : DefaultController {
+    this() {
+      super(null);
+    }
     const(AppEvent)[] received;
     int updateCount = 0;
 
@@ -704,6 +715,7 @@ unittest {
     string name;
 
     this(string name, string[]* log) {
+      super(null);
       this.name = name;
       this.log = log;
     }

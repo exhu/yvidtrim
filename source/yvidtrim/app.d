@@ -42,6 +42,7 @@ final class MainView {
 
 final class MainController : DefaultController {
   this(App app, Widget toggleWidget, Widget alphaWidget) {
+    super(&app.ui.sendAppEvent);
     this.app = app;
     this.view = new MainView(t, toggleWidget, alphaWidget);
   }
@@ -68,19 +69,23 @@ final class MainController : DefaultController {
       auto model = t.edit();
       model.qPressed = true;
       model.commit();
-      app.ui.sendAppEvent(AppEvent(AppEvent.Kind.update));
+      sendAppEvent(AppEvent(AppEvent.Kind.update));
     } else if (ev.kind == AppEvent.Kind.update) {
       update();
       shouldUpdateView = t.update();
     } else
-      app.ui.sendAppEvent(AppEvent(AppEvent.Kind.update));
+      sendAppEvent(AppEvent(AppEvent.Kind.update));
 
 
     if (t.model.shouldQuit)
       return HandleResult(HandleResult.Result.quit);
 
+    // TODO make bool update() virtual, update event handling to default handleEvent
+
     auto res = super.handleEvent(ev);
-    return res.isQuit() ? res : HandleResult(shouldUpdateView ? HandleResult.Result.consume : HandleResult.Result.nothing);
+    return res.isQuit() || res.isUpdateView() ? res :
+      HandleResult(shouldUpdateView ? HandleResult.Result.consume :
+      HandleResult.Result.nothing);
   }
 
   App app;
