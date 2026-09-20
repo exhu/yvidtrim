@@ -9,144 +9,11 @@ import yguilib.render;
 import yguilib.window;
 import yguilib.widget_painter;
 import yguilib.keyboard;
+import yguilib.priv.controller_stack;
+import yguilib.priv.message_bus;
+import yguilib.priv.sdl_events;
 
-import std.array : Appender;
 import std.typecons;
-
-private struct ControllerStack {
-  void push(Controller c) {
-    assert(c !is null);
-    c.isModal = false;
-    stack ~= c;
-    c.onPush();
-  }
-
-  void pushModal(Controller c) {
-    assert(c !is null);
-    c.isModal = true;
-    auto active = getActiveOrNull();
-    if (active !is null) {
-      active.onSuspendByModal();
-    }
-    stack ~= c;
-    c.onPush();
-  }
-
-  void pop() {
-    auto active = getActiveOrNull();
-    if (active is null) {
-      return;
-    }
-    const bool wasModal = active.isModal;
-    stack.length -= 1;
-    active.onPop();
-    active = getActiveOrNull();
-    if (active !is null && wasModal) {
-      active.onResumeByModal();
-    }
-  }
-
-  Controller getActiveOrNull() {
-    if (stack.length != 0) {
-      return stack[$ - 1];
-    }
-    return null;
-  }
-
-  bool empty() const {
-    return stack.length == 0;
-  }
-
-  size_t length() const {
-    return stack.length;
-  }
-
-  inout(Controller[]) getAll() inout {
-    return stack;
-  }
-
-  inout(Controller) opIndex(size_t i) inout {
-    assert(i < stack.length);
-    return stack[i];
-  }
-
-private:
-  Controller[] stack;
-}
-
-private struct MessageBus {
-  @disable this();
-  this(Object lockObj) {
-    assert(lockObj !is null);
-    this.lock = lockObj;
-  }
-
-  invariant {
-    assert(lock !is null);
-  }
-
-  void send(AppEvent ev) {
-    bool needWake = false;
-    synchronized (lock) {
-      if (head >= events.length) {
-        events.length = 0;
-        head = 0;
-      }
-      events ~= ev;
-      if (!wakeSent) {
-        wakeSent = true;
-        needWake = true;
-      }
-    }
-    if (needWake) {
-      yguilib_sdl3_send_wake_event();
-    }
-  }
-
-  Nullable!AppEvent get() {
-    synchronized (lock) {
-      if (head >= events.length) {
-        events.length = 0;
-        head = 0;
-        wakeSent = false;
-        return Nullable!AppEvent.init;
-      }
-      auto ev = events[head++];
-      if (head >= events.length) {
-        events.length = 0;
-        head = 0;
-        wakeSent = false;
-      }
-      return Nullable!AppEvent(ev);
-    }
-  }
-
-  bool hasPending() {
-    synchronized (lock) {
-      return head < events.length;
-    }
-  }
-
-  /// make sure we resume if bus not empty
-  void ensureWake() {
-    bool needWake = false;
-    synchronized (lock) {
-      if (head < events.length) {
-        wakeSent = true;
-        needWake = true;
-      }
-    }
-    if (needWake) {
-      yguilib_sdl3_send_wake_event();
-    }
-  }
-
-private:
-  AppEvent[] events;
-  size_t head = 0;
-  bool wakeSent = false;
-  Object lock;
-}
 
 class UiSystem {
   this(Window w) {
@@ -179,7 +46,7 @@ class UiSystem {
     // TODO
   }
 
-  void popFocuseRoot() {
+  void popFocusRoot() {
     // TODO
   }
 
@@ -212,67 +79,16 @@ class UiSystem {
     }
   }
 
-
 package:
   static bool isOnScreen(in RectF rect, float vw, float vh) {
-    return rect.width > 0.0f && rect.height > 0.0f
-      && rect.x < vw && rect.y < vh
-      && (rect.x + rect.width) > 0.0f
-      && (rect.y + rect.height) > 0.0f;
+    return WidgetPainterSystem.isOnScreen(rect, vw, vh);
   }
 
 private:
-  void collectVisible(
-    Widget w,
-    float parentX,
-    float parentY,
-    float vw,
-    float vh,
-    bool parentHasClip = false,
-    RectF parentClipRect = RectF.init
-  ) {
-    if (!w.visible) {
-      return;
-    }
-    const float absX = parentX + w.rect.x;
-    const float absY = parentY + w.rect.y;
-    const RectF absRect = RectF(absX, absY, w.rect.width, w.rect.height);
-    if (!isOnScreen(absRect, vw, vh)) {
-      return;
-    }
-
-    visibleBuf ~= VisibleWidget(w, absRect, parentHasClip, parentClipRect);
-
-    bool childHasClip = parentHasClip;
-    RectF childClipRect = parentClipRect;
-    if (w.clipChildren) {
-      childClipRect = parentHasClip
-        ? intersectRects(parentClipRect, absRect)
-        : absRect;
-      childHasClip = true;
-    }
-
-    foreach (child; w.children) {
-      collectVisible(child, absX, absY, vw, vh, childHasClip, childClipRect);
-    }
-  }
-
-  void drawWidgetTree(Widget root) {
-    if (root is null || !root.visible || mainWindow is null ||
-        mainWindow.renderer is null) {
-      return;
-    }
-    visibleBuf.clear();
-    auto r = mainWindow.renderer;
-    const float vw = r.getLogicWidth();
-    const float vh = r.getLogicHeight();
-    collectVisible(root, 0.0f, 0.0f, vw, vh);
-    painterSystem.drawWidgets(visibleBuf[], r);
-  }
-
   void drawUi() {
-    if (mainWindow !is null && mainWindow.view !is null) {
-      drawWidgetTree(mainWindow.view);
+    if (mainWindow !is null && mainWindow.view !is null &&
+        mainWindow.renderer !is null) {
+      painterSystem.drawTree(mainWindow.view, mainWindow.renderer);
     }
   }
 
@@ -296,25 +112,8 @@ private:
   }
 
   void handleWindowEvent(in AppEvent event) {
-    if (!isMainWindowEvent(event.windowId)) {
-      return;
-    }
-    if (event.kind == AppEvent.Kind.windowResized) {
-      if (event.scale > 0.0f && event.scale != mainWindow.getDisplayScaling()) {
-        mainWindow.onDisplayScaleChanged(event.scale);
-      }
-      mainWindow.onResize(event.width, event.height);
-    } else if (event.kind == AppEvent.Kind.windowExposed) {
-      if (event.width > 0 && event.height > 0 &&
-          (event.width != mainWindow.pixelWidth ||
-           event.height != mainWindow.pixelHeight)) {
-        mainWindow.onResize(event.width, event.height);
-      }
-    } else if (event.kind == AppEvent.Kind.windowDisplayScaleChanged) {
-      mainWindow.onDisplayScaleChanged(event.scale);
-      if (event.width > 0 && event.height > 0) {
-        mainWindow.onResize(event.width, event.height);
-      }
+    if (mainWindow !is null && isMainWindowEvent(event.windowId)) {
+      mainWindow.handleWindowEvent(event);
     }
   }
 
@@ -530,106 +329,13 @@ private:
   }
 
   Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
-    switch (sdlEv.type) {
-      case yguilib_sdl3_EventType.quit:
-        return Nullable!AppEvent(AppEvent(AppEvent.Kind.appQuit));
-      case yguilib_sdl3_EventType.windowClose: {
-        AppEvent ev = AppEvent(AppEvent.Kind.windowClose);
-        ev.windowId = sdlEv.windowId;
-        return Nullable!AppEvent(ev);
-      }
-      case yguilib_sdl3_EventType.windowResized: {
-        AppEvent ev = AppEvent(AppEvent.Kind.windowResized);
-        ev.windowId = sdlEv.windowId;
-        ev.width = sdlEv.width;
-        ev.height = sdlEv.height;
-        ev.scale = sdlEv.scale;
-        return Nullable!AppEvent(ev);
-      }
-      case yguilib_sdl3_EventType.windowExposed: {
-        AppEvent ev = AppEvent(AppEvent.Kind.windowExposed);
-        ev.windowId = sdlEv.windowId;
-        ev.width = sdlEv.width;
-        ev.height = sdlEv.height;
-        return Nullable!AppEvent(ev);
-      }
-      case yguilib_sdl3_EventType.windowDisplayScaleChanged: {
-        AppEvent ev = AppEvent(AppEvent.Kind.windowDisplayScaleChanged);
-        ev.windowId = sdlEv.windowId;
-        ev.width = sdlEv.width;
-        ev.height = sdlEv.height;
-        ev.scale = sdlEv.scale;
-        return Nullable!AppEvent(ev);
-      }
-      case yguilib_sdl3_EventType.mouseMotion: {
-        AppEvent ev = AppEvent(AppEvent.Kind.mouseMotion);
-        ev.windowId = sdlEv.windowId;
-        ev.x = sdlEv.x;
-        ev.y = sdlEv.y;
-        return Nullable!AppEvent(ev);
-      }
-      case yguilib_sdl3_EventType.mouseButtonDown: {
-        AppEvent ev = AppEvent(AppEvent.Kind.mouseButtonDown);
-        ev.windowId = sdlEv.windowId;
-        ev.x = sdlEv.x;
-        ev.y = sdlEv.y;
-        return Nullable!AppEvent(ev);
-      }
-      case yguilib_sdl3_EventType.mouseButtonUp: {
-        AppEvent ev = AppEvent(AppEvent.Kind.mouseButtonUp);
-        ev.windowId = sdlEv.windowId;
-        ev.x = sdlEv.x;
-        ev.y = sdlEv.y;
-        return Nullable!AppEvent(ev);
-      }
-      case yguilib_sdl3_EventType.keyDown: {
-        AppEvent ev = AppEvent(AppEvent.Kind.keyDown);
-        ev.windowId = sdlEv.windowId;
-        ev.key = cast(KeyCode)sdlEv.key;
-        ev.scancode = cast(ScanCode)sdlEv.scancode;
-        ev.mod = sdlEv.mod;
-        ev.repeat = sdlEv.repeat != 0;
-        return Nullable!AppEvent(ev);
-      }
-      case yguilib_sdl3_EventType.keyUp: {
-        AppEvent ev = AppEvent(AppEvent.Kind.keyUp);
-        ev.windowId = sdlEv.windowId;
-        ev.key = cast(KeyCode)sdlEv.key;
-        ev.scancode = cast(ScanCode)sdlEv.scancode;
-        ev.mod = sdlEv.mod;
-        ev.repeat = sdlEv.repeat != 0;
-        return Nullable!AppEvent(ev);
-      }
-      case yguilib_sdl3_EventType.textEditing: {
-        import core.stdc.string : strlen;
-        AppEvent ev = AppEvent(AppEvent.Kind.textEditing);
-        ev.windowId = sdlEv.windowId;
-        if (sdlEv.text !is null) {
-          ev.text = sdlEv.text[0 .. strlen(sdlEv.text)].idup;
-        }
-        ev.editStart = sdlEv.start;
-        ev.editLength = sdlEv.length;
-        return Nullable!AppEvent(ev);
-      }
-      case yguilib_sdl3_EventType.textInput: {
-        import core.stdc.string : strlen;
-        AppEvent ev = AppEvent(AppEvent.Kind.textInput);
-        ev.windowId = sdlEv.windowId;
-        if (sdlEv.text !is null) {
-          ev.text = sdlEv.text[0 .. strlen(sdlEv.text)].idup;
-        }
-        return Nullable!AppEvent(ev);
-      }
-      default:
-        return Nullable!AppEvent.init;
-    }
+    return yguilib.priv.sdl_events.appEventFromSdlEvent(sdlEv);
   }
 
   ControllerStack controllers;
   MessageBus messageBus;
   Window mainWindow;
   WidgetPainterSystem painterSystem;
-  Appender!(VisibleWidget[]) visibleBuf;
 } // -UiSystem
 
 ////// TESTS /////
@@ -656,7 +362,7 @@ unittest {
     }
   }
 
-  auto window = new Window(100,100,"aaa");
+  auto window = new Window(100, 100, "aaa");
   auto ui = new UiSystem(window);
   auto ctrl = new ThreadTestController;
   ui.pushController(ctrl);
@@ -805,96 +511,6 @@ unittest {
   assert(ctrl.updateCount >= 1);
 }
 
-// Verifies ControllerStack push, modal push, and pop lifecycle transitions.
-unittest {
-  class ModalTrackController : DefaultController {
-    string[]* log;
-    string name;
-
-    this(string name, string[]* log) {
-      super(null);
-      this.name = name;
-      this.log = log;
-    }
-
-    override void onPush() {
-      *log ~= name ~ ":onPush";
-    }
-
-    override void onPop() {
-      *log ~= name ~ ":onPop";
-    }
-
-    override void onSuspendByModal() {
-      *log ~= name ~ ":onSuspend";
-    }
-
-    override void onResumeByModal() {
-      *log ~= name ~ ":onResume";
-    }
-  }
-
-  string[] log;
-  ControllerStack stack;
-  assert(stack.empty());
-  assert(stack.length == 0);
-
-  auto c1 = new ModalTrackController("c1", &log);
-  auto c2 = new ModalTrackController("c2", &log);
-
-  stack.push(c1);
-  assert(stack.getActiveOrNull() is c1);
-  assert(stack.length == 1);
-
-  stack.pushModal(c2);
-  assert(stack.getActiveOrNull() is c2);
-  assert(stack.length == 2);
-
-  stack.pop();
-  assert(stack.getActiveOrNull() is c1);
-  assert(stack.length == 1);
-
-  stack.pop();
-  assert(stack.empty());
-  assert(stack.getActiveOrNull() is null);
-
-  assert(log == [
-    "c1:onPush",
-    "c1:onSuspend",
-    "c2:onPush",
-    "c2:onPop",
-    "c1:onResume",
-    "c1:onPop"
-  ]);
-}
-
-// Verifies MessageBus event queueing, retrieval, and buffer reuse.
-unittest {
-  MessageBus bus = MessageBus(new Object);
-  assert(!bus.hasPending());
-  assert(bus.get().isNull);
-
-  bus.send(AppEvent(AppEvent.Kind.user, 1));
-  bus.send(AppEvent(AppEvent.Kind.user, 2));
-  assert(bus.hasPending());
-
-  auto ev1 = bus.get();
-  assert(!ev1.isNull && ev1.get().eventId == 1);
-  assert(bus.hasPending());
-
-  auto ev2 = bus.get();
-  assert(!ev2.isNull && ev2.get().eventId == 2);
-  assert(!bus.hasPending());
-  assert(bus.get().isNull);
-
-  // Re-enqueue to verify queue reuse without reallocation
-  bus.send(AppEvent(AppEvent.Kind.user, 3));
-  assert(bus.hasPending());
-  auto ev3 = bus.get();
-  assert(!ev3.isNull && ev3.get().eventId == 3);
-  assert(!bus.hasPending());
-}
-
 // Verifies UiSystem scaling and redraw APIs.
 unittest {
   auto window = new Window(320, 240, "test_ui_scaling");
@@ -906,183 +522,6 @@ unittest {
 
   ui.setUnitsScaling(2.0f);
   assert(ui.getUnitsScaling() == 2.0f);
-
-  // appEventFromSdlEvent conversions
-  yguilib_sdl3_Event scaleSdl;
-  scaleSdl.type = yguilib_sdl3_EventType.windowDisplayScaleChanged;
-  scaleSdl.windowId = 42;
-  scaleSdl.width = 640;
-  scaleSdl.height = 480;
-  scaleSdl.scale = 2.0f;
-
-  auto scaleApp = ui.appEventFromSdlEvent(scaleSdl);
-  assert(!scaleApp.isNull);
-  assert(scaleApp.get().kind == AppEvent.Kind.windowDisplayScaleChanged);
-  assert(scaleApp.get().windowId == 42);
-  assert(scaleApp.get().width == 640);
-  assert(scaleApp.get().height == 480);
-  assert(scaleApp.get().scale == 2.0f);
-
-  yguilib_sdl3_Event mouseSdl;
-  mouseSdl.type = yguilib_sdl3_EventType.mouseMotion;
-  mouseSdl.windowId = 42;
-  mouseSdl.x = 123.5f;
-  mouseSdl.y = 234.5f;
-
-  auto mouseApp = ui.appEventFromSdlEvent(mouseSdl);
-  assert(!mouseApp.isNull);
-  assert(mouseApp.get().kind == AppEvent.Kind.mouseMotion);
-  assert(mouseApp.get().windowId == 42);
-  assert(mouseApp.get().x == 123.5f);
-  assert(mouseApp.get().y == 234.5f);
-
-  yguilib_sdl3_Event keySdl;
-  keySdl.type = yguilib_sdl3_EventType.keyDown;
-  keySdl.windowId = 42;
-  keySdl.key = 13;
-  keySdl.scancode = 40;
-  keySdl.mod = 0x0001;
-  keySdl.repeat = 1;
-
-  auto keyApp = ui.appEventFromSdlEvent(keySdl);
-  assert(!keyApp.isNull);
-  assert(keyApp.get().kind == AppEvent.Kind.keyDown);
-  assert(keyApp.get().windowId == 42);
-  assert(keyApp.get().key == 13);
-  assert(keyApp.get().scancode == 40);
-  assert(keyApp.get().mod == 1);
-  assert(keyApp.get().repeat);
-
-  yguilib_sdl3_Event textSdl;
-  textSdl.type = yguilib_sdl3_EventType.textInput;
-  textSdl.windowId = 42;
-  textSdl.text = "abc\0".ptr;
-
-  auto textApp = ui.appEventFromSdlEvent(textSdl);
-  assert(!textApp.isNull);
-  assert(textApp.get().kind == AppEvent.Kind.textInput);
-  assert(textApp.get().windowId == 42);
-  assert(textApp.get().text == "abc");
-
-  yguilib_sdl3_Event editSdl;
-  editSdl.type = yguilib_sdl3_EventType.textEditing;
-  editSdl.windowId = 42;
-  editSdl.text = "def\0".ptr;
-  editSdl.start = 1;
-  editSdl.length = 2;
-
-  auto editApp = ui.appEventFromSdlEvent(editSdl);
-  assert(!editApp.isNull);
-  assert(editApp.get().kind == AppEvent.Kind.textEditing);
-  assert(editApp.get().windowId == 42);
-  assert(editApp.get().text == "def");
-  assert(editApp.get().editStart == 1);
-  assert(editApp.get().editLength == 2);
-}
-
-// Verifies isOnScreen viewport culling helper.
-unittest {
-  const float vw = 640.0f;
-  const float vh = 480.0f;
-
-  // Fully inside
-  assert(UiSystem.isOnScreen(RectF(10, 10, 100, 100), vw, vh));
-
-  // Intersecting edges
-  assert(UiSystem.isOnScreen(RectF(-50, 10, 100, 100), vw, vh));
-  assert(UiSystem.isOnScreen(RectF(10, -50, 100, 100), vw, vh));
-  assert(UiSystem.isOnScreen(RectF(600, 10, 100, 100), vw, vh));
-  assert(UiSystem.isOnScreen(RectF(10, 450, 100, 100), vw, vh));
-
-  // Fully outside
-  assert(!UiSystem.isOnScreen(RectF(-150, 10, 100, 100), vw, vh));
-  assert(!UiSystem.isOnScreen(RectF(10, -150, 100, 100), vw, vh));
-  assert(!UiSystem.isOnScreen(RectF(700, 10, 100, 100), vw, vh));
-  assert(!UiSystem.isOnScreen(RectF(10, 500, 100, 100), vw, vh));
-
-  // Zero or negative size
-  assert(!UiSystem.isOnScreen(RectF(10, 10, 0, 100), vw, vh));
-  assert(!UiSystem.isOnScreen(RectF(10, 10, 100, 0), vw, vh));
-  assert(!UiSystem.isOnScreen(RectF(10, 10, -10, 100), vw, vh));
-}
-
-// Verifies collectVisible culling of off-screen parents and their children.
-unittest {
-  auto win = new Window(640, 480, "test_cull_win");
-  auto ui = new UiSystem(win);
-
-  auto root = new Widget(null, RectF(0, 0, 640, 480));
-  auto onScreenChild = new Widget(root, RectF(10, 10, 100, 100));
-  auto hiddenChild = new Widget(root, RectF(120, 10, 50, 50));
-  hiddenChild.visible = false;
-  auto hiddenGrandChild = new Widget(hiddenChild, RectF(5, 5, 20, 20));
-
-  // Off-screen parent (x = 700 is outside 640 width)
-  auto offScreenParent = new Widget(root, RectF(700, 50, 100, 100));
-  // Child has rect (5, 5) relative to offScreenParent (absX = 705)
-  auto childOfOffScreen = new Widget(offScreenParent, RectF(5, 5, 50, 50));
-
-  // Relative positioned child that moves on-screen relative to an on-screen parent
-  auto nestedOnScreen = new Widget(onScreenChild, RectF(10, 10, 40, 40));
-
-  ui.visibleBuf.clear();
-  ui.collectVisible(root, 0.0f, 0.0f, 640.0f, 480.0f);
-
-  auto collected = ui.visibleBuf[];
-  assert(collected.length == 3);
-  assert(collected[0].widget is root);
-  assert(collected[0].absRect == RectF(0, 0, 640, 480));
-  assert(collected[1].widget is onScreenChild);
-  assert(collected[1].absRect == RectF(10, 10, 100, 100));
-  assert(collected[2].widget is nestedOnScreen);
-  assert(collected[2].absRect == RectF(20, 20, 40, 40));
-}
-
-// Verifies collectVisible clipChildren propagation.
-unittest {
-  auto win = new Window(640, 480, "test_clip_win");
-  auto ui = new UiSystem(win);
-
-  auto root = new Widget(null, RectF(0, 0, 640, 480));
-  root.clipChildren = false;
-
-  auto parent = new Widget(root, RectF(50, 50, 200, 100));
-  parent.clipChildren = true;
-
-  auto child = new Widget(parent, RectF(10, 10, 300, 50));
-  child.clipChildren = false;
-
-  auto grandChild = new Widget(child, RectF(5, 5, 20, 20));
-
-  auto sibling = new Widget(root, RectF(300, 50, 100, 100));
-
-  ui.visibleBuf.clear();
-  ui.collectVisible(root, 0.0f, 0.0f, 640.0f, 480.0f);
-
-  auto collected = ui.visibleBuf[];
-  assert(collected.length == 5);
-
-  // root: no clip
-  assert(collected[0].widget is root);
-  assert(!collected[0].hasClip);
-
-  // parent: no clip (its ancestors do not clip)
-  assert(collected[1].widget is parent);
-  assert(!collected[1].hasClip);
-
-  // child: should have parent's absRect as clipRect
-  assert(collected[2].widget is child);
-  assert(collected[2].hasClip);
-  assert(collected[2].clipRect == RectF(50, 50, 200, 100));
-
-  // grandChild: should also inherit parent's clipRect
-  assert(collected[3].widget is grandChild);
-  assert(collected[3].hasClip);
-  assert(collected[3].clipRect == RectF(50, 50, 200, 100));
-
-  // sibling: should not have clip
-  assert(collected[4].widget is sibling);
-  assert(!collected[4].hasClip);
 }
 
 // Verifies unconsumed event propagation from newest to oldest controller.

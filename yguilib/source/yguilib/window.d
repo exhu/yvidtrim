@@ -3,6 +3,7 @@ import yguilib.clibs.sdl3;
 import glad2.gles2;
 import yguilib.render;
 import yguilib.widget;
+import yguilib.events;
 
 class Window {
   this(int width, int height, string title) {
@@ -158,6 +159,25 @@ class Window {
       this.height = newPixelHeight;
     }
     updateViewRect();
+  }
+
+  void handleWindowEvent(in AppEvent event) {
+    if (event.kind == AppEvent.Kind.windowResized) {
+      if (event.scale > 0.0f && event.scale != getDisplayScaling()) {
+        onDisplayScaleChanged(event.scale);
+      }
+      onResize(event.width, event.height);
+    } else if (event.kind == AppEvent.Kind.windowExposed) {
+      if (event.width > 0 && event.height > 0 &&
+          (event.width != pixelWidth || event.height != pixelHeight)) {
+        onResize(event.width, event.height);
+      }
+    } else if (event.kind == AppEvent.Kind.windowDisplayScaleChanged) {
+      onDisplayScaleChanged(event.scale);
+      if (event.width > 0 && event.height > 0) {
+        onResize(event.width, event.height);
+      }
+    }
   }
 
   void setSize(int newWidth, int newHeight) {
