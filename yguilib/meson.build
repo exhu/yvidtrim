@@ -43,7 +43,7 @@ yguilib_dep = declare_dependency(
 )
 
 yguilib_test_src = yguilib_src + files(
-  'source/yguilib/test_main.d',
+  'source/yguilib/priv/test_main.d',
 )
 
 yguilib_test_exe = executable(
