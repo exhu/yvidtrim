@@ -15,7 +15,7 @@ import std.array : Appender;
  * Widget.rect is parent-relative; the absolute screen rect is resolved by
  * collectVisible and passed to drawWidgets via VisibleWidget.absRect.
  */
-class WidgetPainterSystem {
+final class WidgetPainterSystem {
   static bool isOnScreen(in RectF rect, float vw, float vh) {
     return rect.width > 0.0f && rect.height > 0.0f
       && rect.x < vw && rect.y < vh
@@ -46,7 +46,7 @@ class WidgetPainterSystem {
     }
   }
 
-package:
+private:
   void collectVisible(
     Widget w,
     float parentX,
@@ -84,7 +84,6 @@ package:
 
   Appender!(VisibleWidget[]) visibleBuf;
 
-private:
   static void drawWidget(Widget w, in RectF absRect, Renderer r) {
     if (w.clipContents)
       r.pushClipRect(absRect);

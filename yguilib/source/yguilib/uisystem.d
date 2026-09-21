@@ -22,6 +22,7 @@ class UiSystem {
     painterSystem = new WidgetPainterSystem;
   }
 
+  /// safe to call from a thread
   void sendAppEvent(AppEvent ev) {
     messageBus.send(ev);
   }
@@ -77,11 +78,6 @@ class UiSystem {
         break;
       }
     }
-  }
-
-package:
-  static bool isOnScreen(in RectF rect, float vw, float vh) {
-    return WidgetPainterSystem.isOnScreen(rect, vw, vh);
   }
 
 private:

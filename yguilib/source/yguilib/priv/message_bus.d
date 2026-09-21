@@ -4,8 +4,22 @@ import yguilib.events;
 import yguilib.clibs.sdl3;
 import std.typecons : Nullable;
 
+/**
+ * Thread-safe FIFO event queue for cross-thread communication with the UI.
+ *
+ * Allows background threads to post $(D AppEvent) instances to the main UI
+ * event loop. Whenever an event is enqueued, an SDL wake event is sent to wake
+ * the main thread if it is blocked waiting for events.
+ */
 struct MessageBus {
   @disable this();
+
+  /**
+   * Constructs a $(D MessageBus) with a dedicated synchronization monitor.
+   *
+   * Params:
+   *   lockObj = Object used as the monitor for $(D synchronized) blocks.
+   */
   this(Object lockObj) {
     assert(lockObj !is null);
     this.lock = lockObj;
@@ -15,6 +29,14 @@ struct MessageBus {
     assert(lock !is null);
   }
 
+  /**
+   * Enqueues an event and signals the UI thread event loop.
+   *
+   * Posts an SDL wake event if a wake signal is not already in flight.
+   *
+   * Params:
+   *   ev = The event to enqueue.
+   */
   void send(AppEvent ev) {
     bool needWake = false;
     synchronized (lock) {
@@ -30,6 +52,10 @@ struct MessageBus {
     }
   }
 
+  /**
+   * Dequeues the next pending event in FIFO order, or returns an empty
+   * $(D Nullable) if the queue is empty.
+   */
   Nullable!AppEvent get() {
     synchronized (lock) {
       resetIfEmpty();
@@ -42,13 +68,20 @@ struct MessageBus {
     }
   }
 
+  /**
+   * Returns $(D true) if there are pending events awaiting retrieval.
+   */
   bool hasPending() {
     synchronized (lock) {
       return head < events.length;
     }
   }
 
-  /// make sure we resume if bus not empty
+  /**
+   * Ensures an SDL wake event is sent if there are pending unconsumed events.
+   *
+   * Used to resume the UI event loop when events remain queued.
+   */
   void ensureWake() {
     bool needWake = false;
     synchronized (lock) {
