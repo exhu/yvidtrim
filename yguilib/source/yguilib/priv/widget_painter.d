@@ -1,4 +1,4 @@
-module yguilib.widget_painter;
+module yguilib.priv.widget_painter;
 
 import yguilib.widget;
 import yguilib.render;

@@ -16,11 +16,11 @@ yguilib_src = files(
   'source/yguilib/priv/controller_stack.d',
   'source/yguilib/priv/message_bus.d',
   'source/yguilib/priv/sdl_events.d',
+  'source/yguilib/priv/widget_painter.d',
   'source/yguilib/render.d',
   'source/yguilib/render_types.d',
   'source/yguilib/uisystem.d',
   'source/yguilib/widget.d',
-  'source/yguilib/widget_painter.d',
   'source/yguilib/window.d',
 )
 

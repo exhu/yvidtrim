@@ -1,17 +1,17 @@
 module yguilib.uisystem;
 
-import yguilib.widget;
-import yguilib.events;
-import yguilib.controller;
-import yguilib.clibs.sdl3;
 import glad2.gles2;
-import yguilib.render;
-import yguilib.window;
-import yguilib.widget_painter;
+import yguilib.clibs.sdl3;
+import yguilib.controller;
+import yguilib.events;
 import yguilib.keyboard;
 import yguilib.priv.controller_stack;
 import yguilib.priv.message_bus;
 import yguilib.priv.sdl_events;
+import yguilib.priv.widget_painter;
+import yguilib.render;
+import yguilib.widget;
+import yguilib.window;
 
 import std.typecons;
 
