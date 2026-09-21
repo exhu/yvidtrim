@@ -29,6 +29,40 @@ Default directory for resources is "assets". Embedable assets via import must
 be placed into "assets/\<package_name\>" to avoid conflicts when both a program
 and a library use the same shader file names.
 
+## Variables and constants
+Prefer declaring local variables and fields const if they are not meant to change.
+
+## Architecture & Module Visibility (D)
+
+To preserve API stability, prevent encapsulation leaks, and protect compiler
+throughput, all modules must strictly adhere to domain-bounded encapsulation.
+
+### 1. Structure & Facades
+- **No Umbrella Root Imports:** Do not provide a monolithic top-level
+  `package.d` that re-exports all library subsystems. Consumers must opt into
+  subsystems explicitly (e.g., `import yguilib.net;`).
+- **Domain Facades:** Each functional subsystem must live in its own directory
+  containing a `package.d` facade (e.g., `src/yguilib/render/package.d`).
+- **Selective Re-exports:** Facades must expose public surfaces selectively via
+  `public import yguilib.window : Window, Screen;`. Never write unconstrained
+  `public import yguilib.window;`.
+
+### 2. Implementation Boundaries
+- **Internal Directories:** All volatile logic, wire formats, OS bindings, and
+  concrete driver classes belong in an `internal/` subdirectory under their
+  respective domain or under `src/<root_pkg>/internal/` for cross-cutting
+  helpers.
+- **Access Control:** Do not mark internal symbols `public`. Use
+  `package(<root_pkg>)` for symbols shared across the library, or file-level
+  `private` for local routines. Implementation details must never be reachable
+  by external consumers.
+
+### 3. Compile-Time Overhead Rules
+- Keep file-level imports in `internal/` modules strictly minimal.
+- Use scoped imports inside function and template bodies for heavy standard
+  library modules (e.g., `std.algorithm`, `std.format`, `std.json`) to defer
+  template parsing and semantic analysis.
+
 # C coding style
 C code uses the same formatting: 2 spaces, open curly brance on the same line.
 
@@ -65,8 +99,3 @@ returns NULL declare it in the comment that it's undefined.
 
 ## const for local variables
 Prefer declaring local variables const if they don't change.
-
-## Private modules
-For library packages put private types and functions that are not part of
-user-facing api (not meant to be used outside) into "priv" directory/package,
-e.g. "yguilib/priv/message_bus.d".
