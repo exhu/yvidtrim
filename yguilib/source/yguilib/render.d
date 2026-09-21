@@ -6,11 +6,10 @@ import std.logger;
 import yguilib.events : AppEvent;
 public import yguilib.render_types;
 public import yguilib.priv.render.font;
-public import yguilib.priv.render.text_cache : TextTexture;
 import yguilib.priv.render.clip_stack : ClipStack;
 import yguilib.priv.render.pipelines : ColorPipeline, TexturePipeline,
   RoundRectPipeline;
-import yguilib.priv.render.text_cache : TextCache;
+import yguilib.priv.render.text_cache : TextCache, TextTexture;
 
 final class Renderer {
   this(int width = 0, int height = 0, float displayScaling = 1.0f) {
@@ -416,13 +415,6 @@ final class Renderer {
     }
   }
 
-  TextTexture createTextTexture(Font font, string text) {
-    if (!initialized) {
-      return TextTexture();
-    }
-    return TextCache.createTextTexture(font, text);
-  }
-
   void drawTexture(GLuint texId, RectF destRect, ColorF color) {
     if (!initialized) {
       return;
@@ -433,38 +425,6 @@ final class Renderer {
       color,
       getLogicWidth(),
       getLogicHeight()
-    );
-  }
-
-  void drawTextTexture(
-    in TextTexture tex,
-    PointF pos,
-    ColorF color = ColorF(1.0f, 1.0f, 1.0f, 1.0f)
-  ) {
-    if (!tex.isValid()) {
-      return;
-    }
-    import std.math : round;
-
-    float screenX = round(toPixels(pos.x));
-    float screenY = round(toPixels(pos.y));
-    float screenW = cast(float)tex.width;
-    float screenH = cast(float)tex.height;
-
-    float logicX0 = toLogic(screenX);
-    float logicY0 = toLogic(screenY);
-    float logicX1 = toLogic(screenX + screenW);
-    float logicY1 = toLogic(screenY + screenH);
-
-    drawTexture(
-      tex.textureId,
-      RectF(
-        logicX0,
-        logicY0,
-        logicX1 - logicX0,
-        logicY1 - logicY0
-      ),
-      color
     );
   }
 
@@ -507,6 +467,45 @@ final class Renderer {
   }
 
 private:
+  TextTexture createTextTexture(Font font, string text) {
+    if (!initialized) {
+      return TextTexture();
+    }
+    return TextCache.createTextTexture(font, text);
+  }
+
+  void drawTextTexture(
+    in TextTexture tex,
+    PointF pos,
+    ColorF color = ColorF(1.0f, 1.0f, 1.0f, 1.0f)
+  ) {
+    if (!tex.isValid()) {
+      return;
+    }
+    import std.math : round;
+
+    float screenX = round(toPixels(pos.x));
+    float screenY = round(toPixels(pos.y));
+    float screenW = cast(float)tex.width;
+    float screenH = cast(float)tex.height;
+
+    float logicX0 = toLogic(screenX);
+    float logicY0 = toLogic(screenY);
+    float logicX1 = toLogic(screenX + screenW);
+    float logicY1 = toLogic(screenY + screenH);
+
+    drawTexture(
+      tex.textureId,
+      RectF(
+        logicX0,
+        logicY0,
+        logicX1 - logicX0,
+        logicY1 - logicY0
+      ),
+      color
+    );
+  }
+
   void onScalingChanged() {
     float totalScale = getTotalScaling();
     if (ownsDefaultFont_ && defaultFont_ !is null) {
