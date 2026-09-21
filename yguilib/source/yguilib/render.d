@@ -527,6 +527,26 @@ final class Renderer {
     return cast(int)getLogicHeight();
   }
 
+  bool isOnScreen(in RectF rect) const {
+    return isOnScreen(rect, getLogicWidth(), getLogicHeight());
+  }
+
+  /**
+  * Tests whether a rectangle intersects the logical screen viewport.
+  *
+  * Params:
+  *   rect = Rectangle in logical coordinates.
+  *   vw = Viewport width in logical units.
+  *   vh = Viewport height in logical units.
+  * Returns: true if rectangle has positive size and intersects the viewport.
+  */
+  static bool isOnScreen(in RectF rect, float vw, float vh) {
+    return rect.width > 0.0f && rect.height > 0.0f
+      && rect.x < vw && rect.y < vh
+      && (rect.x + rect.width) > 0.0f
+      && (rect.y + rect.height) > 0.0f;
+  }
+
   PointF coordinatesFromEvent(in AppEvent event) const {
     return coordinatesFromEvent(event.x, event.y);
   }
@@ -1183,6 +1203,32 @@ private:
   Appender!(RectF[]) clipStack;
 }
 
+// Verifies isOnScreen viewport culling helper.
+unittest {
+  const float vw = 640.0f;
+  const float vh = 480.0f;
+
+  // Fully inside
+  assert(Renderer.isOnScreen(RectF(10, 10, 100, 100), vw, vh));
+
+  // Intersecting edges
+  assert(Renderer.isOnScreen(RectF(-50, 10, 100, 100), vw, vh));
+  assert(Renderer.isOnScreen(RectF(10, -50, 100, 100), vw, vh));
+  assert(Renderer.isOnScreen(RectF(600, 10, 100, 100), vw, vh));
+  assert(Renderer.isOnScreen(RectF(10, 450, 100, 100), vw, vh));
+
+  // Fully outside
+  assert(!Renderer.isOnScreen(RectF(-150, 10, 100, 100), vw, vh));
+  assert(!Renderer.isOnScreen(RectF(10, -150, 100, 100), vw, vh));
+  assert(!Renderer.isOnScreen(RectF(700, 10, 100, 100), vw, vh));
+  assert(!Renderer.isOnScreen(RectF(10, 500, 100, 100), vw, vh));
+
+  // Zero or negative size
+  assert(!Renderer.isOnScreen(RectF(10, 10, 0, 100), vw, vh));
+  assert(!Renderer.isOnScreen(RectF(10, 10, 100, 0), vw, vh));
+  assert(!Renderer.isOnScreen(RectF(10, 10, -10, 100), vw, vh));
+}
+
 unittest {
   import yguilib.clibs.sdl3;
   import yguilib.window : Window;
@@ -1199,6 +1245,8 @@ unittest {
 
   assert(renderer.getViewportWidth() == 320);
   assert(renderer.getViewportHeight() == 240);
+  assert(renderer.isOnScreen(RectF(10, 10, 100, 100)));
+  assert(!renderer.isOnScreen(RectF(700, 10, 100, 100)));
 
   // 1. Clear canvas red
   renderer.clearCanvas(ColorF(1.0f, 0.0f, 0.0f, 1.0f));

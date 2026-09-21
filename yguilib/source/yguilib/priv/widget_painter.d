@@ -16,13 +16,6 @@ import std.array : Appender;
  * collectVisible and passed to drawWidgets via VisibleWidget.absRect.
  */
 final class WidgetPainterSystem {
-  static bool isOnScreen(in RectF rect, float vw, float vh) {
-    return rect.width > 0.0f && rect.height > 0.0f
-      && rect.x < vw && rect.y < vh
-      && (rect.x + rect.width) > 0.0f
-      && (rect.y + rect.height) > 0.0f;
-  }
-
   void drawTree(Widget root, Renderer r) {
     if (root is null || !root.visible || r is null) {
       return;
@@ -62,7 +55,7 @@ private:
     const float absX = parentX + w.rect.x;
     const float absY = parentY + w.rect.y;
     const RectF absRect = RectF(absX, absY, w.rect.width, w.rect.height);
-    if (!isOnScreen(absRect, vw, vh)) {
+    if (!Renderer.isOnScreen(absRect, vw, vh)) {
       return;
     }
 
@@ -135,32 +128,6 @@ private:
     auto comp = w.components.textLabel;
     r.drawText(comp.caption, PointF(absRect.x, absRect.y), comp.color);
   }
-}
-
-// Verifies isOnScreen viewport culling helper.
-unittest {
-  const float vw = 640.0f;
-  const float vh = 480.0f;
-
-  // Fully inside
-  assert(WidgetPainterSystem.isOnScreen(RectF(10, 10, 100, 100), vw, vh));
-
-  // Intersecting edges
-  assert(WidgetPainterSystem.isOnScreen(RectF(-50, 10, 100, 100), vw, vh));
-  assert(WidgetPainterSystem.isOnScreen(RectF(10, -50, 100, 100), vw, vh));
-  assert(WidgetPainterSystem.isOnScreen(RectF(600, 10, 100, 100), vw, vh));
-  assert(WidgetPainterSystem.isOnScreen(RectF(10, 450, 100, 100), vw, vh));
-
-  // Fully outside
-  assert(!WidgetPainterSystem.isOnScreen(RectF(-150, 10, 100, 100), vw, vh));
-  assert(!WidgetPainterSystem.isOnScreen(RectF(10, -150, 100, 100), vw, vh));
-  assert(!WidgetPainterSystem.isOnScreen(RectF(700, 10, 100, 100), vw, vh));
-  assert(!WidgetPainterSystem.isOnScreen(RectF(10, 500, 100, 100), vw, vh));
-
-  // Zero or negative size
-  assert(!WidgetPainterSystem.isOnScreen(RectF(10, 10, 0, 100), vw, vh));
-  assert(!WidgetPainterSystem.isOnScreen(RectF(10, 10, 100, 0), vw, vh));
-  assert(!WidgetPainterSystem.isOnScreen(RectF(10, 10, -10, 100), vw, vh));
 }
 
 // Verifies collectVisible culling of off-screen parents and their children.
