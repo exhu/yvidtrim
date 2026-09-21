@@ -5,9 +5,11 @@ module yguilib.app;
 import yguilib.uisystem;
 import yguilib.controller;
 import yguilib.window;
+import yguilib.priv.logger;
 
 class App {
   this(Window w) {
+    setupSdlLogger();
     ui = new UiSystem(w);
   }
   /// entry point

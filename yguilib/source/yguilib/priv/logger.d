@@ -1,4 +1,4 @@
-module yguilib.logger;
+module yguilib.priv.logger;
 
 import std.logger;
 import std.string : toStringz;
