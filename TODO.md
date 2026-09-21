@@ -1,4 +1,5 @@
-- review refactoring, move more code to priv package
+- reorganize lib into public and internal code, replace "priv" with "internal"
+- import string assets: move font to public api yguilib/assets.d and shaders to yguilib/internal/assets.d
 - define modal controller rules (some controllers must still handle events, when modal is active)
 - add modal dialog displayed by model on key (and closed by click)
 - button
