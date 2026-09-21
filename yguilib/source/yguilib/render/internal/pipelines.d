@@ -1,9 +1,10 @@
-module yguilib.priv.render.pipelines;
+module yguilib.render.internal.pipelines;
+
+package(yguilib):
 
 import glad2.gles2;
-import std.algorithm : min;
-import yguilib.priv.render.gl_util;
-import yguilib.render_types : ColorF, PointF, RectF;
+import yguilib.render.internal.gl_util;
+import yguilib.render.render_types : ColorF, PointF, RectF;
 
 /**
  * Shader pipeline for flat color primitives (triangles, lines, line loops).
@@ -337,6 +338,7 @@ struct RoundRectPipeline {
   ) {
     float halfW = rect.width * 0.5f;
     float halfH = rect.height * 0.5f;
+    import std.algorithm : min;
     float r = min(radius, min(halfW, halfH));
     if (r < 0.0f) {
       r = 0.0f;

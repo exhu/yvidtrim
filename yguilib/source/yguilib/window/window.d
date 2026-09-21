@@ -1,9 +1,10 @@
-module yguilib.window;
-import yguilib.clibs.sdl3;
+module yguilib.window.window;
+
 import glad2.gles2;
-import yguilib.render;
-import yguilib.widget;
-import yguilib.events;
+import yguilib.clibs.sdl3;
+import yguilib.events : AppEvent;
+import yguilib.render : RectF, Renderer;
+import yguilib.widget : Widget;
 
 class Window {
   this(int width, int height, string title) {

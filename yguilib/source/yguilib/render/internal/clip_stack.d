@@ -1,9 +1,10 @@
-module yguilib.priv.render.clip_stack;
+module yguilib.render.internal.clip_stack;
+
+package(yguilib):
 
 import glad2.gles2;
-import std.algorithm : max, min;
 import std.array : Appender;
-import yguilib.render_types : RectF, intersectRects;
+import yguilib.render.render_types : RectF, intersectRects;
 
 struct ClipStack {
   void push(
@@ -66,6 +67,7 @@ struct ClipStack {
     float pw = rect.width * scale;
     float ph = rect.height * scale;
 
+    import std.algorithm : max, min;
     float clampedX = max(0.0f, px);
     float clampedY = max(0.0f, py);
     float clampedRight = min(cast(float)pixelW, px + pw);

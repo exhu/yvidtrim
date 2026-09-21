@@ -1,7 +1,8 @@
-module yguilib.priv.logger;
+module yguilib.internal.logger;
+
+package(yguilib):
 
 import std.logger;
-import std.string : toStringz;
 import yguilib.clibs.sdl3;
 
 class SdlLogger : Logger {
@@ -32,6 +33,7 @@ class SdlLogger : Logger {
         prio = yguilib_sdl3_LogPriority.debug_;
         break;
     }
+    import std.string : toStringz;
     yguilib_sdl3_log_priority(prio, payload.msg.toStringz);
   }
 }

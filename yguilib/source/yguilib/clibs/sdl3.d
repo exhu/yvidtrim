@@ -1,6 +1,8 @@
 /// bindings to yguilib-clib-sdl C library
 module yguilib.clibs.sdl3;
 
+package(yguilib):
+
 enum yguilib_sdl3_EventType : int {
   none = 0,
   quit,

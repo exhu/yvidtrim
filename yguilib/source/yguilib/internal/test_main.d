@@ -1,4 +1,4 @@
-module yguilib.priv.test_main;
+module yguilib.internal.test_main;
 
 version(unittest) {
   void main() {

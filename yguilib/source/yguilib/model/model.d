@@ -1,4 +1,4 @@
-module yguilib.model;
+module yguilib.model.model;
 
 alias ModelVersion = size_t;
 

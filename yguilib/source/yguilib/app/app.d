@@ -1,11 +1,12 @@
 /** see ./documentation/gui-overview.adoc
 
  */
-module yguilib.app;
-import yguilib.uisystem;
-import yguilib.controller;
-import yguilib.window;
-import yguilib.priv.logger;
+module yguilib.app.app;
+
+import yguilib.controller : Controller;
+import yguilib.internal.logger : setupSdlLogger;
+import yguilib.uisystem : UiSystem;
+import yguilib.window : Window;
 
 class App {
   this(Window w) {

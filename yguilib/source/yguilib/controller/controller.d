@@ -1,5 +1,7 @@
-module yguilib.controller;
-import yguilib.events;
+module yguilib.controller.controller;
+import yguilib.events : AppEvent;
+
+alias HandleResult = Controller.HandleResult;
 
 interface Controller {
   struct HandleResult {

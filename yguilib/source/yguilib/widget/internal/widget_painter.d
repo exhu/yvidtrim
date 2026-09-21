@@ -1,8 +1,17 @@
-module yguilib.priv.widget_painter;
+module yguilib.widget.internal.widget_painter;
 
-import yguilib.widget;
-import yguilib.render;
+package(yguilib):
+
 import std.array : Appender;
+import yguilib.render : PointF, RectF, Renderer, intersectRects;
+import yguilib.widget.widget : Background, Border, TextLabel, Widget;
+
+struct VisibleWidget {
+  Widget widget;
+  RectF absRect;
+  bool hasClip;
+  RectF clipRect;
+}
 
 /**
  * System responsible for rendering visible widgets.

@@ -1,6 +1,8 @@
-module yguilib.priv.controller_stack;
+module yguilib.controller.internal.controller_stack;
 
-import yguilib.controller;
+package(yguilib):
+
+import yguilib.controller : Controller, DefaultController;
 
 struct ControllerStack {
   void push(Controller c) {

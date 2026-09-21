@@ -29,6 +29,8 @@ Default directory for resources is "assets". Embedable assets via import must
 be placed into "assets/\<package_name\>" to avoid conflicts when both a program
 and a library use the same shader file names.
 
+Put string imports into "assets.d" or into "internal/assets.d".
+
 ## Variables and constants
 Prefer declaring local variables and fields const if they are not meant to change.
 
@@ -46,6 +48,8 @@ throughput, all modules must strictly adhere to domain-bounded encapsulation.
 - **Selective Re-exports:** Facades must expose public surfaces selectively via
   `public import yguilib.window : Window, Screen;`. Never write unconstrained
   `public import yguilib.window;`.
+- do not create a directory for a single module file and a package.d, leave
+a single module file is enough in this case.
 
 ### 2. Implementation Boundaries
 - **Internal Directories:** All volatile logic, wire formats, OS bindings, and
@@ -61,7 +65,8 @@ throughput, all modules must strictly adhere to domain-bounded encapsulation.
 - Keep file-level imports in `internal/` modules strictly minimal.
 - Use scoped imports inside function and template bodies for heavy standard
   library modules (e.g., `std.algorithm`, `std.format`, `std.json`) to defer
-  template parsing and semantic analysis.
+  template parsing and semantic analysis. However if multiple functions
+  of a module require the same, then do not duplicate imports.
 
 # C coding style
 C code uses the same formatting: 2 spaces, open curly brance on the same line.

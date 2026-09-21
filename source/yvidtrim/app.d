@@ -3,12 +3,11 @@ import std.stdio;
 import yguilib.app;
 import yguilib.controller;
 import yguilib.events;
+import yguilib.model;
+import yguilib.render;
 import yguilib.uisystem;
 import yguilib.widget;
-import yguilib.render_types;
 import yguilib.window;
-import yguilib.model;
-import yguilib.keyboard;
 
 import std.algorithm;
 

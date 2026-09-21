@@ -1,5 +1,5 @@
-module yguilib.events;
-import yguilib.keyboard;
+module yguilib.events.events;
+import yguilib.events.keyboard;
 
 // TODO make it clear what events are consumed, which propagated up the
 // controller stack

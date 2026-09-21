@@ -1,4 +1,4 @@
-module yguilib.render_types;
+module yguilib.render.render_types;
 
 struct PointF {
   float x = 0.0f;
@@ -21,13 +21,12 @@ struct ColorF {
 
 alias Color = ColorF;
 
-import std.algorithm : max, min;
-
 /**
  * Returns the intersection of two rectangles.
  * Width/height are clamped to zero if they would be negative (no overlap).
  */
 RectF intersectRects(in RectF a, in RectF b) {
+  import std.algorithm : max, min;
   float x1 = max(a.x, b.x);
   float y1 = max(a.y, b.y);
   float x2 = min(a.x + a.width, b.x + b.width);

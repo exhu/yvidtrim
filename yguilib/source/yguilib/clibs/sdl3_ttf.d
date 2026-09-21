@@ -1,6 +1,8 @@
 /// bindings to yguilib-clib-sdl3_ttf C library
 module yguilib.clibs.sdl3_ttf;
 
+package(yguilib):
+
 struct yguilib_sdl3_ttf_Font;
 struct yguilib_sdl3_ttf_Surface;
 

@@ -1,13 +1,12 @@
-module yguilib.priv.render.font;
+module yguilib.render.internal.font;
 
-import std.string : toStringz;
 import yguilib.clibs.sdl3_ttf;
-import yguilib.render_types : PointF;
+import yguilib.render.render_types : PointF;
 
-enum string defaultTtfFontData =
+package(yguilib) enum string defaultTtfFontData =
   import("yguilib/fonts/GoogleSansCode-Regular.ttf");
 
-enum float defaultFontPtSize = 16.0 * 96.0 / 72.0;
+package(yguilib) enum float defaultFontPtSize = 16.0 * 96.0 / 72.0;
 
 final class Font {
   /**
@@ -52,6 +51,7 @@ final class Font {
     assert(filePath.length > 0, "filePath must not be empty");
     assert(ptSize > 0.0f, "ptSize must be positive");
     float effectiveScale = scale > 0.0f ? scale : 1.0f;
+    import std.string : toStringz;
     handle = yguilib_sdl3_ttf_open_font(
       filePath.toStringz(),
       ptSize * effectiveScale

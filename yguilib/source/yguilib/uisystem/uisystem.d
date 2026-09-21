@@ -1,19 +1,17 @@
-module yguilib.uisystem;
+module yguilib.uisystem.uisystem;
 
 import glad2.gles2;
+import std.typecons : Nullable;
 import yguilib.clibs.sdl3;
-import yguilib.controller;
-import yguilib.events;
-import yguilib.keyboard;
-import yguilib.priv.controller_stack;
-import yguilib.priv.message_bus;
-import yguilib.priv.sdl_events;
-import yguilib.priv.widget_painter;
-import yguilib.render;
-import yguilib.widget;
-import yguilib.window;
-
-import std.typecons;
+import yguilib.controller : Controller, DefaultController, HandleResult;
+import yguilib.controller.internal.controller_stack : ControllerStack;
+import yguilib.events : AppEvent, KeyCode, ScanCode;
+import yguilib.events.internal.message_bus : MessageBus;
+import yguilib.events.internal.sdl_events : appEventFromSdlEvent;
+import yguilib.render : Renderer;
+import yguilib.widget : Widget;
+import yguilib.widget.internal.widget_painter : WidgetPainterSystem;
+import yguilib.window : Window;
 
 class UiSystem {
   this(Window w) {
@@ -325,7 +323,7 @@ private:
   }
 
   Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
-    return yguilib.priv.sdl_events.appEventFromSdlEvent(sdlEv);
+    return .appEventFromSdlEvent(sdlEv);
   }
 
   ControllerStack controllers;

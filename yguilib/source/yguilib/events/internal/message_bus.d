@@ -1,8 +1,10 @@
-module yguilib.priv.message_bus;
+module yguilib.events.internal.message_bus;
 
-import yguilib.events;
-import yguilib.clibs.sdl3;
+package(yguilib):
+
 import std.typecons : Nullable;
+import yguilib.clibs.sdl3;
+import yguilib.events : AppEvent;
 
 /**
  * Thread-safe FIFO event queue for cross-thread communication with the UI.

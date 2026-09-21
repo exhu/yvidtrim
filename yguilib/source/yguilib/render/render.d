@@ -1,15 +1,15 @@
-module yguilib.render;
+module yguilib.render.render;
 
 import glad2.gles2;
 import std.algorithm : max, min;
-import std.logger;
 import yguilib.events : AppEvent;
-public import yguilib.render_types;
-public import yguilib.priv.render.font;
-import yguilib.priv.render.clip_stack : ClipStack;
-import yguilib.priv.render.pipelines : ColorPipeline, TexturePipeline,
-  RoundRectPipeline;
-import yguilib.priv.render.text_cache : TextCache, TextTexture;
+import yguilib.render.internal.clip_stack : ClipStack;
+import yguilib.render.internal.font : Font, defaultFontPtSize,
+  defaultTtfFontData;
+import yguilib.render.internal.pipelines : ColorPipeline, RoundRectPipeline,
+  TexturePipeline;
+import yguilib.render.internal.text_cache : TextCache, TextTexture;
+import yguilib.render.render_types;
 
 final class Renderer {
   this(int width = 0, int height = 0, float displayScaling = 1.0f) {

@@ -1,7 +1,8 @@
-module yguilib.priv.render.gl_util;
+module yguilib.render.internal.gl_util;
+
+package(yguilib):
 
 import glad2.gles2;
-import std.logger;
 
 /**
  * Configures common 2D blending state: alpha blending enabled,
@@ -41,6 +42,7 @@ GLuint compileShader(GLenum type, string source) {
       log = buf[0 .. written].idup;
     }
     glDeleteShader(shader);
+    import std.logger : errorf;
     errorf("Shader compile error: %s", log);
     throw new Exception("Shader compile failed: " ~ log);
   }
@@ -73,6 +75,7 @@ GLuint linkProgram(GLuint vertShader, GLuint fragShader) {
       log = buf[0 .. written].idup;
     }
     glDeleteProgram(prog);
+    import std.logger : errorf;
     errorf("Program link error: %s", log);
     throw new Exception("Program link failed: " ~ log);
   }

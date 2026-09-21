@@ -1,9 +1,10 @@
-module yguilib.priv.sdl_events;
+module yguilib.events.internal.sdl_events;
 
-import yguilib.events;
-import yguilib.keyboard;
-import yguilib.clibs.sdl3;
+package(yguilib):
+
 import std.typecons : Nullable;
+import yguilib.clibs.sdl3;
+import yguilib.events : AppEvent, KeyCode, ScanCode;
 
 Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
   switch (sdlEv.type) {

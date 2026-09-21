@@ -1,8 +1,10 @@
-module yguilib.priv.render.text_cache;
+module yguilib.render.internal.text_cache;
+
+package(yguilib):
 
 import glad2.gles2;
 import yguilib.clibs.sdl3_ttf;
-import yguilib.priv.render.font : Font;
+import yguilib.render.internal.font : Font;
 
 struct TextTexture {
   GLuint textureId = 0;

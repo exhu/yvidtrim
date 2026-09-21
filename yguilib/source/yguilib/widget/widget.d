@@ -1,7 +1,6 @@
-module yguilib.widget;
+module yguilib.widget.widget;
 
-import yguilib.render_types;
-import yguilib.render;
+import yguilib.render : ColorF, PointF, RectF, Renderer;
 
 abstract class Component {
 
@@ -117,11 +116,4 @@ class Widget {
   bool clipContents = true;
   bool clipChildren = false;
   Widget[] children;
-}
-
-struct VisibleWidget {
-  Widget widget;
-  RectF absRect;
-  bool hasClip;
-  RectF clipRect;
 }
