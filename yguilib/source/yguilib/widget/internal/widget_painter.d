@@ -36,6 +36,7 @@ final class WidgetPainterSystem {
     drawWidgets(visibleBuf[], r);
   }
 
+private:
   void drawWidgets(VisibleWidget[] widgets, Renderer r) {
     foreach (ref vw; widgets) {
       if (vw.hasClip) {
@@ -48,7 +49,6 @@ final class WidgetPainterSystem {
     }
   }
 
-private:
   void collectVisible(
     Widget w,
     float parentX,
@@ -102,6 +102,8 @@ private:
 
     if (w.clipContents)
       r.popClipRect();
+
+    w.dirty = false;
   }
 
   static void drawBackground(Widget w, in RectF absRect, Renderer r) {

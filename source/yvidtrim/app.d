@@ -18,20 +18,43 @@ final class MainModel : VersionedModel {
 }
 
 
+// TODO 1) widgets will not have bindings,
+// instead all updates to widgest are performed in code in update()
+// 2) a group of widgets may make a subview/composite
+// 3) implement a view builder, where the models are accessed via
+// introspection, and the update() checks which models changed,
+// calls setters on the widgets and calls update() on widgets.
+// widgets usually should not update on changing their properties.
+
 final class MainView {
-  this(ref ModelTracker!MainModel otherTracker, Widget toggleWidget, Widget alphaWidget) {
-    this.tracker = ModelTracker!MainModel(otherTracker);
-    this.toggleWidget = toggleWidget;
-    this.alphaWidget = alphaWidget;
+  this(ref ModelTracker!MainModel otherTracker) {
+    tracker = ModelTracker!MainModel(otherTracker);
+
+    view = new Widget(null, RectF(10, 10, 200, 200));
+    view.components.background = new Background(ColorF(0.5, 0.5, 0, 1));
+    auto smaller2 = new Widget(view, RectF(35, 45, 150, 190));
+    smaller2.components.background = new Background(ColorF(0.0, 1, 0.5, 0.3));
+    smaller2.components.border = new Border(ColorF(0.0, 0, 0.5, 1), Border.style.roundDashed);
+    smaller2.components.textLabel = new TextLabel("Hello-0123456789", ColorF(0,0,1,1));
+    auto smaller = new Widget(smaller2, RectF(15, 15, 200, 90));
+    smaller.components.background = new Background(ColorF(0.5, 1, 0.5, 0.3), Background.Style.round);
+    smaller2.clipChildren = true;
+
+    toggleWidget = smaller;
+    alphaWidget = smaller2;
   }
 
   void update() {
     if (tracker.update()) {
       toggleWidget.visible = tracker.model.toggleVisible;
+      toggleWidget.markDirty();
       alphaWidget.components.background.color.a = tracker.model.alphaValue;
+      alphaWidget.markDirty();
     }
   }
 
+  Widget view;
+private:
   ModelTracker!MainModel tracker;
 
   Widget toggleWidget;
@@ -39,10 +62,11 @@ final class MainView {
 }
 
 final class MainController : DefaultController {
-  this(App app, Widget toggleWidget, Widget alphaWidget) {
+  this(App app) {
     super(&app.ui.sendAppEvent);
     this.app = app;
-    this.view = new MainView(t, toggleWidget, alphaWidget);
+    view = new MainView(t);
+    app.ui.getMainWindow().view = view.view;
   }
 
   override void updateView() {
@@ -88,17 +112,6 @@ final class MainController : DefaultController {
 void main()
 {
   auto window = new Window(1280, 720, "yvidtrim");
-  auto view = new Widget(null, RectF(10, 10, 200, 200));
-  view.components.background = new Background(ColorF(0.5, 0.5, 0, 1));
-  window.view = view;
-  auto smaller2 = new Widget(view, RectF(35, 45, 150, 190));
-  smaller2.components.background = new Background(ColorF(0.0, 1, 0.5, 0.3));
-  smaller2.components.border = new Border(ColorF(0.0, 0, 0.5, 1), Border.style.roundDashed);
-  smaller2.components.textLabel = new TextLabel("Hello-0123456789", ColorF(0,0,1,1));
-  auto smaller = new Widget(smaller2, RectF(15, 15, 200, 90));
-  smaller.components.background = new Background(ColorF(0.5, 1, 0.5, 0.3), Background.Style.round);
   auto app = new App(window);
-  smaller2.clipChildren = true;
-
-  app.run(new MainController(app, smaller, smaller2));
+  app.run(new MainController(app));
 }

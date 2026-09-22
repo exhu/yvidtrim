@@ -1,25 +1,7 @@
 module yguilib.widget.widget;
-
 import yguilib.render : ColorF, PointF, RectF, Renderer;
-
-abstract class Component {
-
-}
-
-class CustomDraw : Component {
-  void delegate(in Renderer r, in Widget w) drawFunc;
-}
-
-class TextLabel : Component {
-  this(string caption, ColorF color) {
-    this.caption = caption;
-    this.color = color;
-  }
-  string font;
-  uint fontSize = 16;
-  string caption = "TextLabel";
-  ColorF color = ColorF(1,1,1,1);
-}
+import yguilib.widget.component;
+import yguilib.widget.layout;
 
 class Background : Component {
   enum Style {
@@ -33,6 +15,17 @@ class Background : Component {
   }
   ColorF color;
   Style style;
+}
+
+class TextLabel : Component {
+  this(string caption, ColorF color) {
+    this.caption = caption;
+    this.color = color;
+  }
+  string font;
+  uint fontSize = 16;
+  string caption = "TextLabel";
+  ColorF color = ColorF(1,1,1,1);
 }
 
 class Border : Component {
@@ -50,31 +43,11 @@ class Border : Component {
   Style style;
 }
 
-class InputEnabled : Component {
-  bool enabled;
-}
-
-/// participates in focus loop
-class Focus : Component {
-  /// currently in focus, mark one control with true to mark the first focused
-  /// item
-  bool focused;
-}
-
-/// convert event press and release to event with parameter
-class KeyboardAction : Component {
-  struct Params {
-    bool isPressed;
-  }
-  string[string] keyToAction;
-}
-
-/// this button is pressed by enter
-class DefaultButton : Component {
+class CustomDraw : Component {
+  void delegate(in Renderer r, in Widget w) drawFunc;
 }
 
 // TODO implement code first approach, without symbolic bindings
-
 
 /// widgets can have this component to mark a root view
 abstract class View : Component {
@@ -89,15 +62,45 @@ abstract class View : Component {
   abstract void update();
 }
 
+class InputEnabled : Component {
+  bool enabled;
+}
+
+/// participates in focus loop
+class Focus : Component {
+  /// currently in focus, mark one control with true to mark the first focused
+  /// item
+  bool focused;
+}
+
+/// this button is pressed by enter
+class DefaultButton : Component {
+}
+
+/// convert event press and release to event with parameter
+class KeyboardAction : Component {
+  struct Params {
+    bool isPressed;
+  }
+  string[string] keyToAction;
+}
+
 struct WidgetComponents {
+  // layout
+  FlexContainer flexContainer;
+  Position position;
+
+  // drawing
   Background background;
   TextLabel textLabel;
+  Border border;
+  CustomDraw customDraw;
+  // action/logic
   View view;
   InputEnabled inputEnabled;
   Focus focus;
   DefaultButton defaultButton;
-  CustomDraw customDraw;
-  Border border;
+  KeyboardAction keyboardAction;
 }
 
 class Widget {
@@ -108,6 +111,11 @@ class Widget {
       parent.children ~= this;
   }
 
+  /// must be called after properties have changed
+  void markDirty() {
+    dirty = true;
+  }
+
   Widget parent;
   RectF rect;
   WidgetComponents components;
@@ -116,4 +124,5 @@ class Widget {
   bool clipContents = true;
   bool clipChildren = false;
   Widget[] children;
+  bool dirty = true;
 }

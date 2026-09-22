@@ -126,6 +126,7 @@ class Window {
     onDisplayScaleChanged(scaling);
   }
 
+  // TODO should it draw widgets?
   void redraw() {
     makeCurrent();
     if (view !is null && view.components.background !is null &&
