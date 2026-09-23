@@ -49,3 +49,4 @@ Adhere to `.editorconfig` and `codestyle.md`:
 
 ## Markdown documentation
 Use ascii for diagrams in `.md` files, e.g. for plans.
+Keep line length 80 characters max whenever possible.
