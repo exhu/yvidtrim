@@ -2,9 +2,7 @@ module yguilib.render.internal.font;
 
 import yguilib.clibs.sdl3_ttf;
 import yguilib.render.render_types : PointF;
-
-package(yguilib) enum string defaultTtfFontData =
-  import("yguilib/fonts/GoogleSansCode-Regular.ttf");
+import yguilib.assets : defaultTtfFontData;
 
 package(yguilib) enum float defaultFontPtSize = 16.0 * 96.0 / 72.0;
 

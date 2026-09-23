@@ -27,9 +27,10 @@ embedded into final program via D's import strings if they are small.
 
 Default directory for resources is "assets". Embedable assets via import must
 be placed into "assets/\<package_name\>" to avoid conflicts when both a program
-and a library use the same shader file names.
+and a library use the same shader file names, e.g. "assets/yguilib/font.ttf"
 
 Put string imports into "assets.d" or into "internal/assets.d".
+E.g. "source/yguilib/internal/assets.d"
 
 ## Variables and constants
 Prefer declaring local variables and fields const if they are not meant to change.

@@ -8,6 +8,7 @@ yguilib_assets_inc = include_directories('assets')
 yguilib_src = files(
   'source/yguilib/app/app.d',
   'source/yguilib/app/package.d',
+  'source/yguilib/assets.d',
   'source/yguilib/clibs/sdl3.d',
   'source/yguilib/clibs/sdl3_ttf.d',
   'source/yguilib/controller/controller.d',
@@ -18,6 +19,7 @@ yguilib_src = files(
   'source/yguilib/events/internal/sdl_events.d',
   'source/yguilib/events/keyboard.d',
   'source/yguilib/events/package.d',
+  'source/yguilib/internal/assets.d',
   'source/yguilib/internal/logger.d',
   'source/yguilib/model/model.d',
   'source/yguilib/model/package.d',
@@ -31,6 +33,7 @@ yguilib_src = files(
   'source/yguilib/render/render_types.d',
   'source/yguilib/uisystem/package.d',
   'source/yguilib/uisystem/uisystem.d',
+  'source/yguilib/widget/component.d',
   'source/yguilib/widget/internal/widget_painter.d',
   'source/yguilib/widget/package.d',
   'source/yguilib/widget/widget.d',

@@ -5,6 +5,7 @@ package(yguilib):
 import glad2.gles2;
 import yguilib.render.internal.gl_util;
 import yguilib.render.render_types : ColorF, PointF, RectF;
+import yguilib.internal.assets;
 
 /**
  * Shader pipeline for flat color primitives (triangles, lines, line loops).
@@ -17,15 +18,10 @@ struct ColorPipeline {
   GLint uColorLoc = -1;
 
   void initialize() {
-    enum string vertexShaderSource =
-      import("yguilib/shaders/color.vert.glsl");
-    enum string fragmentShaderSource =
-      import("yguilib/shaders/color.frag.glsl");
-
-    GLuint vertShader = compileShader(GL_VERTEX_SHADER, vertexShaderSource);
+    GLuint vertShader = compileShader(GL_VERTEX_SHADER, colorVertexShaderSource);
     scope(exit) glDeleteShader(vertShader);
 
-    GLuint fragShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
+    GLuint fragShader = compileShader(GL_FRAGMENT_SHADER, colorFragmentShaderSource);
     scope(exit) glDeleteShader(fragShader);
 
     program = linkProgram(vertShader, fragShader);
@@ -142,11 +138,6 @@ struct TexturePipeline {
   GLint uTextureLoc = -1;
 
   void initialize() {
-    enum string texVertexShaderSource =
-      import("yguilib/shaders/texture.vert.glsl");
-    enum string texFragmentShaderSource =
-      import("yguilib/shaders/texture.frag.glsl");
-
     GLuint texVert = compileShader(GL_VERTEX_SHADER, texVertexShaderSource);
     scope(exit) glDeleteShader(texVert);
 
@@ -259,11 +250,6 @@ struct RoundRectPipeline {
   GLint uPixelSizeLoc = -1;
 
   void initialize() {
-    enum string rrVertexShaderSource =
-      import("yguilib/shaders/roundrect.vert.glsl");
-    enum string rrFragmentShaderSource =
-      import("yguilib/shaders/roundrect.frag.glsl");
-
     GLuint rrVert = compileShader(GL_VERTEX_SHADER, rrVertexShaderSource);
     scope(exit) glDeleteShader(rrVert);
 
