@@ -88,7 +88,7 @@ class KeyboardAction : Component {
 struct WidgetComponents {
   // layout
   FlexContainer flexContainer;
-  Position position;
+  Size size;
 
   // drawing
   Background background;

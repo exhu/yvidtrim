@@ -32,6 +32,7 @@ final class WidgetPainterSystem {
     visibleBuf.clear();
     const float vw = r.getLogicWidth();
     const float vh = r.getLogicHeight();
+    // TODO extract visible to reuse for layout system
     collectVisible(root, 0.0f, 0.0f, vw, vh);
     drawWidgets(visibleBuf[], r);
   }
