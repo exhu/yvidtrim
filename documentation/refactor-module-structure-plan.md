@@ -1,4 +1,4 @@
-# Refactoring Plan: Decoupled Modular Architecture with Internal Packages and Domain Facades
+# Outdated! Refactoring Plan: Decoupled Modular Architecture with Internal Packages and Domain Facades
 
 ## Goal Description
 Refactor the D codebase in `yguilib/source` to adhere strictly to the architecture and module visibility guidelines established in `codestyle.md`:
