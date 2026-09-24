@@ -48,9 +48,12 @@ throughput, all modules must strictly adhere to domain-bounded encapsulation.
   containing a `package.d` (e.g., `src/yguilib/render/package.d`) if
   there are more than one module in the subsystem.
 - do not create a directory for a single module file as package.d,
-a single module file is enough in this case.
+  a single module file is enough in this case.
+- when converting a module into a package (directory with sub-modules), the
+  original module becomes package.d, e.g. render.d becomes render/package.d
+  containing the original code.
 - do not use public reexports, first-level modules inside the package are
-the public interface.
+  the public interface.
 
 ### 2. Implementation Boundaries
 - **Internal Directories:** All volatile logic, wire formats, OS bindings, and

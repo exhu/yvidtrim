@@ -3,8 +3,9 @@ module yguilib.widget.internal.widget_painter;
 package(yguilib):
 
 import std.array : Appender;
-import yguilib.render : PointF, RectF, Renderer, intersectRects;
-import yguilib.widget.widget : Background, Border, TextLabel, Widget;
+import yguilib.render : Renderer;
+import yguilib.render.render_types : PointF, RectF, intersectRects;
+import yguilib.widget : Background, Border, TextLabel, Widget;
 
 struct VisibleWidget {
   Widget widget;

@@ -4,7 +4,8 @@ package(yguilib):
 
 import std.typecons : Nullable;
 import yguilib.clibs.sdl3;
-import yguilib.events : AppEvent, KeyCode, ScanCode;
+import yguilib.events : AppEvent;
+import yguilib.events.keyboard : KeyCode, ScanCode;
 
 Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
   switch (sdlEv.type) {

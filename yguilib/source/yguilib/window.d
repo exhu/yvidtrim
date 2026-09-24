@@ -1,9 +1,10 @@
-module yguilib.window.window;
+module yguilib.window;
 
 import glad2.gles2;
 import yguilib.clibs.sdl3;
 import yguilib.events : AppEvent;
-import yguilib.render : RectF, Renderer;
+import yguilib.render : Renderer;
+import yguilib.render.render_types : RectF;
 import yguilib.widget : Widget;
 
 class Window {

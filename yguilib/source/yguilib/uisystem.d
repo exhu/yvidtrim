@@ -1,11 +1,12 @@
-module yguilib.uisystem.uisystem;
+module yguilib.uisystem;
 
 import glad2.gles2;
 import std.typecons : Nullable;
 import yguilib.clibs.sdl3;
 import yguilib.controller : Controller, DefaultController, HandleResult;
 import yguilib.controller.internal.controller_stack : ControllerStack;
-import yguilib.events : AppEvent, KeyCode, ScanCode;
+import yguilib.events : AppEvent;
+import yguilib.events.keyboard : KeyCode, ScanCode;
 import yguilib.events.internal.message_bus : MessageBus;
 import yguilib.events.internal.sdl_events : appEventFromSdlEvent;
 import yguilib.render : Renderer;

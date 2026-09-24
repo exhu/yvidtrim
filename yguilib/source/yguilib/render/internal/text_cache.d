@@ -4,7 +4,7 @@ package(yguilib):
 
 import glad2.gles2;
 import yguilib.clibs.sdl3_ttf;
-import yguilib.render.internal.font : Font;
+import yguilib.render.font : Font;
 
 struct TextTexture {
   GLuint textureId = 0;

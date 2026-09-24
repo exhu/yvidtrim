@@ -1,7 +1,7 @@
 /** see ./documentation/gui-overview.adoc
 
  */
-module yguilib.app.app;
+module yguilib.app;
 
 import yguilib.controller : Controller;
 import yguilib.internal.logger : setupSdlLogger;

@@ -1,4 +1,4 @@
-module yguilib.render.internal.font;
+module yguilib.render.font;
 
 import yguilib.clibs.sdl3_ttf;
 import yguilib.render.render_types : PointF;
