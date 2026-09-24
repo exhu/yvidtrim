@@ -45,12 +45,12 @@ throughput, all modules must strictly adhere to domain-bounded encapsulation.
   `package.d` that re-exports all library subsystems. Consumers must opt into
   subsystems explicitly (e.g., `import yguilib.net;`).
 - **Domain Facades:** Each functional subsystem must live in its own directory
-  containing a `package.d` facade (e.g., `src/yguilib/render/package.d`).
-- **Selective Re-exports:** Facades must expose public surfaces selectively via
-  `public import yguilib.window : Window, Screen;`. Never write unconstrained
-  `public import yguilib.window;`.
-- do not create a directory for a single module file and a package.d, leave
+  containing a `package.d` (e.g., `src/yguilib/render/package.d`) if
+  there are more than one module in the subsystem.
+- do not create a directory for a single module file as package.d,
 a single module file is enough in this case.
+- do not use public reexports, first-level modules inside the package are
+the public interface.
 
 ### 2. Implementation Boundaries
 - **Internal Directories:** All volatile logic, wire formats, OS bindings, and
@@ -67,7 +67,8 @@ a single module file is enough in this case.
 - Use scoped imports inside function and template bodies for heavy standard
   library modules (e.g., `std.algorithm`, `std.format`, `std.json`) to defer
   template parsing and semantic analysis. However if multiple functions
-  of a module require the same, then do not duplicate imports.
+  of a module require the same, then do not duplicate imports, but put
+  single import in the start of the file.
 
 # C coding style
 C code uses the same formatting: 2 spaces, open curly brance on the same line.
