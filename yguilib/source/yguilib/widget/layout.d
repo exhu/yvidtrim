@@ -137,6 +137,8 @@ class Size : Component {
 
   /// Inner insets — shrinks the content area for children.
   Insets padding;
+
   /// Outer clearance from sibling widgets.
-  Insets margin;
+  // can be replaced by dummy widgets, so don't implement yet
+  // Insets margin;
 }
