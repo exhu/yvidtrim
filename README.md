@@ -46,3 +46,26 @@ yguilib/yguilib-clibs). Sources in ./yguilib/ must not depend on
 
 ## Profiling
 GALLIUM_HUD="fps,cpu+GPU-load" ./_build/yvidtrim
+
+## Features for 1.0
+Final project will implement the following:
+	* efficient keyboard control:
+		- i, o for in and out points
+		- j-k-l seek control (back, stop, forward; multiply speed)
+		- alternative: [,] for per frame seek
+		- key frame only (warns about missing keyframes) cut
+		- smart reencoding output via ffmpeg scripting
+		- edit lists (multiple scenes cut) and simple file project support
+		- raw ffmpeg script output
+		- script execution not leaving the app
+		- codec profiles
+			- video codec, bitrate
+			- audio codec, bitrate
+			- container
+		- transform profiles
+			- crop
+			- scale
+			- rotate
+		- g to enter time to jump to
+	 * basic gui with mouse control
+		 - TODO
