@@ -28,6 +28,7 @@ yguilib_src = files(
   'source/yguilib/render/render_types.d',
   'source/yguilib/uisystem.d',
   'source/yguilib/widget/component.d',
+  'source/yguilib/widget/drawing_components.d',
   'source/yguilib/widget/internal/collect_visible.d',
   'source/yguilib/widget/internal/layout_system.d',
   'source/yguilib/widget/internal/widget_painter.d',

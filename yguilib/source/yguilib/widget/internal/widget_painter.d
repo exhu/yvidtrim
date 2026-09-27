@@ -5,8 +5,9 @@ package(yguilib):
 import std.array : Appender;
 import yguilib.render : Renderer;
 import yguilib.render.render_types : PointF, RectF, intersectRects;
-import yguilib.widget : Background, Border, TextLabel, Widget;
-import yguilib.widget.internal.collect_visible;
+import yguilib.widget.drawing_components : Background, Border, TextLabel;
+import yguilib.widget : Widget;
+import yguilib.widget.internal.collect_visible : VisibleWidgets;
 
 /**
  * System responsible for rendering visible widgets.
@@ -20,7 +21,7 @@ import yguilib.widget.internal.collect_visible;
  * collectVisible and passed to drawWidgets via VisibleWidget.absRect.
  */
 final class WidgetPainterSystem {
-  void drawTree(VisibleWidget[] widgets, Renderer r) {
+  void drawTree(VisibleWidgets widgets, Renderer r) {
     assert(widgets !is null);
     assert(r !is null);
 
@@ -28,7 +29,7 @@ final class WidgetPainterSystem {
   }
 
 private:
-  void drawWidgets(VisibleWidget[] widgets, Renderer r) {
+  void drawWidgets(VisibleWidgets widgets, Renderer r) {
     foreach (ref vw; widgets) {
       if (vw.hasClip) {
         r.pushClipRect(vw.clipRect);

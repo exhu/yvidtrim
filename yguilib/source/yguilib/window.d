@@ -7,6 +7,7 @@ import yguilib.render : Renderer;
 import yguilib.render.render_types : RectF;
 import yguilib.widget : Widget;
 
+// TODO support minimum width and height based on view's Size component.
 class Window {
   this(int width, int height, string title) {
     this.width = width;

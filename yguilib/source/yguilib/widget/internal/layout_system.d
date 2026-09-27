@@ -11,6 +11,7 @@ final class LayoutSystem {
     assert(root !is null);
     assert(r !is null);
     assert(visibleWidgets !is null);
+
     if (!root.visible) {
       return;
     }
