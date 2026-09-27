@@ -55,6 +55,8 @@ final class MainView {
 
     // --- layout testing ---
     container = makeBox(view, RectF(35, 250, 400, 300), colors.darkGray);
+    container.components.border = new Border(colors.brightWhite, Border.style.dashed);
+    container.components.border.width = 3;
     fc = new FlexContainer;
     fc.direction = FlexDirection.row;
     fc.gap = 8;

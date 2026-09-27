@@ -34,6 +34,7 @@ class Border : Component {
   // TODO support also dashed non-round
   enum Style {
     rect,
+    dashed,
     round,
     roundDashed,
     none,
@@ -46,6 +47,8 @@ class Border : Component {
   Style style;
   /// pixels
   float width = 2.0;
+  float dashLen = 5.0;
+  float gap = 2.0;
   float cornerRadius = 10.0;
 }
 

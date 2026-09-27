@@ -1,4 +1,3 @@
-- add drawRect width support to Border component
 - generate code to demonstrate flex component, layout, sizes, text measurement etc.
 - define modal controller rules (some controllers must still handle events, when modal is active)
 - add modal dialog displayed by model on key (and closed by click)

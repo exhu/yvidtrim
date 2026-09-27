@@ -83,13 +83,16 @@ private:
     auto comp = w.components.border;
     final switch(comp.style) {
       case Border.Style.rect:
-        r.drawRect(absRect, comp.color);
+        r.drawRect(absRect, comp.width, comp.color);
+        break;
+      case Border.Style.dashed:
+        r.drawRectDashed(absRect, comp.width, comp.dashLen, comp.gap, comp.color);
         break;
       case Border.Style.round:
         r.drawRoundRect(absRect, comp.cornerRadius, comp.width, comp.color);
         break;
       case Border.Style.roundDashed:
-        r.drawRoundRectDashed(absRect, comp.cornerRadius, comp.width, 3, 1, comp.color);
+        r.drawRoundRectDashed(absRect, comp.cornerRadius, comp.width, comp.dashLen, comp.gap, comp.color);
         break;
       case Border.Style.none:{}
     }
