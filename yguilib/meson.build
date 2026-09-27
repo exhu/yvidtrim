@@ -32,7 +32,7 @@ yguilib_src = files(
   'source/yguilib/widget/internal/collect_visible.d',
   'source/yguilib/widget/internal/layout_system.d',
   'source/yguilib/widget/internal/widget_painter.d',
-  'source/yguilib/widget/layout.d',
+  'source/yguilib/widget/layout_components.d',
   'source/yguilib/widget/package.d',
   'source/yguilib/window.d',
 )

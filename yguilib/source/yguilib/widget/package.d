@@ -2,7 +2,7 @@ module yguilib.widget;
 import yguilib.widget.component;
 import yguilib.widget.drawing_components;
 import yguilib.render.render_types;
-import yguilib.widget.layout;
+import yguilib.widget.layout_components;
 import yguilib.widget.input_components;
 
 // TODO implement code first approach, without symbolic bindings

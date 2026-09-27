@@ -4,7 +4,7 @@ package(yguilib):
 import yguilib.render : Renderer;
 import yguilib.render.render_types : PointF;
 import yguilib.widget;
-import yguilib.widget.layout;
+import yguilib.widget.layout_components;
 import yguilib.widget.internal.collect_visible : VisibleWidgets, VisibleWidget;
 
 final class LayoutSystem {

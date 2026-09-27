@@ -6,7 +6,7 @@
 ///   Phase 2 - Direction & Spacing (FlexDirection, gap)
 ///   Phase 3 - Sizing Modes (SizingMode: auto_, fixed, fraction)
 ///   Phase 4 - Alignment (JustifyContent, AlignItems)
-module yguilib.widget.layout;
+module yguilib.widget.layout_components;
 import yguilib.widget.component;
 
 /// How a single dimension (width or height) is sized.
