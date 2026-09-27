@@ -43,7 +43,10 @@ final class MainView {
     smaller2.components.background = new Background(ColorF(0.0, 1, 0.5, 0.3));
     smaller2.components.border = new Border(ColorF(0.0, 0, 0.5, 1), Border.style.roundDashed);
     smaller2.components.textLabel = new TextLabel("Hello-0123456789", ColorF(0,0,1,1));
-    auto smaller = new Widget(smaller2, RectF(15, 15, 200, 90));
+    smaller2.components.size = new Size;
+    smaller2.components.size.width = Dimension(0, SizingMode.auto_);
+    smaller2.components.size.height = Dimension(0, SizingMode.auto_);
+    auto smaller = new Widget(view, RectF(15, 15, 300, 90));
     smaller.components.background = new Background(ColorF(0.5, 1, 0.5, 0.3), Background.Style.round);
     smaller2.clipChildren = true;
 
