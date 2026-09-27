@@ -17,9 +17,10 @@ alias VisibleWidgets = VisibleWidget[];
 
 final class VisibleWidgetsCollector {
   /// recalculate visible list to use for layout and painter system
-  // TODO support ignoreClipRects to prepare list for layout system
-  // drawing system needs to ignoreClipRects = true
-  VisibleWidgets collectVisible(Widget root, Renderer r, bool ignoreClipRects = false) {
+  // TODO support ignoreClipChildren to prepare list for layout system which
+  // will ignore Widget.clipChildren.
+  // Meanwhile drawing system needs to ignoreClipChildren = true
+  VisibleWidgets collectVisible(Widget root, Renderer r, bool ignoreClipChildren = false) {
     assert(root !is null);
     assert(r !is null);
     return collectVisible(root, r.getLogicWidth(), r.getLogicHeight());

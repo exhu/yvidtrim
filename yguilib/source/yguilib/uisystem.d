@@ -97,8 +97,10 @@ private:
 
   void updateLayout() {
     if (isViewAvailableForRendering()) {
+      // collect visible on screen without widgets parent clipping
       lastVisibleWidgets = visibleWidgetsCollector.collectVisible(mainWindow.view, mainWindow.renderer, true);
       layoutSystem.layoutTree(mainWindow.view, mainWindow.renderer, lastVisibleWidgets);
+      // collect visible with positions and sizes adjusted by layout, include clipping test
       lastVisibleWidgets = visibleWidgetsCollector.collectVisible(mainWindow.view, mainWindow.renderer, false);
     }
   }
