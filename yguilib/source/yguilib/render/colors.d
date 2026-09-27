@@ -1,0 +1,18 @@
+module yguilib.render.colors;
+import yguilib.render.render_types : ColorF;
+enum black = ColorF(0.0f, 0.0f, 0.0f, 1.0f);
+enum blue = ColorF(0.0f, 0.0f, 0.667f, 1.0f);
+enum green = ColorF(0.0f, 0.667f, 0.0f, 1.0f);
+enum cyan = ColorF(0.0f, 0.667f, 0.667f, 1.0f);
+enum red = ColorF(0.667f, 0.0f, 0.0f, 1.0f);
+enum magenta = ColorF(0.667f, 0.0f, 0.667f, 1.0f);
+enum brown = ColorF(0.667f, 0.333f, 0.0f, 1.0f);
+enum lightGray = ColorF(0.667f, 0.667f, 0.667f, 1.0f);
+enum darkGray = ColorF(0.333f, 0.333f, 0.333f, 1.0f);
+enum brightBlue = ColorF(0.333f, 0.333f, 1.0f, 1.0f);
+enum brightGreen = ColorF(0.333f, 1.0f, 0.333f, 1.0f);
+enum brightCyan = ColorF(0.333f, 1.0f, 1.0f, 1.0f);
+enum brightRed = ColorF(1.0f, 0.333f, 0.333f, 1.0f);
+enum brightMagenta = ColorF(1.0f, 0.333f, 1.0f, 1.0f);
+enum yellow = ColorF(1.0f, 1.0f, 0.333f, 1.0f);
+enum brightWhite = ColorF(1.0f, 1.0f, 1.0f, 1.0f);

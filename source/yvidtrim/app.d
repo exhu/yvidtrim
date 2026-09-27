@@ -6,10 +6,12 @@ import yguilib.events;
 import yguilib.events.keyboard;
 import yguilib.model;
 import yguilib.render;
+import colors = yguilib.render.colors;
 import yguilib.render.render_types;
 import yguilib.uisystem;
 import yguilib.widget;
 import yguilib.widget.drawing_components;
+import yguilib.widget.layout;
 import yguilib.window;
 
 import std.algorithm;
@@ -45,6 +47,16 @@ final class MainView {
 
     toggleWidget = smaller;
     alphaWidget = smaller2;
+
+    auto container = new Widget(view, RectF(35, 250, 400, 300));
+    container.components.background = new Background(colors.darkGray);
+
+    auto c1 = new Widget(container, RectF(5, 8, 1, 1));
+    c1.components.background = new Background(colors.yellow);
+    auto sz = new Size;
+    sz.width = Dimension(100, SizingMode.fixed);
+    sz.height = Dimension(40, SizingMode.fixed);
+    c1.components.size = sz;
   }
 
   void update() {
