@@ -80,10 +80,20 @@ class UiSystem {
   }
 
 private:
+  bool isViewAvailableForRendering() const {
+  return (mainWindow !is null && mainWindow.view !is null &&
+          mainWindow.renderer !is null);
+  }
+
   void drawUi() {
-    if (mainWindow !is null && mainWindow.view !is null &&
-        mainWindow.renderer !is null) {
+    if (isViewAvailableForRendering()) {
       painterSystem.drawTree(mainWindow.view, mainWindow.renderer);
+    }
+  }
+
+  void updateLayout() {
+    if (isViewAvailableForRendering()) {
+      // TODO
     }
   }
 
@@ -97,6 +107,7 @@ private:
   void updateAndRender(Controller controller) {
     if (controller !is null) {
       controller.updateView();
+      updateLayout();
     }
     renderFrame();
   }
@@ -167,6 +178,7 @@ private:
       viewsToUpdate[i].updateView();
     }
     if (viewsToUpdate.length > 0) {
+      updateLayout();
       renderFrame();
     }
   }

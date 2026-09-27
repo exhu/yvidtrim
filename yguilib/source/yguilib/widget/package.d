@@ -30,6 +30,7 @@ class TextLabel : Component {
 }
 
 class Border : Component {
+  // TODO support also dashed non-round
   enum Style {
     rect,
     round,
@@ -42,6 +43,9 @@ class Border : Component {
   }
   ColorF color;
   Style style;
+  /// pixels
+  float width = 2.0;
+  float cornerRadius = 10.0;
 }
 
 class CustomDraw : Component {

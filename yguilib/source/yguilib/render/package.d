@@ -212,6 +212,12 @@ final class Renderer {
     );
   }
 
+  /* TODO support
+    dashed, dotted
+    float lineWidth,
+    float dashLen,
+    float gapLen,
+  */
   void drawLine(PointF point1, PointF point2, ColorF color) {
     if (!initialized) {
       return;
@@ -225,6 +231,14 @@ final class Renderer {
     );
   }
 
+  /* TODO support
+    dashed, dotted
+    float lineWidth,
+    float dashLen,
+    float gapLen,
+
+    lineWidth grows inside, i.e. rect is always outer boundary.
+  */
   void drawRect(RectF rect, ColorF color) {
     if (!initialized) {
       return;
@@ -268,6 +282,7 @@ final class Renderer {
    * @param rect Bounding rectangle in logic-space units.
    * @param radius Corner radius (clamped to half the smallest dimension).
    * @param lineWidth Outline thickness in logic-space units.
+   * lineWidth grows inside, i.e. rect is always outer boundary.
    * @param color Outline color.
    */
   void drawRoundRect(

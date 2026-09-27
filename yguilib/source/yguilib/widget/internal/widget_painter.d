@@ -27,7 +27,10 @@ struct VisibleWidget {
  */
 final class WidgetPainterSystem {
   void drawTree(Widget root, Renderer r) {
-    if (root is null || !root.visible || r is null) {
+    assert(root !is null);
+    assert(r !is null);
+
+    if (!root.visible) {
       return;
     }
     visibleBuf.clear();
@@ -128,10 +131,10 @@ private:
         r.drawRect(absRect, comp.color);
         break;
       case Border.Style.round:
-        r.drawRoundRect(absRect, 10, 2, comp.color);
+        r.drawRoundRect(absRect, comp.cornerRadius, comp.width, comp.color);
         break;
       case Border.Style.roundDashed:
-        r.drawRoundRectDashed(absRect, 10, 2, 3, 1, comp.color);
+        r.drawRoundRectDashed(absRect, comp.cornerRadius, comp.width, 3, 1, comp.color);
         break;
       case Border.Style.none:{}
     }

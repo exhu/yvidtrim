@@ -1,3 +1,5 @@
+/// assets of implementation details of the rendering pipeline
+/// or other systems belong to this package
 module yguilib.internal.assets;
 
 package(yguilib):

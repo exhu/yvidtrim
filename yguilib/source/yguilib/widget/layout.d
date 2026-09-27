@@ -136,9 +136,11 @@ class Size : Component {
   // -- Phase 1: Insets --
 
   /// Inner insets — shrinks the content area for children.
+  /// Note: Border component also affects, i.e. children/content area is what
+  /// left after (padding + border.width)
   Insets padding;
 
   /// Outer clearance from sibling widgets.
-  // can be replaced by dummy widgets, so don't implement yet
+  // For now it can be replaced by dummy widgets, so don't implement yet
   // Insets margin;
 }

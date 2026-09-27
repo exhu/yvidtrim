@@ -1,4 +1,5 @@
 - css_layout_essentials_for_a_c_gui_library.md
+- drawRoundRect etc. lineWidth must grow inside
 - define modal controller rules (some controllers must still handle events, when modal is active)
 - add modal dialog displayed by model on key (and closed by click)
 - button
