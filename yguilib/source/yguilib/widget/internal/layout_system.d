@@ -48,134 +48,191 @@ private:
       contentSize = calcContentSize(w, r);
     }
 
-    float borderWidth = 0.0f;
-    Border borderComp = w.components.border;
+    const PointF padBorder = calcPaddingAndBorder(szComp, w.components.border);
+
+    w.rect.width = computeDimension(
+      szComp.width,
+      w.rect.width,
+      contentSize.x,
+      padBorder.x,
+      szComp.minWidth,
+      szComp.maxWidth
+    );
+    w.rect.height = computeDimension(
+      szComp.height,
+      w.rect.height,
+      contentSize.y,
+      padBorder.y,
+      szComp.minHeight,
+      szComp.maxHeight
+    );
+  }
+
+  static float getBorderWidth(const Border borderComp) {
     if (borderComp !is null && borderComp.style != Border.Style.none) {
-      borderWidth = max(0.0f, borderComp.width);
+      return max(0.0f, borderComp.width);
     }
-    const float padBorderX = szComp.padding.left + szComp.padding.right +
-      borderWidth * 2.0f;
-    const float padBorderY = szComp.padding.top + szComp.padding.bottom +
-      borderWidth * 2.0f;
+    return 0.0f;
+  }
 
-    switch(szComp.width.mode) {
+  static PointF calcPaddingAndBorder(
+    const Size szComp,
+    const Border borderComp
+  ) {
+    const float borderWidth = getBorderWidth(borderComp);
+    const float borderExtra = borderWidth * 2.0f;
+    return PointF(
+      szComp.padding.left + szComp.padding.right + borderExtra,
+      szComp.padding.top + szComp.padding.bottom + borderExtra
+    );
+  }
+
+  static float resolveDimension(
+    const Dimension dim,
+    float currentVal,
+    float contentDim,
+    float padBorder,
+    float minVal
+  ) {
+    switch (dim.mode) {
     case SizingMode.fixed:
-      w.rect.width = szComp.width.value;
-      break;
+      return dim.value;
     case SizingMode.auto_:
-      w.rect.width = contentSize.x + padBorderX;
-      break;
+      return contentDim + padBorder;
     case SizingMode.fraction:
-      w.rect.width = szComp.minWidth;
-      break;
+      return minVal;
     default:
-      break;
+      return currentVal;
     }
+  }
 
-    switch(szComp.height.mode) {
-    case SizingMode.fixed:
-      w.rect.height = szComp.height.value;
-      break;
-    case SizingMode.auto_:
-      w.rect.height = contentSize.y + padBorderY;
-      break;
-    case SizingMode.fraction:
-      w.rect.height = szComp.minHeight;
-      break;
-    default:
-      break;
+  static float clampDimension(
+    float val,
+    float minVal,
+    float maxVal
+  ) {
+    if (val > maxVal) {
+      val = maxVal;
     }
+    if (val < minVal) {
+      val = minVal;
+    }
+    if (val < 0.0f) {
+      val = 0.0f;
+    }
+    return val;
+  }
 
-    // Constrain by min/max width/height
-    if (w.rect.width > szComp.maxWidth) {
-      w.rect.width = szComp.maxWidth;
-    }
-    if (w.rect.width < szComp.minWidth) {
-      w.rect.width = szComp.minWidth;
-    }
-    if (w.rect.width < 0.0f) {
-      w.rect.width = 0.0f;
-    }
-
-    if (w.rect.height > szComp.maxHeight) {
-      w.rect.height = szComp.maxHeight;
-    }
-    if (w.rect.height < szComp.minHeight) {
-      w.rect.height = szComp.minHeight;
-    }
-    if (w.rect.height < 0.0f) {
-      w.rect.height = 0.0f;
-    }
+  static float computeDimension(
+    const Dimension dim,
+    float currentVal,
+    float contentDim,
+    float padBorder,
+    float minVal,
+    float maxVal
+  ) {
+    const float resolved = resolveDimension(
+      dim,
+      currentVal,
+      contentDim,
+      padBorder,
+      minVal
+    );
+    return clampDimension(resolved, minVal, maxVal);
   }
 
   static PointF calcContentSize(Widget w, Renderer r) {
     PointF size = PointF(0.0f, 0.0f);
 
     FlexContainer flexComp = w.components.flexContainer;
-    if (flexComp !is null && w.children.length > 0) {
-      size_t visibleCount = 0;
-      float mainSum = 0.0f;
-      float crossMax = 0.0f;
-
-      if (flexComp.direction == FlexDirection.row) {
-        foreach (child; w.children) {
-          if (!child.visible) {
-            continue;
-          }
-          mainSum += child.rect.width;
-          crossMax = max(crossMax, child.rect.height);
-          visibleCount++;
-        }
-        if (visibleCount > 1) {
-          mainSum += flexComp.gap * (visibleCount - 1);
-        }
-        size.x = mainSum;
-        size.y = crossMax;
-      } else {
-        foreach (child; w.children) {
-          if (!child.visible) {
-            continue;
-          }
-          mainSum += child.rect.height;
-          crossMax = max(crossMax, child.rect.width);
-          visibleCount++;
-        }
-        if (visibleCount > 1) {
-          mainSum += flexComp.gap * (visibleCount - 1);
-        }
-        size.x = crossMax;
-        size.y = mainSum;
-      }
-
-      if (visibleCount > 0) {
+    if (flexComp !is null) {
+      if (tryCalcFlexContentSize(w, flexComp, size)) {
         return size;
       }
-    } else if (w.children.length > 0) {
-      size_t visibleCount = 0;
-      foreach (child; w.children) {
-        if (!child.visible) {
-          continue;
-        }
-        size.x = max(size.x, child.rect.x + child.rect.width);
-        size.y = max(size.y, child.rect.y + child.rect.height);
-        visibleCount++;
-      }
-      if (visibleCount > 0) {
+    } else {
+      if (tryCalcChildrenBoundingBox(w, size)) {
         return size;
       }
     }
 
-    if (w.components.textLabel !is null && r !is null) {
-      auto tl = w.components.textLabel;
-      if (tl.caption.length > 0) {
-        PointF textSize = r.measureText(tl.caption);
-        size.x = max(size.x, textSize.x);
-        size.y = max(size.y, textSize.y);
-      }
-    }
-
-    return size;
+    return calcTextContentSize(w.components.textLabel, r);
   }
+
+  static bool tryCalcFlexContentSize(
+    const Widget w,
+    const FlexContainer flexComp,
+    out PointF size
+  ) {
+    if (w.children.length == 0) {
+      return false;
+    }
+
+    size_t visibleCount = 0;
+    float mainSum = 0.0f;
+    float crossMax = 0.0f;
+    const bool isRow = flexComp.direction == FlexDirection.row;
+
+    foreach (child; w.children) {
+      if (!child.visible) {
+        continue;
+      }
+      const float mainDim = isRow ? child.rect.width : child.rect.height;
+      const float crossDim = isRow ? child.rect.height : child.rect.width;
+      mainSum += mainDim;
+      crossMax = max(crossMax, crossDim);
+      visibleCount++;
+    }
+
+    if (visibleCount == 0) {
+      return false;
+    }
+
+    if (visibleCount > 1) {
+      mainSum += flexComp.gap * (visibleCount - 1);
+    }
+
+    size = isRow ? PointF(mainSum, crossMax) : PointF(crossMax, mainSum);
+    return true;
+  }
+
+  static bool tryCalcChildrenBoundingBox(
+    const Widget w,
+    out PointF size
+  ) {
+    if (w.children.length == 0) {
+      return false;
+    }
+
+    size_t visibleCount = 0;
+    PointF boundingSize = PointF(0.0f, 0.0f);
+    foreach (child; w.children) {
+      if (!child.visible) {
+        continue;
+      }
+      boundingSize.x = max(boundingSize.x, child.rect.x + child.rect.width);
+      boundingSize.y = max(boundingSize.y, child.rect.y + child.rect.height);
+      visibleCount++;
+    }
+
+    if (visibleCount == 0) {
+      return false;
+    }
+
+    size = boundingSize;
+    return true;
+  }
+
+  static PointF calcTextContentSize(
+    const TextLabel tl,
+    Renderer r
+  ) {
+    if (tl !is null && r !is null && tl.caption.length > 0) {
+      const PointF textSize = r.measureText(tl.caption);
+      return PointF(max(0.0f, textSize.x), max(0.0f, textSize.y));
+    }
+    return PointF(0.0f, 0.0f);
+  }
+
 
   // TODO split this into manageable smaller functions
   void handleFlexContainerComp(VisibleWidget vw) {
