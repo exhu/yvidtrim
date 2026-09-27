@@ -65,7 +65,7 @@ void resolveFractionSizes(
       totalWeight += wVal > 0.0f ? wVal : 1.0f;
       fractionCount++;
     } else {
-      fixedSum += getMainSize(child, isRow);
+      fixedSum += getMainOuterSize(child, isRow);
     }
   }
 
@@ -120,7 +120,7 @@ void computeJustifyOffsets(
 ) {
   float totalChildrenSize = 0.0f;
   foreach (child; children) {
-    totalChildrenSize += getMainSize(child, isRow);
+    totalChildrenSize += getMainOuterSize(child, isRow);
   }
 
   const size_t count = children.length;
@@ -163,8 +163,8 @@ void arrangeMainAxis(
 ) {
   float currentPos = startOffset;
   foreach (child; children) {
-    setMainPos(child, isRow, currentPos);
-    currentPos += getMainSize(child, isRow) + gapBetween;
+    setMainPos(child, isRow, currentPos + getMainMarginStart(child, isRow));
+    currentPos += getMainOuterSize(child, isRow) + gapBetween;
   }
 }
 
@@ -178,27 +178,44 @@ void alignChildCrossAxis(
 ) {
   final switch (alignItems) {
   case AlignItems.start:
-    setCrossPos(child, isRow, contentCrossPos);
+    setCrossPos(
+      child,
+      isRow,
+      contentCrossPos + getCrossMarginStart(child, isRow)
+    );
     break;
 
   case AlignItems.end:
     setCrossPos(
       child,
       isRow,
-      contentCrossPos + contentCrossExtent - getCrossSize(child, isRow)
+      contentCrossPos + contentCrossExtent
+        - getCrossMarginEnd(child, isRow)
+        - getCrossSize(child, isRow)
     );
     break;
 
   case AlignItems.center:
+    const float crossMs = getCrossMarginStart(child, isRow);
+    const float crossMe = getCrossMarginEnd(child, isRow);
+    const float innerExtent = contentCrossExtent - crossMs - crossMe;
     const float offset = (
-      contentCrossExtent - getCrossSize(child, isRow)
+      innerExtent - getCrossSize(child, isRow)
     ) * 0.5f;
-    setCrossPos(child, isRow, contentCrossPos + round(offset));
+    setCrossPos(child, isRow, contentCrossPos + crossMs + round(offset));
     break;
 
   case AlignItems.stretch:
-    setCrossPos(child, isRow, contentCrossPos);
-    float targetSize = contentCrossExtent;
+    setCrossPos(
+      child,
+      isRow,
+      contentCrossPos + getCrossMarginStart(child, isRow)
+    );
+    float targetSize = max(
+      0.0f,
+      contentCrossExtent - getCrossMarginStart(child, isRow)
+        - getCrossMarginEnd(child, isRow)
+    );
     const Size szComp = child.components.size;
     if (szComp !is null) {
       const float minCross = isRow ? szComp.minHeight : szComp.minWidth;
@@ -420,4 +437,150 @@ unittest {
   flex.alignItems = AlignItems.stretch;
   ls.handleFlexContainerComp(parent);
   assert(c.rect.height == 60);
+}
+
+// Child margins on main axis in row
+unittest {
+  import yguilib.render.render_types : RectF;
+  import yguilib.widget.internal.layout_system : LayoutSystem;
+
+  auto ls = new LayoutSystem;
+  auto parent = new Widget(null, RectF(0, 0, 200, 100));
+  auto flex = new FlexContainer;
+  flex.direction = FlexDirection.row;
+  flex.gap = 10;
+  parent.components.flexContainer = flex;
+
+  auto c1 = new Widget(parent, RectF(0, 0, 40, 20));
+  auto sz1 = new Size;
+  sz1.margin = Insets(0, 15, 0, 5); // left=5, right=15
+  c1.components.size = sz1;
+
+  auto c2 = new Widget(parent, RectF(0, 0, 50, 30));
+  auto sz2 = new Size;
+  sz2.margin = Insets(0, 20, 0, 10); // left=10, right=20
+  c2.components.size = sz2;
+
+  ls.handleFlexContainerComp(parent);
+  // c1: x = 0 + left_margin(5) = 5
+  assert(c1.rect.x == 5);
+  assert(c1.rect.width == 40);
+  // c2: x = outer_c1(5 + 40 + 15 = 60) + gap(10) + left_margin(10) = 80
+  assert(c2.rect.x == 80);
+  assert(c2.rect.width == 50);
+}
+
+// Child margins on cross axis with AlignItems modes
+unittest {
+  import yguilib.render.render_types : RectF;
+  import yguilib.widget.internal.layout_system : LayoutSystem;
+
+  auto ls = new LayoutSystem;
+  auto parent = new Widget(null, RectF(0, 0, 200, 100));
+  auto flex = new FlexContainer;
+  flex.direction = FlexDirection.row;
+  parent.components.flexContainer = flex;
+
+  auto c = new Widget(parent, RectF(0, 0, 40, 20));
+  auto sz = new Size;
+  sz.margin = Insets(10, 0, 20, 0); // top=10, bottom=20
+  c.components.size = sz;
+
+  // AlignItems.start: top margin offset
+  flex.alignItems = AlignItems.start;
+  ls.handleFlexContainerComp(parent);
+  assert(c.rect.y == 10);
+  assert(c.rect.height == 20);
+
+  // AlignItems.end: bottom margin offset (100 - 20(margin) - 20(height) = 60)
+  flex.alignItems = AlignItems.end;
+  ls.handleFlexContainerComp(parent);
+  assert(c.rect.y == 60);
+
+  // AlignItems.center:
+  // innerExtent = 100 - 10 - 20 = 70
+  // offset = (70 - 20) / 2 = 25
+  // y = 10 + 25 = 35
+  flex.alignItems = AlignItems.center;
+  ls.handleFlexContainerComp(parent);
+  assert(c.rect.y == 35);
+
+  // AlignItems.stretch:
+  // y = 10, height = 100 - 10 - 20 = 70
+  flex.alignItems = AlignItems.stretch;
+  ls.handleFlexContainerComp(parent);
+  assert(c.rect.y == 10);
+  assert(c.rect.height == 70);
+}
+
+// Free space and fraction sizing respects sibling margins
+unittest {
+  import yguilib.render.render_types : RectF;
+  import yguilib.widget.internal.layout_system : LayoutSystem;
+
+  auto ls = new LayoutSystem;
+  auto parent = new Widget(null, RectF(0, 0, 320, 100));
+  auto flex = new FlexContainer;
+  flex.direction = FlexDirection.row;
+  flex.gap = 10;
+  parent.components.flexContainer = flex;
+
+  auto cFixed = new Widget(parent, RectF(0, 0, 50, 40));
+  auto szFixed = new Size;
+  szFixed.width = Dimension(50, SizingMode.fixed);
+  szFixed.margin = Insets(0, 10, 0, 10); // outer width = 10 + 50 + 10 = 70
+  cFixed.components.size = szFixed;
+
+  auto cFrac = new Widget(parent, RectF(0, 0, 0, 40));
+  auto szFrac = new Size;
+  szFrac.width = Dimension(1, SizingMode.fraction);
+  szFrac.margin = Insets(0, 5, 0, 5);
+  cFrac.components.size = szFrac;
+
+  // Free space = 320 - outerFixed(70) - gap(10) = 240
+  // cFrac width = 240
+  ls.handleFlexContainerComp(parent);
+  assert(cFixed.rect.x == 10);
+  assert(cFixed.rect.width == 50);
+  assert(cFrac.rect.width == 240);
+  // cFrac pos: outerFixed(70) + gap(10) + fracMarginLeft(5) = 85
+  assert(cFrac.rect.x == 85);
+}
+
+// Auto-size of parent flex container includes child margins
+unittest {
+  import yguilib.render.render_types : RectF;
+  import yguilib.widget.internal.layout_system : LayoutSystem;
+
+  auto ls = new LayoutSystem;
+  auto parent = new Widget(null, RectF(0, 0, 0, 0));
+
+  auto parentSz = new Size;
+  parentSz.width = Dimension(0, SizingMode.auto_);
+  parentSz.height = Dimension(0, SizingMode.auto_);
+  parent.components.size = parentSz;
+
+  auto flex = new FlexContainer;
+  flex.direction = FlexDirection.row;
+  flex.gap = 10;
+  parent.components.flexContainer = flex;
+
+  auto c1 = new Widget(parent, RectF(0, 0, 40, 20));
+  auto sz1 = new Size;
+  sz1.margin = Insets(5, 10, 15, 20); // top=5, right=10, bottom=15, left=20
+  c1.components.size = sz1;
+
+  auto c2 = new Widget(parent, RectF(0, 0, 50, 30));
+  auto sz2 = new Size;
+  sz2.margin = Insets(10, 5, 5, 15); // top=10, right=5, bottom=5, left=15
+  c2.components.size = sz2;
+
+  // Row:
+  // c1 outer: width = 40 + 20 + 10 = 70, height = 20 + 5 + 15 = 40
+  // c2 outer: width = 50 + 15 + 5 = 70, height = 30 + 10 + 5 = 45
+  // Parent width = 70 + 70 + gap(10) = 150
+  // Parent height = max(40, 45) = 45
+  ls.handleSizeComp(parent);
+  assert(parent.rect.width == 150);
+  assert(parent.rect.height == 45);
 }

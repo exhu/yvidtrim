@@ -39,11 +39,14 @@ private:
 
   Appender!(Widget[]) childBuf;
 
-  static void handleSizeComp(VisibleWidget vw, Renderer r = null) {
+  package(yguilib) static void handleSizeComp(
+    VisibleWidget vw,
+    Renderer r = null
+  ) {
     handleSizeComp(vw.widget, r);
   }
 
-  static void handleSizeComp(Widget w, Renderer r = null) {
+  package(yguilib) static void handleSizeComp(Widget w, Renderer r = null) {
     Size szComp = w.components.size;
     if (szComp is null) {
       return;

@@ -7,6 +7,8 @@ import yguilib.render.render_types : PointF;
 import yguilib.widget;
 import yguilib.widget.layout_components;
 import yguilib.widget.drawing_components;
+import yguilib.widget.internal.layout_axis : getCrossOuterSize,
+  getMainOuterSize;
 
 float getBorderWidth(const Border borderComp) {
   if (borderComp !is null && borderComp.style != Border.Style.none) {
@@ -62,8 +64,8 @@ bool tryCalcFlexContentSize(
     if (!child.visible) {
       continue;
     }
-    const float mainDim = isRow ? child.rect.width : child.rect.height;
-    const float crossDim = isRow ? child.rect.height : child.rect.width;
+    const float mainDim = getMainOuterSize(child, isRow);
+    const float crossDim = getCrossOuterSize(child, isRow);
     mainSum += mainDim;
     crossMax = max(crossMax, crossDim);
     visibleCount++;

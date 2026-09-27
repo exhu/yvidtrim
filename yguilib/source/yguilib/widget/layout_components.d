@@ -143,7 +143,7 @@ class Size : Component {
   /// left after (padding + border.width)
   Insets padding;
 
-  /// Outer clearance from sibling widgets.
-  // For now it can be replaced by dummy widgets, so don't implement yet
-  // Insets margin;
+  /// Outer clearance from sibling widgets (applied by the parent
+  /// flex container during arrangement).
+  Insets margin;
 }

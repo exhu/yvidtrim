@@ -64,7 +64,14 @@ final class MainView {
     sz.height = Dimension(40, SizingMode.fixed);
     c1.components.size = sz;
     auto c2 = makeBox(container, RectF(15, 18, 1, 1), colors.brown);
-    c2.components.size = sz;
+    auto sz2 =new Size;
+    c2.components.size = sz2;
+    sz2.margin.left = 15;
+    sz2.margin.right = 10;
+    sz2.margin.bottom = 14;
+    sz2.margin.top = 10;
+    sz2.width = Dimension(110, SizingMode.fixed);
+    sz2.height = Dimension(50, SizingMode.fixed);
 
     // TODO demo all other supported flex etc.
   }
