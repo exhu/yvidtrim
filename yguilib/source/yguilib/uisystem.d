@@ -12,7 +12,7 @@ import yguilib.events.internal.sdl_events : appEventFromSdlEvent;
 import yguilib.render : Renderer;
 import yguilib.widget : Widget;
 import yguilib.widget.internal.widget_painter : WidgetPainterSystem;
-import yguilib.widget.internal.collect_visible : VisibleWidgetsCollector, VisibleWidget;
+import yguilib.widget.internal.collect_visible;
 import yguilib.window : Window;
 
 class UiSystem {
@@ -347,7 +347,7 @@ private:
   Window mainWindow;
   WidgetPainterSystem painterSystem;
   VisibleWidgetsCollector visibleWidgetsCollector;
-  VisibleWidget[] lastVisibleWidgets;
+  VisibleWidgets lastVisibleWidgets;
 } // -UiSystem
 
 ////// TESTS /////

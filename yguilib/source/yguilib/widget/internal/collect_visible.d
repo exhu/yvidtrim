@@ -13,16 +13,18 @@ struct VisibleWidget {
   RectF clipRect;
 }
 
+alias VisibleWidgets = VisibleWidget[];
+
 final class VisibleWidgetsCollector {
   /// recalculate visible list to use for layout and painter system
-  VisibleWidget[] collectVisible(Widget root, Renderer r) {
+  VisibleWidgets collectVisible(Widget root, Renderer r) {
     assert(root !is null);
     assert(r !is null);
     return collectVisible(root, r.getLogicWidth(), r.getLogicHeight());
   }
 
   /// recalculate visible list for specific viewport dimensions
-  VisibleWidget[] collectVisible(Widget root, float vw, float vh) {
+  VisibleWidgets collectVisible(Widget root, float vw, float vh) {
     assert(root !is null);
     visibleBuf.clear();
     collectVisiblePrivate(root, 0.0f, 0.0f, vw, vh);
