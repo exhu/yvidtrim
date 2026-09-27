@@ -17,8 +17,13 @@ final class VisibleWidgetsCollector {
   /// recalculate visible list to use for layout and painter system
   VisibleWidget[] collectVisible(Widget root, Renderer r) {
     assert(root !is null);
-    const float vw = r.getLogicWidth();
-    const float vh = r.getLogicHeight();
+    assert(r !is null);
+    return collectVisible(root, r.getLogicWidth(), r.getLogicHeight());
+  }
+
+  /// recalculate visible list for specific viewport dimensions
+  VisibleWidget[] collectVisible(Widget root, float vw, float vh) {
+    assert(root !is null);
     visibleBuf.clear();
     collectVisiblePrivate(root, 0.0f, 0.0f, vw, vh);
     return visibleBuf[];
@@ -56,7 +61,9 @@ private:
     }
 
     foreach (child; w.children) {
-      collectVisiblePrivate(child, absX, absY, vw, vh, childHasClip, childClipRect);
+      collectVisiblePrivate(
+        child, absX, absY, vw, vh, childHasClip, childClipRect
+      );
     }
   }
   Appender!(VisibleWidget[]) visibleBuf;
@@ -64,7 +71,7 @@ private:
 
 // Verifies collectVisible culling of off-screen parents and their children.
 unittest {
-  auto painter = new WidgetPainterSystem;
+  auto collector = new VisibleWidgetsCollector;
 
   auto root = new Widget(null, RectF(0, 0, 640, 480));
   auto onScreenChild = new Widget(root, RectF(10, 10, 100, 100));
@@ -80,10 +87,7 @@ unittest {
   // Relative positioned child moving on-screen relative to an on-screen parent
   auto nestedOnScreen = new Widget(onScreenChild, RectF(10, 10, 40, 40));
 
-  painter.visibleBuf.clear();
-  painter.collectVisible(root, 0.0f, 0.0f, 640.0f, 480.0f);
-
-  auto collected = painter.visibleBuf[];
+  auto collected = collector.collectVisible(root, 640.0f, 480.0f);
   assert(collected.length == 3);
   assert(collected[0].widget is root);
   assert(collected[0].absRect == RectF(0, 0, 640, 480));
@@ -95,7 +99,7 @@ unittest {
 
 // Verifies collectVisible clipChildren propagation.
 unittest {
-  auto painter = new WidgetPainterSystem;
+  auto collector = new VisibleWidgetsCollector;
 
   auto root = new Widget(null, RectF(0, 0, 640, 480));
   root.clipChildren = false;
@@ -110,10 +114,7 @@ unittest {
 
   auto sibling = new Widget(root, RectF(300, 50, 100, 100));
 
-  painter.visibleBuf.clear();
-  painter.collectVisible(root, 0.0f, 0.0f, 640.0f, 480.0f);
-
-  auto collected = painter.visibleBuf[];
+  auto collected = collector.collectVisible(root, 640.0f, 480.0f);
   assert(collected.length == 5);
 
   // root: no clip
