@@ -81,12 +81,20 @@ final class MainView {
     // TODO demo all other supported flex etc.
     addRightTopAnchor();
     addLeftBottomAnchor();
+    addRightBottomAnchor();
   }
 
   void addRightTopAnchor() {
-    // TODO append a widget to the view: red background
+    // TODO make it anchored (right and top agains right and top of the parent)
+    auto w = makeBox(view, RectF(0,0,30,30), colors.red);
   }
   void addLeftBottomAnchor() {
+    // TODO make it anchored (left and bottom to left and bottom of parent)
+    auto w = makeBox(view, RectF(0,0,30,30), colors.brightRed);
+  }
+  void addRightBottomAnchor() {
+    // TODO make it anchored (right and bottom to right and bottom of parent)
+    auto w = makeBox(view, RectF(0,0,30,30), colors.magenta);
   }
 
   void update() {
