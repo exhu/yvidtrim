@@ -17,6 +17,7 @@ class Background : Component {
   }
   ColorF color;
   Style style;
+  float cornerRadius = 15.0;
 }
 
 class TextLabel : Component {
@@ -31,7 +32,6 @@ class TextLabel : Component {
 }
 
 class Border : Component {
-  // TODO support also dashed non-round
   enum Style {
     rect,
     dashed,

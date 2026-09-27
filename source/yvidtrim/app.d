@@ -79,6 +79,14 @@ final class MainView {
     sz2.height = Dimension(50, SizingMode.fixed);
 
     // TODO demo all other supported flex etc.
+    addRightTopAnchor();
+    addLeftBottomAnchor();
+  }
+
+  void addRightTopAnchor() {
+    // TODO append a widget to the view: red background
+  }
+  void addLeftBottomAnchor() {
   }
 
   void update() {

@@ -73,7 +73,7 @@ private:
         r.drawFillRect(absRect, comp.color);
         break;
       case Background.Style.round:
-        r.drawFillRoundRect(absRect, 15, comp.color);
+        r.drawFillRoundRect(absRect, comp.cornerRadius, comp.color);
         break;
       case Background.Style.none:{}
     }
