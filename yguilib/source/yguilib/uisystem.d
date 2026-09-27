@@ -11,8 +11,9 @@ import yguilib.events.internal.message_bus : MessageBus;
 import yguilib.events.internal.sdl_events : appEventFromSdlEvent;
 import yguilib.render : Renderer;
 import yguilib.widget : Widget;
-import yguilib.widget.internal.widget_painter : WidgetPainterSystem;
 import yguilib.widget.internal.collect_visible;
+import yguilib.widget.internal.widget_painter : WidgetPainterSystem;
+import yguilib.widget.internal.layout_system : LayoutSystem;
 import yguilib.window : Window;
 
 class UiSystem {
@@ -21,6 +22,7 @@ class UiSystem {
     messageBus = MessageBus(this);
     painterSystem = new WidgetPainterSystem;
     visibleWidgetsCollector = new VisibleWidgetsCollector;
+    layoutSystem = new LayoutSystem;
   }
 
   /// safe to call from a thread
@@ -96,7 +98,7 @@ private:
   void updateLayout() {
     if (isViewAvailableForRendering()) {
       lastVisibleWidgets = visibleWidgetsCollector.collectVisible(mainWindow.view, mainWindow.renderer);
-      // TODO
+      layoutSystem.layoutTree(mainWindow.view, mainWindow.renderer, lastVisibleWidgets);
     }
   }
 
@@ -348,6 +350,7 @@ private:
   WidgetPainterSystem painterSystem;
   VisibleWidgetsCollector visibleWidgetsCollector;
   VisibleWidgets lastVisibleWidgets;
+  LayoutSystem layoutSystem;
 } // -UiSystem
 
 ////// TESTS /////
