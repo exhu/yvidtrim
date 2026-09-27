@@ -231,23 +231,68 @@ final class Renderer {
     );
   }
 
-  /* TODO support
-    dashed, dotted
-    float lineWidth,
-    float dashLen,
-    float gapLen,
-
-    lineWidth grows inside, i.e. rect is always outer boundary.
-  */
-  void drawRect(RectF rect, ColorF color) {
+  /**
+   * Draws a rectangle outline with configurable line width.
+   *
+   * @param rect Bounding rectangle in logic-space units.
+   * @param lineWidth Outline thickness in logic-space units.
+   * lineWidth grows inside, i.e. rect is always outer boundary.
+   * @param color Outline color.
+   */
+  void drawRect(RectF rect, float lineWidth, ColorF color) {
     if (!initialized) {
       return;
     }
     colorPipeline.drawRect(
       rect,
+      lineWidth,
       color,
       getLogicWidth(),
       getLogicHeight()
+    );
+  }
+
+  /**
+   * Draws a rectangle outline with default line width (1.0).
+   *
+   * @param rect Bounding rectangle in logic-space units.
+   * @param color Outline color.
+   */
+  void drawRect(RectF rect, ColorF color) {
+    drawRect(rect, 1.0f, color);
+  }
+
+  /**
+   * Draws a dashed rectangle outline with configurable line
+   * width and dash pattern.
+   *
+   * @param rect Bounding rectangle in logic-space units.
+   * @param lineWidth Outline thickness in logic-space units.
+   * lineWidth grows inside, i.e. rect is always outer boundary.
+   * @param dashLen Length of each visible dash segment.
+   * @param gapLen Length of each gap between dashes.
+   * @param color Outline color.
+   */
+  void drawRectDashed(
+    RectF rect,
+    float lineWidth,
+    float dashLen,
+    float gapLen,
+    ColorF color
+  ) {
+    if (!initialized) {
+      return;
+    }
+    rrPipeline.draw(
+      rect,
+      0.0f,
+      lineWidth,
+      dashLen,
+      gapLen,
+      color,
+      getLogicWidth(),
+      getLogicHeight(),
+      getTotalScaling()
     );
   }
 
@@ -1022,6 +1067,80 @@ unittest {
   glReadPixels(70, 170, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
   assert(pixel[1] == 255 && pixel[2] == 255);
   renderer.setUnitsScaling(1.0f);
+
+  // 11. drawRect with lineWidth, drawRectDashed, and small drawRoundRectDashed
+  // A. drawRect with lineWidth = 4 growing inside
+  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.drawRect(
+    RectF(100.0f, 50.0f, 60.0f, 40.0f),
+    4.0f,
+    ColorF(0.0f, 1.0f, 0.0f, 1.0f)
+  );
+  // Outside rect (99, 50) -> black
+  glReadPixels(99, 240 - 50, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[1] == 0);
+  // Outside rect (161, 50) -> black
+  glReadPixels(161, 240 - 50, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[1] == 0);
+  // Top-left border inside rect: (101, 51) -> green
+  glReadPixels(101, 240 - 51, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[1] == 255);
+  // Center of rect (130, 70) -> hollow (black)
+  glReadPixels(130, 240 - 70, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[1] == 0);
+
+  // B. drawRectDashed: rect at (50, 50, 100, 60), lw = 3,
+  // dashLen = 8, gapLen = 6
+  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.drawRectDashed(
+    RectF(50.0f, 50.0f, 100.0f, 60.0f),
+    3.0f,
+    8.0f,
+    6.0f,
+    ColorF(1.0f, 1.0f, 0.0f, 1.0f)
+  );
+  // Center (100, 80) -> hollow (black)
+  glReadPixels(100, 240 - 80, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0);
+  // Outside rect (48, 50) -> black
+  glReadPixels(48, 240 - 50, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0);
+  // Top edge border has dashes and gaps
+  int dashedYellow = 0;
+  int dashedBlack = 0;
+  foreach (x; 60 .. 140) {
+    glReadPixels(x, 240 - 51, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+    if (pixel[0] > 100 && pixel[1] > 100) {
+      dashedYellow++;
+    } else if (pixel[0] == 0 && pixel[1] == 0) {
+      dashedBlack++;
+    }
+  }
+  assert(dashedYellow > 0 && dashedBlack > 0);
+
+  // C. Small drawRoundRectDashed: (20, 20, 30, 20), radius 4, lw 2,
+  // dash 4, gap 3
+  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.drawRoundRectDashed(
+    RectF(20.0f, 20.0f, 30.0f, 20.0f),
+    4.0f,
+    2.0f,
+    4.0f,
+    3.0f,
+    ColorF(0.0f, 0.0f, 1.0f, 1.0f)
+  );
+  // Center (35, 30) -> hollow (black)
+  glReadPixels(35, 240 - 30, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[2] == 0);
+  // Blue pixels present on the small rect border
+  int smallBlue = 0;
+  foreach (x; 20 .. 50) {
+    glReadPixels(x, 240 - 21, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+    if (pixel[2] > 100) {
+      smallBlue++;
+    }
+  }
+  assert(smallBlue > 0);
 
   assert(glGetError() == GL_NO_ERROR);
 }

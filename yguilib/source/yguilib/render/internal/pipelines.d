@@ -109,20 +109,54 @@ struct ColorPipeline {
     drawArrays(GL_LINES, vertices, color, vw, vh);
   }
 
-  void drawRect(in RectF rect, in ColorF color, float vw, float vh) {
+  void drawRect(
+    in RectF rect,
+    float lineWidth,
+    in ColorF color,
+    float vw,
+    float vh
+  ) {
+    if (rect.width <= 0.0f || rect.height <= 0.0f || lineWidth <= 0.0f) {
+      return;
+    }
+
+    import std.algorithm : min;
+    float maxLw = min(rect.width, rect.height) * 0.5f;
+    float lw = min(lineWidth, maxLw);
+
     float x0 = rect.x;
     float y0 = rect.y;
     float x1 = rect.x + rect.width;
     float y1 = rect.y + rect.height;
+    float xi0 = x0 + lw;
+    float yi0 = y0 + lw;
+    float xi1 = x1 - lw;
+    float yi1 = y1 - lw;
 
-    float[8] vertices = [
-      x0, y0,
-      x1, y0,
-      x1, y1,
-      x0, y1,
+    // 4 non-overlapping strips growing inside rect
+    float[48] vertices = [
+      // Top strip
+      x0, y0,  x1, y0,  x0, yi0,
+      x0, yi0, x1, y0,  x1, yi0,
+
+      // Bottom strip
+      x0, yi1, x1, yi1, x0, y1,
+      x0, y1,  x1, yi1, x1, y1,
+
+      // Left strip
+      x0, yi0,  xi0, yi0, x0, yi1,
+      x0, yi1,  xi0, yi0, xi0, yi1,
+
+      // Right strip
+      xi1, yi0, x1, yi0,  xi1, yi1,
+      xi1, yi1, x1, yi0,  x1, yi1,
     ];
 
-    drawArrays(GL_LINE_LOOP, vertices, color, vw, vh);
+    drawArrays(GL_TRIANGLES, vertices, color, vw, vh);
+  }
+
+  void drawRect(in RectF rect, in ColorF color, float vw, float vh) {
+    drawRect(rect, 1.0f, color, vw, vh);
   }
 }
 
