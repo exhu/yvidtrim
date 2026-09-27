@@ -5,9 +5,11 @@ import yguilib.render : Renderer;
 import yguilib.render.render_types : PointF;
 import yguilib.widget;
 import yguilib.widget.layout_components;
+import yguilib.widget.drawing_components;
 import yguilib.widget.internal.collect_visible : VisibleWidgets, VisibleWidget;
 
 final class LayoutSystem {
+  // TODO visibleWidgets may be wrong before layout pass
   void layoutTree(Widget root, Renderer r, VisibleWidgets visibleWidgets) {
     assert(root !is null);
     assert(r !is null);
@@ -17,10 +19,16 @@ final class LayoutSystem {
       return;
     }
 
+    // compute initial sizes: leaf to root
     foreach_reverse(VisibleWidget vw; visibleWidgets) {
       handleSizeComp(vw);
-      }
     }
+
+    // compute position and sizes by flexContainers: root to leaf
+    foreach(VisibleWidget vw; visibleWidgets) {
+      handleFlexContainerComp(vw);
+    }
+  }
 
 private:
   void handleSizeComp(VisibleWidget vw) {
@@ -58,5 +66,52 @@ private:
       default:{}
       }
       // TODO constrain by min/max width/height
+  }
+
+  // TODO split this into manageable smaller functions
+  void handleFlexContainerComp(VisibleWidget vw) {
+      FlexContainer flexComp = vw.widget.components.flexContainer;
+      if (flexComp is null)
+        return;
+      if (vw.widget.children is null || vw.widget.children.length == 0)
+        return;
+
+      auto widgets = vw.widget.children;
+      float contentWidth = vw.widget.rect.width;
+      float contentOffset = 0;
+      Border parentBorderComp = vw.widget.components.border;
+      if (parentBorderComp !is null)
+        contentOffset += parentBorderComp.width;
+      Size parentSzComp = vw.widget.components.size;
+      if (parentSzComp !is null) {
+        contentWidth -= (parentSzComp.padding.left + parentSzComp.padding.right);
+        contentOffset += parentSzComp.padding.left;
+      }
+
+      size_t fixedWidgets = 0;
+      if (flexComp.direction == FlexDirection.row) {
+        float fixedSizes = 0;
+        foreach(Widget w; widgets) {
+          Size sizeComp = w.components.size;
+          if (sizeComp !is null) {
+            if (sizeComp.width.mode == SizingMode.fraction) {
+              // TODO account for fraction SizingMode
+            }
+            else {
+              fixedSizes += w.rect.width;
+              fixedWidgets += 1;
+            }
+          }
+        }
+        float posOffset = contentOffset;
+        foreach(i, Widget w; widgets) {
+          w.rect.x = posOffset;
+          // TODO handle fraction SizingMode
+          posOffset += w.rect.width;
+          if (i+1 < widgets.length)
+            posOffset += flexComp.gap;
+        }
+      }
+      // TODO column
   }
 }

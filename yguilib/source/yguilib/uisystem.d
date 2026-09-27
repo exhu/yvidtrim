@@ -97,8 +97,9 @@ private:
 
   void updateLayout() {
     if (isViewAvailableForRendering()) {
-      lastVisibleWidgets = visibleWidgetsCollector.collectVisible(mainWindow.view, mainWindow.renderer);
+      lastVisibleWidgets = visibleWidgetsCollector.collectVisible(mainWindow.view, mainWindow.renderer, true);
       layoutSystem.layoutTree(mainWindow.view, mainWindow.renderer, lastVisibleWidgets);
+      lastVisibleWidgets = visibleWidgetsCollector.collectVisible(mainWindow.view, mainWindow.renderer, false);
     }
   }
 

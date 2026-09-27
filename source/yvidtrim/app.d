@@ -50,6 +50,12 @@ final class MainView {
 
     // --- layout testing ---
     auto container = makeBox(view, RectF(35, 250, 400, 300), colors.darkGray);
+    auto fc = new FlexContainer;
+    fc.direction = FlexDirection.row;
+    fc.gap = 8;
+    fc.justify = JustifyContent.start;
+    fc.alignItems = AlignItems.center;
+    container.components.flexContainer = fc;
     auto c1 = makeBox(container, RectF(5, 8, 1, 1), colors.yellow);
     auto sz = new Size;
     sz.width = Dimension(100, SizingMode.fixed);
