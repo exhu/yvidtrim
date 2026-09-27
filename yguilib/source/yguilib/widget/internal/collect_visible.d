@@ -16,21 +16,31 @@ struct VisibleWidget {
 alias VisibleWidgets = VisibleWidget[];
 
 final class VisibleWidgetsCollector {
-  /// recalculate visible list to use for layout and painter system
-  // TODO support ignoreClipChildren to prepare list for layout system which
-  // will ignore Widget.clipChildren.
-  // Meanwhile drawing system needs to ignoreClipChildren = true
-  VisibleWidgets collectVisible(Widget root, Renderer r, bool ignoreClipChildren = false) {
+  /// recalculate visible list to use for layout and painter system.
+  /// When ignoreClipChildren is true, Widget.clipChildren is ignored and
+  /// clipping rectangles are not propagated to children.
+  VisibleWidgets collectVisible(
+    Widget root,
+    Renderer r,
+    bool ignoreClipChildren = false
+  ) {
     assert(root !is null);
     assert(r !is null);
-    return collectVisible(root, r.getLogicWidth(), r.getLogicHeight());
+    return collectVisible(
+      root, r.getLogicWidth(), r.getLogicHeight(), ignoreClipChildren
+    );
   }
 
   /// recalculate visible list for specific viewport dimensions
-  VisibleWidgets collectVisible(Widget root, float vw, float vh) {
+  VisibleWidgets collectVisible(
+    Widget root,
+    float vw,
+    float vh,
+    bool ignoreClipChildren = false
+  ) {
     assert(root !is null);
     visibleBuf.clear();
-    collectVisiblePrivate(root, 0.0f, 0.0f, vw, vh);
+    collectVisiblePrivate(root, 0.0f, 0.0f, vw, vh, ignoreClipChildren);
     return visibleBuf[];
   }
 
@@ -41,6 +51,7 @@ private:
     float parentY,
     float vw,
     float vh,
+    bool ignoreClipChildren,
     bool parentHasClip = false,
     RectF parentClipRect = RectF.init
   ) {
@@ -58,7 +69,7 @@ private:
 
     bool childHasClip = parentHasClip;
     RectF childClipRect = parentClipRect;
-    if (w.clipChildren) {
+    if (!ignoreClipChildren && w.clipChildren) {
       childClipRect = parentHasClip
         ? intersectRects(parentClipRect, absRect)
         : absRect;
@@ -67,7 +78,14 @@ private:
 
     foreach (child; w.children) {
       collectVisiblePrivate(
-        child, absX, absY, vw, vh, childHasClip, childClipRect
+        child,
+        absX,
+        absY,
+        vw,
+        vh,
+        ignoreClipChildren,
+        childHasClip,
+        childClipRect
       );
     }
   }
@@ -143,4 +161,11 @@ unittest {
   // sibling: should not have clip
   assert(collected[4].widget is sibling);
   assert(!collected[4].hasClip);
+
+  // When ignoreClipChildren is true, clipChildren is ignored
+  auto collectedIgnored = collector.collectVisible(root, 640.0f, 480.0f, true);
+  assert(collectedIgnored.length == 5);
+  foreach (vw; collectedIgnored) {
+    assert(!vw.hasClip);
+  }
 }

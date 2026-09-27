@@ -9,7 +9,7 @@ import yguilib.widget.drawing_components;
 import yguilib.widget.internal.collect_visible : VisibleWidgets, VisibleWidget;
 
 final class LayoutSystem {
-  // TODO visibleWidgets may be wrong before layout pass
+  // expects visibleWidgets to include clipped children as well
   void layoutTree(Widget root, Renderer r, VisibleWidgets visibleWidgets) {
     assert(root !is null);
     assert(r !is null);
