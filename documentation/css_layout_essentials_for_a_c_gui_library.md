@@ -1,5 +1,8 @@
 # Essential CSS-Inspired Layout Features for yguilib (D)
 
+NOTE: this doc already implemented in code (`layout_system.d`), except margins
+support. rowGap/columnGap not needed becasue no flex grid is supported.
+
 When designing a modern layout engine for a native GUI library,
 implementing the full CSS specification is counter-productive.
 Multi-pass grid systems, complex float mechanics, and CSS table

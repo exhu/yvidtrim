@@ -1,4 +1,3 @@
-- check what is not implemented from css_layout_essentials_for_a_c_gui_library.md
 - generate code to demonstrate flex component, layout, sizes, text measurement etc.
 - drawRoundRect etc. lineWidth must grow inside
 - define modal controller rules (some controllers must still handle events, when modal is active)
