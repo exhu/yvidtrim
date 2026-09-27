@@ -19,6 +19,9 @@ enum SizingMode {
   /// Measured from content (intrinsic). The layout engine
   /// queries the widget's content (text extents, icon size, etc.)
   /// to determine the natural size.
+  /// For FlexContainer it's sum of children sizes in FlexDirection,
+  /// and max for cross axis. If there're no children, then
+  /// text or other content/visible component size.
   auto_,
   /// Explicit value in logical points.
   /// Final pixel size = `value * dpiScale`.
