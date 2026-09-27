@@ -73,6 +73,29 @@ throughput, all modules must strictly adhere to domain-bounded encapsulation.
   of a module require the same, then do not duplicate imports, but put
   single import in the start of the file.
 
+## Visiblity attributes order
+In a module, class, struct declare public methods and fields first, then
+protected, and then private.
+
+Do not apply visibility attribute (private, protected, public) per language
+unit, declare a few sections instead inside a class, struct or module, e.g.
+```D
+module mymodule;
+// GOOD
+void myPublicFunction() {}
+private:
+// all private functions, fields, variables go after that
+void myPrivateFunction() {}
+
+// BAD
+public void myPublicFunction() {}
+private void myPrivateFunction() {}
+```
+
+## Function size
+Split long (>50 lines) or complex functions (which have different sematic
+blocks) into smaller.
+
 # C coding style
 C code uses the same formatting: 2 spaces, open curly brance on the same line.
 
