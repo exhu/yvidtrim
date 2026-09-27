@@ -2,7 +2,7 @@ module yguilib.widget.internal.layout_system;
 
 package(yguilib):
 import yguilib.render : Renderer;
-import yguilib.render.render_types : PointF;
+import yguilib.render.render_types : PointF, RectF;
 import yguilib.widget;
 import yguilib.widget.layout_components;
 import yguilib.widget.drawing_components;
@@ -76,16 +76,24 @@ private:
       if (vw.widget.children is null || vw.widget.children.length == 0)
         return;
 
+      // TODO filter invisible (by flag, not by rects)
       auto widgets = vw.widget.children;
-      float contentWidth = vw.widget.rect.width;
-      float contentOffset = 0;
+
+      // TODO move contentRect to a function
+      RectF contentRect = RectF(0, 0, vw.widget.rect.width, vw.widget.rect.height);
       Border parentBorderComp = vw.widget.components.border;
-      if (parentBorderComp !is null)
-        contentOffset += parentBorderComp.width;
+      if (parentBorderComp !is null) {
+        contentRect.width -= parentBorderComp.width*2;
+        contentRect.height -= parentBorderComp.width*2;
+        contentRect.x += parentBorderComp.width;
+        contentRect.y += parentBorderComp.width;
+      }
       Size parentSzComp = vw.widget.components.size;
       if (parentSzComp !is null) {
-        contentWidth -= (parentSzComp.padding.left + parentSzComp.padding.right);
-        contentOffset += parentSzComp.padding.left;
+        contentRect.width -= (parentSzComp.padding.left + parentSzComp.padding.right);
+        contentRect.height -= (parentSzComp.padding.top + parentSzComp.padding.bottom);
+        contentRect.x += parentSzComp.padding.left;
+        contentRect.y += parentSzComp.padding.top;
       }
 
       size_t fixedWidgets = 0;
@@ -103,15 +111,37 @@ private:
             }
           }
         }
-        float posOffset = contentOffset;
-        foreach(i, Widget w; widgets) {
-          w.rect.x = posOffset;
-          // TODO handle fraction SizingMode
-          posOffset += w.rect.width;
-          if (i+1 < widgets.length)
-            posOffset += flexComp.gap;
+        if (flexComp.justify == JustifyContent.start) {
+          float posOffset = contentRect.x;
+          foreach(i, Widget w; widgets) {
+            w.rect.x = posOffset;
+            // TODO handle fraction SizingMode
+            posOffset += w.rect.width;
+            if (i+1 < widgets.length)
+              posOffset += flexComp.gap;
+
+            final switch(flexComp.alignItems) {
+            case AlignItems.start:
+              w.rect.y = contentRect.y;
+              break;
+            case AlignItems.end:
+              w.rect.y = contentRect.y + contentRect.height - w.rect.height - 1;
+              break;
+            case AlignItems.center:
+              import std.math : floor;
+              w.rect.y = floor(contentRect.y + contentRect.height*0.5 - 1 - w.rect.height*0.5 + 0.5);
+              break;
+            case AlignItems.stretch:
+              w.rect.y = contentRect.y;
+              w.rect.height = contentRect.height;
+              break;
+            }
+          }
         }
+        // TODO handle other JustifyContent
       }
-      // TODO column
+      else {
+        // TODO FlexDirection.column
+      }
   }
 }

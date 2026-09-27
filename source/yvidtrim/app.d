@@ -20,6 +20,8 @@ final class MainModel : VersionedModel {
   bool toggleVisible = true;
   float alphaValue = 0.3f;
   bool qPressed;
+  bool aPressed;
+  AlignItems alignItems;
 }
 
 
@@ -49,12 +51,12 @@ final class MainView {
     alphaWidget = smaller2;
 
     // --- layout testing ---
-    auto container = makeBox(view, RectF(35, 250, 400, 300), colors.darkGray);
-    auto fc = new FlexContainer;
+    container = makeBox(view, RectF(35, 250, 400, 300), colors.darkGray);
+    fc = new FlexContainer;
     fc.direction = FlexDirection.row;
     fc.gap = 8;
     fc.justify = JustifyContent.start;
-    fc.alignItems = AlignItems.center;
+    fc.alignItems = tracker.model.alignItems; //AlignItems.center;
     container.components.flexContainer = fc;
     auto c1 = makeBox(container, RectF(5, 8, 1, 1), colors.yellow);
     auto sz = new Size;
@@ -71,6 +73,9 @@ final class MainView {
       toggleWidget.markDirty();
       alphaWidget.components.background.color.a = tracker.model.alphaValue;
       alphaWidget.markDirty();
+      fc.alignItems = tracker.model.alignItems;
+      container.markDirty();
+      writeln("alignItems=", fc.alignItems);
     }
   }
 
@@ -86,6 +91,8 @@ private:
   ModelTracker!MainModel tracker;
   Widget toggleWidget;
   Widget alphaWidget;
+  FlexContainer fc;
+  Widget container;
 }
 
 final class MainController : DefaultController {
@@ -105,6 +112,15 @@ final class MainController : DefaultController {
     if (model.qPressed)
       sendQuit();
 
+    if (model.aPressed) {
+      size_t e = cast(size_t)model.alignItems;
+      e += 1;
+      e = e % AlignItems.max;
+
+      model.alignItems = cast(AlignItems)e;
+      model.aPressed = false;
+    }
+
     model.toggleVisible ^= true;
     model.alphaValue = clamp((model.alphaValue + 0.01)%1.0, 0.1, 1.0);
     t.commit(model);
@@ -119,11 +135,18 @@ final class MainController : DefaultController {
     if (ev.Kind.update)
       return HandleResult(HandleResult.Result.nothing);
 
-    if (ev.kind == AppEvent.Kind.keyUp && ev.key == KeyCode.q) {
-      auto model = t.edit();
-      model.qPressed = true;
-      t.commit(model);
-      consume = true;
+    if (ev.kind == AppEvent.Kind.keyUp) {
+      if (ev.key == KeyCode.q) {
+        auto model = t.edit();
+        model.qPressed = true;
+        t.commit(model);
+        consume = true;
+      } else if (ev.key == KeyCode.a) {
+        auto model = t.edit();
+        model.aPressed = true;
+        t.commit(model);
+        consume = true;
+      }
     }
 
     auto res = super.handleEvent(ev);
