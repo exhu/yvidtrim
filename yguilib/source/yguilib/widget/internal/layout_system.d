@@ -1,8 +1,9 @@
 module yguilib.widget.internal.layout_system;
 
 package(yguilib):
+import std.algorithm.comparison : max, min;
 import yguilib.render : Renderer;
-import yguilib.render.render_types : PointF, RectF;
+import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.widget;
 import yguilib.widget.layout_components;
 import yguilib.widget.drawing_components;
@@ -21,7 +22,7 @@ final class LayoutSystem {
 
     // compute initial sizes: leaf to root
     foreach_reverse(VisibleWidget vw; visibleWidgets) {
-      handleSizeComp(vw);
+      handleSizeComp(vw, r);
     }
 
     // compute position and sizes by flexContainers: root to leaf
@@ -29,43 +30,151 @@ final class LayoutSystem {
       handleFlexContainerComp(vw);
     }
   }
-
 private:
-  void handleSizeComp(VisibleWidget vw) {
-      Size szComp = vw.widget.components.size;
-      if (szComp is null)
-        return;
 
-      PointF contentSize;
-      if (szComp.width.mode == SizingMode.auto_ ||
-            szComp.height.mode == SizingMode.auto_) {
-          // TODO calc text size etc. in contentSize
+  static void handleSizeComp(VisibleWidget vw, Renderer r = null) {
+    handleSizeComp(vw.widget, r);
+  }
+
+  static void handleSizeComp(Widget w, Renderer r = null) {
+    Size szComp = w.components.size;
+    if (szComp is null) {
+      return;
+    }
+
+    PointF contentSize;
+    if (szComp.width.mode == SizingMode.auto_ ||
+        szComp.height.mode == SizingMode.auto_) {
+      contentSize = calcContentSize(w, r);
+    }
+
+    float borderWidth = 0.0f;
+    Border borderComp = w.components.border;
+    if (borderComp !is null && borderComp.style != Border.Style.none) {
+      borderWidth = max(0.0f, borderComp.width);
+    }
+    const float padBorderX = szComp.padding.left + szComp.padding.right +
+      borderWidth * 2.0f;
+    const float padBorderY = szComp.padding.top + szComp.padding.bottom +
+      borderWidth * 2.0f;
+
+    switch(szComp.width.mode) {
+    case SizingMode.fixed:
+      w.rect.width = szComp.width.value;
+      break;
+    case SizingMode.auto_:
+      w.rect.width = contentSize.x + padBorderX;
+      break;
+    case SizingMode.fraction:
+      w.rect.width = szComp.minWidth;
+      break;
+    default:
+      break;
+    }
+
+    switch(szComp.height.mode) {
+    case SizingMode.fixed:
+      w.rect.height = szComp.height.value;
+      break;
+    case SizingMode.auto_:
+      w.rect.height = contentSize.y + padBorderY;
+      break;
+    case SizingMode.fraction:
+      w.rect.height = szComp.minHeight;
+      break;
+    default:
+      break;
+    }
+
+    // Constrain by min/max width/height
+    if (w.rect.width > szComp.maxWidth) {
+      w.rect.width = szComp.maxWidth;
+    }
+    if (w.rect.width < szComp.minWidth) {
+      w.rect.width = szComp.minWidth;
+    }
+    if (w.rect.width < 0.0f) {
+      w.rect.width = 0.0f;
+    }
+
+    if (w.rect.height > szComp.maxHeight) {
+      w.rect.height = szComp.maxHeight;
+    }
+    if (w.rect.height < szComp.minHeight) {
+      w.rect.height = szComp.minHeight;
+    }
+    if (w.rect.height < 0.0f) {
+      w.rect.height = 0.0f;
+    }
+  }
+
+  static PointF calcContentSize(Widget w, Renderer r) {
+    PointF size = PointF(0.0f, 0.0f);
+
+    FlexContainer flexComp = w.components.flexContainer;
+    if (flexComp !is null && w.children.length > 0) {
+      size_t visibleCount = 0;
+      float mainSum = 0.0f;
+      float crossMax = 0.0f;
+
+      if (flexComp.direction == FlexDirection.row) {
+        foreach (child; w.children) {
+          if (!child.visible) {
+            continue;
+          }
+          mainSum += child.rect.width;
+          crossMax = max(crossMax, child.rect.height);
+          visibleCount++;
+        }
+        if (visibleCount > 1) {
+          mainSum += flexComp.gap * (visibleCount - 1);
+        }
+        size.x = mainSum;
+        size.y = crossMax;
+      } else {
+        foreach (child; w.children) {
+          if (!child.visible) {
+            continue;
+          }
+          mainSum += child.rect.height;
+          crossMax = max(crossMax, child.rect.width);
+          visibleCount++;
+        }
+        if (visibleCount > 1) {
+          mainSum += flexComp.gap * (visibleCount - 1);
+        }
+        size.x = crossMax;
+        size.y = mainSum;
       }
 
-      switch(szComp.width.mode) {
-      case SizingMode.fixed:{
-        vw.widget.rect.width = szComp.width.value;
-        break;
+      if (visibleCount > 0) {
+        return size;
       }
-      case SizingMode.auto_:{
-        // TODO set rect.width/height to
-        // contentSize.x + Border.width + padding.left + padding.right
+    } else if (w.children.length > 0) {
+      size_t visibleCount = 0;
+      foreach (child; w.children) {
+        if (!child.visible) {
+          continue;
+        }
+        size.x = max(size.x, child.rect.x + child.rect.width);
+        size.y = max(size.y, child.rect.y + child.rect.height);
+        visibleCount++;
       }
-      default:{}
+      if (visibleCount > 0) {
+        return size;
       }
+    }
 
-      switch(szComp.height.mode) {
-      case SizingMode.fixed:{
-        vw.widget.rect.height = szComp.height.value;
-        break;
+    if (w.components.textLabel !is null && r !is null) {
+      auto tl = w.components.textLabel;
+      if (tl.caption.length > 0) {
+        PointF textSize = r.measureText(tl.caption);
+        size.x = max(size.x, textSize.x);
+        size.y = max(size.y, textSize.y);
       }
-      case SizingMode.auto_:{
-        // TODO set rect.width/height to
-        // contentSize.y + Border.width + padding.top + padding.bottom
-      }
-      default:{}
-      }
-      // TODO constrain by min/max width/height
+    }
+
+    return size;
   }
 
   // TODO split this into manageable smaller functions
@@ -80,7 +189,9 @@ private:
       auto widgets = vw.widget.children;
 
       // TODO move contentRect to a function
-      RectF contentRect = RectF(0, 0, vw.widget.rect.width, vw.widget.rect.height);
+      RectF contentRect = RectF(
+        0, 0, vw.widget.rect.width, vw.widget.rect.height
+      );
       Border parentBorderComp = vw.widget.components.border;
       if (parentBorderComp !is null) {
         contentRect.width -= parentBorderComp.width*2;
@@ -90,8 +201,12 @@ private:
       }
       Size parentSzComp = vw.widget.components.size;
       if (parentSzComp !is null) {
-        contentRect.width -= (parentSzComp.padding.left + parentSzComp.padding.right);
-        contentRect.height -= (parentSzComp.padding.top + parentSzComp.padding.bottom);
+        contentRect.width -= (
+          parentSzComp.padding.left + parentSzComp.padding.right
+        );
+        contentRect.height -= (
+          parentSzComp.padding.top + parentSzComp.padding.bottom
+        );
         contentRect.x += parentSzComp.padding.left;
         contentRect.y += parentSzComp.padding.top;
       }
@@ -129,7 +244,10 @@ private:
               break;
             case AlignItems.center:
               import std.math : floor;
-              w.rect.y = floor(contentRect.y + contentRect.height*0.5 - 1 - w.rect.height*0.5 + 0.5);
+              w.rect.y = floor(
+                contentRect.y + contentRect.height*0.5 - 1 -
+                w.rect.height*0.5 + 0.5
+              );
               break;
             case AlignItems.stretch:
               w.rect.y = contentRect.y;
@@ -144,4 +262,179 @@ private:
         // TODO FlexDirection.column
       }
   }
+}
+
+// Fixed sizing and null Size component handling
+unittest {
+  auto ls = new LayoutSystem;
+  auto w = new Widget(null, RectF(10, 10, 50, 50));
+
+  // No Size component -> rect remains untouched
+  ls.handleSizeComp(w);
+  assert(w.rect.width == 50);
+  assert(w.rect.height == 50);
+
+  // Fixed sizing
+  auto sz = new Size;
+  sz.width = Dimension(120, SizingMode.fixed);
+  sz.height = Dimension(80, SizingMode.fixed);
+  w.components.size = sz;
+
+  ls.handleSizeComp(w);
+  assert(w.rect.width == 120);
+  assert(w.rect.height == 80);
+}
+
+// Auto sizing with padding and border
+unittest {
+  auto ls = new LayoutSystem;
+  auto w = new Widget(null, RectF(0, 0, 0, 0));
+
+  auto sz = new Size;
+  sz.width = Dimension(0, SizingMode.auto_);
+  sz.height = Dimension(0, SizingMode.auto_);
+  sz.padding = Insets(5, 10, 15, 20); // top=5, right=10, bottom=15, left=20
+  w.components.size = sz;
+
+  auto border = new Border(ColorF(1, 0, 0, 1), Border.Style.rect);
+  border.width = 3.0f;
+  w.components.border = border;
+
+  // Horizontal: padding (20+10) + border (3*2) = 36
+  // Vertical: padding (5+15) + border (3*2) = 26
+  ls.handleSizeComp(w);
+  assert(w.rect.width == 36);
+  assert(w.rect.height == 26);
+
+  // Border.Style.none should not contribute to size
+  border.style = Border.Style.none;
+  ls.handleSizeComp(w);
+  assert(w.rect.width == 30);
+  assert(w.rect.height == 20);
+}
+
+// Min and max constraints and fraction initial sizing
+unittest {
+  auto ls = new LayoutSystem;
+  auto w = new Widget(null, RectF(0, 0, 0, 0));
+
+  auto sz = new Size;
+  sz.width = Dimension(20, SizingMode.fixed);
+  sz.height = Dimension(200, SizingMode.fixed);
+  sz.minWidth = 50;
+  sz.maxWidth = 100;
+  sz.minHeight = 50;
+  sz.maxHeight = 100;
+  w.components.size = sz;
+
+  // Clamped by minWidth (20 -> 50) and maxHeight (200 -> 100)
+  ls.handleSizeComp(w);
+  assert(w.rect.width == 50);
+  assert(w.rect.height == 100);
+
+  // Fraction mode sets initial size to minWidth / minHeight
+  sz.width = Dimension(1, SizingMode.fraction);
+  sz.height = Dimension(1, SizingMode.fraction);
+  sz.minWidth = 40;
+  sz.minHeight = 60;
+  sz.maxWidth = 200;
+  sz.maxHeight = 200;
+  ls.handleSizeComp(w);
+  assert(w.rect.width == 40);
+  assert(w.rect.height == 60);
+
+  // If minWidth > maxWidth, minWidth takes precedence
+  sz.width = Dimension(80, SizingMode.fixed);
+  sz.minWidth = 120;
+  sz.maxWidth = 100;
+  ls.handleSizeComp(w);
+  assert(w.rect.width == 120);
+}
+
+// FlexContainer children intrinsic size calculation (row, column, gaps)
+unittest {
+  auto ls = new LayoutSystem;
+  auto parent = new Widget(null, RectF(0, 0, 0, 0));
+
+  auto parentSz = new Size;
+  parentSz.width = Dimension(0, SizingMode.auto_);
+  parentSz.height = Dimension(0, SizingMode.auto_);
+  parent.components.size = parentSz;
+
+  auto flex = new FlexContainer;
+  flex.direction = FlexDirection.row;
+  flex.gap = 10;
+  parent.components.flexContainer = flex;
+
+  auto c1 = new Widget(parent, RectF(0, 0, 40, 25));
+  auto c2 = new Widget(parent, RectF(0, 0, 60, 35));
+  auto cHidden = new Widget(parent, RectF(0, 0, 100, 100));
+  cHidden.visible = false;
+
+  // Row: width = 40 + 60 + 10 = 110, height = max(25, 35) = 35
+  ls.handleSizeComp(parent);
+  assert(parent.rect.width == 110);
+  assert(parent.rect.height == 35);
+
+  // Column: width = max(40, 60) = 60, height = 25 + 35 + 10 = 70
+  flex.direction = FlexDirection.column;
+  ls.handleSizeComp(parent);
+  assert(parent.rect.width == 60);
+  assert(parent.rect.height == 70);
+}
+
+// Non-flex container with children: bounding box
+unittest {
+  auto ls = new LayoutSystem;
+  auto parent = new Widget(null, RectF(0, 0, 0, 0));
+
+  auto sz = new Size;
+  sz.width = Dimension(0, SizingMode.auto_);
+  sz.height = Dimension(0, SizingMode.auto_);
+  parent.components.size = sz;
+
+  auto c1 = new Widget(parent, RectF(10, 5, 40, 20)); // right=50, bottom=25
+  auto c2 = new Widget(parent, RectF(20, 15, 60, 30)); // right=80, bottom=45
+
+  ls.handleSizeComp(parent);
+  assert(parent.rect.width == 80);
+  assert(parent.rect.height == 45);
+}
+
+// TextLabel measurement and layoutTree bottom-up flow
+unittest {
+  import yguilib.clibs.sdl3 : yguilib_sdl3_init, yguilib_sdl3_quit;
+  import yguilib.window : Window;
+  import yguilib.widget.internal.collect_visible : VisibleWidgetsCollector;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(320, 240, "test_layout_text");
+  win.create();
+  scope(exit) win.destroy();
+
+  auto r = new Renderer(320, 240);
+  scope(exit) r.destroy();
+
+  auto ls = new LayoutSystem;
+  auto collector = new VisibleWidgetsCollector;
+
+  auto labelWidget = new Widget(null, RectF(0, 0, 10, 10));
+  auto labelSz = new Size;
+  labelSz.width = Dimension(0, SizingMode.auto_);
+  labelSz.height = Dimension(0, SizingMode.auto_);
+  labelSz.padding = Insets(2, 4, 2, 4);
+  labelWidget.components.size = labelSz;
+  labelWidget.components.textLabel = new TextLabel("Test", ColorF(1, 1, 1, 1));
+
+  PointF textDims = r.measureText("Test");
+  assert(textDims.x > 0);
+  assert(textDims.y > 0);
+
+  auto visible = collector.collectVisible(labelWidget, r, true);
+  ls.layoutTree(labelWidget, r, visible);
+
+  assert(labelWidget.rect.width == textDims.x + 8);
+  assert(labelWidget.rect.height == textDims.y + 4);
 }
