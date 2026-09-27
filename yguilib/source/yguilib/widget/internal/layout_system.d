@@ -13,6 +13,7 @@ import yguilib.widget.internal.layout_content_size : calcContentSize,
   calcPaddingAndBorder;
 import yguilib.widget.internal.layout_flex : alignChildCrossAxis,
   arrangeMainAxis, calcContentRect, computeJustifyOffsets, resolveFractionSizes;
+import yguilib.widget.internal.layout_anchor : handleAnchorComp;
 
 final class LayoutSystem {
   /// expects visibleWidgets to include clipped children as well
@@ -30,8 +31,9 @@ final class LayoutSystem {
       handleSizeComp(vw, r);
     }
 
-    // compute position and sizes by flexContainers: root to leaf
+    // compute position and sizes: root to leaf
     foreach(VisibleWidget vw; visibleWidgets) {
+      handleAnchorComp(vw);
       handleFlexContainerComp(vw);
     }
   }
@@ -78,6 +80,14 @@ private:
     );
   }
 
+  package(yguilib) static void handleAnchorComp(VisibleWidget vw) {
+    handleAnchorComp(vw.widget);
+  }
+
+  package(yguilib) static void handleAnchorComp(Widget w) {
+    .handleAnchorComp(w);
+  }
+
   /// Arranges children for a visible widget's flex container component.
   void handleFlexContainerComp(VisibleWidget vw) {
     handleFlexContainerComp(vw.widget);
@@ -95,7 +105,7 @@ private:
 
     childBuf.clear();
     foreach (child; w.children) {
-      if (child.visible) {
+      if (child.visible && child.components.anchor is null) {
         childBuf ~= child;
       }
     }
@@ -320,4 +330,38 @@ unittest {
 
   assert(labelWidget.rect.width == textDims.x + 8);
   assert(labelWidget.rect.height == textDims.y + 4);
+}
+
+// Anchored widget inside flex container is out-of-flow
+unittest {
+  auto ls = new LayoutSystem;
+  auto parent = new Widget(null, RectF(0, 0, 200, 100));
+
+  auto flex = new FlexContainer;
+  flex.direction = FlexDirection.row;
+  flex.gap = 10;
+  parent.components.flexContainer = flex;
+
+  // Regular flex children
+  auto c1 = new Widget(parent, RectF(0, 0, 40, 20));
+  auto c2 = new Widget(parent, RectF(0, 0, 50, 20));
+
+  // Anchored child positioned at bottom-right
+  auto anchorChild = new Widget(parent, RectF(0, 0, 30, 30));
+  auto a = new Anchor;
+  a.right = 0.0f;
+  a.bottom = 0.0f;
+  anchorChild.components.anchor = a;
+
+  ls.handleAnchorComp(anchorChild);
+  ls.handleFlexContainerComp(parent);
+
+  // Flex children are laid out sequentially along main axis ignoring
+  // the out-of-flow anchorChild.
+  assert(c1.rect.x == 0);
+  assert(c2.rect.x == 50); // 40 + gap 10
+
+  // Anchored child is at bottom-right of parent
+  assert(anchorChild.rect.x == 170); // 200 - 30
+  assert(anchorChild.rect.y == 70);  // 100 - 30
 }

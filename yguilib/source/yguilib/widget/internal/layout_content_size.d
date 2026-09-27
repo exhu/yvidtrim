@@ -61,7 +61,7 @@ bool tryCalcFlexContentSize(
   const bool isRow = flexComp.direction == FlexDirection.row;
 
   foreach (child; w.children) {
-    if (!child.visible) {
+    if (!child.visible || child.components.anchor !is null) {
       continue;
     }
     const float mainDim = getMainOuterSize(child, isRow);
@@ -94,7 +94,7 @@ bool tryCalcChildrenBoundingBox(
   size_t visibleCount = 0;
   PointF boundingSize = PointF(0.0f, 0.0f);
   foreach (child; w.children) {
-    if (!child.visible) {
+    if (!child.visible || child.components.anchor !is null) {
       continue;
     }
     boundingSize.x = max(boundingSize.x, child.rect.x + child.rect.width);

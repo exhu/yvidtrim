@@ -85,16 +85,25 @@ final class MainView {
   }
 
   void addRightTopAnchor() {
-    // TODO make it anchored (right and top agains right and top of the parent)
-    auto w = makeBox(view, RectF(0,0,30,30), colors.red);
+    auto w = makeBox(view, RectF(0, 0, 30, 30), colors.red);
+    auto a = new Anchor;
+    a.right = 0.0f;
+    a.top = 3.0f;
+    w.components.anchor = a;
   }
   void addLeftBottomAnchor() {
-    // TODO make it anchored (left and bottom to left and bottom of parent)
-    auto w = makeBox(view, RectF(0,0,30,30), colors.brightRed);
+    auto w = makeBox(view, RectF(0, 0, 30, 30), colors.brightRed);
+    auto a = new Anchor;
+    a.left = 3.0f;
+    a.bottom = 7.0f;
+    w.components.anchor = a;
   }
   void addRightBottomAnchor() {
-    // TODO make it anchored (right and bottom to right and bottom of parent)
-    auto w = makeBox(view, RectF(0,0,30,30), colors.magenta);
+    auto w = makeBox(view, RectF(0, 0, 30, 30), colors.magenta);
+    auto a = new Anchor;
+    a.right = 5.0f;
+    a.bottom = 2.0f;
+    w.components.anchor = a;
   }
 
   void update() {

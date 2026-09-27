@@ -7,6 +7,7 @@
 ///   Phase 3 - Sizing Modes (SizingMode: auto_, fixed, fraction)
 ///   Phase 4 - Alignment (JustifyContent, AlignItems)
 module yguilib.widget.layout_components;
+import std.typecons : Nullable;
 import yguilib.widget.component;
 
 /// How a single dimension (width or height) is sized.
@@ -146,4 +147,33 @@ class Size : Component {
   /// Outer clearance from sibling widgets (applied by the parent
   /// flex container during arrangement).
   Insets margin;
+}
+
+/// Anchors a widget against its parent's content bounds.
+///
+/// Out-of-flow: ignored by parent `FlexContainer` flow and positioned
+/// relative to the parent's content area (deducting border and padding).
+class Anchor : Component {
+  this() {}
+
+  this(
+    Nullable!float left,
+    Nullable!float top = Nullable!float.init,
+    Nullable!float right = Nullable!float.init,
+    Nullable!float bottom = Nullable!float.init
+  ) {
+    this.left = left;
+    this.top = top;
+    this.right = right;
+    this.bottom = bottom;
+  }
+
+  /// Offset from parent's left content edge in logical points.
+  Nullable!float left;
+  /// Offset from parent's top content edge in logical points.
+  Nullable!float top;
+  /// Offset from parent's right content edge in logical points.
+  Nullable!float right;
+  /// Offset from parent's bottom content edge in logical points.
+  Nullable!float bottom;
 }

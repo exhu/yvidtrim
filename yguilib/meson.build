@@ -30,6 +30,7 @@ yguilib_src = files(
   'source/yguilib/widget/component.d',
   'source/yguilib/widget/drawing_components.d',
   'source/yguilib/widget/internal/collect_visible.d',
+  'source/yguilib/widget/internal/layout_anchor.d',
   'source/yguilib/widget/internal/layout_axis.d',
   'source/yguilib/widget/internal/layout_content_size.d',
   'source/yguilib/widget/internal/layout_dimension.d',

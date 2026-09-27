@@ -24,6 +24,7 @@ struct WidgetComponents {
   // layout
   FlexContainer flexContainer;
   Size size;
+  Anchor anchor;
 
   // drawing
   Background background;
