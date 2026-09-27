@@ -48,9 +48,14 @@ private:
       if (w.components.background !is null) {
         drawBackground(w, absRect, r);
       }
+      // TODO claculate content rect based on
+      // Size and Border components (Border.width + Size.padding)
+      // TODO Push clip rect for content
+      // TODO pass absRect corrected for actual conent rect
       if (w.components.textLabel !is null) {
         drawTextLabel(w, absRect, r);
       }
+      // TODO pop clip rect for content
       if (w.components.border !is null) {
         drawBorder(w, absRect, r);
       }
