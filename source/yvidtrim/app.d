@@ -48,15 +48,15 @@ final class MainView {
     toggleWidget = smaller;
     alphaWidget = smaller2;
 
-    auto container = new Widget(view, RectF(35, 250, 400, 300));
-    container.components.background = new Background(colors.darkGray);
-
-    auto c1 = new Widget(container, RectF(5, 8, 1, 1));
-    c1.components.background = new Background(colors.yellow);
+    // --- layout testing ---
+    auto container = makeBox(view, RectF(35, 250, 400, 300), colors.darkGray);
+    auto c1 = makeBox(container, RectF(5, 8, 1, 1), colors.yellow);
     auto sz = new Size;
     sz.width = Dimension(100, SizingMode.fixed);
     sz.height = Dimension(40, SizingMode.fixed);
     c1.components.size = sz;
+    auto c2 = makeBox(container, RectF(15, 18, 1, 1), colors.brown);
+    c2.components.size = sz;
   }
 
   void update() {
@@ -68,10 +68,16 @@ final class MainView {
     }
   }
 
-  Widget view;
 private:
-  ModelTracker!MainModel tracker;
+  static Widget makeBox(Widget parent, RectF rect, ColorF color) {
+    auto w = new Widget(parent, rect);
+    w.components.background = new Background(color);
+    return w;
+  }
 
+
+  Widget view;
+  ModelTracker!MainModel tracker;
   Widget toggleWidget;
   Widget alphaWidget;
 }
