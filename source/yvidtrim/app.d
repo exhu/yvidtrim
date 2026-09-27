@@ -65,6 +65,8 @@ final class MainView {
     c1.components.size = sz;
     auto c2 = makeBox(container, RectF(15, 18, 1, 1), colors.brown);
     c2.components.size = sz;
+
+    // TODO demo all other supported flex etc.
   }
 
   void update() {
