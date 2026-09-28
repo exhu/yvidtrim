@@ -25,7 +25,13 @@ executable(
 )
 
 guidemo_src = files(
+  'source/guidemo/common.d',
+  'source/guidemo/controller.d',
   'source/guidemo/guidemoapp.d',
+  'source/guidemo/model.d',
+  'source/guidemo/pages/layout_painter_page.d',
+  'source/guidemo/pages/textlabel_page.d',
+  'source/guidemo/view.d',
 )
 
 executable(
