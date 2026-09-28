@@ -218,12 +218,13 @@ final class Renderer {
     );
   }
 
-  /* TODO support
-    dashed
-    float lineWidth,
-    float dashLen,
-    float gapLen,
-  */
+  /**
+   * Draws a 1-pixel line connecting two points.
+   *
+   * @param point1 Start point in logic-space units.
+   * @param point2 End point in logic-space units.
+   * @param color Line color.
+   */
   void drawLine(PointF point1, PointF point2, ColorF color) {
     if (!initialized) {
       return;
@@ -235,6 +236,77 @@ final class Renderer {
       getLogicWidth(),
       getLogicHeight()
     );
+  }
+
+  /**
+   * Draws a line with configurable thickness.
+   *
+   * @param point1 Start point in logic-space units.
+   * @param point2 End point in logic-space units.
+   * @param lineWidth Line thickness in logic-space units.
+   * @param color Line color.
+   */
+  void drawLine(
+    PointF point1,
+    PointF point2,
+    float lineWidth,
+    ColorF color
+  ) {
+    drawLine(point1, point2, lineWidth, 0.0f, 0.0f, color);
+  }
+
+  /**
+   * Draws a dashed line with configurable thickness and dash pattern.
+   *
+   * @param point1 Start point in logic-space units.
+   * @param point2 End point in logic-space units.
+   * @param lineWidth Line thickness in logic-space units.
+   * @param dashLen Length of each visible dash segment.
+   * @param gapLen Length of each gap between dashes.
+   * @param color Line color.
+   */
+  void drawLine(
+    PointF point1,
+    PointF point2,
+    float lineWidth,
+    float dashLen,
+    float gapLen,
+    ColorF color
+  ) {
+    if (!initialized) {
+      return;
+    }
+    colorPipeline.drawLine(
+      point1,
+      point2,
+      lineWidth,
+      dashLen,
+      gapLen,
+      color,
+      getLogicWidth(),
+      getLogicHeight()
+    );
+  }
+
+  /**
+   * Draws a dashed line with configurable thickness and dash pattern.
+   *
+   * @param point1 Start point in logic-space units.
+   * @param point2 End point in logic-space units.
+   * @param lineWidth Line thickness in logic-space units.
+   * @param dashLen Length of each visible dash segment.
+   * @param gapLen Length of each gap between dashes.
+   * @param color Line color.
+   */
+  void drawLineDashed(
+    PointF point1,
+    PointF point2,
+    float lineWidth,
+    float dashLen,
+    float gapLen,
+    ColorF color
+  ) {
+    drawLine(point1, point2, lineWidth, dashLen, gapLen, color);
   }
 
   /**
@@ -1277,6 +1349,74 @@ unittest {
     }
   }
   assert(smallBlue > 0);
+
+  // 12. drawLine overloads: thick solid line and dashed line
+  // A. Solid thick line: horizontal from (50, 100) to (150, 100), width = 6
+  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.drawLine(
+    PointF(50.0f, 100.0f),
+    PointF(150.0f, 100.0f),
+    6.0f,
+    ColorF(1.0f, 0.0f, 0.0f, 1.0f)
+  );
+  // Center of line (100, 100) -> red
+  glReadPixels(100, 240 - 100, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[0] == 255 && pixel[1] == 0 && pixel[2] == 0);
+  // Inside thickness: (100, 98) and (100, 102) -> red
+  glReadPixels(100, 240 - 98, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[0] == 255);
+  glReadPixels(100, 240 - 102, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[0] == 255);
+  // Outside thickness: (100, 95) and (100, 105) -> black
+  glReadPixels(100, 240 - 95, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[0] == 0);
+  glReadPixels(100, 240 - 105, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[0] == 0);
+  // Beyond endpoints: (45, 100) and (155, 100) -> black
+  glReadPixels(45, 240 - 100, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[0] == 0);
+  glReadPixels(155, 240 - 100, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[0] == 0);
+
+  // B. Dashed line: (50, 150) to (200, 150), width = 4, dash = 10, gap = 10
+  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.drawLine(
+    PointF(50.0f, 150.0f),
+    PointF(200.0f, 150.0f),
+    4.0f,
+    10.0f,
+    10.0f,
+    ColorF(0.0f, 1.0f, 0.0f, 1.0f)
+  );
+  // First dash: (55, 150) -> green
+  glReadPixels(55, 240 - 150, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[1] == 255);
+  // First gap: (65, 150) -> black
+  glReadPixels(65, 240 - 150, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[1] == 0);
+  // Second dash: (75, 150) -> green
+  glReadPixels(75, 240 - 150, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[1] == 255);
+
+  // C. drawLineDashed alias
+  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.drawLineDashed(
+    PointF(50.0f, 150.0f),
+    PointF(200.0f, 150.0f),
+    4.0f,
+    10.0f,
+    10.0f,
+    ColorF(0.0f, 0.0f, 1.0f, 1.0f)
+  );
+  glReadPixels(55, 240 - 150, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[2] == 255);
+  glReadPixels(65, 240 - 150, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
+  assert(pixel[2] == 0);
+
+  // D. Degenerate and zero/negative width edge cases
+  renderer.drawLine(PointF(10, 10), PointF(10, 10), 5.0f, ColorF(1, 1, 1, 1));
+  renderer.drawLine(PointF(10, 10), PointF(50, 50), 0.0f, ColorF(1, 1, 1, 1));
+  renderer.drawLine(PointF(10, 10), PointF(50, 50), -2.0f, ColorF(1, 1, 1, 1));
 
   assert(glGetError() == GL_NO_ERROR);
 }

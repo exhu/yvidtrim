@@ -109,6 +109,104 @@ struct ColorPipeline {
     drawArrays(GL_LINES, vertices, color, vw, vh);
   }
 
+  void drawLine(
+    in PointF point1,
+    in PointF point2,
+    float lineWidth,
+    in ColorF color,
+    float vw,
+    float vh
+  ) {
+    drawLine(point1, point2, lineWidth, 0.0f, 0.0f, color, vw, vh);
+  }
+
+  void drawLine(
+    in PointF point1,
+    in PointF point2,
+    float lineWidth,
+    float dashLen,
+    float gapLen,
+    in ColorF color,
+    float vw,
+    float vh
+  ) {
+    if (lineWidth <= 0.0f) {
+      return;
+    }
+
+    import std.math : sqrt;
+    float dx = point2.x - point1.x;
+    float dy = point2.y - point1.y;
+    float dist = sqrt(dx * dx + dy * dy);
+    if (dist <= 0.0f) {
+      return;
+    }
+
+    float invDist = 1.0f / dist;
+    float ux = dx * invDist;
+    float uy = dy * invDist;
+
+    // Normal vector perpendicular to line direction
+    float nx = -uy;
+    float ny = ux;
+
+    float halfWidth = lineWidth * 0.5f;
+    float ox = nx * halfWidth;
+    float oy = ny * halfWidth;
+
+    if (dashLen <= 0.0f || gapLen <= 0.0f) {
+      // Solid thick line as a single quad (2 triangles)
+      float[12] vertices = [
+        point1.x + ox, point1.y + oy,
+        point1.x - ox, point1.y - oy,
+        point2.x - ox, point2.y - oy,
+
+        point1.x + ox, point1.y + oy,
+        point2.x - ox, point2.y - oy,
+        point2.x + ox, point2.y + oy,
+      ];
+      drawArrays(GL_TRIANGLES, vertices, color, vw, vh);
+      return;
+    }
+
+    // Dashed line
+    import std.algorithm : min;
+    import std.array : Appender;
+
+    Appender!(float[]) vertices;
+    float period = dashLen + gapLen;
+    size_t estDashes = cast(size_t)(dist / period) + 1;
+    vertices.reserve(estDashes * 12);
+
+    float cur = 0.0f;
+    while (cur < dist) {
+      float dStart = cur;
+      float dEnd = min(cur + dashLen, dist);
+      if (dEnd > dStart) {
+        float sx = point1.x + ux * dStart;
+        float sy = point1.y + uy * dStart;
+        float ex = point1.x + ux * dEnd;
+        float ey = point1.y + uy * dEnd;
+
+        float[12] dashQuad = [
+          sx + ox, sy + oy,
+          sx - ox, sy - oy,
+          ex - ox, ey - oy,
+
+          sx + ox, sy + oy,
+          ex - ox, ey - oy,
+          ex + ox, ey + oy,
+        ];
+        vertices.put(dashQuad[]);
+      }
+      cur += period;
+    }
+
+    if (vertices.data.length > 0) {
+      drawArrays(GL_TRIANGLES, vertices.data, color, vw, vh);
+    }
+  }
+
   void drawRect(
     in RectF rect,
     float lineWidth,
