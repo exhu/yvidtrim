@@ -114,16 +114,7 @@ private:
 
   static void drawTextLabel(Widget w, in RectF absContentRect, Renderer r) {
     auto comp = w.components.textLabel;
-    const float effectiveSize =
-      (isFinite(comp.fontSize) && comp.fontSize > 0.0f)
-        ? comp.fontSize
-        : defaultFontPtSize;
-
-    Font font = r.getDefaultFont();
-    if (font !is null && font.size != effectiveSize) {
-      font.setSize(effectiveSize);
-    }
-
+    Font font = r.getFont(comp.fontSize, comp.font);
     r.drawText(
       comp.caption,
       PointF(absContentRect.x, absContentRect.y),
@@ -172,12 +163,13 @@ unittest {
 
   assert(!w.dirty);
 
-  // Test TextLabel with custom fontSize
+  // Test TextLabel with custom fontSize (default font is never mutated)
   w.components.textLabel.fontSize = 24.0f;
   w.dirty = true;
   widgets = collector.collectVisible(w, 320.0f, 240.0f);
   painter.drawTree(widgets, renderer);
-  assert(renderer.getDefaultFont().size == 24.0f);
+  assert(renderer.getDefaultFont().size == defaultFontPtSize);
+  assert(renderer.getFont(24.0f).size == 24.0f);
 
   // Test fallback when fontSize is 0.0f
   w.components.textLabel.fontSize = 0.0f;

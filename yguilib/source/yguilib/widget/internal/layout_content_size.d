@@ -115,7 +115,7 @@ PointF calcTextContentSize(
   Renderer r
 ) {
   if (tl !is null && r !is null && tl.caption.length > 0) {
-    const PointF textSize = r.measureText(tl.caption);
+    const PointF textSize = r.measureText(tl.caption, tl.fontSize, tl.font);
     return PointF(max(0.0f, textSize.x), max(0.0f, textSize.y));
   }
   return PointF(0.0f, 0.0f);

@@ -5,6 +5,7 @@ import std.algorithm : max, min;
 import yguilib.events : AppEvent;
 import yguilib.render.internal.clip_stack : ClipStack;
 import yguilib.render.font : Font, defaultFontPtSize;
+import yguilib.render.font_manager : FontManager;
 import yguilib.render.internal.pipelines : ColorPipeline, RoundRectPipeline,
   TexturePipeline;
 import yguilib.render.internal.text_cache : TextCache, TextTexture;
@@ -29,6 +30,7 @@ final class Renderer {
     texPipeline.initialize();
     rrPipeline.initialize();
     textCache = new TextCache();
+    fontManager = new FontManager();
 
     initialized = true;
   }
@@ -39,6 +41,10 @@ final class Renderer {
     }
 
     clearTextCache();
+    if (fontManager !is null) {
+      fontManager.destroy();
+      fontManager = null;
+    }
     if (ownsDefaultFont_ && defaultFont_ !is null) {
       defaultFont_.destroy();
       defaultFont_ = null;
@@ -419,16 +425,37 @@ final class Renderer {
     clipStack.reset();
   }
 
-  Font getDefaultFont() {
-    if (defaultFont_ is null) {
-      defaultFont_ = new Font(
-        cast(const(void)[])defaultTtfFontData,
-        defaultFontPtSize,
-        getTotalScaling()
-      );
-      ownsDefaultFont_ = true;
+  Font getFont(
+    float ptSize = defaultFontPtSize,
+    string fontName = null
+  ) {
+    if (fontManager !is null) {
+      return fontManager.getFont(ptSize, fontName, getTotalScaling());
     }
-    return defaultFont_;
+    return null;
+  }
+
+  Font getDefaultFont() {
+    if (defaultFont_ !is null) {
+      return defaultFont_;
+    }
+    return getFont(defaultFontPtSize);
+  }
+
+  void registerFont(string fontName, const(void)[] fontData) {
+    if (fontManager !is null) {
+      fontManager.registerFont(fontName, fontData);
+    }
+  }
+
+  void registerFont(string fontName, string filePath) {
+    if (fontManager !is null) {
+      fontManager.registerFont(fontName, filePath);
+    }
+  }
+
+  bool hasFont(string fontName) const {
+    return fontManager !is null ? fontManager.hasFont(fontName) : false;
   }
 
   /**
@@ -506,12 +533,14 @@ final class Renderer {
   }
 
   void drawText(
-    Font font,
     string text,
     PointF pos,
-    ColorF color = ColorF(1.0f, 1.0f, 1.0f, 1.0f)
+    ColorF color,
+    float ptSize,
+    string fontName = null
   ) {
-    drawText(text, pos, color, font);
+    Font f = getFont(ptSize, fontName);
+    drawText(text, pos, color, f);
   }
 
   PointF measureText(string text, Font font = null) {
@@ -522,8 +551,13 @@ final class Renderer {
     return toLogic(f.measureText(text));
   }
 
-  PointF measureText(Font font, string text) {
-    return measureText(text, font);
+  PointF measureText(
+    string text,
+    float ptSize,
+    string fontName = null
+  ) {
+    Font f = getFont(ptSize, fontName);
+    return measureText(text, f);
   }
 
 private:
@@ -568,9 +602,12 @@ private:
 
   void onScalingChanged() {
     float totalScale = getTotalScaling();
+    if (fontManager !is null) {
+      fontManager.setScaling(totalScale);
+    }
     if (ownsDefaultFont_ && defaultFont_ !is null) {
       defaultFont_.setScale(totalScale);
-    } else {
+    } else if (defaultFont_ !is null) {
       setDefaultFont(null);
     }
     clearTextCache();
@@ -586,6 +623,7 @@ private:
   RoundRectPipeline rrPipeline;
   ClipStack clipStack;
   TextCache textCache;
+  private FontManager fontManager;
 
   private Font defaultFont_;
   private bool ownsDefaultFont_;
@@ -813,8 +851,8 @@ unittest {
   PointF mLong = renderer.measureText("Hello World!", customFont);
   assert(mLong.x > mShort.x);
 
-  PointF mFirst = renderer.measureText(customFont, "Hi");
-  assert(mFirst.x == mShort.x && mFirst.y == mShort.y);
+  PointF mBySize = renderer.measureText("Hi", 16.0f);
+  assert(mBySize.x == mShort.x && mBySize.y == mShort.y);
 
   // Render text blended in white on black background
   renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
@@ -841,10 +879,10 @@ unittest {
   // Render text in green color
   renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawText(
-    customFont,
     "ABC",
     PointF(20.0f, 30.0f),
-    ColorF(0.0f, 1.0f, 0.0f, 1.0f)
+    ColorF(0.0f, 1.0f, 0.0f, 1.0f),
+    customFont
   );
   litCount = 0;
   foreach (x; 20 .. 20 + checkW) {
@@ -966,15 +1004,21 @@ unittest {
   assert(factoryFont.scaledSize == 28.0f);
   assert(factoryFont.height > 0);
 
-  // In-place setSize updates unscaled size and re-applies current scale
-  assert(factoryFont.setSize(20.0f));
-  assert(factoryFont.size == 20.0f);
-  assert(factoryFont.scaledSize == 40.0f);
-
   // In-place setScale updates raster size while preserving unscaled size
   assert(factoryFont.setScale(1.0f));
-  assert(factoryFont.size == 20.0f);
-  assert(factoryFont.scaledSize == 20.0f);
+  assert(factoryFont.size == 14.0f);
+  assert(factoryFont.scaledSize == 14.0f);
+
+  // Managed fonts via getFont: distinct instances per size, cached on reuse
+  Font f14 = renderer.getFont(14.0f);
+  Font f20 = renderer.getFont(20.0f);
+  assert(f14 !is null);
+  assert(f20 !is null);
+  assert(f14.size == 14.0f);
+  assert(f20.size == 20.0f);
+  assert(renderer.getFont(14.0f) is f14);
+  assert(renderer.getFont(20.0f) is f20);
+  assert(f14 !is f20);
 
   renderer.setDisplayScaling(1.0f);
   renderer.setUnitsScaling(1.0f);

@@ -20,6 +20,7 @@ yguilib_src = files(
   'source/yguilib/internal/logger.d',
   'source/yguilib/model.d',
   'source/yguilib/render/font.d',
+  'source/yguilib/render/font_manager.d',
   'source/yguilib/render/internal/clip_stack.d',
   'source/yguilib/render/internal/gl_util.d',
   'source/yguilib/render/internal/pipelines.d',

@@ -87,27 +87,6 @@ final class Font {
   }
 
   /**
-   * Dynamically updates the unscaled logical point size of the font.
-   *
-   * Font point units are kept unscaled in user space. The renderer's current
-   * scaling factor is reapplied internally to update the raster size in place.
-   *
-   * @param newPtSize New unscaled point size in logical units.
-   * @return true if resized successfully, false otherwise.
-   */
-  bool setSize(float newPtSize) {
-    if (!handle || newPtSize <= 0.0f) {
-      return false;
-    }
-    float targetSize = newPtSize * currentScale;
-    if (yguilib_sdl3_ttf_set_font_size(handle, targetSize) == 0) {
-      logicalPtSize = newPtSize;
-      return true;
-    }
-    return false;
-  }
-
-  /**
    * Dynamically updates the rendering scaling factor of the font.
    *
    * Kept as an internal renderer detail so the font rasterizer matches
@@ -116,7 +95,7 @@ final class Font {
    * @param newScale New scaling multiplier (displayScaling * unitsScaling).
    * @return true if resized successfully, false otherwise.
    */
-  bool setScale(float newScale) {
+  package(yguilib) bool setScale(float newScale) {
     if (!handle) {
       return false;
     }

@@ -1,5 +1,3 @@
-- fix font measure: calcTextContentSize in `layout_content_size.d` does not take label font size into account:
-redesign render api, looks like font size is a font object feature
 - multiline text label and alignment
 - assets management (transparent mapping to embedded import string and file stream data)
 - font management (register font data, name, style)

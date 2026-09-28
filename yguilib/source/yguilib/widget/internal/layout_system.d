@@ -330,6 +330,27 @@ unittest {
 
   assert(labelWidget.rect.width == textDims.x + 8);
   assert(labelWidget.rect.height == textDims.y + 4);
+
+  // Test TextLabel with custom fontSize (24pt)
+  auto bigLabelWidget = new Widget(null, RectF(0, 0, 10, 10));
+  auto bigLabelSz = new Size;
+  bigLabelSz.width = Dimension(0, SizingMode.auto_);
+  bigLabelSz.height = Dimension(0, SizingMode.auto_);
+  bigLabelSz.padding = Insets(2, 4, 2, 4);
+  bigLabelWidget.components.size = bigLabelSz;
+  bigLabelWidget.components.textLabel =
+    new TextLabel("Test", ColorF(1, 1, 1, 1));
+  bigLabelWidget.components.textLabel.fontSize = 24.0f;
+
+  PointF bigTextDims = r.measureText("Test", 24.0f);
+  assert(bigTextDims.x > textDims.x);
+  assert(bigTextDims.y > textDims.y);
+
+  auto bigVisible = collector.collectVisible(bigLabelWidget, r, true);
+  ls.layoutTree(bigLabelWidget, r, bigVisible);
+
+  assert(bigLabelWidget.rect.width == bigTextDims.x + 8);
+  assert(bigLabelWidget.rect.height == bigTextDims.y + 4);
 }
 
 // Anchored widget inside flex container is out-of-flow
