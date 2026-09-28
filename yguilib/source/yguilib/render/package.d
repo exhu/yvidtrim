@@ -219,7 +219,7 @@ final class Renderer {
   }
 
   /* TODO support
-    dashed, dotted
+    dashed
     float lineWidth,
     float dashLen,
     float gapLen,
@@ -425,6 +425,21 @@ final class Renderer {
     clipStack.reset();
   }
 
+  /**
+   * Retrieves a managed font instance for a given size and font face.
+   *
+   * Font instances are managed and cached by FontManager. When fontName is
+   * null, empty, or "default", the built-in default font (defaultTtfFontData)
+   * is used. The default font is created lazily on demand upon the very first
+   * call to getFont, getDefaultFont, measureText, or drawText for a given size.
+   *
+   * If ptSize is non-positive, NaN, or infinity, it automatically falls back
+   * to defaultFontPtSize.
+   *
+   * @param ptSize Logical point size in user space (defaults to 11.0f).
+   * @param fontName Registered font name, or null/empty for default font.
+   * @return A cached Font instance, or null if FontManager is not initialized.
+   */
   Font getFont(
     float ptSize = defaultFontPtSize,
     string fontName = null
@@ -435,6 +450,15 @@ final class Renderer {
     return null;
   }
 
+  /**
+   * Gets the default font at defaultFontPtSize (11.0f).
+   *
+   * If no custom font was explicitly assigned via setDefaultFont, this
+   * retrieves the managed default font instance via getFont(defaultFontPtSize).
+   * The default font is created lazily on demand on first request.
+   *
+   * @return The default Font instance.
+   */
   Font getDefaultFont() {
     if (defaultFont_ !is null) {
       return defaultFont_;
@@ -442,18 +466,42 @@ final class Renderer {
     return getFont(defaultFontPtSize);
   }
 
+  /**
+   * Registers a custom font face from in-memory TTF binary data.
+   *
+   * Registered fonts can subsequently be resolved by name in getFont,
+   * measureText, and drawText.
+   *
+   * @param fontName Unique name identifying the font face.
+   * @param fontData In-memory TTF data buffer.
+   */
   void registerFont(string fontName, const(void)[] fontData) {
     if (fontManager !is null) {
       fontManager.registerFont(fontName, fontData);
     }
   }
 
+  /**
+   * Registers a custom font face from a font file path on disk.
+   *
+   * Registered fonts can subsequently be resolved by name in getFont,
+   * measureText, and drawText.
+   *
+   * @param fontName Unique name identifying the font face.
+   * @param filePath Path to the TTF font file.
+   */
   void registerFont(string fontName, string filePath) {
     if (fontManager !is null) {
       fontManager.registerFont(fontName, filePath);
     }
   }
 
+  /**
+   * Checks whether a font face is registered or is the built-in default font.
+   *
+   * @param fontName Name of the font face to check.
+   * @return true if the font face exists or is default, false otherwise.
+   */
   bool hasFont(string fontName) const {
     return fontManager !is null ? fontManager.hasFont(fontName) : false;
   }
@@ -515,6 +563,18 @@ final class Renderer {
     );
   }
 
+  /**
+   * Draws text at a specified position using a font instance or the default
+   * font.
+   *
+   * If font is null, the managed default font (created lazily on demand)
+   * is used. Text rasterization is cached in OpenGL textures via TextCache.
+   *
+   * @param text Text string to render.
+   * @param pos Top-left position in logical coordinates.
+   * @param color Text color (defaults to opaque white).
+   * @param font Optional font instance (defaults to null for default font).
+   */
   void drawText(
     string text,
     PointF pos,
@@ -532,6 +592,17 @@ final class Renderer {
     }
   }
 
+  /**
+   * Draws text at a specified position resolving the font by size and name.
+   *
+   * The font instance is retrieved or lazily created on demand via getFont.
+   *
+   * @param text Text string to render.
+   * @param pos Top-left position in logical coordinates.
+   * @param color Text color.
+   * @param ptSize Logical point size in user space.
+   * @param fontName Registered font name, or null/empty for default font.
+   */
   void drawText(
     string text,
     PointF pos,
@@ -543,6 +614,16 @@ final class Renderer {
     drawText(text, pos, color, f);
   }
 
+  /**
+   * Measures text bounding dimensions in logical coordinates.
+   *
+   * If font is null, the managed default font (created lazily on demand)
+   * is used. Returned dimensions are scaled to user logical units.
+   *
+   * @param text Text string to measure.
+   * @param font Optional font instance (defaults to null for default font).
+   * @return Dimensions of the measured text in logical units.
+   */
   PointF measureText(string text, Font font = null) {
     Font f = font !is null ? font : getDefaultFont();
     if (f is null || text.length == 0) {
@@ -551,6 +632,17 @@ final class Renderer {
     return toLogic(f.measureText(text));
   }
 
+  /**
+   * Measures text bounding dimensions resolving the font by size and name.
+   *
+   * The font instance is retrieved or lazily created on demand via getFont.
+   * Returned dimensions are scaled to user logical units.
+   *
+   * @param text Text string to measure.
+   * @param ptSize Logical point size in user space.
+   * @param fontName Registered font name, or null/empty for default font.
+   * @return Dimensions of the measured text in logical units.
+   */
   PointF measureText(
     string text,
     float ptSize,
