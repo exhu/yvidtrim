@@ -10,7 +10,7 @@ import guidemo.model : DemoModel;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.widget : Widget;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
-import yguilib.widget.layout_components : Insets, Size;
+import yguilib.widget.layout_components : Dimension, Insets, Size, SizingMode;
 
 /// Page 2 container displaying TextLabel multiline, ellipsis, alignment demos.
 final class TextLabelPage {
@@ -108,6 +108,8 @@ private:
     // Left aligned box
     auto boxLeft = new Widget(card, RectF(12, 54, 185, 48));
     auto szBl = new Size;
+    szBl.width = Dimension(185, SizingMode.fixed);
+    szBl.height = Dimension(48, SizingMode.fixed);
     szBl.padding = Insets(6, 10, 6, 10);
     boxLeft.components.size = szBl;
     boxLeft.components.background = new Background(
@@ -128,6 +130,8 @@ private:
     // Center aligned box
     auto boxCenter = new Widget(card, RectF(205, 54, 185, 48));
     auto szBc = new Size;
+    szBc.width = Dimension(185, SizingMode.fixed);
+    szBc.height = Dimension(48, SizingMode.fixed);
     szBc.padding = Insets(6, 10, 6, 10);
     boxCenter.components.size = szBc;
     boxCenter.components.background = new Background(
@@ -148,6 +152,8 @@ private:
     // Right aligned box
     auto boxRight = new Widget(card, RectF(398, 54, 195, 48));
     auto szBr = new Size;
+    szBr.width = Dimension(195, SizingMode.fixed);
+    szBr.height = Dimension(48, SizingMode.fixed);
     szBr.padding = Insets(6, 10, 6, 10);
     boxRight.components.size = szBr;
     boxRight.components.background = new Background(
@@ -174,6 +180,8 @@ private:
     // Multiline Center box
     auto multiCenterBox = new Widget(card, RectF(12, 130, 285, 138));
     auto szMc = new Size;
+    szMc.width = Dimension(285, SizingMode.fixed);
+    szMc.height = Dimension(138, SizingMode.fixed);
     szMc.padding = Insets(8, 12, 8, 12);
     multiCenterBox.components.size = szMc;
     multiCenterBox.components.background = new Background(
@@ -196,6 +204,8 @@ private:
     // Multiline Right box
     auto multiRightBox = new Widget(card, RectF(307, 130, 286, 138));
     auto szMr = new Size;
+    szMr.width = Dimension(286, SizingMode.fixed);
+    szMr.height = Dimension(138, SizingMode.fixed);
     szMr.padding = Insets(8, 12, 8, 12);
     multiRightBox.components.size = szMr;
     multiRightBox.components.background = new Background(
@@ -232,6 +242,8 @@ private:
     // Single line with ellipsis = true
     auto boxEllipsis = new Widget(card, RectF(12, 54, 288, 48));
     auto szBe = new Size;
+    szBe.width = Dimension(288, SizingMode.fixed);
+    szBe.height = Dimension(48, SizingMode.fixed);
     szBe.padding = Insets(6, 10, 6, 10);
     boxEllipsis.components.size = szBe;
     boxEllipsis.components.background = new Background(
@@ -253,6 +265,8 @@ private:
     // Single line with ellipsis = false (scissored by clipContents)
     auto boxNoEllipsis = new Widget(card, RectF(308, 54, 295, 48));
     auto szBne = new Size;
+    szBne.width = Dimension(295, SizingMode.fixed);
+    szBne.height = Dimension(48, SizingMode.fixed);
     szBne.padding = Insets(6, 10, 6, 10);
     boxNoEllipsis.components.size = szBne;
     boxNoEllipsis.clipContents = true;
@@ -281,6 +295,8 @@ private:
     // Multiline vertical with ellipsis
     auto multiVertEllipsis = new Widget(card, RectF(12, 130, 288, 138));
     auto szMve = new Size;
+    szMve.width = Dimension(288, SizingMode.fixed);
+    szMve.height = Dimension(138, SizingMode.fixed);
     szMve.padding = Insets(8, 12, 8, 12);
     multiVertEllipsis.components.size = szMve;
     multiVertEllipsis.clipContents = true;
@@ -294,9 +310,12 @@ private:
     );
     multiVertEllipsis.components.border.width = 1.5f;
     multiVertEllipsis.components.textLabel = new TextLabel(
-      "Line 1: Primary line\nLine 2: Overflow line\n" ~
-        "Line 3: Clipped third line\nLine 4: Invisible fourth line\n" ~
-        "Line 5: Extra hidden line",
+      "Line 1: Primary line\nLine 2: Secondary line\n" ~
+        "Line 3: Content line\nLine 4: Approaching boundary\n" ~
+        "Line 5: Near container limit\n" ~
+        "Line 6: Last visible truncated line\n" ~
+        "Line 7: Overflow line\nLine 8: Clipped line\n" ~
+        "Line 9: Invisible extra line",
       ColorF(0.70f, 1.0f, 0.80f, 1.0f)
     );
     multiVertEllipsis.components.textLabel.multiline = true;
@@ -305,6 +324,8 @@ private:
     // Multiline vertical without ellipsis
     auto multiVertNoEllipsis = new Widget(card, RectF(308, 130, 295, 138));
     auto szMvne = new Size;
+    szMvne.width = Dimension(295, SizingMode.fixed);
+    szMvne.height = Dimension(138, SizingMode.fixed);
     szMvne.padding = Insets(8, 12, 8, 12);
     multiVertNoEllipsis.components.size = szMvne;
     multiVertNoEllipsis.clipContents = true;
@@ -318,9 +339,12 @@ private:
     );
     multiVertNoEllipsis.components.border.width = 1.5f;
     multiVertNoEllipsis.components.textLabel = new TextLabel(
-      "Line 1: Primary line\nLine 2: Overflow line\n" ~
-        "Line 3: Clipped third line\nLine 4: Invisible fourth line\n" ~
-        "Line 5: Extra hidden line",
+      "Line 1: Primary line\nLine 2: Secondary line\n" ~
+        "Line 3: Content line\nLine 4: Approaching boundary\n" ~
+        "Line 5: Near container limit\n" ~
+        "Line 6: Last visible line (no ellipsis)\n" ~
+        "Line 7: Overflow line\nLine 8: Clipped line\n" ~
+        "Line 9: Invisible extra line",
       ColorF(1.0f, 0.85f, 0.60f, 1.0f)
     );
     multiVertNoEllipsis.components.textLabel.multiline = true;
@@ -343,6 +367,8 @@ private:
     // Box 1: Auto word wrapping
     auto wrapBox = new Widget(card, RectF(12, 54, 285, 120));
     auto szWb = new Size;
+    szWb.width = Dimension(285, SizingMode.fixed);
+    szWb.height = Dimension(120, SizingMode.fixed);
     szWb.padding = Insets(8, 12, 8, 12);
     wrapBox.components.size = szWb;
     wrapBox.components.background = new Background(
@@ -364,6 +390,8 @@ private:
     // Box 2: Explicit newlines
     auto newlinesBox = new Widget(card, RectF(307, 54, 286, 120));
     auto szNb = new Size;
+    szNb.width = Dimension(286, SizingMode.fixed);
+    szNb.height = Dimension(120, SizingMode.fixed);
     szNb.padding = Insets(8, 12, 8, 12);
     newlinesBox.components.size = szNb;
     newlinesBox.components.background = new Background(
@@ -393,6 +421,8 @@ private:
     // Box 3: Single line sanitized comparison
     auto sanitizedBox = new Widget(card, RectF(12, 200, 581, 74));
     auto szSb = new Size;
+    szSb.width = Dimension(581, SizingMode.fixed);
+    szSb.height = Dimension(74, SizingMode.fixed);
     szSb.padding = Insets(8, 12, 8, 12);
     sanitizedBox.components.size = szSb;
     sanitizedBox.components.background = new Background(
@@ -423,6 +453,8 @@ private:
     // Status banner
     interactiveStatusWidget = new Widget(card, RectF(12, 34, 591, 30));
     auto szIsw = new Size;
+    szIsw.width = Dimension(591, SizingMode.fixed);
+    szIsw.height = Dimension(30, SizingMode.fixed);
     szIsw.padding = Insets(4, 10, 4, 10);
     interactiveStatusWidget.components.size = szIsw;
     interactiveStatusWidget.components.background = new Background(
@@ -443,6 +475,8 @@ private:
     // Interactive Testbed Widget
     interactiveLabelWidget = new Widget(card, RectF(12, 70, 591, 148));
     auto szIlw = new Size;
+    szIlw.width = Dimension(591, SizingMode.fixed);
+    szIlw.height = Dimension(148, SizingMode.fixed);
     szIlw.padding = Insets(10, 14, 10, 14);
     interactiveLabelWidget.components.size = szIlw;
     interactiveLabelWidget.clipContents = true;
@@ -472,6 +506,8 @@ private:
     // Hint / controls info
     auto hint = new Widget(card, RectF(12, 226, 591, 52));
     auto szH = new Size;
+    szH.width = Dimension(591, SizingMode.fixed);
+    szH.height = Dimension(52, SizingMode.fixed);
     szH.padding = Insets(6, 10, 6, 10);
     hint.components.size = szH;
     hint.components.background = new Background(

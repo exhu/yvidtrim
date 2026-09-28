@@ -1,5 +1,3 @@
-- fix multiline text label and alignment in guidemo, seems layout Size does not account for ellipsis etc.
-- move text handling functions and structs from drawing_components.d
 - do not recalculate text if dirty = false, check layout_content_size.d as well
 - assets management (transparent mapping to embedded import string and file stream data)
 - font management (register font data, name, style)
