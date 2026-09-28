@@ -1,4 +1,6 @@
-- generate code to demonstrate flex component, layout, sizes, text measurement etc.
+- multiline text label and alignment
+- assets management (transparent mapping to embedded import string and file stream data)
+- font management (register font data, name, style)
 - define modal controller rules (some controllers must still handle events, when modal is active)
 - add modal dialog displayed by model on key (and closed by click)
 - button

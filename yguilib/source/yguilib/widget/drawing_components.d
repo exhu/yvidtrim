@@ -1,6 +1,7 @@
 module yguilib.widget.drawing_components;
 
 import yguilib.render : Renderer;
+import yguilib.render.font : defaultFontPtSize;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.widget.component;
 import yguilib.widget : Widget;
@@ -21,14 +22,31 @@ class Background : Component {
 }
 
 class TextLabel : Component {
+  // TODO RTL support
+  enum Alignment {
+    left,
+    center,
+    right,
+  }
+
   this(string caption, ColorF color) {
     this.caption = caption;
     this.color = color;
   }
+  // TODO add font name support when FontManager is implemented
+  // empty means default embedded font
   string font;
-  uint fontSize = 16;
+  // TODO 0 or infinity must fallback to defaultFontPtSize
+  float fontSize = defaultFontPtSize;
   string caption = "TextLabel";
   ColorF color = ColorF(1,1,1,1);
+  // TODO support line wrapping
+  // if multiline is disabled replace '\r\n' with a space
+  bool multiline;
+  // TODO implement text overflow truncation with "..."
+  bool overflowEllipsis = true;
+  // TODO
+  Alignment alignment = Alignment.left;
 }
 
 class Border : Component {
