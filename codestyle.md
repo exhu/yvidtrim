@@ -96,6 +96,44 @@ private void myPrivateFunction() {}
 Split long (>50 lines) or complex functions (which have different sematic
 blocks) into smaller.
 
+## Function parameters
+Put the main semantic paramter first, e.g. in drawText function put string type
+the first.
+
+In overloaded functions/methods keep the same uniform order, e.g.
+```D
+void drawText(string text, PointF position, ColorF color);
+void drawText(string text, PointF position, ColorF color, float fontSize);
+void drawText(string text, PointF position, ColorF color, float fontSize, Font font);
+```
+Prefer default arguments to overloaded functions.
+
+For more than five arguments consider adding a struct type passed as `in` or `ref`,
+which can be constructed with builder pattern, e.g.
+```D
+struct TextParameters {
+  string text;
+  PointF position;
+  ColorF color;
+  float fontSize;
+  Font font;
+
+  TextParameters* withText(string text) {
+	this.text = text;
+	return this;
+  }
+
+  TextParameters* withColor(ColorF color) {
+	this.color = color;
+	return this;
+  }
+  // ...
+}
+
+drawText(TextParameters().withText("abc").withColor(colors.red));
+
+```
+
 # C coding style
 C code uses the same formatting: 2 spaces, open curly brance on the same line.
 
