@@ -228,14 +228,36 @@ private:
     );
     header.components.border.width = 1.0f;
 
-    auto title = new Widget(header, RectF(14, 6, 600, 18));
+    auto headerFlex = new FlexContainer;
+    headerFlex.direction = FlexDirection.column;
+    headerFlex.gap = 2.0f;
+    headerFlex.justify = JustifyContent.center;
+    headerFlex.alignItems = AlignItems.start;
+    header.components.flexContainer = headerFlex;
+
+    auto headerSz = new Size;
+    headerSz.width = Dimension(1240, SizingMode.fixed);
+    headerSz.height = Dimension(0, SizingMode.auto_);
+    headerSz.minHeight = 48.0f;
+    headerSz.padding = Insets(4, 14, 4, 14);
+    header.components.size = headerSz;
+
+    auto title = new Widget(header, RectF(0, 0, 10, 10));
+    auto titleSz = new Size;
+    titleSz.width = Dimension(0, SizingMode.auto_);
+    titleSz.height = Dimension(0, SizingMode.auto_);
+    title.components.size = titleSz;
     title.components.textLabel = new TextLabel(
       "yguilib GUI Feature Demo & Showcase (guidemo)",
       ColorF(1.0f, 1.0f, 1.0f, 1.0f)
     );
     title.components.textLabel.fontSize = 16.0f;
 
-    auto sub = new Widget(header, RectF(14, 26, 800, 16));
+    auto sub = new Widget(header, RectF(0, 0, 10, 10));
+    auto subSz = new Size;
+    subSz.width = Dimension(0, SizingMode.auto_);
+    subSz.height = Dimension(0, SizingMode.auto_);
+    sub.components.size = subSz;
     sub.components.textLabel = new TextLabel(
       "Comprehensive verification for widget_painter.d & layout_system.d",
       ColorF(0.60f, 0.65f, 0.75f, 1.0f)
