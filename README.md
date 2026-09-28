@@ -44,6 +44,34 @@ This is why meson is used to build D code as well as the wrappers.
 yguilib/yguilib-clibs). Sources in ./yguilib/ must not depend on
 ./source/yvidtrim or ./yvidtrim-clibs.
 
+## guidemo (GUI Feature Demo)
+`guidemo` is an optional interactive demo application built alongside
+`yvidtrim` to showcase and visually test GUI features as they are added to
+`yguilib` (and later `yvidtrim`, e.g. video player components).
+
+Build and run:
+```bash
+ninja -C _build
+./_build/guidemo
+```
+
+Features demonstrated:
+* Drawing styles (`widget_painter.d`): solid rect/round backgrounds, dashed
+  and rounded borders, dynamic alpha transparency, clipping (`clipChildren`
+  and `clipContents`), and visibility culling.
+* Layout system (`layout_system.d`): `SizingMode` (fixed, auto, fraction),
+  min/max dimension bounds, padding and margin insets, flexbox directions,
+  gap spacing, `JustifyContent`, `AlignItems`, and out-of-flow `Anchor` pinning.
+
+Interactive keyboard controls:
+* `[D]`: Toggle FlexDirection (row <-> column)
+* `[J]`: Cycle JustifyContent (start -> end -> center -> spaceBetween)
+* `[A]`: Cycle AlignItems (stretch -> start -> end -> center)
+* `[G]`: Cycle flex gap (0, 8, 16, 24 px)
+* `[V]`: Toggle child visibility (test dynamic flexbox re-flow)
+* `[T]`: Cycle text caption (test dynamic auto-sizing)
+* `[Q]` / `[Esc]`: Quit
+
 ## Profiling
 GALLIUM_HUD="fps,cpu+GPU-load" ./_build/yvidtrim
 

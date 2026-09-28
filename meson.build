@@ -24,3 +24,15 @@ executable(
   dependencies : [yguilib_dep, yvidtrim_sdl3_dep],
 )
 
+guidemo_src = files(
+  'source/guidemo/guidemoapp.d',
+)
+
+executable(
+  'guidemo',
+  guidemo_src,
+  include_directories : yvidtrim_inc,
+  d_import_dirs : yvidtrim_inc,
+  dependencies : [yguilib_dep],
+)
+
