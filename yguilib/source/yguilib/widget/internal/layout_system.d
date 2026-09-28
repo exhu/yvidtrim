@@ -386,3 +386,74 @@ unittest {
   assert(anchorChild.rect.x == 170); // 200 - 30
   assert(anchorChild.rect.y == 70);  // 100 - 30
 }
+
+// Multiline TextLabel auto-height layout
+unittest {
+  import yguilib.clibs.sdl3 : yguilib_sdl3_init, yguilib_sdl3_quit;
+  import yguilib.window : Window;
+  import yguilib.widget.internal.collect_visible : VisibleWidgetsCollector;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(320, 240, "test_layout_multiline");
+  win.create();
+  scope(exit) win.destroy();
+
+  auto r = new Renderer(320, 240);
+  scope(exit) r.destroy();
+
+  auto ls = new LayoutSystem;
+  auto collector = new VisibleWidgetsCollector;
+
+  // Single line TextLabel with newline when multiline is false
+  auto sWidget = new Widget(null, RectF(0, 0, 10, 10));
+  auto sSize = new Size;
+  sSize.width = Dimension(0, SizingMode.auto_);
+  sSize.height = Dimension(0, SizingMode.auto_);
+  sWidget.components.size = sSize;
+  sWidget.components.textLabel = new TextLabel(
+    "Hello\r\nWorld",
+    ColorF(1, 1, 1, 1)
+  );
+
+  auto sVisible = collector.collectVisible(sWidget, r, true);
+  ls.layoutTree(sWidget, r, sVisible);
+  PointF expectedSingle = r.measureText("Hello World");
+  assert(sWidget.rect.width == expectedSingle.x);
+  assert(sWidget.rect.height == expectedSingle.y);
+
+  // Multiline TextLabel with explicit breaks
+  auto mWidget = new Widget(null, RectF(0, 0, 10, 10));
+  auto mSize = new Size;
+  mSize.width = Dimension(0, SizingMode.auto_);
+  mSize.height = Dimension(0, SizingMode.auto_);
+  mWidget.components.size = mSize;
+  auto mLabel = new TextLabel("Line 1\nLine 2", ColorF(1, 1, 1, 1));
+  mLabel.multiline = true;
+  mWidget.components.textLabel = mLabel;
+
+  auto mVisible = collector.collectVisible(mWidget, r, true);
+  ls.layoutTree(mWidget, r, mVisible);
+  assert(mWidget.rect.height > expectedSingle.y);
+
+  // Multiline TextLabel with fixed width and auto height (wrapping)
+  auto wrapWidget = new Widget(null, RectF(0, 0, 10, 10));
+  auto wrapSize = new Size;
+  float line1W = r.measureText("Word one word two").x;
+  wrapSize.width = Dimension(line1W + 5.0f, SizingMode.fixed);
+  wrapSize.height = Dimension(0, SizingMode.auto_);
+  wrapWidget.components.size = wrapSize;
+  auto wrapLabel = new TextLabel(
+    "Word one word two word three word four",
+    ColorF(1, 1, 1, 1)
+  );
+  wrapLabel.multiline = true;
+  wrapWidget.components.textLabel = wrapLabel;
+
+  auto wrapVisible = collector.collectVisible(wrapWidget, r, true);
+  ls.layoutTree(wrapWidget, r, wrapVisible);
+  assert(wrapWidget.rect.width == line1W + 5.0f);
+  assert(wrapWidget.rect.height > expectedSingle.y);
+}
+

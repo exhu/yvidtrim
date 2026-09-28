@@ -43,7 +43,17 @@ PointF calcContentSize(Widget w, Renderer r) {
     }
   }
 
-  return calcTextContentSize(w.components.textLabel, r);
+  float maxWidth = 0.0f;
+  if (w.components.size !is null &&
+      w.components.size.width.mode == SizingMode.fixed) {
+    const PointF padBorder = calcPaddingAndBorder(
+      w.components.size,
+      w.components.border
+    );
+    maxWidth = max(0.0f, w.components.size.width.value - padBorder.x);
+  }
+
+  return calcTextContentSize(w.components.textLabel, r, maxWidth);
 }
 
 bool tryCalcFlexContentSize(
@@ -112,11 +122,49 @@ bool tryCalcChildrenBoundingBox(
 
 PointF calcTextContentSize(
   const TextLabel tl,
-  Renderer r
+  Renderer r,
+  float maxWidth = 0.0f
 ) {
-  if (tl !is null && r !is null && tl.caption.length > 0) {
-    const PointF textSize = r.measureText(tl.caption, tl.fontSize, tl.font);
+  if (tl is null || r is null || tl.caption.length == 0) {
+    return PointF(0.0f, 0.0f);
+  }
+
+  import yguilib.render.font : Font;
+  Font font = r.getFont(tl.fontSize, tl.font);
+  if (font is null) {
+    return PointF(0.0f, 0.0f);
+  }
+
+  if (!tl.multiline) {
+    string single = tl.getSingleLineCaption();
+    const PointF textSize = r.measureText(single, font);
     return PointF(max(0.0f, textSize.x), max(0.0f, textSize.y));
   }
-  return PointF(0.0f, 0.0f);
+
+  FormattedTextLine[] lines = tl.layoutLines(r, font, maxWidth, 0.0f);
+  if (lines.length == 0) {
+    return PointF(0.0f, 0.0f);
+  }
+
+  float maxW = 0.0f;
+  foreach (const ref line; lines) {
+    if (line.width > maxW) {
+      maxW = line.width;
+    }
+  }
+
+  float lineStep = r.toLogic(font.lineSkip > 0 ? font.lineSkip : font.height);
+  if (lineStep <= 0.0f) {
+    lineStep = font.size;
+  }
+  float firstLineH = r.measureText("A", font).y;
+  if (firstLineH <= 0.0f) {
+    firstLineH = lineStep;
+  }
+
+  float totalH = lines.length > 1
+    ? (cast(float)(lines.length - 1)) * lineStep + firstLineH
+    : firstLineH;
+
+  return PointF(max(0.0f, maxW), max(0.0f, totalH));
 }

@@ -114,13 +114,36 @@ private:
 
   static void drawTextLabel(Widget w, in RectF absContentRect, Renderer r) {
     auto comp = w.components.textLabel;
+    if (comp is null || comp.caption.length == 0 || r is null) {
+      return;
+    }
     Font font = r.getFont(comp.fontSize, comp.font);
-    r.drawText(
-      comp.caption,
-      PointF(absContentRect.x, absContentRect.y),
-      comp.color,
-      font
+    if (font is null) {
+      return;
+    }
+
+    auto lines = comp.layoutLines(
+      r,
+      font,
+      absContentRect.width,
+      absContentRect.height
     );
+
+    float lineStep = r.toLogic(
+      font.lineSkip > 0 ? font.lineSkip : font.height
+    );
+    if (lineStep <= 0.0f) {
+      lineStep = font.size;
+    }
+
+    foreach (size_t i, const ref line; lines) {
+      if (line.text.length == 0) {
+        continue;
+      }
+      const float lineX = absContentRect.x + line.xOffset;
+      const float lineY = absContentRect.y + cast(float)i * lineStep;
+      r.drawText(line.text, PointF(lineX, lineY), comp.color, font);
+    }
   }
 }
 
@@ -213,4 +236,27 @@ unittest {
   painter.drawTree(rootWidgets, renderer);
   assert(!child1.dirty);
   assert(!child2.dirty);
+
+  // Test TextLabel with multiline and alignment rendering
+  auto multiW = new Widget(null, RectF(0, 0, 150, 80));
+  auto multiTl = new TextLabel("Hello\nWorld\nMultiline", ColorF(1, 1, 1, 1));
+  multiTl.multiline = true;
+  multiTl.alignment = TextLabel.Alignment.center;
+  multiW.components.textLabel = multiTl;
+  auto multiWidgets = collector.collectVisible(multiW, 320.0f, 240.0f);
+  painter.drawTree(multiWidgets, renderer);
+  assert(!multiW.dirty);
+
+  // Test TextLabel with right alignment and overflowEllipsis
+  auto rightW = new Widget(null, RectF(0, 0, 50, 30));
+  auto rightTl = new TextLabel(
+    "Long text that truncates with ellipsis",
+    ColorF(1, 1, 1, 1)
+  );
+  rightTl.alignment = TextLabel.Alignment.right;
+  rightTl.overflowEllipsis = true;
+  rightW.components.textLabel = rightTl;
+  auto rightWidgets = collector.collectVisible(rightW, 320.0f, 240.0f);
+  painter.drawTree(rightWidgets, renderer);
+  assert(!rightW.dirty);
 }

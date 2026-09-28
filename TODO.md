@@ -1,4 +1,6 @@
 - multiline text label and alignment
+- move text handling functions and structs from drawing_components.d
+- do not recalculate text if dirty = false, check layout_content_size.d as well
 - assets management (transparent mapping to embedded import string and file stream data)
 - font management (register font data, name, style)
 - define modal controller rules (some controllers must still handle events, when modal is active)
