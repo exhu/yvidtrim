@@ -42,26 +42,33 @@ private:
   }
 
   static void drawWidget(Widget w, in RectF absRect, Renderer r) {
-    if (w.clipContents)
-      r.pushClipRect(absRect);
+    if (w.components.background !is null) {
+      drawBackground(w, absRect, r);
+    }
 
-      if (w.components.background !is null) {
-        drawBackground(w, absRect, r);
-      }
-      // TODO claculate content rect based on
-      // Size and Border components (Border.width + Size.padding)
-      // TODO Push clip rect for content if clipContents == true
-      // TODO pass absRect corrected for actual conent rect
-      if (w.components.textLabel !is null) {
-        drawTextLabel(w, absRect, r);
-      }
-      // TODO pop clip rect for content
-      if (w.components.border !is null) {
-        drawBorder(w, absRect, r);
-      }
+    const RectF contentArea = w.getContentArea();
+    const RectF absContentRect = RectF(
+      absRect.x + contentArea.x,
+      absRect.y + contentArea.y,
+      contentArea.width,
+      contentArea.height
+    );
 
-    if (w.clipContents)
+    if (w.clipContents) {
+      r.pushClipRect(absContentRect);
+    }
+
+    if (w.components.textLabel !is null) {
+      drawTextLabel(w, absContentRect, r);
+    }
+
+    if (w.clipContents) {
       r.popClipRect();
+    }
+
+    if (w.components.border !is null) {
+      drawBorder(w, absRect, r);
+    }
 
     w.dirty = false;
   }
@@ -86,25 +93,68 @@ private:
         r.drawRect(absRect, comp.width, comp.color);
         break;
       case Border.Style.dashed:
-        r.drawRectDashed(absRect, comp.width, comp.dashLen, comp.gap, comp.color);
+        r.drawRectDashed(
+          absRect, comp.width, comp.dashLen, comp.gap, comp.color
+        );
         break;
       case Border.Style.round:
         r.drawRoundRect(absRect, comp.cornerRadius, comp.width, comp.color);
         break;
       case Border.Style.roundDashed:
-        r.drawRoundRectDashed(absRect, comp.cornerRadius, comp.width, comp.dashLen, comp.gap, comp.color);
+        r.drawRoundRectDashed(
+          absRect, comp.cornerRadius, comp.width, comp.dashLen, comp.gap,
+          comp.color
+        );
         break;
       case Border.Style.none:{}
     }
   }
 
-  static void drawTextLabel(Widget w, in RectF absRect, Renderer r) {
+  static void drawTextLabel(Widget w, in RectF absContentRect, Renderer r) {
     auto comp = w.components.textLabel;
-    const RectF contentArea = w.getContentArea();
     r.drawText(
       comp.caption,
-      PointF(absRect.x + contentArea.x, absRect.y + contentArea.y),
+      PointF(absContentRect.x, absContentRect.y),
       comp.color
     );
   }
+}
+
+unittest {
+  import yguilib.clibs.sdl3;
+  import yguilib.render.render_types : ColorF;
+  import yguilib.widget.drawing_components : Background, Border, TextLabel;
+  import yguilib.widget.internal.collect_visible : VisibleWidgetsCollector;
+  import yguilib.widget.layout_components : Insets, Size;
+  import yguilib.window : Window;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(320, 240, "test_widget_painter");
+  win.create();
+  scope(exit) win.destroy();
+
+  auto renderer = new Renderer(320, 240);
+  scope(exit) renderer.destroy();
+
+  auto w = new Widget(null, RectF(10, 20, 100, 80));
+  w.components.background = new Background(ColorF(0.2f, 0.2f, 0.2f, 1.0f));
+  w.components.border = new Border(ColorF(1.0f, 0.0f, 0.0f, 1.0f));
+  w.components.border.width = 2.0f;
+  w.components.size = new Size();
+  w.components.size.padding = Insets(5, 5, 5, 5);
+  w.components.textLabel = new TextLabel(
+    "Hello",
+    ColorF(1.0f, 1.0f, 1.0f, 1.0f)
+  );
+  w.clipContents = true;
+
+  auto collector = new VisibleWidgetsCollector;
+  auto widgets = collector.collectVisible(w, 320.0f, 240.0f);
+
+  auto painter = new WidgetPainterSystem;
+  painter.drawTree(widgets, renderer);
+
+  assert(!w.dirty);
 }
