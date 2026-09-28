@@ -100,6 +100,17 @@ private:
 
   static void drawTextLabel(Widget w, in RectF absRect, Renderer r) {
     auto comp = w.components.textLabel;
-    r.drawText(comp.caption, PointF(absRect.x, absRect.y), comp.color);
+    float startX = absRect.x;
+    float startY = absRect.y;
+    if (w.components.border !is null &&
+        w.components.border.style != Border.Style.none) {
+      startX += w.components.border.width;
+      startY += w.components.border.width;
+    }
+    if (w.components.size !is null) {
+      startX += w.components.size.padding.left;
+      startY += w.components.size.padding.top;
+    }
+    r.drawText(comp.caption, PointF(startX, startY), comp.color);
   }
 }

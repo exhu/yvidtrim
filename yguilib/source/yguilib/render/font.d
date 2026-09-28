@@ -4,7 +4,7 @@ import yguilib.clibs.sdl3_ttf;
 import yguilib.render.render_types : PointF;
 import yguilib.assets : defaultTtfFontData;
 
-package(yguilib) enum float defaultFontPtSize = 16.0 * 96.0 / 72.0;
+package(yguilib) enum float defaultFontPtSize = 11.0f;
 
 final class Font {
   /**

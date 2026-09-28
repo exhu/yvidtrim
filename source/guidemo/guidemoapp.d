@@ -41,14 +41,13 @@
  */
 module guidemo.guidemoapp;
 
-import std.algorithm.comparison : clamp;
 import std.format : format;
 import std.typecons : Nullable, nullable;
 
 import yguilib.app : App;
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
-import yguilib.events.keyboard : KeyCode;
+import yguilib.events.keyboard : KeyCode, ScanCode;
 import yguilib.model : ModelTracker, VersionedModel;
 import colors = yguilib.render.colors;
 import yguilib.render.render_types : ColorF, PointF, RectF;
@@ -144,11 +143,11 @@ private:
   static immutable string[] textSamples = [
     "Compact Auto Text",
     "Medium Length Text Demonstrating Auto Size",
-    "Long Text Expanding Container Horizontally And Vertically",
+    "Long Text Expanding Container Bounds Horizontally And Vertically",
   ];
 
   static string formatStatusString(const DemoModel m) {
-    string dirStr = m.direction == FlexDirection.row ? "row" : "column";
+    string dirStr = m.direction == FlexDirection.row ? "row" : "col";
     string justStr;
     final switch (m.justify) {
     case JustifyContent.start:
@@ -229,7 +228,7 @@ private:
     );
     header.components.border.width = 1.0f;
 
-    auto title = new Widget(header, RectF(14, 6, 600, 20));
+    auto title = new Widget(header, RectF(14, 6, 600, 18));
     title.components.textLabel = new TextLabel(
       "yguilib GUI Feature Demo & Showcase (guidemo)",
       ColorF(1.0f, 1.0f, 1.0f, 1.0f)
@@ -250,7 +249,7 @@ private:
     );
 
     // Style chips flex container
-    auto chipsRow = new Widget(card, RectF(12, 36, 581, 70));
+    auto chipsRow = new Widget(card, RectF(12, 36, 581, 60));
     auto flexChips = new FlexContainer;
     flexChips.direction = FlexDirection.row;
     flexChips.gap = 8.0f;
@@ -259,7 +258,10 @@ private:
     chipsRow.components.flexContainer = flexChips;
 
     // Chip 1: Rect background + Rect border
-    auto c1 = new Widget(chipsRow, RectF(0, 0, 105, 54));
+    auto c1 = new Widget(chipsRow, RectF(0, 0, 108, 48));
+    auto szC1 = new Size;
+    szC1.padding = Insets(6, 8, 6, 8);
+    c1.components.size = szC1;
     c1.components.background = new Background(
       ColorF(0.18f, 0.35f, 0.60f, 1.0f),
       Background.Style.rect
@@ -270,12 +272,15 @@ private:
     );
     c1.components.border.width = 2.0f;
     c1.components.textLabel = new TextLabel(
-      "Rect/Rect",
+      "Rect Style",
       ColorF(1.0f, 1.0f, 1.0f, 1.0f)
     );
 
     // Chip 2: Round background + Round border
-    auto c2 = new Widget(chipsRow, RectF(0, 0, 105, 54));
+    auto c2 = new Widget(chipsRow, RectF(0, 0, 108, 48));
+    auto szC2 = new Size;
+    szC2.padding = Insets(6, 8, 6, 8);
+    c2.components.size = szC2;
     c2.components.background = new Background(
       ColorF(0.18f, 0.50f, 0.30f, 1.0f),
       Background.Style.round
@@ -288,12 +293,15 @@ private:
     c2.components.border.cornerRadius = 10.0f;
     c2.components.border.width = 2.0f;
     c2.components.textLabel = new TextLabel(
-      "Round/Round",
+      "Round Style",
       ColorF(1.0f, 1.0f, 1.0f, 1.0f)
     );
 
     // Chip 3: None background + Dashed rect border
-    auto c3 = new Widget(chipsRow, RectF(0, 0, 105, 54));
+    auto c3 = new Widget(chipsRow, RectF(0, 0, 108, 48));
+    auto szC3 = new Size;
+    szC3.padding = Insets(6, 8, 6, 8);
+    c3.components.size = szC3;
     c3.components.background = new Background(
       ColorF(0, 0, 0, 0),
       Background.Style.none
@@ -311,17 +319,20 @@ private:
     );
 
     // Chip 4: Round background + Round dashed border
-    auto c4 = new Widget(chipsRow, RectF(0, 0, 115, 54));
+    auto c4 = new Widget(chipsRow, RectF(0, 0, 114, 48));
+    auto szC4 = new Size;
+    szC4.padding = Insets(6, 8, 6, 8);
+    c4.components.size = szC4;
     c4.components.background = new Background(
       ColorF(0.45f, 0.20f, 0.50f, 1.0f),
       Background.Style.round
     );
-    c4.components.background.cornerRadius = 12.0f;
+    c4.components.background.cornerRadius = 10.0f;
     c4.components.border = new Border(
       ColorF(0.85f, 0.50f, 0.95f, 1.0f),
       Border.Style.roundDashed
     );
-    c4.components.border.cornerRadius = 12.0f;
+    c4.components.border.cornerRadius = 10.0f;
     c4.components.border.width = 2.0f;
     c4.components.border.dashLen = 5.0f;
     c4.components.border.gap = 3.0f;
@@ -331,7 +342,10 @@ private:
     );
 
     // Chip 5: Pulsing alpha chip
-    alphaChip = new Widget(chipsRow, RectF(0, 0, 115, 54));
+    alphaChip = new Widget(chipsRow, RectF(0, 0, 114, 48));
+    auto szC5 = new Size;
+    szC5.padding = Insets(6, 8, 6, 8);
+    alphaChip.components.size = szC5;
     alphaChip.components.background = new Background(
       ColorF(0.80f, 0.25f, 0.25f, tracker.model.alphaValue),
       Background.Style.round
@@ -348,14 +362,14 @@ private:
     );
 
     // Clipping demonstration area
-    auto clipTitle = new Widget(card, RectF(12, 114, 581, 18));
+    auto clipTitle = new Widget(card, RectF(12, 106, 581, 16));
     clipTitle.components.textLabel = new TextLabel(
-      "Clipping Verification (clipChildren = true & clipContents = true):",
+      "Clipping (clipChildren = true & clipContents = true):",
       ColorF(0.70f, 0.75f, 0.85f, 1.0f)
     );
 
     // Parent container with clipChildren = true
-    auto clipParent = new Widget(card, RectF(12, 138, 275, 126));
+    auto clipParent = new Widget(card, RectF(12, 128, 275, 136));
     clipParent.clipChildren = true;
     clipParent.components.background = new Background(
       ColorF(0.09f, 0.10f, 0.13f, 1.0f),
@@ -376,6 +390,9 @@ private:
 
     // Child widget intentionally overflowing parent bounds
     auto overflowingChild = new Widget(clipParent, RectF(35, 30, 310, 80));
+    auto szOvf = new Size;
+    szOvf.padding = Insets(6, 8, 6, 8);
+    overflowingChild.components.size = szOvf;
     overflowingChild.components.background = new Background(
       ColorF(0.70f, 0.25f, 0.15f, 0.85f),
       Background.Style.round
@@ -392,7 +409,7 @@ private:
     );
 
     // Content clipping widget with clipContents = true
-    auto contentClipBox = new Widget(card, RectF(305, 138, 288, 126));
+    auto contentClipBox = new Widget(card, RectF(302, 128, 291, 136));
     contentClipBox.clipContents = true;
     contentClipBox.components.background = new Background(
       ColorF(0.15f, 0.18f, 0.24f, 1.0f),
@@ -405,12 +422,22 @@ private:
     );
     contentClipBox.components.border.width = 1.5f;
 
-    auto contentClipLabel = new Widget(contentClipBox, RectF(10, 10, 268, 100));
-    contentClipLabel.components.textLabel = new TextLabel(
-      "Widget [clipContents = true]\n" ~
-      "Guarantees internal drawing calls\n" ~
+    auto line1 = new Widget(contentClipBox, RectF(10, 12, 270, 18));
+    line1.components.textLabel = new TextLabel(
+      "Widget [clipContents = true]",
+      ColorF(0.85f, 0.90f, 1.0f, 1.0f)
+    );
+
+    auto line2 = new Widget(contentClipBox, RectF(10, 36, 270, 18));
+    line2.components.textLabel = new TextLabel(
+      "Guarantees internal drawing calls",
+      ColorF(0.70f, 0.75f, 0.85f, 1.0f)
+    );
+
+    auto line3 = new Widget(contentClipBox, RectF(10, 58, 270, 18));
+    line3.components.textLabel = new TextLabel(
       "scissor precisely within rect bounds.",
-      ColorF(0.80f, 0.85f, 0.95f, 1.0f)
+      ColorF(0.70f, 0.75f, 0.85f, 1.0f)
     );
   }
 
@@ -422,7 +449,7 @@ private:
     );
 
     // Row container for sizing modes
-    auto sizingRow = new Widget(card, RectF(12, 34, 591, 72));
+    auto sizingRow = new Widget(card, RectF(12, 34, 591, 62));
     auto flexSizing = new FlexContainer;
     flexSizing.direction = FlexDirection.row;
     flexSizing.gap = 8.0f;
@@ -433,8 +460,9 @@ private:
     // Fixed sizing mode
     auto fixedBox = new Widget(sizingRow, RectF(0, 0, 10, 10));
     auto fixedSz = new Size;
-    fixedSz.width = Dimension(110, SizingMode.fixed);
-    fixedSz.height = Dimension(54, SizingMode.fixed);
+    fixedSz.width = Dimension(120, SizingMode.fixed);
+    fixedSz.height = Dimension(48, SizingMode.fixed);
+    fixedSz.padding = Insets(6, 10, 6, 10);
     fixedBox.components.size = fixedSz;
     fixedBox.components.background = new Background(
       ColorF(0.20f, 0.28f, 0.40f, 1.0f),
@@ -446,7 +474,7 @@ private:
     );
     fixedBox.components.border.width = 1.5f;
     fixedBox.components.textLabel = new TextLabel(
-      "Fixed: 110x54",
+      "Fixed (120x48)",
       ColorF(1.0f, 1.0f, 1.0f, 1.0f)
     );
 
@@ -455,7 +483,7 @@ private:
     auto autoSz = new Size;
     autoSz.width = Dimension(0, SizingMode.auto_);
     autoSz.height = Dimension(0, SizingMode.auto_);
-    autoSz.padding = Insets(8, 12, 8, 12);
+    autoSz.padding = Insets(6, 10, 6, 10);
     autoLabelWidget.components.size = autoSz;
     autoLabelWidget.components.background = new Background(
       ColorF(0.18f, 0.42f, 0.32f, 1.0f),
@@ -472,13 +500,13 @@ private:
     );
 
     // Fraction sizing container (demonstrating 1fr vs 2fr proportional width)
-    auto fracTitle = new Widget(card, RectF(12, 112, 591, 16));
+    auto fracTitle = new Widget(card, RectF(12, 106, 591, 16));
     fracTitle.components.textLabel = new TextLabel(
-      "SizingMode.fraction (1fr vs 2fr space share) & Bounds [minWidth: 100]:",
+      "SizingMode.fraction (1fr vs 2fr space share) & Bounds [min: 100]:",
       ColorF(0.70f, 0.75f, 0.85f, 1.0f)
     );
 
-    auto fracContainer = new Widget(card, RectF(12, 134, 591, 56));
+    auto fracContainer = new Widget(card, RectF(12, 126, 591, 52));
     fracContainer.components.background = new Background(
       ColorF(0.10f, 0.12f, 0.15f, 1.0f),
       Background.Style.round
@@ -494,7 +522,8 @@ private:
     auto fracChild1 = new Widget(fracContainer, RectF(0, 0, 10, 10));
     auto szFrac1 = new Size;
     szFrac1.width = Dimension(1.0f, SizingMode.fraction);
-    szFrac1.minWidth = 100.0f; // minWidth constraint test
+    szFrac1.minWidth = 100.0f;
+    szFrac1.padding = Insets(6, 10, 6, 10);
     fracChild1.components.size = szFrac1;
     fracChild1.components.background = new Background(
       ColorF(0.30f, 0.22f, 0.45f, 1.0f),
@@ -506,7 +535,7 @@ private:
     );
     fracChild1.components.border.width = 1.5f;
     fracChild1.components.textLabel = new TextLabel(
-      "Fraction (1fr, min: 100)",
+      "Fraction 1fr (min: 100)",
       ColorF(1.0f, 1.0f, 1.0f, 1.0f)
     );
 
@@ -514,7 +543,8 @@ private:
     auto fracChild2 = new Widget(fracContainer, RectF(0, 0, 10, 10));
     auto szFrac2 = new Size;
     szFrac2.width = Dimension(2.0f, SizingMode.fraction);
-    szFrac2.maxWidth = 420.0f; // maxWidth constraint test
+    szFrac2.maxWidth = 420.0f;
+    szFrac2.padding = Insets(6, 10, 6, 10);
     fracChild2.components.size = szFrac2;
     fracChild2.components.background = new Background(
       ColorF(0.20f, 0.38f, 0.48f, 1.0f),
@@ -526,12 +556,12 @@ private:
     );
     fracChild2.components.border.width = 1.5f;
     fracChild2.components.textLabel = new TextLabel(
-      "Fraction (2fr, max: 420)",
+      "Fraction 2fr (max: 420)",
       ColorF(1.0f, 1.0f, 1.0f, 1.0f)
     );
 
     // Insets demonstration container (padding on parent, margin on child)
-    auto insetsContainer = new Widget(card, RectF(12, 198, 591, 70));
+    auto insetsContainer = new Widget(card, RectF(12, 190, 591, 74));
     insetsContainer.components.background = new Background(
       ColorF(0.10f, 0.12f, 0.15f, 1.0f),
       Background.Style.round
@@ -556,7 +586,7 @@ private:
     szMargin.width = Dimension(0, SizingMode.auto_);
     szMargin.height = Dimension(0, SizingMode.auto_);
     szMargin.padding = Insets(6, 10, 6, 10);
-    szMargin.margin = Insets(4, 14, 4, 14); // child margin test
+    szMargin.margin = Insets(4, 14, 4, 14);
     marginBox.components.size = szMargin;
     marginBox.components.background = new Background(
       ColorF(0.45f, 0.32f, 0.15f, 1.0f),
@@ -568,7 +598,7 @@ private:
     );
     marginBox.components.border.width = 1.5f;
     marginBox.components.textLabel = new TextLabel(
-      "Parent Padding (6,12) + Child Margin (4,14) Test",
+      "Parent Insets (6,12) + Child Margins (4,14)",
       ColorF(1.0f, 0.95f, 0.85f, 1.0f)
     );
   }
@@ -592,58 +622,72 @@ private:
     );
     cornerBox.components.border.width = 1.5f;
 
-    auto cornerTitle = new Widget(cornerBox, RectF(10, 100, 260, 40));
-    cornerTitle.components.textLabel = new TextLabel(
-      "Corner Anchors:\n" ~
-      "Top-Left, Top-Right,\n" ~
+    auto l1 = new Widget(cornerBox, RectF(10, 95, 260, 18));
+    l1.components.textLabel = new TextLabel(
+      "Corner Anchors Demonstration:",
+      ColorF(0.70f, 0.75f, 0.85f, 1.0f)
+    );
+    auto l2 = new Widget(cornerBox, RectF(10, 118, 260, 18));
+    l2.components.textLabel = new TextLabel(
+      "Top-Left, Top-Right,",
+      ColorF(0.60f, 0.65f, 0.75f, 1.0f)
+    );
+    auto l3 = new Widget(cornerBox, RectF(10, 138, 260, 18));
+    l3.components.textLabel = new TextLabel(
       "Bottom-Left, Bottom-Right",
-      ColorF(0.65f, 0.70f, 0.80f, 1.0f)
+      ColorF(0.60f, 0.65f, 0.75f, 1.0f)
     );
 
-    // Top-Left Anchor
-    auto aTL = new Widget(cornerBox, RectF(0, 0, 72, 30));
-    aTL.components.background = new Background(
-      ColorF(0.80f, 0.20f, 0.20f, 1.0f),
-      Background.Style.round
-    );
-    aTL.components.anchor = new Anchor(nullable(6.0f), nullable(6.0f));
-    aTL.components.textLabel = new TextLabel("TL", ColorF(1, 1, 1, 1));
+    // Helper for corner badge
+    void addCornerBadge(
+      string text,
+      Nullable!float left,
+      Nullable!float top,
+      Nullable!float right,
+      Nullable!float bottom,
+      ColorF bgCol
+    ) {
+      auto b = new Widget(cornerBox, RectF(0, 0, 72, 28));
+      auto sz = new Size;
+      sz.padding = Insets(5, 8, 5, 8);
+      b.components.size = sz;
+      b.components.background = new Background(bgCol, Background.Style.round);
+      b.components.anchor = new Anchor(left, top, right, bottom);
+      b.components.textLabel = new TextLabel(text, ColorF(1, 1, 1, 1));
+    }
 
-    // Top-Right Anchor
-    auto aTR = new Widget(cornerBox, RectF(0, 0, 72, 30));
-    aTR.components.background = new Background(
-      ColorF(0.20f, 0.70f, 0.30f, 1.0f),
-      Background.Style.round
+    addCornerBadge(
+      "Top-Left",
+      nullable(6.0f),
+      nullable(6.0f),
+      Nullable!float.init,
+      Nullable!float.init,
+      ColorF(0.80f, 0.20f, 0.20f, 1.0f)
     );
-    auto anchTR = new Anchor;
-    anchTR.top = 6.0f;
-    anchTR.right = 6.0f;
-    aTR.components.anchor = anchTR;
-    aTR.components.textLabel = new TextLabel("TR", ColorF(1, 1, 1, 1));
-
-    // Bottom-Left Anchor
-    auto aBL = new Widget(cornerBox, RectF(0, 0, 72, 30));
-    aBL.components.background = new Background(
-      ColorF(0.20f, 0.40f, 0.80f, 1.0f),
-      Background.Style.round
+    addCornerBadge(
+      "Top-Right",
+      Nullable!float.init,
+      nullable(6.0f),
+      nullable(6.0f),
+      Nullable!float.init,
+      ColorF(0.20f, 0.70f, 0.30f, 1.0f)
     );
-    auto anchBL = new Anchor;
-    anchBL.bottom = 6.0f;
-    anchBL.left = 6.0f;
-    aBL.components.anchor = anchBL;
-    aBL.components.textLabel = new TextLabel("BL", ColorF(1, 1, 1, 1));
-
-    // Bottom-Right Anchor
-    auto aBR = new Widget(cornerBox, RectF(0, 0, 72, 30));
-    aBR.components.background = new Background(
-      ColorF(0.70f, 0.50f, 0.20f, 1.0f),
-      Background.Style.round
+    addCornerBadge(
+      "Bot-Left",
+      nullable(6.0f),
+      Nullable!float.init,
+      Nullable!float.init,
+      nullable(6.0f),
+      ColorF(0.20f, 0.40f, 0.80f, 1.0f)
     );
-    auto anchBR = new Anchor;
-    anchBR.bottom = 6.0f;
-    anchBR.right = 6.0f;
-    aBR.components.anchor = anchBR;
-    aBR.components.textLabel = new TextLabel("BR", ColorF(1, 1, 1, 1));
+    addCornerBadge(
+      "Bot-Right",
+      Nullable!float.init,
+      Nullable!float.init,
+      nullable(6.0f),
+      nullable(6.0f),
+      ColorF(0.70f, 0.50f, 0.20f, 1.0f)
+    );
 
     // 2. Out-of-flow anchor inside a FlexContainer
     auto flexBoxWithAnchor = new Widget(card, RectF(302, 34, 291, 244));
@@ -677,6 +721,7 @@ private:
     auto flexItem1 = new Widget(flexBoxWithAnchor, RectF(0, 0, 10, 10));
     auto szFi1 = new Size;
     szFi1.height = Dimension(50, SizingMode.fixed);
+    szFi1.padding = Insets(6, 8, 6, 8);
     szFi1.margin = Insets(0, 8, 0, 8);
     flexItem1.components.size = szFi1;
     flexItem1.components.background = new Background(
@@ -691,6 +736,7 @@ private:
     auto flexItem2 = new Widget(flexBoxWithAnchor, RectF(0, 0, 10, 10));
     auto szFi2 = new Size;
     szFi2.height = Dimension(50, SizingMode.fixed);
+    szFi2.padding = Insets(6, 8, 6, 8);
     szFi2.margin = Insets(0, 8, 0, 8);
     flexItem2.components.size = szFi2;
     flexItem2.components.background = new Background(
@@ -703,7 +749,10 @@ private:
     );
 
     // Anchored Badge inside FlexContainer (out-of-flow!)
-    auto anchoredBadge = new Widget(flexBoxWithAnchor, RectF(0, 0, 110, 32));
+    auto anchoredBadge = new Widget(flexBoxWithAnchor, RectF(0, 0, 108, 28));
+    auto szAb = new Size;
+    szAb.padding = Insets(4, 6, 4, 6);
+    anchoredBadge.components.size = szAb;
     anchoredBadge.components.background = new Background(
       ColorF(0.85f, 0.30f, 0.10f, 1.0f),
       Background.Style.round
@@ -753,8 +802,9 @@ private:
     // Item A
     auto child1 = new Widget(playgroundContainer, RectF(0, 0, 10, 10));
     auto sz1 = new Size;
-    sz1.width = Dimension(130, SizingMode.fixed);
-    sz1.height = Dimension(70, SizingMode.fixed);
+    sz1.width = Dimension(120, SizingMode.fixed);
+    sz1.height = Dimension(48, SizingMode.fixed);
+    sz1.padding = Insets(6, 8, 6, 8);
     child1.components.size = sz1;
     child1.components.background = new Background(
       ColorF(0.18f, 0.35f, 0.60f, 1.0f),
@@ -766,15 +816,16 @@ private:
     );
     child1.components.border.width = 2.0f;
     child1.components.textLabel = new TextLabel(
-      "Box A\n(130x70)",
+      "Box A (120x48)",
       ColorF(1, 1, 1, 1)
     );
 
     // Item B (toggleable visibility via [V])
     playgroundChild2 = new Widget(playgroundContainer, RectF(0, 0, 10, 10));
     auto sz2 = new Size;
-    sz2.width = Dimension(150, SizingMode.fixed);
-    sz2.height = Dimension(85, SizingMode.fixed);
+    sz2.width = Dimension(140, SizingMode.fixed);
+    sz2.height = Dimension(54, SizingMode.fixed);
+    sz2.padding = Insets(6, 8, 6, 8);
     playgroundChild2.components.size = sz2;
     playgroundChild2.components.background = new Background(
       ColorF(0.60f, 0.25f, 0.35f, 1.0f),
@@ -786,15 +837,16 @@ private:
     );
     playgroundChild2.components.border.width = 2.0f;
     playgroundChild2.components.textLabel = new TextLabel(
-      "Box B [V to hide]\n(150x85)",
+      "Box B [V to hide]",
       ColorF(1, 1, 1, 1)
     );
 
     // Item C
     auto child3 = new Widget(playgroundContainer, RectF(0, 0, 10, 10));
     auto sz3 = new Size;
-    sz3.width = Dimension(120, SizingMode.fixed);
-    sz3.height = Dimension(60, SizingMode.fixed);
+    sz3.width = Dimension(110, SizingMode.fixed);
+    sz3.height = Dimension(44, SizingMode.fixed);
+    sz3.padding = Insets(6, 8, 6, 8);
     child3.components.size = sz3;
     child3.components.background = new Background(
       ColorF(0.20f, 0.50f, 0.30f, 1.0f),
@@ -806,7 +858,7 @@ private:
     );
     child3.components.border.width = 2.0f;
     child3.components.textLabel = new TextLabel(
-      "Box C\n(120x60)",
+      "Box C (110x44)",
       ColorF(1, 1, 1, 1)
     );
   }
@@ -861,6 +913,7 @@ final class DemoController : DefaultController {
 
     if (model.quitRequested) {
       sendQuit();
+      return false;
     }
 
     // Smoothly animate alpha pulse
@@ -878,44 +931,33 @@ final class DemoController : DefaultController {
   }
 
   override HandleResult handleEvent(AppEvent ev) {
-    if (ev.kind == AppEvent.Kind.update) {
-      return HandleResult(HandleResult.Result.nothing);
-    }
-
     bool consumed = false;
 
-    if (ev.kind == AppEvent.Kind.keyUp) {
+    if (ev.kind == AppEvent.Kind.keyDown) {
       auto model = tracker.edit();
 
-      switch (ev.key) {
-      case KeyCode.q:
-      case KeyCode.escape:
+      if (isKey(ev, KeyCode.q, ScanCode.q) ||
+          isKey(ev, KeyCode.escape, ScanCode.escape)) {
         model.quitRequested = true;
-        consumed = true;
-        break;
-
-      case KeyCode.d:
+        tracker.commit(model);
+        sendQuit();
+        return HandleResult(HandleResult.Result.quit, true);
+      } else if (isKey(ev, KeyCode.d, ScanCode.d)) {
         model.direction = model.direction == FlexDirection.row
           ? FlexDirection.column
           : FlexDirection.row;
         consumed = true;
-        break;
-
-      case KeyCode.j:
+      } else if (isKey(ev, KeyCode.j, ScanCode.j)) {
         size_t nextJ = (cast(size_t)model.justify + 1) %
           (JustifyContent.max + 1);
         model.justify = cast(JustifyContent)nextJ;
         consumed = true;
-        break;
-
-      case KeyCode.a:
+      } else if (isKey(ev, KeyCode.a, ScanCode.a)) {
         size_t nextA = (cast(size_t)model.alignItems + 1) %
           (AlignItems.max + 1);
         model.alignItems = cast(AlignItems)nextA;
         consumed = true;
-        break;
-
-      case KeyCode.g:
+      } else if (isKey(ev, KeyCode.g, ScanCode.g)) {
         if (model.gap == 0.0f) {
           model.gap = 8.0f;
         } else if (model.gap == 8.0f) {
@@ -926,32 +968,47 @@ final class DemoController : DefaultController {
           model.gap = 0.0f;
         }
         consumed = true;
-        break;
-
-      case KeyCode.v:
+      } else if (isKey(ev, KeyCode.v, ScanCode.v)) {
         model.child2Visible = !model.child2Visible;
         consumed = true;
-        break;
-
-      case KeyCode.t:
+      } else if (isKey(ev, KeyCode.t, ScanCode.t)) {
         model.textSampleIndex = (model.textSampleIndex + 1) % 3;
         consumed = true;
-        break;
-
-      default:
-        break;
       }
 
       tracker.commit(model);
+
+      if (consumed) {
+        HandleResult res;
+        res.result = HandleResult.Result.updateView;
+        res.consume = true;
+        res.timeoutMs = 16;
+        return res;
+      }
     }
 
     auto res = super.handleEvent(ev);
-    return res.isQuit() || res.isUpdateView()
-      ? res
-      : HandleResult(HandleResult.Result.update, consumed);
+    res.timeoutMs = 16;
+    return res;
   }
 
 private:
+  static bool isKey(in AppEvent ev, KeyCode targetKey, ScanCode targetScan) {
+    if (ev.scancode == targetScan) {
+      return true;
+    }
+    if (ev.key == targetKey) {
+      return true;
+    }
+    // Handle potential uppercase ASCII keycode
+    if (targetKey >= 'a' && targetKey <= 'z') {
+      if (ev.key == (targetKey - 32)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   App app;
   DemoView view;
   ModelTracker!DemoModel tracker;
