@@ -233,6 +233,7 @@ private:
       "yguilib GUI Feature Demo & Showcase (guidemo)",
       ColorF(1.0f, 1.0f, 1.0f, 1.0f)
     );
+    title.components.textLabel.fontSize = 16.0f;
 
     auto sub = new Widget(header, RectF(14, 26, 800, 16));
     sub.components.textLabel = new TextLabel(

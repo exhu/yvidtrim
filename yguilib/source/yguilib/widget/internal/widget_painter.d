@@ -3,7 +3,9 @@ module yguilib.widget.internal.widget_painter;
 package(yguilib):
 
 import std.array : Appender;
+import std.math : isFinite;
 import yguilib.render : Renderer;
+import yguilib.render.font : Font, defaultFontPtSize;
 import yguilib.render.render_types : PointF, RectF, intersectRects;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget : Widget;
@@ -112,16 +114,28 @@ private:
 
   static void drawTextLabel(Widget w, in RectF absContentRect, Renderer r) {
     auto comp = w.components.textLabel;
+    const float effectiveSize =
+      (isFinite(comp.fontSize) && comp.fontSize > 0.0f)
+        ? comp.fontSize
+        : defaultFontPtSize;
+
+    Font font = r.getDefaultFont();
+    if (font !is null && font.size != effectiveSize) {
+      font.setSize(effectiveSize);
+    }
+
     r.drawText(
       comp.caption,
       PointF(absContentRect.x, absContentRect.y),
-      comp.color
+      comp.color,
+      font
     );
   }
 }
 
 unittest {
   import yguilib.clibs.sdl3;
+  import yguilib.render.font : defaultFontPtSize;
   import yguilib.render.render_types : ColorF;
   import yguilib.widget.drawing_components : Background, Border, TextLabel;
   import yguilib.widget.internal.collect_visible : VisibleWidgetsCollector;
@@ -157,4 +171,54 @@ unittest {
   painter.drawTree(widgets, renderer);
 
   assert(!w.dirty);
+
+  // Test TextLabel with custom fontSize
+  w.components.textLabel.fontSize = 24.0f;
+  w.dirty = true;
+  widgets = collector.collectVisible(w, 320.0f, 240.0f);
+  painter.drawTree(widgets, renderer);
+  assert(renderer.getDefaultFont().size == 24.0f);
+
+  // Test fallback when fontSize is 0.0f
+  w.components.textLabel.fontSize = 0.0f;
+  w.dirty = true;
+  widgets = collector.collectVisible(w, 320.0f, 240.0f);
+  painter.drawTree(widgets, renderer);
+  assert(renderer.getDefaultFont().size == defaultFontPtSize);
+
+  // Test fallback when fontSize is negative
+  w.components.textLabel.fontSize = -5.0f;
+  w.dirty = true;
+  widgets = collector.collectVisible(w, 320.0f, 240.0f);
+  painter.drawTree(widgets, renderer);
+  assert(renderer.getDefaultFont().size == defaultFontPtSize);
+
+  // Test fallback when fontSize is infinity
+  w.components.textLabel.fontSize = float.infinity;
+  w.dirty = true;
+  widgets = collector.collectVisible(w, 320.0f, 240.0f);
+  painter.drawTree(widgets, renderer);
+  assert(renderer.getDefaultFont().size == defaultFontPtSize);
+
+  // Test fallback when fontSize is NaN
+  w.components.textLabel.fontSize = float.nan;
+  w.dirty = true;
+  widgets = collector.collectVisible(w, 320.0f, 240.0f);
+  painter.drawTree(widgets, renderer);
+  assert(renderer.getDefaultFont().size == defaultFontPtSize);
+
+  // Test multiple widgets with different font sizes
+  auto root = new Widget(null, RectF(0, 0, 320, 240));
+  auto child1 = new Widget(root, RectF(0, 0, 100, 30));
+  child1.components.textLabel = new TextLabel("Title", ColorF(1, 1, 1, 1));
+  child1.components.textLabel.fontSize = 18.0f;
+
+  auto child2 = new Widget(root, RectF(0, 35, 100, 30));
+  child2.components.textLabel = new TextLabel("Subtitle", ColorF(1, 1, 1, 1));
+  child2.components.textLabel.fontSize = 14.0f;
+
+  auto rootWidgets = collector.collectVisible(root, 320.0f, 240.0f);
+  painter.drawTree(rootWidgets, renderer);
+  assert(!child1.dirty);
+  assert(!child2.dirty);
 }
