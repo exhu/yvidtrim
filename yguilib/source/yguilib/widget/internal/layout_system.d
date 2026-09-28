@@ -12,7 +12,8 @@ import yguilib.widget.internal.layout_dimension : computeDimension;
 import yguilib.widget.internal.layout_content_size : calcContentSize,
   calcPaddingAndBorder;
 import yguilib.widget.internal.layout_flex : alignChildCrossAxis,
-  arrangeMainAxis, calcContentRect, computeJustifyOffsets, resolveFractionSizes;
+  arrangeMainAxis, calcContentRect, computeJustifyOffsets, resolveFractionSizes,
+  updateFlexChildTextHeight;
 import yguilib.widget.internal.layout_anchor : handleAnchorComp;
 
 final class LayoutSystem {
@@ -34,7 +35,7 @@ final class LayoutSystem {
     // compute position and sizes: root to leaf
     foreach(VisibleWidget vw; visibleWidgets) {
       handleAnchorComp(vw);
-      handleFlexContainerComp(vw);
+      handleFlexContainerComp(vw, r);
     }
   }
 private:
@@ -89,12 +90,12 @@ private:
   }
 
   /// Arranges children for a visible widget's flex container component.
-  void handleFlexContainerComp(VisibleWidget vw) {
-    handleFlexContainerComp(vw.widget);
+  void handleFlexContainerComp(VisibleWidget vw, Renderer r = null) {
+    handleFlexContainerComp(vw.widget, r);
   }
 
   /// Arranges children of a flex container widget according to flexbox rules.
-  package(yguilib) void handleFlexContainerComp(Widget w) {
+  package(yguilib) void handleFlexContainerComp(Widget w, Renderer r = null) {
     if (w is null) {
       return;
     }
@@ -129,6 +130,29 @@ private:
       contentMainExtent,
       flexComp.gap
     );
+
+    if (isRow) {
+      if (r !is null) {
+        foreach (child; visibleChildren) {
+          updateFlexChildTextHeight(child, r);
+        }
+      }
+    } else {
+      if (flexComp.alignItems == AlignItems.stretch) {
+        foreach (child; visibleChildren) {
+          alignChildCrossAxis(
+            child,
+            isRow,
+            flexComp.alignItems,
+            contentCrossPos,
+            contentCrossExtent
+          );
+          if (r !is null) {
+            updateFlexChildTextHeight(child, r);
+          }
+        }
+      }
+    }
 
     float startOffset = 0.0f;
     float gapBetween = 0.0f;
@@ -455,5 +479,104 @@ unittest {
   ls.layoutTree(wrapWidget, r, wrapVisible);
   assert(wrapWidget.rect.width == line1W + 5.0f);
   assert(wrapWidget.rect.height > expectedSingle.y);
+}
+
+// TextLabel with Size.maxWidth under SizingMode.auto_ and flex column stretch
+unittest {
+  import yguilib.clibs.sdl3 : yguilib_sdl3_init, yguilib_sdl3_quit;
+  import yguilib.window : Window;
+  import yguilib.widget.internal.collect_visible : VisibleWidgetsCollector;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(320, 240, "test_layout_max_width");
+  win.create();
+  scope(exit) win.destroy();
+
+  auto r = new Renderer(320, 240);
+  scope(exit) r.destroy();
+
+  auto ls = new LayoutSystem;
+  auto collector = new VisibleWidgetsCollector;
+
+  // Single-line with Size.maxWidth and ellipsis
+  auto singleW = new Widget(null, RectF(0, 0, 10, 10));
+  auto singleSz = new Size;
+  singleSz.width = Dimension(0, SizingMode.auto_);
+  singleSz.height = Dimension(0, SizingMode.auto_);
+  const float fullW = r.measureText("A very long text that must truncate").x;
+  singleSz.maxWidth = fullW * 0.5f;
+  singleW.components.size = singleSz;
+  auto singleLabel = new TextLabel(
+    "A very long text that must truncate",
+    ColorF(1, 1, 1, 1)
+  );
+  singleLabel.overflowEllipsis = true;
+  singleW.components.textLabel = singleLabel;
+
+  auto singleVis = collector.collectVisible(singleW, r, true);
+  ls.layoutTree(singleW, r, singleVis);
+  assert(singleW.rect.width <= singleSz.maxWidth);
+
+  // Multiline with Size.maxWidth and auto width/height
+  auto multiW = new Widget(null, RectF(0, 0, 10, 10));
+  auto multiSz = new Size;
+  multiSz.width = Dimension(0, SizingMode.auto_);
+  multiSz.height = Dimension(0, SizingMode.auto_);
+  const float twoWordsW = r.measureText("Word one word two").x;
+  multiSz.maxWidth = twoWordsW + 5.0f;
+  multiW.components.size = multiSz;
+  auto multiLabel = new TextLabel(
+    "Word one word two word three word four",
+    ColorF(1, 1, 1, 1)
+  );
+  multiLabel.multiline = true;
+  multiW.components.textLabel = multiLabel;
+
+  auto multiVis = collector.collectVisible(multiW, r, true);
+  ls.layoutTree(multiW, r, multiVis);
+  assert(multiW.rect.width <= multiSz.maxWidth);
+  const float singleH = r.measureText("Word").y;
+  assert(multiW.rect.height > singleH);
+
+  // Flex column with stretch and multiline text child
+  auto colParent = new Widget(null, RectF(0, 0, twoWordsW + 10.0f, 300));
+  auto colSz = new Size;
+  colSz.width = Dimension(twoWordsW + 10.0f, SizingMode.fixed);
+  colSz.height = Dimension(300, SizingMode.fixed);
+  colParent.components.size = colSz;
+
+  auto flex = new FlexContainer;
+  flex.direction = FlexDirection.column;
+  flex.alignItems = AlignItems.stretch;
+  flex.gap = 5.0f;
+  colParent.components.flexContainer = flex;
+
+  auto textChild = new Widget(colParent, RectF(0, 0, 10, 10));
+  auto textSz = new Size;
+  textSz.width = Dimension(0, SizingMode.auto_);
+  textSz.height = Dimension(0, SizingMode.auto_);
+  textChild.components.size = textSz;
+  auto label = new TextLabel(
+    "Word one word two word three word four",
+    ColorF(1, 1, 1, 1)
+  );
+  label.multiline = true;
+  textChild.components.textLabel = label;
+
+  auto secondChild = new Widget(colParent, RectF(0, 0, 10, 20));
+  auto secondSz = new Size;
+  secondSz.width = Dimension(0, SizingMode.auto_);
+  secondSz.height = Dimension(20, SizingMode.fixed);
+  secondChild.components.size = secondSz;
+
+  auto colVis = collector.collectVisible(colParent, r, true);
+  ls.layoutTree(colParent, r, colVis);
+
+  assert(textChild.rect.width == twoWordsW + 10.0f);
+  assert(textChild.rect.height > singleH);
+  // secondChild must be below textChild, without overlap!
+  assert(secondChild.rect.y >= textChild.rect.height + 5.0f);
 }
 

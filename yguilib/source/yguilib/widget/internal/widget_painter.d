@@ -10,6 +10,7 @@ import yguilib.render.render_types : PointF, RectF, intersectRects;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget : Widget;
 import yguilib.widget.internal.collect_visible : VisibleWidgets;
+import yguilib.widget.internal.layout_text : getLineStep;
 
 /**
  * System responsible for rendering visible widgets.
@@ -129,12 +130,7 @@ private:
       absContentRect.height
     );
 
-    float lineStep = r.toLogic(
-      font.lineSkip > 0 ? font.lineSkip : font.height
-    );
-    if (lineStep <= 0.0f) {
-      lineStep = font.size;
-    }
+    const float lineStep = getLineStep(r, font);
 
     foreach (size_t i, const ref line; lines) {
       if (line.text.length == 0) {

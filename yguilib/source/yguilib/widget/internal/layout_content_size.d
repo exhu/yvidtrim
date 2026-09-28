@@ -1,14 +1,16 @@
 module yguilib.widget.internal.layout_content_size;
 
 package(yguilib):
-import std.algorithm.comparison : max;
+import std.algorithm.comparison : max, min;
 import yguilib.render : Renderer;
+import yguilib.render.font : Font;
 import yguilib.render.render_types : PointF;
 import yguilib.widget;
 import yguilib.widget.layout_components;
 import yguilib.widget.drawing_components;
 import yguilib.widget.internal.layout_axis : getCrossOuterSize,
   getMainOuterSize;
+import yguilib.widget.internal.layout_text : measureTextContentSize;
 
 float getBorderWidth(const Border borderComp) {
   if (borderComp !is null && borderComp.style != Border.Style.none) {
@@ -43,17 +45,46 @@ PointF calcContentSize(Widget w, Renderer r) {
     }
   }
 
-  float maxWidth = 0.0f;
-  if (w.components.size !is null &&
-      w.components.size.width.mode == SizingMode.fixed) {
-    const PointF padBorder = calcPaddingAndBorder(
-      w.components.size,
-      w.components.border
-    );
-    maxWidth = max(0.0f, w.components.size.width.value - padBorder.x);
+  float availableWidth = 0.0f;
+  float availableHeight = 0.0f;
+
+  if (w.components.size !is null) {
+    const Size sz = w.components.size;
+    const PointF padBorder = calcPaddingAndBorder(sz, w.components.border);
+
+    if (sz.width.mode == SizingMode.fixed) {
+      float wVal = sz.width.value;
+      if (sz.maxWidth < float.infinity && sz.maxWidth >= 0.0f) {
+        wVal = min(wVal, sz.maxWidth);
+      }
+      if (sz.minWidth > 0.0f) {
+        wVal = max(wVal, sz.minWidth);
+      }
+      availableWidth = max(0.0f, wVal - padBorder.x);
+    } else if (sz.maxWidth < float.infinity && sz.maxWidth > 0.0f) {
+      availableWidth = max(0.0f, sz.maxWidth - padBorder.x);
+    }
+
+    if (sz.height.mode == SizingMode.fixed) {
+      float hVal = sz.height.value;
+      if (sz.maxHeight < float.infinity && sz.maxHeight >= 0.0f) {
+        hVal = min(hVal, sz.maxHeight);
+      }
+      if (sz.minHeight > 0.0f) {
+        hVal = max(hVal, sz.minHeight);
+      }
+      availableHeight = max(0.0f, hVal - padBorder.y);
+    } else if (sz.maxHeight < float.infinity && sz.maxHeight > 0.0f) {
+      availableHeight = max(0.0f, sz.maxHeight - padBorder.y);
+    }
   }
 
-  return calcTextContentSize(w.components.textLabel, r, maxWidth);
+  return calcTextContentSize(
+    w.components.textLabel,
+    r,
+    availableWidth,
+    availableHeight
+  );
 }
 
 bool tryCalcFlexContentSize(
@@ -123,48 +154,25 @@ bool tryCalcChildrenBoundingBox(
 PointF calcTextContentSize(
   const TextLabel tl,
   Renderer r,
-  float maxWidth = 0.0f
+  float availableWidth = 0.0f,
+  float availableHeight = 0.0f
 ) {
   if (tl is null || r is null || tl.caption.length == 0) {
     return PointF(0.0f, 0.0f);
   }
 
-  import yguilib.render.font : Font;
   Font font = r.getFont(tl.fontSize, tl.font);
   if (font is null) {
     return PointF(0.0f, 0.0f);
   }
 
-  if (!tl.multiline) {
-    string single = tl.getSingleLineCaption();
-    const PointF textSize = r.measureText(single, font);
-    return PointF(max(0.0f, textSize.x), max(0.0f, textSize.y));
-  }
-
-  FormattedTextLine[] lines = tl.layoutLines(r, font, maxWidth, 0.0f);
-  if (lines.length == 0) {
-    return PointF(0.0f, 0.0f);
-  }
-
-  float maxW = 0.0f;
-  foreach (const ref line; lines) {
-    if (line.width > maxW) {
-      maxW = line.width;
-    }
-  }
-
-  float lineStep = r.toLogic(font.lineSkip > 0 ? font.lineSkip : font.height);
-  if (lineStep <= 0.0f) {
-    lineStep = font.size;
-  }
-  float firstLineH = r.measureText("A", font).y;
-  if (firstLineH <= 0.0f) {
-    firstLineH = lineStep;
-  }
-
-  float totalH = lines.length > 1
-    ? (cast(float)(lines.length - 1)) * lineStep + firstLineH
-    : firstLineH;
-
-  return PointF(max(0.0f, maxW), max(0.0f, totalH));
+  return measureTextContentSize(
+    r,
+    font,
+    tl.caption,
+    tl.multiline,
+    tl.overflowEllipsis,
+    availableWidth,
+    availableHeight
+  );
 }

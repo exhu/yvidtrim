@@ -3,16 +3,50 @@ module yguilib.widget.internal.layout_flex;
 package(yguilib):
 import std.algorithm.comparison : max;
 import std.math : round;
-import yguilib.render.render_types : RectF;
+import yguilib.render : Renderer;
+import yguilib.render.render_types : PointF, RectF;
 import yguilib.widget : Widget;
 import yguilib.widget.layout_components;
 import yguilib.widget.drawing_components : Border;
 import yguilib.widget.internal.layout_axis;
+import yguilib.widget.internal.layout_content_size : calcPaddingAndBorder,
+  calcTextContentSize;
 import yguilib.widget.internal.layout_dimension : clampDimension;
 
 /// Computes inner content area bounds deducting padding and border.
 RectF calcContentRect(const Widget w) {
   return w.getContentArea();
+}
+
+/// Re-measures and updates auto-height for a child with TextLabel after its
+/// width has been resolved or stretched by flex container layout.
+void updateFlexChildTextHeight(Widget child, Renderer r) {
+  if (child is null || r is null || child.components.textLabel is null) {
+    return;
+  }
+  const Size sz = child.components.size;
+  if (sz is null || sz.height.mode != SizingMode.auto_) {
+    return;
+  }
+
+  const PointF padBorder = calcPaddingAndBorder(sz, child.components.border);
+  const float availW = max(0.0f, child.rect.width - padBorder.x);
+  const float availH = (sz.maxHeight < float.infinity && sz.maxHeight > 0.0f)
+    ? max(0.0f, sz.maxHeight - padBorder.y)
+    : 0.0f;
+
+  const PointF textSize = calcTextContentSize(
+    child.components.textLabel,
+    r,
+    availW,
+    availH
+  );
+
+  child.rect.height = clampDimension(
+    textSize.y + padBorder.y,
+    sz.minHeight,
+    sz.maxHeight
+  );
 }
 
 /// Distributes remaining main-axis space to fraction sizing children.

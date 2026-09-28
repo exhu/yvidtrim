@@ -37,6 +37,7 @@ yguilib_src = files(
   'source/yguilib/widget/internal/layout_dimension.d',
   'source/yguilib/widget/internal/layout_flex.d',
   'source/yguilib/widget/internal/layout_system.d',
+  'source/yguilib/widget/internal/layout_text.d',
   'source/yguilib/widget/internal/widget_painter.d',
   'source/yguilib/widget/layout_components.d',
   'source/yguilib/widget/package.d',
