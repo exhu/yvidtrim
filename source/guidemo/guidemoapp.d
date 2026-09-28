@@ -7,11 +7,13 @@
  * in yguilib (and eventually yvidtrim, such as video playback components).
  *
  * CURRENT FEATURE COVERAGE:
- * 1. widget_painter.d:
+ * 1. widget_painter.d & drawing_components.d:
  *    - Background styles: Style.rect, Style.round, Style.none.
  *    - Border styles: Style.rect, Style.dashed, Style.round, Style.roundDashed,
  *      and Style.none.
  *    - TextLabel: text rendering, custom colors, auto-measurement.
+ *    - TextLabel options: multiline wrapping, explicit newlines, overflow
+ *      ellipsis, horizontal alignment (left, center, right), live playground.
  *    - Alpha transparency: animated alpha blending.
  *    - Clipping: Widget.clipChildren and Widget.clipContents scissoring.
  *    - Visibility culling: toggling Widget.visible dynamically.
@@ -31,13 +33,17 @@
  * update this demo with dedicated visual sections and interactive controls.
  *
  * KEYBOARD CONTROLS:
- *   [D]      Toggle FlexDirection (row <-> column)
- *   [J]      Cycle JustifyContent (start -> end -> center -> spaceBetween)
- *   [A]      Cycle AlignItems (stretch -> start -> end -> center)
- *   [G]      Cycle flex gap (0, 8, 16, 24 px)
- *   [V]      Toggle child widget visibility (demonstrates dynamic re-flow)
- *   [T]      Cycle text caption length (demonstrates dynamic auto-sizing)
- *   [Q]/[Esc] Quit demo
+ *   [Tab]/[1]/[2] Switch demo page (Page 1: Layout, Page 2: TextLabel)
+ *   [M]           Toggle multiline on interactive TextLabel
+ *   [E]           Toggle overflow ellipsis on interactive TextLabel
+ *   [L]           Cycle horizontal alignment (left -> center -> right)
+ *   [D]           Toggle FlexDirection (row <-> column)
+ *   [J]           Cycle JustifyContent (start -> end -> center -> spaceBetween)
+ *   [A]           Cycle AlignItems (stretch -> start -> end -> center)
+ *   [G]           Cycle flex gap (0, 8, 16, 24 px)
+ *   [V]           Toggle child widget visibility (demonstrates flex re-flow)
+ *   [T]           Cycle text sample (auto-sizing / playground caption)
+ *   [Q]/[Esc]     Quit demo
  */
 module guidemo.guidemoapp;
 
@@ -59,6 +65,9 @@ import yguilib.window : Window;
 
 /// Model holding interactive state for the demo.
 final class DemoModel : VersionedModel {
+  size_t activePage = 0;
+
+  // Page 1 state
   JustifyContent justify = JustifyContent.start;
   AlignItems alignItems = AlignItems.stretch;
   FlexDirection direction = FlexDirection.row;
@@ -67,6 +76,13 @@ final class DemoModel : VersionedModel {
   size_t textSampleIndex = 0;
   float alphaValue = 0.8f;
   float alphaStep = 0.015f;
+
+  // Page 2 state (TextLabel Playground)
+  bool labelMultiline = true;
+  bool labelEllipsis = true;
+  TextLabel.Alignment labelAlignment = TextLabel.Alignment.left;
+  size_t labelSampleIndex = 0;
+
   bool quitRequested = false;
 }
 
@@ -82,10 +98,13 @@ final class DemoView {
     );
 
     buildHeader();
-    buildPainterSection();
-    buildSizingSection();
-    buildAnchorSection();
-    buildFlexPlayground();
+
+    page1Root = new Widget(view, RectF(0, 0, 1280, 720));
+    page2Root = new Widget(view, RectF(0, 0, 1280, 720));
+    page2Root.visible = false;
+
+    buildPage1();
+    buildPage2();
     buildStatusBar();
   }
 
@@ -95,6 +114,32 @@ final class DemoView {
     }
 
     const auto m = tracker.model;
+
+    // 0. Update page visibility and tab button highlights
+    if (page1Root !is null && page2Root !is null) {
+      const bool p1Vis = (m.activePage == 0);
+      const bool p2Vis = (m.activePage == 1);
+      if (page1Root.visible != p1Vis || page2Root.visible != p2Vis) {
+        page1Root.visible = p1Vis;
+        page2Root.visible = p2Vis;
+        page1Root.markDirty();
+        page2Root.markDirty();
+        view.markDirty();
+      }
+    }
+
+    if (tab1Btn !is null && tab1Btn.components.background !is null) {
+      tab1Btn.components.background.color = m.activePage == 0
+        ? ColorF(0.20f, 0.45f, 0.85f, 1.0f)
+        : ColorF(0.16f, 0.18f, 0.23f, 1.0f);
+      tab1Btn.markDirty();
+    }
+    if (tab2Btn !is null && tab2Btn.components.background !is null) {
+      tab2Btn.components.background.color = m.activePage == 1
+        ? ColorF(0.20f, 0.45f, 0.85f, 1.0f)
+        : ColorF(0.16f, 0.18f, 0.23f, 1.0f);
+      tab2Btn.markDirty();
+    }
 
     // 1. Update animated alpha chip
     if (alphaChip !is null && alphaChip.components.background !is null) {
@@ -128,7 +173,27 @@ final class DemoView {
       playgroundChild2.markDirty();
     }
 
-    // 5. Update HUD status label text
+    // 5. Update interactive TextLabel playground
+    if (interactiveLabelWidget !is null &&
+        interactiveLabelWidget.components.textLabel !is null) {
+      auto tl = interactiveLabelWidget.components.textLabel;
+      tl.multiline = m.labelMultiline;
+      tl.overflowEllipsis = m.labelEllipsis;
+      tl.alignment = m.labelAlignment;
+      tl.caption = labelInteractiveSamples[
+        m.labelSampleIndex % labelInteractiveSamples.length
+      ];
+      interactiveLabelWidget.markDirty();
+    }
+
+    if (interactiveStatusWidget !is null &&
+        interactiveStatusWidget.components.textLabel !is null) {
+      interactiveStatusWidget.components.textLabel.caption =
+        formatInteractiveLabelStatus(m);
+      interactiveStatusWidget.markDirty();
+    }
+
+    // 6. Update HUD status label text
     if (statusLabel !is null && statusLabel.components.textLabel !is null) {
       statusLabel.components.textLabel.caption = formatStatusString(m);
       statusLabel.markDirty();
@@ -139,6 +204,18 @@ final class DemoView {
     return view;
   }
 
+package(guidemo):
+  static immutable string[] labelInteractiveSamples = [
+    "Interactive TextLabel showcasing multiline wrapping, overflow " ~
+      "ellipsis, and dynamic alignment.\nLines wrap cleanly to content area.",
+    "Short text snippet demonstrating horizontal alignment within bounds.",
+    "Multiline paragraph with explicit line breaks:\n" ~
+      "• Line 1: Demonstrates line spacing & font metrics\n" ~
+      "• Line 2: Testing text scissoring & ellipsis\n" ~
+      "• Line 3: Supercalifragilisticexpialidocious extra line\n" ~
+      "• Line 4: Additional content exceeding height boundary",
+  ];
+
 private:
   static immutable string[] textSamples = [
     "Compact Auto Text",
@@ -146,7 +223,53 @@ private:
     "Long Text Expanding Container Bounds Horizontally And Vertically",
   ];
 
+  static string formatInteractiveLabelStatus(const DemoModel m) {
+    string alignStr;
+    final switch (m.labelAlignment) {
+    case TextLabel.Alignment.left:
+      alignStr = "left";
+      break;
+    case TextLabel.Alignment.center:
+      alignStr = "center";
+      break;
+    case TextLabel.Alignment.right:
+      alignStr = "right";
+      break;
+    }
+
+    return format(
+      "[M] Multiline: %s | [E] Ellipsis: %s | [L] Align: %s | [T] Sample: %d/3",
+      m.labelMultiline ? "ON" : "OFF",
+      m.labelEllipsis ? "ON" : "OFF",
+      alignStr,
+      m.labelSampleIndex + 1
+    );
+  }
+
   static string formatStatusString(const DemoModel m) {
+    if (m.activePage == 1) {
+      string alignStr;
+      final switch (m.labelAlignment) {
+      case TextLabel.Alignment.left:
+        alignStr = "left";
+        break;
+      case TextLabel.Alignment.center:
+        alignStr = "center";
+        break;
+      case TextLabel.Alignment.right:
+        alignStr = "right";
+        break;
+      }
+      return format(
+        "[Tab/1/2] Page 2: TextLabel | [M] Multiline: %s | " ~
+        "[E] Ellipsis: %s | [L] Align: %s | [T] Sample: %d/3 | [Q/Esc] Quit",
+        m.labelMultiline ? "ON" : "OFF",
+        m.labelEllipsis ? "ON" : "OFF",
+        alignStr,
+        m.labelSampleIndex + 1
+      );
+    }
+
     string dirStr = m.direction == FlexDirection.row ? "row" : "col";
     string justStr;
     final switch (m.justify) {
@@ -183,8 +306,9 @@ private:
     string visStr = m.child2Visible ? "visible" : "hidden";
 
     return format(
-      "[D] Dir: %s | [J] Justify: %s | [A] Align: %s | [G] Gap: %.0f | " ~
-      "[V] Box B: %s | [T] Text Sample: %d | [Q/Esc] Quit",
+      "[Tab/1/2] Page 1: Layout | [D] Dir: %s | [J] Justify: %s | " ~
+      "[A] Align: %s | [G] Gap: %.0f | [V] Box B: %s | [T] Text: %d | " ~
+      "[Q/Esc] Quit",
       dirStr, justStr, alignStr, m.gap, visStr, m.textSampleIndex + 1
     );
   }
@@ -228,45 +352,73 @@ private:
     );
     header.components.border.width = 1.0f;
 
-    auto headerFlex = new FlexContainer;
-    headerFlex.direction = FlexDirection.column;
-    headerFlex.gap = 2.0f;
-    headerFlex.justify = JustifyContent.center;
-    headerFlex.alignItems = AlignItems.start;
-    header.components.flexContainer = headerFlex;
-
-    auto headerSz = new Size;
-    headerSz.width = Dimension(1240, SizingMode.fixed);
-    headerSz.height = Dimension(0, SizingMode.auto_);
-    headerSz.minHeight = 48.0f;
-    headerSz.padding = Insets(4, 14, 4, 14);
-    header.components.size = headerSz;
-
-    auto title = new Widget(header, RectF(0, 0, 10, 10));
-    auto titleSz = new Size;
-    titleSz.width = Dimension(0, SizingMode.auto_);
-    titleSz.height = Dimension(0, SizingMode.auto_);
-    title.components.size = titleSz;
+    auto title = new Widget(header, RectF(14, 5, 780, 20));
     title.components.textLabel = new TextLabel(
       "yguilib GUI Feature Demo & Showcase (guidemo)",
       ColorF(1.0f, 1.0f, 1.0f, 1.0f)
     );
     title.components.textLabel.fontSize = 16.0f;
 
-    auto sub = new Widget(header, RectF(0, 0, 10, 10));
-    auto subSz = new Size;
-    subSz.width = Dimension(0, SizingMode.auto_);
-    subSz.height = Dimension(0, SizingMode.auto_);
-    sub.components.size = subSz;
+    auto sub = new Widget(header, RectF(14, 26, 780, 16));
     sub.components.textLabel = new TextLabel(
-      "Comprehensive verification for widget_painter.d & layout_system.d",
+      "Verification for widget_painter.d, layout_system.d & " ~
+        "drawing_components.d",
       ColorF(0.60f, 0.65f, 0.75f, 1.0f)
     );
+
+    // Tab 1 button: Layout & Painter
+    tab1Btn = new Widget(header, RectF(820, 9, 185, 30));
+    auto szTab1 = new Size;
+    szTab1.padding = Insets(5, 10, 5, 10);
+    tab1Btn.components.size = szTab1;
+    tab1Btn.components.background = new Background(
+      ColorF(0.20f, 0.45f, 0.85f, 1.0f),
+      Background.Style.round
+    );
+    tab1Btn.components.background.cornerRadius = 4.0f;
+    tab1Btn.components.border = new Border(
+      ColorF(0.40f, 0.70f, 1.0f, 1.0f),
+      Border.Style.rect
+    );
+    tab1Btn.components.border.width = 1.0f;
+    tab1Btn.components.textLabel = new TextLabel(
+      "[1] Layout & Painter",
+      ColorF(1.0f, 1.0f, 1.0f, 1.0f)
+    );
+    tab1Btn.components.textLabel.alignment = TextLabel.Alignment.center;
+
+    // Tab 2 button: TextLabel Showcase
+    tab2Btn = new Widget(header, RectF(1015, 9, 210, 30));
+    auto szTab2 = new Size;
+    szTab2.padding = Insets(5, 10, 5, 10);
+    tab2Btn.components.size = szTab2;
+    tab2Btn.components.background = new Background(
+      ColorF(0.16f, 0.18f, 0.23f, 1.0f),
+      Background.Style.round
+    );
+    tab2Btn.components.background.cornerRadius = 4.0f;
+    tab2Btn.components.border = new Border(
+      ColorF(0.30f, 0.35f, 0.45f, 1.0f),
+      Border.Style.rect
+    );
+    tab2Btn.components.border.width = 1.0f;
+    tab2Btn.components.textLabel = new TextLabel(
+      "[2] TextLabel Showcase",
+      ColorF(0.80f, 0.85f, 0.95f, 1.0f)
+    );
+    tab2Btn.components.textLabel.alignment = TextLabel.Alignment.center;
+  }
+
+  void buildPage1() {
+    buildPainterSection();
+    buildSizingSection();
+    buildAnchorSection();
+    buildFlexPlayground();
   }
 
   void buildPainterSection() {
     auto card = makeSectionCard(
-      view,
+      page1Root,
       RectF(20, 68, 605, 280),
       "1. Painter Styles (Background, Border, Alpha & Clipping)"
     );
@@ -466,7 +618,7 @@ private:
 
   void buildSizingSection() {
     auto card = makeSectionCard(
-      view,
+      page1Root,
       RectF(645, 68, 615, 280),
       "2. Layout Sizing Modes, Bounds & Insets"
     );
@@ -628,7 +780,7 @@ private:
 
   void buildAnchorSection() {
     auto card = makeSectionCard(
-      view,
+      page1Root,
       RectF(20, 356, 605, 290),
       "3. Anchors & Out-of-Flow Positioning"
     );
@@ -798,7 +950,7 @@ private:
 
   void buildFlexPlayground() {
     auto card = makeSectionCard(
-      view,
+      page1Root,
       RectF(645, 356, 615, 290),
       "4. Interactive Flexbox Playground (Keys: [D] [J] [A] [G] [V])"
     );
@@ -886,6 +1038,416 @@ private:
     );
   }
 
+  void buildPage2() {
+    buildTextLabelAlignmentSection();
+    buildTextLabelEllipsisSection();
+    buildTextLabelMultilineSection();
+    buildTextLabelPlaygroundSection();
+  }
+
+  void buildTextLabelAlignmentSection() {
+    auto card = makeSectionCard(
+      page2Root,
+      RectF(20, 68, 605, 280),
+      "1. Horizontal Alignment (Left, Center, Right)"
+    );
+
+    auto sub1 = new Widget(card, RectF(12, 34, 581, 16));
+    sub1.components.textLabel = new TextLabel(
+      "Single-line alignment within fixed-width boxes:",
+      ColorF(0.70f, 0.75f, 0.85f, 1.0f)
+    );
+
+    // Left aligned box
+    auto boxLeft = new Widget(card, RectF(12, 54, 185, 48));
+    auto szBl = new Size;
+    szBl.padding = Insets(6, 10, 6, 10);
+    boxLeft.components.size = szBl;
+    boxLeft.components.background = new Background(
+      ColorF(0.10f, 0.12f, 0.15f, 1.0f),
+      Background.Style.round
+    );
+    boxLeft.components.border = new Border(
+      ColorF(0.30f, 0.50f, 0.75f, 1.0f),
+      Border.Style.dashed
+    );
+    boxLeft.components.border.width = 1.5f;
+    boxLeft.components.textLabel = new TextLabel(
+      "Left Aligned",
+      ColorF(0.40f, 0.80f, 1.0f, 1.0f)
+    );
+    boxLeft.components.textLabel.alignment = TextLabel.Alignment.left;
+
+    // Center aligned box
+    auto boxCenter = new Widget(card, RectF(205, 54, 185, 48));
+    auto szBc = new Size;
+    szBc.padding = Insets(6, 10, 6, 10);
+    boxCenter.components.size = szBc;
+    boxCenter.components.background = new Background(
+      ColorF(0.10f, 0.12f, 0.15f, 1.0f),
+      Background.Style.round
+    );
+    boxCenter.components.border = new Border(
+      ColorF(0.35f, 0.70f, 0.50f, 1.0f),
+      Border.Style.dashed
+    );
+    boxCenter.components.border.width = 1.5f;
+    boxCenter.components.textLabel = new TextLabel(
+      "Center Aligned",
+      ColorF(0.45f, 0.90f, 0.60f, 1.0f)
+    );
+    boxCenter.components.textLabel.alignment = TextLabel.Alignment.center;
+
+    // Right aligned box
+    auto boxRight = new Widget(card, RectF(398, 54, 195, 48));
+    auto szBr = new Size;
+    szBr.padding = Insets(6, 10, 6, 10);
+    boxRight.components.size = szBr;
+    boxRight.components.background = new Background(
+      ColorF(0.10f, 0.12f, 0.15f, 1.0f),
+      Background.Style.round
+    );
+    boxRight.components.border = new Border(
+      ColorF(0.85f, 0.55f, 0.30f, 1.0f),
+      Border.Style.dashed
+    );
+    boxRight.components.border.width = 1.5f;
+    boxRight.components.textLabel = new TextLabel(
+      "Right Aligned",
+      ColorF(1.0f, 0.70f, 0.40f, 1.0f)
+    );
+    boxRight.components.textLabel.alignment = TextLabel.Alignment.right;
+
+    auto sub2 = new Widget(card, RectF(12, 110, 581, 16));
+    sub2.components.textLabel = new TextLabel(
+      "Multiline alignment (each line aligned individually):",
+      ColorF(0.70f, 0.75f, 0.85f, 1.0f)
+    );
+
+    // Multiline Center box
+    auto multiCenterBox = new Widget(card, RectF(12, 130, 285, 138));
+    auto szMc = new Size;
+    szMc.padding = Insets(8, 12, 8, 12);
+    multiCenterBox.components.size = szMc;
+    multiCenterBox.components.background = new Background(
+      ColorF(0.10f, 0.12f, 0.15f, 1.0f),
+      Background.Style.round
+    );
+    multiCenterBox.components.border = new Border(
+      ColorF(0.30f, 0.55f, 0.45f, 1.0f),
+      Border.Style.rect
+    );
+    multiCenterBox.components.border.width = 1.5f;
+    multiCenterBox.components.textLabel = new TextLabel(
+      "Centered Paragraph:\nEach wrapped line\nis positioned at the\n" ~
+        "exact horizontal center\nof the content bounds.",
+      ColorF(0.80f, 1.0f, 0.85f, 1.0f)
+    );
+    multiCenterBox.components.textLabel.multiline = true;
+    multiCenterBox.components.textLabel.alignment = TextLabel.Alignment.center;
+
+    // Multiline Right box
+    auto multiRightBox = new Widget(card, RectF(307, 130, 286, 138));
+    auto szMr = new Size;
+    szMr.padding = Insets(8, 12, 8, 12);
+    multiRightBox.components.size = szMr;
+    multiRightBox.components.background = new Background(
+      ColorF(0.10f, 0.12f, 0.15f, 1.0f),
+      Background.Style.round
+    );
+    multiRightBox.components.border = new Border(
+      ColorF(0.60f, 0.45f, 0.30f, 1.0f),
+      Border.Style.rect
+    );
+    multiRightBox.components.border.width = 1.5f;
+    multiRightBox.components.textLabel = new TextLabel(
+      "Right-Aligned Paragraph:\nEach wrapped line\nis pushed against\n" ~
+        "the right boundary\nof the container area.",
+      ColorF(1.0f, 0.85f, 0.70f, 1.0f)
+    );
+    multiRightBox.components.textLabel.multiline = true;
+    multiRightBox.components.textLabel.alignment = TextLabel.Alignment.right;
+  }
+
+  void buildTextLabelEllipsisSection() {
+    auto card = makeSectionCard(
+      page2Root,
+      RectF(645, 68, 615, 280),
+      "2. Overflow Ellipsis (Single-Line & Vertical Truncation)"
+    );
+
+    auto sub1 = new Widget(card, RectF(12, 34, 591, 16));
+    sub1.components.textLabel = new TextLabel(
+      "Single-line overflow (overflowEllipsis = true vs false):",
+      ColorF(0.70f, 0.75f, 0.85f, 1.0f)
+    );
+
+    // Single line with ellipsis = true
+    auto boxEllipsis = new Widget(card, RectF(12, 54, 288, 48));
+    auto szBe = new Size;
+    szBe.padding = Insets(6, 10, 6, 10);
+    boxEllipsis.components.size = szBe;
+    boxEllipsis.components.background = new Background(
+      ColorF(0.10f, 0.12f, 0.15f, 1.0f),
+      Background.Style.round
+    );
+    boxEllipsis.components.border = new Border(
+      ColorF(0.30f, 0.55f, 0.75f, 1.0f),
+      Border.Style.rect
+    );
+    boxEllipsis.components.border.width = 1.5f;
+    boxEllipsis.components.textLabel = new TextLabel(
+      "overflowEllipsis=true: Very long sentence truncated with ellipsis.",
+      ColorF(0.60f, 0.85f, 1.0f, 1.0f)
+    );
+    boxEllipsis.components.textLabel.multiline = false;
+    boxEllipsis.components.textLabel.overflowEllipsis = true;
+
+    // Single line with ellipsis = false (scissored by clipContents)
+    auto boxNoEllipsis = new Widget(card, RectF(308, 54, 295, 48));
+    auto szBne = new Size;
+    szBne.padding = Insets(6, 10, 6, 10);
+    boxNoEllipsis.components.size = szBne;
+    boxNoEllipsis.clipContents = true;
+    boxNoEllipsis.components.background = new Background(
+      ColorF(0.10f, 0.12f, 0.15f, 1.0f),
+      Background.Style.round
+    );
+    boxNoEllipsis.components.border = new Border(
+      ColorF(0.65f, 0.35f, 0.40f, 1.0f),
+      Border.Style.rect
+    );
+    boxNoEllipsis.components.border.width = 1.5f;
+    boxNoEllipsis.components.textLabel = new TextLabel(
+      "overflowEllipsis=false: Long sentence scissored without ellipsis dots.",
+      ColorF(1.0f, 0.65f, 0.70f, 1.0f)
+    );
+    boxNoEllipsis.components.textLabel.multiline = false;
+    boxNoEllipsis.components.textLabel.overflowEllipsis = false;
+
+    auto sub2 = new Widget(card, RectF(12, 110, 591, 16));
+    sub2.components.textLabel = new TextLabel(
+      "Multiline vertical overflow (last visible line truncated with '...'):",
+      ColorF(0.70f, 0.75f, 0.85f, 1.0f)
+    );
+
+    // Multiline vertical with ellipsis
+    auto multiVertEllipsis = new Widget(card, RectF(12, 130, 288, 138));
+    auto szMve = new Size;
+    szMve.padding = Insets(8, 12, 8, 12);
+    multiVertEllipsis.components.size = szMve;
+    multiVertEllipsis.clipContents = true;
+    multiVertEllipsis.components.background = new Background(
+      ColorF(0.10f, 0.12f, 0.15f, 1.0f),
+      Background.Style.round
+    );
+    multiVertEllipsis.components.border = new Border(
+      ColorF(0.35f, 0.65f, 0.50f, 1.0f),
+      Border.Style.rect
+    );
+    multiVertEllipsis.components.border.width = 1.5f;
+    multiVertEllipsis.components.textLabel = new TextLabel(
+      "Line 1: Primary line\nLine 2: Overflow line\n" ~
+        "Line 3: Clipped third line\nLine 4: Invisible fourth line\n" ~
+        "Line 5: Extra hidden line",
+      ColorF(0.70f, 1.0f, 0.80f, 1.0f)
+    );
+    multiVertEllipsis.components.textLabel.multiline = true;
+    multiVertEllipsis.components.textLabel.overflowEllipsis = true;
+
+    // Multiline vertical without ellipsis
+    auto multiVertNoEllipsis = new Widget(card, RectF(308, 130, 295, 138));
+    auto szMvne = new Size;
+    szMvne.padding = Insets(8, 12, 8, 12);
+    multiVertNoEllipsis.components.size = szMvne;
+    multiVertNoEllipsis.clipContents = true;
+    multiVertNoEllipsis.components.background = new Background(
+      ColorF(0.10f, 0.12f, 0.15f, 1.0f),
+      Background.Style.round
+    );
+    multiVertNoEllipsis.components.border = new Border(
+      ColorF(0.65f, 0.50f, 0.30f, 1.0f),
+      Border.Style.rect
+    );
+    multiVertNoEllipsis.components.border.width = 1.5f;
+    multiVertNoEllipsis.components.textLabel = new TextLabel(
+      "Line 1: Primary line\nLine 2: Overflow line\n" ~
+        "Line 3: Clipped third line\nLine 4: Invisible fourth line\n" ~
+        "Line 5: Extra hidden line",
+      ColorF(1.0f, 0.85f, 0.60f, 1.0f)
+    );
+    multiVertNoEllipsis.components.textLabel.multiline = true;
+    multiVertNoEllipsis.components.textLabel.overflowEllipsis = false;
+  }
+
+  void buildTextLabelMultilineSection() {
+    auto card = makeSectionCard(
+      page2Root,
+      RectF(20, 356, 605, 290),
+      "3. Multiline & Word Wrapping (wrapLine vs Single-Line)"
+    );
+
+    auto sub1 = new Widget(card, RectF(12, 34, 581, 16));
+    sub1.components.textLabel = new TextLabel(
+      "Automatic word wrapping & explicit newlines [multiline = true]:",
+      ColorF(0.70f, 0.75f, 0.85f, 1.0f)
+    );
+
+    // Box 1: Auto word wrapping
+    auto wrapBox = new Widget(card, RectF(12, 54, 285, 120));
+    auto szWb = new Size;
+    szWb.padding = Insets(8, 12, 8, 12);
+    wrapBox.components.size = szWb;
+    wrapBox.components.background = new Background(
+      ColorF(0.10f, 0.12f, 0.15f, 1.0f),
+      Background.Style.round
+    );
+    wrapBox.components.border = new Border(
+      ColorF(0.35f, 0.45f, 0.65f, 1.0f),
+      Border.Style.rect
+    );
+    wrapBox.components.border.width = 1.5f;
+    wrapBox.components.textLabel = new TextLabel(
+      "Word wrapping algorithm wraps lines cleanly at space delimiters " ~
+        "when width is limited.",
+      ColorF(0.85f, 0.90f, 1.0f, 1.0f)
+    );
+    wrapBox.components.textLabel.multiline = true;
+
+    // Box 2: Explicit newlines
+    auto newlinesBox = new Widget(card, RectF(307, 54, 286, 120));
+    auto szNb = new Size;
+    szNb.padding = Insets(8, 12, 8, 12);
+    newlinesBox.components.size = szNb;
+    newlinesBox.components.background = new Background(
+      ColorF(0.10f, 0.12f, 0.15f, 1.0f),
+      Background.Style.round
+    );
+    newlinesBox.components.border = new Border(
+      ColorF(0.40f, 0.35f, 0.55f, 1.0f),
+      Border.Style.rect
+    );
+    newlinesBox.components.border.width = 1.5f;
+    newlinesBox.components.textLabel = new TextLabel(
+      "Explicit newlines:\n" ~
+        "• First item in list\n" ~
+        "• Second item with line break\n" ~
+        "• Third item preserved",
+      ColorF(0.90f, 0.80f, 1.0f, 1.0f)
+    );
+    newlinesBox.components.textLabel.multiline = true;
+
+    auto sub2 = new Widget(card, RectF(12, 180, 581, 16));
+    sub2.components.textLabel = new TextLabel(
+      "Multiline disabled comparison [multiline = false]:",
+      ColorF(0.70f, 0.75f, 0.85f, 1.0f)
+    );
+
+    // Box 3: Single line sanitized comparison
+    auto sanitizedBox = new Widget(card, RectF(12, 200, 581, 74));
+    auto szSb = new Size;
+    szSb.padding = Insets(8, 12, 8, 12);
+    sanitizedBox.components.size = szSb;
+    sanitizedBox.components.background = new Background(
+      ColorF(0.10f, 0.12f, 0.15f, 1.0f),
+      Background.Style.round
+    );
+    sanitizedBox.components.border = new Border(
+      ColorF(0.65f, 0.50f, 0.25f, 1.0f),
+      Border.Style.dashed
+    );
+    sanitizedBox.components.border.width = 1.5f;
+    sanitizedBox.components.textLabel = new TextLabel(
+      "Line 1\\nLine 2\\r\\nLine 3 (newlines sanitized into single spaces " ~
+        "automatically when multiline=false, followed by overflow ellipsis)",
+      ColorF(1.0f, 0.90f, 0.60f, 1.0f)
+    );
+    sanitizedBox.components.textLabel.multiline = false;
+    sanitizedBox.components.textLabel.overflowEllipsis = true;
+  }
+
+  void buildTextLabelPlaygroundSection() {
+    auto card = makeSectionCard(
+      page2Root,
+      RectF(645, 356, 615, 290),
+      "4. Interactive TextLabel Playground (Keys: [M] [E] [L] [T])"
+    );
+
+    // Status banner
+    interactiveStatusWidget = new Widget(card, RectF(12, 34, 591, 30));
+    auto szIsw = new Size;
+    szIsw.padding = Insets(4, 10, 4, 10);
+    interactiveStatusWidget.components.size = szIsw;
+    interactiveStatusWidget.components.background = new Background(
+      ColorF(0.14f, 0.17f, 0.23f, 1.0f),
+      Background.Style.round
+    );
+    interactiveStatusWidget.components.background.cornerRadius = 4.0f;
+    interactiveStatusWidget.components.border = new Border(
+      ColorF(0.35f, 0.45f, 0.65f, 1.0f),
+      Border.Style.rect
+    );
+    interactiveStatusWidget.components.border.width = 1.0f;
+    interactiveStatusWidget.components.textLabel = new TextLabel(
+      formatInteractiveLabelStatus(tracker.model),
+      ColorF(0.95f, 0.95f, 0.40f, 1.0f)
+    );
+
+    // Interactive Testbed Widget
+    interactiveLabelWidget = new Widget(card, RectF(12, 70, 591, 148));
+    auto szIlw = new Size;
+    szIlw.padding = Insets(10, 14, 10, 14);
+    interactiveLabelWidget.components.size = szIlw;
+    interactiveLabelWidget.clipContents = true;
+    interactiveLabelWidget.components.background = new Background(
+      ColorF(0.09f, 0.11f, 0.15f, 1.0f),
+      Background.Style.round
+    );
+    interactiveLabelWidget.components.background.cornerRadius = 6.0f;
+    interactiveLabelWidget.components.border = new Border(
+      ColorF(0.30f, 0.75f, 0.90f, 1.0f),
+      Border.Style.dashed
+    );
+    interactiveLabelWidget.components.border.width = 2.0f;
+    interactiveLabelWidget.components.border.dashLen = 6.0f;
+    interactiveLabelWidget.components.border.gap = 3.0f;
+
+    interactiveLabelWidget.components.textLabel = new TextLabel(
+      labelInteractiveSamples[0],
+      ColorF(1.0f, 1.0f, 1.0f, 1.0f)
+    );
+    interactiveLabelWidget.components.textLabel.multiline =
+      tracker.model.labelMultiline;
+    interactiveLabelWidget.components.textLabel.overflowEllipsis =
+      tracker.model.labelEllipsis;
+    interactiveLabelWidget.components.textLabel.alignment =
+      tracker.model.labelAlignment;
+    interactiveLabelWidget.components.textLabel.fontSize = 15.0f;
+
+    // Hint / controls info
+    auto hint = new Widget(card, RectF(12, 226, 591, 52));
+    auto szH = new Size;
+    szH.padding = Insets(6, 10, 6, 10);
+    hint.components.size = szH;
+    hint.components.background = new Background(
+      ColorF(0.11f, 0.13f, 0.17f, 1.0f),
+      Background.Style.round
+    );
+    hint.components.background.cornerRadius = 4.0f;
+    hint.components.border = new Border(
+      ColorF(0.25f, 0.28f, 0.35f, 1.0f),
+      Border.Style.rect
+    );
+    hint.components.border.width = 1.0f;
+    hint.components.textLabel = new TextLabel(
+      "[M] Toggle multiline | [E] Toggle ellipsis | [L] Cycle alignment\n" ~
+        "[T] Cycle sample text | [Tab] or [1]/[2] Switch demo pages",
+      ColorF(0.65f, 0.72f, 0.85f, 1.0f)
+    );
+    hint.components.textLabel.multiline = true;
+    hint.components.textLabel.fontSize = 12.0f;
+  }
+
   void buildStatusBar() {
     auto footer = new Widget(view, RectF(20, 656, 1240, 52));
     footer.components.background = new Background(
@@ -909,12 +1471,20 @@ private:
   Widget view;
   ModelTracker!DemoModel tracker;
 
+  Widget page1Root;
+  Widget page2Root;
+  Widget tab1Btn;
+  Widget tab2Btn;
+
   Widget alphaChip;
   Widget autoLabelWidget;
   Widget playgroundContainer;
   FlexContainer playgroundFlex;
   Widget playgroundChild2;
   Widget statusLabel;
+
+  Widget interactiveLabelWidget;
+  Widget interactiveStatusWidget;
 }
 
 /// Controller handling keyboard shortcuts, animation ticks, and view updates.
@@ -956,6 +1526,28 @@ final class DemoController : DefaultController {
   override HandleResult handleEvent(AppEvent ev) {
     bool consumed = false;
 
+    if (ev.kind == AppEvent.Kind.mouseButtonDown) {
+      auto model = tracker.edit();
+      if (ev.y >= 20.0f && ev.y <= 52.0f) {
+        if (ev.x >= 840.0f && ev.x <= 1025.0f) {
+          model.activePage = 0;
+          consumed = true;
+        } else if (ev.x >= 1035.0f && ev.x <= 1245.0f) {
+          model.activePage = 1;
+          consumed = true;
+        }
+      }
+      tracker.commit(model);
+
+      if (consumed) {
+        HandleResult res;
+        res.result = HandleResult.Result.updateView;
+        res.consume = true;
+        res.timeoutMs = 16;
+        return res;
+      }
+    }
+
     if (ev.kind == AppEvent.Kind.keyDown) {
       auto model = tracker.edit();
 
@@ -965,6 +1557,33 @@ final class DemoController : DefaultController {
         tracker.commit(model);
         sendQuit();
         return HandleResult(HandleResult.Result.quit, true);
+      } else if (isKey(ev, KeyCode.tab, ScanCode.tab)) {
+        model.activePage = (model.activePage + 1) % 2;
+        consumed = true;
+      } else if (isKey(ev, KeyCode.key1, ScanCode.key1)) {
+        model.activePage = 0;
+        consumed = true;
+      } else if (isKey(ev, KeyCode.key2, ScanCode.key2)) {
+        model.activePage = 1;
+        consumed = true;
+      } else if (isKey(ev, KeyCode.m, ScanCode.m)) {
+        model.labelMultiline = !model.labelMultiline;
+        consumed = true;
+      } else if (isKey(ev, KeyCode.e, ScanCode.e)) {
+        model.labelEllipsis = !model.labelEllipsis;
+        consumed = true;
+      } else if (isKey(ev, KeyCode.l, ScanCode.l)) {
+        size_t nextAlign = (cast(size_t)model.labelAlignment + 1) % 3;
+        model.labelAlignment = cast(TextLabel.Alignment)nextAlign;
+        consumed = true;
+      } else if (isKey(ev, KeyCode.t, ScanCode.t)) {
+        if (model.activePage == 0) {
+          model.textSampleIndex = (model.textSampleIndex + 1) % 3;
+        } else {
+          model.labelSampleIndex = (model.labelSampleIndex + 1) %
+            DemoView.labelInteractiveSamples.length;
+        }
+        consumed = true;
       } else if (isKey(ev, KeyCode.d, ScanCode.d)) {
         model.direction = model.direction == FlexDirection.row
           ? FlexDirection.column
@@ -993,9 +1612,6 @@ final class DemoController : DefaultController {
         consumed = true;
       } else if (isKey(ev, KeyCode.v, ScanCode.v)) {
         model.child2Visible = !model.child2Visible;
-        consumed = true;
-      } else if (isKey(ev, KeyCode.t, ScanCode.t)) {
-        model.textSampleIndex = (model.textSampleIndex + 1) % 3;
         consumed = true;
       }
 

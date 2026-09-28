@@ -59,17 +59,25 @@ Features demonstrated:
 * Drawing styles (`widget_painter.d`): solid rect/round backgrounds, dashed
   and rounded borders, dynamic alpha transparency, clipping (`clipChildren`
   and `clipContents`), and visibility culling.
+* TextLabel component (`drawing_components.d`): horizontal alignment (left,
+  center, right), overflow ellipsis (`overflowEllipsis = true/false` on single
+  and multiline), multiline word wrapping and newline handling, and interactive
+  playground.
 * Layout system (`layout_system.d`): `SizingMode` (fixed, auto, fraction),
   min/max dimension bounds, padding and margin insets, flexbox directions,
   gap spacing, `JustifyContent`, `AlignItems`, and out-of-flow `Anchor` pinning.
 
 Interactive keyboard controls:
+* `[Tab]` / `[1]` / `[2]`: Switch demo page (Layout & Painter <-> TextLabel)
+* `[M]`: Toggle multiline on interactive TextLabel
+* `[E]`: Toggle overflow ellipsis on interactive TextLabel
+* `[L]`: Cycle alignment (left -> center -> right)
 * `[D]`: Toggle FlexDirection (row <-> column)
 * `[J]`: Cycle JustifyContent (start -> end -> center -> spaceBetween)
 * `[A]`: Cycle AlignItems (stretch -> start -> end -> center)
 * `[G]`: Cycle flex gap (0, 8, 16, 24 px)
 * `[V]`: Toggle child visibility (test dynamic flexbox re-flow)
-* `[T]`: Cycle text caption (test dynamic auto-sizing)
+* `[T]`: Cycle text caption (test dynamic auto-sizing / sample text)
 * `[Q]` / `[Esc]`: Quit
 
 ## Profiling
