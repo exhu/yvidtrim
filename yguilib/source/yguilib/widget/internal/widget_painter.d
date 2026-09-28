@@ -50,7 +50,7 @@ private:
       }
       // TODO claculate content rect based on
       // Size and Border components (Border.width + Size.padding)
-      // TODO Push clip rect for content
+      // TODO Push clip rect for content if clipContents == true
       // TODO pass absRect corrected for actual conent rect
       if (w.components.textLabel !is null) {
         drawTextLabel(w, absRect, r);
@@ -100,17 +100,11 @@ private:
 
   static void drawTextLabel(Widget w, in RectF absRect, Renderer r) {
     auto comp = w.components.textLabel;
-    float startX = absRect.x;
-    float startY = absRect.y;
-    if (w.components.border !is null &&
-        w.components.border.style != Border.Style.none) {
-      startX += w.components.border.width;
-      startY += w.components.border.width;
-    }
-    if (w.components.size !is null) {
-      startX += w.components.size.padding.left;
-      startY += w.components.size.padding.top;
-    }
-    r.drawText(comp.caption, PointF(startX, startY), comp.color);
+    const RectF contentArea = w.getContentArea();
+    r.drawText(
+      comp.caption,
+      PointF(absRect.x + contentArea.x, absRect.y + contentArea.y),
+      comp.color
+    );
   }
 }

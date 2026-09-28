@@ -8,37 +8,11 @@ import yguilib.widget : Widget;
 import yguilib.widget.layout_components;
 import yguilib.widget.drawing_components : Border;
 import yguilib.widget.internal.layout_axis;
-import yguilib.widget.internal.layout_content_size : getBorderWidth;
 import yguilib.widget.internal.layout_dimension : clampDimension;
 
 /// Computes inner content area bounds deducting padding and border.
 RectF calcContentRect(const Widget w) {
-  const float borderWidth = getBorderWidth(w.components.border);
-  float padLeft = 0.0f;
-  float padRight = 0.0f;
-  float padTop = 0.0f;
-  float padBottom = 0.0f;
-
-  const Size szComp = w.components.size;
-  if (szComp !is null) {
-    padLeft = szComp.padding.left;
-    padRight = szComp.padding.right;
-    padTop = szComp.padding.top;
-    padBottom = szComp.padding.bottom;
-  }
-
-  const float startX = borderWidth + padLeft;
-  const float startY = borderWidth + padTop;
-  const float availW = max(
-    0.0f,
-    w.rect.width - (borderWidth * 2.0f + padLeft + padRight)
-  );
-  const float availH = max(
-    0.0f,
-    w.rect.height - (borderWidth * 2.0f + padTop + padBottom)
-  );
-
-  return RectF(startX, startY, availW, availH);
+  return w.getContentArea();
 }
 
 /// Distributes remaining main-axis space to fraction sizing children.
