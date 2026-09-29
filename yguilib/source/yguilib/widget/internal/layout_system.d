@@ -27,20 +27,36 @@ final class LayoutSystem {
       return;
     }
 
+    oldRectBuf.clear();
+    foreach (ref vw; visibleWidgets) {
+      oldRectBuf ~= vw.widget.rect;
+    }
+    const RectF[] oldRects = oldRectBuf[];
+
     // compute initial sizes: leaf to root
-    foreach_reverse(VisibleWidget vw; visibleWidgets) {
+    foreach_reverse (VisibleWidget vw; visibleWidgets) {
       handleSizeComp(vw, r);
     }
 
     // compute position and sizes: root to leaf
-    foreach(VisibleWidget vw; visibleWidgets) {
+    foreach (VisibleWidget vw; visibleWidgets) {
       handleAnchorComp(vw);
       handleFlexContainerComp(vw, r);
     }
+
+    // Mark dirty if rect changed, and reset layoutDirty
+    foreach (size_t i, ref vw; visibleWidgets) {
+      if (vw.widget.rect != oldRects[i]) {
+        vw.widget.dirty = true;
+      }
+      vw.widget.layoutDirty = false;
+    }
+    root.layoutDirty = false;
   }
 private:
 
   Appender!(Widget[]) childBuf;
+  Appender!(RectF[]) oldRectBuf;
 
   package(yguilib) static void handleSizeComp(
     VisibleWidget vw,

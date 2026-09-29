@@ -45,9 +45,85 @@ class TextLabel : Component {
   /// Horizontal alignment of text within the content area.
   Alignment alignment = Alignment.left;
 
+  /// Cached text formatting to avoid repeating line splitting, wrapping,
+  /// ellipsis truncation, and string measurements when parameters
+  /// are unchanged.
+  package(yguilib) FormattedTextLine[] cachedLines;
+  package(yguilib) float cachedWidth = -1.0f;
+  package(yguilib) float cachedHeight = -1.0f;
+  package(yguilib) string cachedCaption;
+  package(yguilib) float cachedFontSize = -1.0f;
+  package(yguilib) string cachedFont;
+  package(yguilib) bool cachedMultiline;
+  package(yguilib) bool cachedEllipsis;
+  package(yguilib) Alignment cachedAlignment;
+
+  // Cached measured content size
+  package(yguilib) PointF cachedContentSize;
+  package(yguilib) float cachedContentAvailWidth = -1.0f;
+  package(yguilib) float cachedContentAvailHeight = -1.0f;
+  package(yguilib) string cachedContentCaption;
+  package(yguilib) float cachedContentFontSize = -1.0f;
+  package(yguilib) string cachedContentFont;
+  package(yguilib) bool cachedContentMultiline;
+  package(yguilib) bool cachedContentEllipsis;
+  package(yguilib) bool hasCachedContentSize;
+
   /// Returns caption with '\r\n', '\n', and '\r' replaced with a single space.
   string getSingleLineCaption() const {
     return sanitizeSingleLine(caption);
+  }
+
+  FormattedTextLine[] layoutLines(
+    Renderer r,
+    float availableWidth,
+    float availableHeight = 0.0f
+  ) {
+    if (r is null) {
+      return [];
+    }
+    Font f = r.getFont(fontSize, this.font);
+    return layoutLines(r, f, availableWidth, availableHeight);
+  }
+
+  FormattedTextLine[] layoutLines(
+    Renderer r,
+    Font font,
+    float availableWidth,
+    float availableHeight = 0.0f
+  ) {
+    if (cachedLines.length > 0 &&
+        availableWidth == cachedWidth &&
+        availableHeight == cachedHeight &&
+        caption == cachedCaption &&
+        fontSize == cachedFontSize &&
+        this.font == cachedFont &&
+        multiline == cachedMultiline &&
+        overflowEllipsis == cachedEllipsis &&
+        alignment == cachedAlignment) {
+      return cachedLines;
+    }
+
+    cachedLines = layoutTextLines(
+      r,
+      font,
+      caption,
+      multiline,
+      overflowEllipsis,
+      alignment,
+      availableWidth,
+      availableHeight
+    );
+    cachedWidth = availableWidth;
+    cachedHeight = availableHeight;
+    cachedCaption = caption;
+    cachedFontSize = fontSize;
+    cachedFont = this.font;
+    cachedMultiline = multiline;
+    cachedEllipsis = overflowEllipsis;
+    cachedAlignment = alignment;
+
+    return cachedLines;
   }
 
   FormattedTextLine[] layoutLines(
@@ -209,4 +285,18 @@ unittest {
   auto linesVertNoTrunc = tlMulti.layoutLines(r, 200.0f, limitH);
   assert(linesVertNoTrunc.length == 2);
   assert(linesVertNoTrunc[1].text == "Line 2");
+
+  // Test layoutLines caching
+  auto tlCache = new TextLabel("Cached line", ColorF(1, 1, 1, 1));
+  auto linesC1 = tlCache.layoutLines(r, 200.0f, 100.0f);
+  auto linesC2 = tlCache.layoutLines(r, 200.0f, 100.0f);
+  assert(linesC1.ptr == linesC2.ptr);
+
+  // Changing caption invalidates cache
+  tlCache.caption = "Updated line";
+  auto linesC3 = tlCache.layoutLines(r, 200.0f, 100.0f);
+  assert(linesC3.length == 1);
+  assert(linesC3[0].text == "Updated line");
+  assert(linesC3.ptr != linesC1.ptr);
 }
+

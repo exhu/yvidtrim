@@ -97,17 +97,33 @@ private:
 
   void updateLayout() {
     if (isViewAvailableForRendering()) {
+      if (!mainWindow.view.isTreeLayoutDirty() &&
+          lastVisibleWidgets.length > 0) {
+        return;
+      }
       // collect visible on screen without widgets parent clipping
-      lastVisibleWidgets = visibleWidgetsCollector.collectVisible(mainWindow.view, mainWindow.renderer, true);
-      layoutSystem.layoutTree(mainWindow.view, mainWindow.renderer, lastVisibleWidgets);
-      // collect visible with positions and sizes adjusted by layout, include clipping test
-      lastVisibleWidgets = visibleWidgetsCollector.collectVisible(mainWindow.view, mainWindow.renderer, false);
+      lastVisibleWidgets = visibleWidgetsCollector.collectVisible(
+        mainWindow.view, mainWindow.renderer, true
+      );
+      layoutSystem.layoutTree(
+        mainWindow.view, mainWindow.renderer, lastVisibleWidgets
+      );
+      // collect visible with positions and sizes adjusted by layout,
+      // include clipping test
+      lastVisibleWidgets = visibleWidgetsCollector.collectVisible(
+        mainWindow.view, mainWindow.renderer, false
+      );
     }
   }
 
   void renderFrame() {
     if (mainWindow !is null) {
-      drawUi();
+      if (isViewAvailableForRendering()) {
+        if (!mainWindow.view.isTreeDirty()) {
+          return;
+        }
+        drawUi();
+      }
       mainWindow.swapBuffers();
     }
   }
@@ -128,6 +144,13 @@ private:
   void handleWindowEvent(in AppEvent event) {
     if (mainWindow !is null && isMainWindowEvent(event.windowId)) {
       mainWindow.handleWindowEvent(event);
+      if (event.kind == AppEvent.Kind.windowResized ||
+          event.kind == AppEvent.Kind.windowExposed ||
+          event.kind == AppEvent.Kind.windowDisplayScaleChanged) {
+        if (mainWindow.view !is null) {
+          mainWindow.view.markTreeDirty();
+        }
+      }
     }
   }
 
@@ -293,6 +316,9 @@ private:
   }
 
   void redraw() {
+    if (mainWindow !is null && mainWindow.view !is null) {
+      mainWindow.view.markTreeDirty();
+    }
     auto active = getActiveControllerOrNull();
     if (active !is null) {
       updateAndRender(active);
@@ -835,3 +861,53 @@ unittest {
   assert(cont);
   assert(timeoutMs == -1);
 }
+
+// Verifies dirty flag optimization gating in updateLayout and renderFrame.
+unittest {
+  import yguilib.render.render_types : ColorF, RectF;
+  import yguilib.widget.drawing_components : Background;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(320, 240, "test_dirty_gating");
+  win.create();
+  scope(exit) win.destroy();
+
+  auto ui = new UiSystem(win);
+  auto root = new Widget(null, RectF(0, 0, 320, 240));
+  root.components.background = new Background(ColorF(0.1f, 0.1f, 0.1f, 1.0f));
+  win.view = root;
+
+  assert(root.isTreeLayoutDirty());
+  assert(root.isTreeDirty());
+
+  // First layout and render pass: performs layout and rendering
+  ui.updateLayout();
+  assert(!root.isTreeLayoutDirty());
+  assert(root.isTreeDirty());
+
+  ui.renderFrame();
+  assert(!root.isTreeDirty());
+
+  // With flags clean, layout and rendering must be skipped
+  ui.updateLayout();
+  assert(!root.isTreeLayoutDirty());
+
+  ui.renderFrame();
+  assert(!root.isTreeDirty());
+
+  // Mark paint-only dirty
+  root.markDirty(false);
+  assert(!root.isTreeLayoutDirty());
+  assert(root.isTreeDirty());
+
+  // updateLayout must remain skipped because layout is not dirty
+  ui.updateLayout();
+  assert(!root.isTreeLayoutDirty());
+
+  // renderFrame must execute and clear dirty
+  ui.renderFrame();
+  assert(!root.isTreeDirty());
+}
+

@@ -108,13 +108,25 @@ final class MainView {
 
   void update() {
     if (tracker.update()) {
-      toggleWidget.visible = tracker.model.toggleVisible;
-      toggleWidget.markDirty();
-      alphaWidget.components.background.color.a = tracker.model.alphaValue;
-      alphaWidget.markDirty();
-      fc.alignItems = tracker.model.alignItems;
-      container.markDirty();
-      writeln("alignItems=", fc.alignItems);
+      if (toggleWidget.visible != tracker.model.toggleVisible) {
+        toggleWidget.visible = tracker.model.toggleVisible;
+        if (toggleWidget.visible) {
+          toggleWidget.markTreeDirty();
+        } else {
+          toggleWidget.markDirty();
+        }
+      }
+      if (alphaWidget.components.background !is null &&
+          alphaWidget.components.background.color.a !=
+          tracker.model.alphaValue) {
+        alphaWidget.components.background.color.a = tracker.model.alphaValue;
+        alphaWidget.markDirty(false);
+      }
+      if (fc.alignItems != tracker.model.alignItems) {
+        fc.alignItems = tracker.model.alignItems;
+        container.markDirty();
+        writeln("alignItems=", fc.alignItems);
+      }
     }
   }
 
@@ -198,8 +210,7 @@ final class MainController : DefaultController {
   ModelTracker!MainModel t = ModelTracker!MainModel(new MainModel);
 }
 
-void main()
-{
+void main() {
   auto window = new Window(1280, 720, "yvidtrim");
   auto app = new App(window);
   app.run(new MainController(app));

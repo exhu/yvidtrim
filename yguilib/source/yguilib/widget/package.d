@@ -48,9 +48,76 @@ final class Widget {
       parent.children ~= this;
   }
 
-  /// must be called after properties have changed
-  void markDirty() {
+  /// Returns true if this widget has auto sizing on width or height.
+  bool hasAutoSizing() const {
+    if (components.size !is null) {
+      return components.size.width.mode == SizingMode.auto_ ||
+        components.size.height.mode == SizingMode.auto_;
+    }
+    return false;
+  }
+
+  /// Sets the dirty flag.
+  /// If layout is true, or if this widget has auto-sized dimensions,
+  /// marks this widget and its ancestors as layout-dirty so the layout
+  /// system recalculates stale geometry.
+  /// If layout is false, marks only this widget as dirty for redrawing,
+  /// preserving cached layout calculations.
+  void markDirty(bool layout = true) {
     dirty = true;
+    if (layout || hasAutoSizing()) {
+      markLayoutDirty();
+    }
+  }
+
+  /// Marks this widget and its ancestors as layout dirty.
+  void markLayoutDirty() {
+    layoutDirty = true;
+    dirty = true;
+    if (parent !is null && !parent.layoutDirty) {
+      parent.markLayoutDirty();
+    }
+  }
+
+  /// Marks this widget and all its descendants as dirty and layout-dirty.
+  void markTreeDirty() {
+    dirty = true;
+    layoutDirty = true;
+    foreach (child; children) {
+      child.markTreeDirty();
+    }
+  }
+
+  /// Returns true if this widget or any visible descendant needs redrawing.
+  bool isTreeDirty() const {
+    if (!visible) {
+      return false;
+    }
+    if (dirty) {
+      return true;
+    }
+    foreach (child; children) {
+      if (child.isTreeDirty()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Returns true if this widget or any visible descendant needs layout.
+  bool isTreeLayoutDirty() const {
+    if (!visible) {
+      return false;
+    }
+    if (layoutDirty) {
+      return true;
+    }
+    foreach (child; children) {
+      if (child.isTreeLayoutDirty()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// Returns the widget's content area rectangle, accounting for border
@@ -99,6 +166,7 @@ final class Widget {
   bool clipChildren = false;
   Widget[] children;
   bool dirty = true;
+  bool layoutDirty = true;
 }
 
 unittest {
@@ -120,3 +188,62 @@ unittest {
   w.rect = RectF(0, 0, 10, 10);
   assert(w.getContentArea() == RectF(13, 7, 0, 0));
 }
+
+unittest {
+  auto root = new Widget(null, RectF(0, 0, 200, 200));
+  auto child = new Widget(root, RectF(0, 0, 100, 100));
+
+  assert(root.dirty && root.layoutDirty);
+  assert(child.dirty && child.layoutDirty);
+  assert(root.isTreeDirty());
+  assert(root.isTreeLayoutDirty());
+
+  // Clear flags manually
+  root.dirty = false;
+  root.layoutDirty = false;
+  child.dirty = false;
+  child.layoutDirty = false;
+
+  assert(!root.isTreeDirty());
+  assert(!root.isTreeLayoutDirty());
+
+  // Paint-only dirty on child (no auto sizing)
+  child.markDirty(false);
+  assert(child.dirty);
+  assert(!child.layoutDirty);
+  assert(!root.dirty);
+  assert(!root.layoutDirty);
+  assert(root.isTreeDirty());
+  assert(!root.isTreeLayoutDirty());
+
+  // Reset and test auto sizing upgrade
+  child.dirty = false;
+  auto sz = new Size;
+  sz.width = Dimension(0, SizingMode.auto_);
+  child.components.size = sz;
+  assert(child.hasAutoSizing());
+
+  child.markDirty(false); // even with layout=false, auto_ forces layout
+  assert(child.dirty);
+  assert(child.layoutDirty);
+  assert(root.dirty);
+  assert(root.layoutDirty);
+  assert(root.isTreeLayoutDirty());
+
+  // Test markTreeDirty
+  root.dirty = false;
+  root.layoutDirty = false;
+  child.dirty = false;
+  child.layoutDirty = false;
+  root.markTreeDirty();
+  assert(root.dirty && root.layoutDirty);
+  assert(child.dirty && child.layoutDirty);
+
+  // Test visibility culling in tree checks
+  root.dirty = false;
+  child.dirty = true;
+  assert(root.isTreeDirty());
+  child.visible = false;
+  assert(!root.isTreeDirty());
+}
+

@@ -27,20 +27,29 @@ final class TextLabelPage {
     if (interactiveLabelWidget !is null &&
         interactiveLabelWidget.components.textLabel !is null) {
       auto tl = interactiveLabelWidget.components.textLabel;
-      tl.multiline = m.labelMultiline;
-      tl.overflowEllipsis = m.labelEllipsis;
-      tl.alignment = m.labelAlignment;
-      tl.caption = labelInteractiveSamples[
+      const string targetText = labelInteractiveSamples[
         m.labelSampleIndex % labelInteractiveSamples.length
       ];
-      interactiveLabelWidget.markDirty();
+      if (tl.multiline != m.labelMultiline ||
+          tl.overflowEllipsis != m.labelEllipsis ||
+          tl.alignment != m.labelAlignment ||
+          tl.caption != targetText) {
+        tl.multiline = m.labelMultiline;
+        tl.overflowEllipsis = m.labelEllipsis;
+        tl.alignment = m.labelAlignment;
+        tl.caption = targetText;
+        interactiveLabelWidget.markDirty();
+      }
     }
 
     if (interactiveStatusWidget !is null &&
         interactiveStatusWidget.components.textLabel !is null) {
-      interactiveStatusWidget.components.textLabel.caption =
-        formatInteractiveStatus(m);
-      interactiveStatusWidget.markDirty();
+      const string targetStatus = formatInteractiveStatus(m);
+      if (interactiveStatusWidget.components.textLabel.caption !=
+          targetStatus) {
+        interactiveStatusWidget.components.textLabel.caption = targetStatus;
+        interactiveStatusWidget.markDirty();
+      }
     }
   }
 
@@ -49,8 +58,17 @@ final class TextLabelPage {
   }
 
   void setVisible(bool visible) {
-    root.visible = visible;
-    root.markDirty();
+    if (root.visible != visible) {
+      root.visible = visible;
+      if (visible) {
+        root.markTreeDirty();
+      } else {
+        root.markDirty();
+      }
+      if (root.parent !is null) {
+        root.parent.markLayoutDirty();
+      }
+    }
   }
 
   bool isVisible() const {

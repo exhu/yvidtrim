@@ -27,34 +27,48 @@ final class LayoutPainterPage {
   void update(const DemoModel m) {
     // 1. Update animated alpha chip
     if (alphaChip !is null && alphaChip.components.background !is null) {
-      alphaChip.components.background.color.a = m.alphaValue;
-      alphaChip.markDirty();
+      if (alphaChip.components.background.color.a != m.alphaValue) {
+        alphaChip.components.background.color.a = m.alphaValue;
+        alphaChip.markDirty(false);
+      }
     }
 
     // 2. Update auto-sized label text sample
     if (autoLabelWidget !is null &&
         autoLabelWidget.components.textLabel !is null) {
-      autoLabelWidget.components.textLabel.caption =
+      const string targetText =
         textSamples[m.textSampleIndex % textSamples.length];
-      autoLabelWidget.markDirty();
-      if (autoLabelWidget.parent !is null) {
-        autoLabelWidget.parent.markDirty();
+      if (autoLabelWidget.components.textLabel.caption != targetText) {
+        autoLabelWidget.components.textLabel.caption = targetText;
+        autoLabelWidget.markDirty();
       }
     }
 
     // 3. Update interactive flex playground container
     if (playgroundFlex !is null) {
-      playgroundFlex.direction = m.direction;
-      playgroundFlex.justify = m.justify;
-      playgroundFlex.alignItems = m.alignItems;
-      playgroundFlex.gap = m.gap;
-      playgroundContainer.markDirty();
+      if (playgroundFlex.direction != m.direction ||
+          playgroundFlex.justify != m.justify ||
+          playgroundFlex.alignItems != m.alignItems ||
+          playgroundFlex.gap != m.gap) {
+        playgroundFlex.direction = m.direction;
+        playgroundFlex.justify = m.justify;
+        playgroundFlex.alignItems = m.alignItems;
+        playgroundFlex.gap = m.gap;
+        playgroundContainer.markDirty();
+      }
     }
 
     // 4. Update dynamic visibility child
     if (playgroundChild2 !is null) {
-      playgroundChild2.visible = m.child2Visible;
-      playgroundChild2.markDirty();
+      if (playgroundChild2.visible != m.child2Visible) {
+        playgroundChild2.visible = m.child2Visible;
+        if (playgroundChild2.visible) {
+          playgroundChild2.markTreeDirty();
+        } else {
+          playgroundChild2.markDirty();
+        }
+        playgroundContainer.markDirty();
+      }
     }
   }
 
@@ -63,8 +77,17 @@ final class LayoutPainterPage {
   }
 
   void setVisible(bool visible) {
-    root.visible = visible;
-    root.markDirty();
+    if (root.visible != visible) {
+      root.visible = visible;
+      if (visible) {
+        root.markTreeDirty();
+      } else {
+        root.markDirty();
+      }
+      if (root.parent !is null) {
+        root.parent.markLayoutDirty();
+      }
+    }
   }
 
   bool isVisible() const {

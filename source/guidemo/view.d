@@ -53,16 +53,22 @@ final class DemoView {
 
     // 2. Update tab button highlights
     if (tab1Btn !is null && tab1Btn.components.background !is null) {
-      tab1Btn.components.background.color = m.activePage == 0
+      const ColorF col1 = m.activePage == 0
         ? ColorF(0.20f, 0.45f, 0.85f, 1.0f)
         : ColorF(0.16f, 0.18f, 0.23f, 1.0f);
-      tab1Btn.markDirty();
+      if (tab1Btn.components.background.color != col1) {
+        tab1Btn.components.background.color = col1;
+        tab1Btn.markDirty(false);
+      }
     }
     if (tab2Btn !is null && tab2Btn.components.background !is null) {
-      tab2Btn.components.background.color = m.activePage == 1
+      const ColorF col2 = m.activePage == 1
         ? ColorF(0.20f, 0.45f, 0.85f, 1.0f)
         : ColorF(0.16f, 0.18f, 0.23f, 1.0f);
-      tab2Btn.markDirty();
+      if (tab2Btn.components.background.color != col2) {
+        tab2Btn.components.background.color = col2;
+        tab2Btn.markDirty(false);
+      }
     }
 
     // 3. Delegate page-specific updates
@@ -74,8 +80,11 @@ final class DemoView {
 
     // 4. Update HUD status label text
     if (statusLabel !is null && statusLabel.components.textLabel !is null) {
-      statusLabel.components.textLabel.caption = formatStatusString(m);
-      statusLabel.markDirty();
+      const string statusStr = formatStatusString(m);
+      if (statusLabel.components.textLabel.caption != statusStr) {
+        statusLabel.components.textLabel.caption = statusStr;
+        statusLabel.markDirty();
+      }
     }
   }
 

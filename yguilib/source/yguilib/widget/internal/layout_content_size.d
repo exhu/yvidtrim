@@ -152,6 +152,55 @@ bool tryCalcChildrenBoundingBox(
 }
 
 PointF calcTextContentSize(
+  TextLabel tl,
+  Renderer r,
+  float availableWidth = 0.0f,
+  float availableHeight = 0.0f
+) {
+  if (tl is null || r is null || tl.caption.length == 0) {
+    return PointF(0.0f, 0.0f);
+  }
+
+  Font font = r.getFont(tl.fontSize, tl.font);
+  if (font is null) {
+    return PointF(0.0f, 0.0f);
+  }
+
+  if (tl.hasCachedContentSize &&
+      tl.cachedContentAvailWidth == availableWidth &&
+      tl.cachedContentAvailHeight == availableHeight &&
+      tl.cachedContentCaption == tl.caption &&
+      tl.cachedContentFontSize == tl.fontSize &&
+      tl.cachedContentFont == tl.font &&
+      tl.cachedContentMultiline == tl.multiline &&
+      tl.cachedContentEllipsis == tl.overflowEllipsis) {
+    return tl.cachedContentSize;
+  }
+
+  PointF sz = measureTextContentSize(
+    r,
+    font,
+    tl.caption,
+    tl.multiline,
+    tl.overflowEllipsis,
+    availableWidth,
+    availableHeight
+  );
+
+  tl.cachedContentSize = sz;
+  tl.cachedContentAvailWidth = availableWidth;
+  tl.cachedContentAvailHeight = availableHeight;
+  tl.cachedContentCaption = tl.caption;
+  tl.cachedContentFontSize = tl.fontSize;
+  tl.cachedContentFont = tl.font;
+  tl.cachedContentMultiline = tl.multiline;
+  tl.cachedContentEllipsis = tl.overflowEllipsis;
+  tl.hasCachedContentSize = true;
+
+  return sz;
+}
+
+PointF calcTextContentSize(
   const TextLabel tl,
   Renderer r,
   float availableWidth = 0.0f,

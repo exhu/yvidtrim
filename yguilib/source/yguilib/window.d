@@ -142,12 +142,16 @@ class Window {
 
   private void updateViewRect() {
     if (view !is null && renderer !is null) {
-      view.rect = RectF(
+      const RectF newRect = RectF(
         0,
         0,
         renderer.getLogicWidth(),
         renderer.getLogicHeight()
       );
+      if (view.rect != newRect) {
+        view.rect = newRect;
+        view.markTreeDirty();
+      }
     }
   }
 
