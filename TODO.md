@@ -1,10 +1,9 @@
 - do not recalculate text if dirty = false, check layout_content_size.d as well
 - assets management (transparent mapping to embedded import string and file stream data)
-- font management (register font data, name, style)
+- extended font management (proper name, styles)
 - define modal controller rules (some controllers must still handle events, when modal is active)
 - add modal dialog displayed by model on key (and closed by click)
 - button
 - focus
 - modal dialog
 - text input
-- implement simple ui: control hierarchy system with input: window, widget, label, view, controller, models
