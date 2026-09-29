@@ -40,7 +40,7 @@ struct WidgetComponents {
   KeyboardAction keyboardAction;
 }
 
-class Widget {
+final class Widget {
   this(Widget parent, RectF rect) {
     this.parent = parent;
     this.rect = rect;
@@ -120,4 +120,3 @@ unittest {
   w.rect = RectF(0, 0, 10, 10);
   assert(w.getContentArea() == RectF(13, 7, 0, 0));
 }
-
