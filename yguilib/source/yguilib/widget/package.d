@@ -4,6 +4,7 @@ import yguilib.widget.drawing_components;
 import yguilib.render.render_types;
 import yguilib.widget.layout_components;
 import yguilib.widget.input_components;
+import yguilib.widget.property_template;
 
 // TODO implement code first approach, without symbolic bindings
 
@@ -161,12 +162,14 @@ final class Widget {
   RectF rect;
   WidgetComponents components;
   bool handleInput;
-  bool visible = true;
-  bool clipContents = true;
-  bool clipChildren = false;
+  /// call markDirty(true), when finish with changes to children
   Widget[] children;
   bool dirty = true;
   bool layoutDirty = true;
+
+  mixin MarkDirtyProperty!(bool, "visible", true, true);
+  mixin MarkDirtyProperty!(bool, "clipContents", true, false);
+  mixin MarkDirtyProperty!(bool, "clipChildren", false, true);
 }
 
 unittest {
@@ -246,4 +249,3 @@ unittest {
   child.visible = false;
   assert(!root.isTreeDirty());
 }
-
