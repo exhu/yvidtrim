@@ -48,7 +48,7 @@ final class DemoView {
     if (page1.isVisible() != p1Vis || page2.isVisible() != p2Vis) {
       page1.setVisible(p1Vis);
       page2.setVisible(p2Vis);
-      view.markDirty();
+      view.update();
     }
 
     // 2. Update tab button highlights
@@ -58,7 +58,7 @@ final class DemoView {
         : ColorF(0.16f, 0.18f, 0.23f, 1.0f);
       if (tab1Btn.components.background.color != col1) {
         tab1Btn.components.background.color = col1;
-        tab1Btn.markDirty(false);
+        tab1Btn.update();
       }
     }
     if (tab2Btn !is null && tab2Btn.components.background !is null) {
@@ -67,7 +67,7 @@ final class DemoView {
         : ColorF(0.16f, 0.18f, 0.23f, 1.0f);
       if (tab2Btn.components.background.color != col2) {
         tab2Btn.components.background.color = col2;
-        tab2Btn.markDirty(false);
+        tab2Btn.update();
       }
     }
 
@@ -83,7 +83,7 @@ final class DemoView {
       const string statusStr = formatStatusString(m);
       if (statusLabel.components.textLabel.caption != statusStr) {
         statusLabel.components.textLabel.caption = statusStr;
-        statusLabel.markDirty();
+        statusLabel.update();
       }
     }
   }

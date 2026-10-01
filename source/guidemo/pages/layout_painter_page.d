@@ -29,7 +29,7 @@ final class LayoutPainterPage {
     if (alphaChip !is null && alphaChip.components.background !is null) {
       if (alphaChip.components.background.color.a != m.alphaValue) {
         alphaChip.components.background.color.a = m.alphaValue;
-        alphaChip.markDirty(false);
+        alphaChip.update();
       }
     }
 
@@ -40,7 +40,7 @@ final class LayoutPainterPage {
         textSamples[m.textSampleIndex % textSamples.length];
       if (autoLabelWidget.components.textLabel.caption != targetText) {
         autoLabelWidget.components.textLabel.caption = targetText;
-        autoLabelWidget.markDirty();
+        autoLabelWidget.update();
       }
     }
 
@@ -54,7 +54,7 @@ final class LayoutPainterPage {
         playgroundFlex.justify = m.justify;
         playgroundFlex.alignItems = m.alignItems;
         playgroundFlex.gap = m.gap;
-        playgroundContainer.markDirty();
+        playgroundContainer.update();
       }
     }
 
@@ -63,11 +63,9 @@ final class LayoutPainterPage {
       if (playgroundChild2.visible != m.child2Visible) {
         playgroundChild2.visible = m.child2Visible;
         if (playgroundChild2.visible) {
-          playgroundChild2.markTreeDirty();
-        } else {
-          playgroundChild2.markDirty();
+          playgroundChild2.update();
         }
-        playgroundContainer.markDirty();
+        playgroundContainer.update();
       }
     }
   }
@@ -79,14 +77,7 @@ final class LayoutPainterPage {
   void setVisible(bool visible) {
     if (root.visible != visible) {
       root.visible = visible;
-      if (visible) {
-        root.markTreeDirty();
-      } else {
-        root.markDirty();
-      }
-      if (root.parent !is null) {
-        root.parent.markLayoutDirty();
-      }
+      root.update();
     }
   }
 

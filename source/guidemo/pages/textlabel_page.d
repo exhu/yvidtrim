@@ -38,7 +38,7 @@ final class TextLabelPage {
         tl.overflowEllipsis = m.labelEllipsis;
         tl.alignment = m.labelAlignment;
         tl.caption = targetText;
-        interactiveLabelWidget.markDirty();
+        interactiveLabelWidget.update();
       }
     }
 
@@ -48,7 +48,7 @@ final class TextLabelPage {
       if (interactiveStatusWidget.components.textLabel.caption !=
           targetStatus) {
         interactiveStatusWidget.components.textLabel.caption = targetStatus;
-        interactiveStatusWidget.markDirty();
+        interactiveStatusWidget.update();
       }
     }
   }
@@ -60,14 +60,7 @@ final class TextLabelPage {
   void setVisible(bool visible) {
     if (root.visible != visible) {
       root.visible = visible;
-      if (visible) {
-        root.markTreeDirty();
-      } else {
-        root.markDirty();
-      }
-      if (root.parent !is null) {
-        root.parent.markLayoutDirty();
-      }
+      root.update();
     }
   }
 

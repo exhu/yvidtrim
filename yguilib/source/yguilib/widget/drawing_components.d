@@ -45,29 +45,30 @@ class TextLabel : Component {
   /// Horizontal alignment of text within the content area.
   Alignment alignment = Alignment.left;
 
+package(yguilib):
   /// Cached text formatting to avoid repeating line splitting, wrapping,
   /// ellipsis truncation, and string measurements when parameters
   /// are unchanged.
-  package(yguilib) FormattedTextLine[] cachedLines;
-  package(yguilib) float cachedWidth = -1.0f;
-  package(yguilib) float cachedHeight = -1.0f;
-  package(yguilib) string cachedCaption;
-  package(yguilib) float cachedFontSize = -1.0f;
-  package(yguilib) string cachedFont;
-  package(yguilib) bool cachedMultiline;
-  package(yguilib) bool cachedEllipsis;
-  package(yguilib) Alignment cachedAlignment;
+  FormattedTextLine[] cachedLines;
+  float cachedWidth = -1.0f;
+  float cachedHeight = -1.0f;
+  string cachedCaption;
+  float cachedFontSize = -1.0f;
+  string cachedFont;
+  bool cachedMultiline;
+  bool cachedEllipsis;
+  Alignment cachedAlignment;
 
   // Cached measured content size
-  package(yguilib) PointF cachedContentSize;
-  package(yguilib) float cachedContentAvailWidth = -1.0f;
-  package(yguilib) float cachedContentAvailHeight = -1.0f;
-  package(yguilib) string cachedContentCaption;
-  package(yguilib) float cachedContentFontSize = -1.0f;
-  package(yguilib) string cachedContentFont;
-  package(yguilib) bool cachedContentMultiline;
-  package(yguilib) bool cachedContentEllipsis;
-  package(yguilib) bool hasCachedContentSize;
+  PointF cachedContentSize;
+  float cachedContentAvailWidth = -1.0f;
+  float cachedContentAvailHeight = -1.0f;
+  string cachedContentCaption;
+  float cachedContentFontSize = -1.0f;
+  string cachedContentFont;
+  bool cachedContentMultiline;
+  bool cachedContentEllipsis;
+  bool hasCachedContentSize;
 
   /// Returns caption with '\r\n', '\n', and '\r' replaced with a single space.
   string getSingleLineCaption() const {
@@ -299,4 +300,3 @@ unittest {
   assert(linesC3[0].text == "Updated line");
   assert(linesC3.ptr != linesC1.ptr);
 }
-

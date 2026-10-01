@@ -48,6 +48,65 @@ final class Widget {
       parent.children ~= this;
   }
 
+  /// call after changing properties' or components' values
+  void update() {
+    markDirty(false);
+  }
+
+  /// force update everything (usually not necessary)
+  void forceUpdate() {
+    markLayoutDirty();
+  }
+
+  /// Returns the widget's content area rectangle, accounting for border
+  /// and padding components.
+  RectF getContentArea() const {
+    import std.algorithm.comparison : max;
+
+    float borderWidth = 0.0f;
+    if (components.border !is null &&
+        components.border.style != Border.Style.none) {
+      borderWidth = max(0.0f, components.border.width);
+    }
+
+    float padLeft = 0.0f;
+    float padRight = 0.0f;
+    float padTop = 0.0f;
+    float padBottom = 0.0f;
+
+    if (components.size !is null) {
+      padLeft = components.size.padding.left;
+      padRight = components.size.padding.right;
+      padTop = components.size.padding.top;
+      padBottom = components.size.padding.bottom;
+    }
+
+    const float startX = borderWidth + padLeft;
+    const float startY = borderWidth + padTop;
+    const float availW = max(
+      0.0f,
+      rect.width - (borderWidth * 2.0f + padLeft + padRight)
+    );
+    const float availH = max(
+      0.0f,
+      rect.height - (borderWidth * 2.0f + padTop + padBottom)
+    );
+
+    return RectF(startX, startY, availW, availH);
+  }
+
+  Widget parent;
+  RectF rect;
+  /// it is not allowed to change available components after initialization
+  WidgetComponents components;
+  bool handleInput;
+  /// it is not allowed to change after initialization by the end user
+  Widget[] children;
+  bool clipContents = true;
+  bool clipChildren = false;
+  bool visible = true;
+
+package(yguilib):
   /// Returns true if this widget has auto sizing on width or height.
   bool hasAutoSizing() const {
     if (components.size !is null) {
@@ -64,6 +123,10 @@ final class Widget {
     return parent.components.flexContainer !is null;
   }
 
+  bool isFlexContainer() const {
+    return components.flexContainer !is null;
+  }
+
   /// Sets the dirty flag.
   /// If layout is true, or if this widget has auto-sized dimensions,
   /// marks this widget and its ancestors as layout-dirty so the layout
@@ -72,7 +135,7 @@ final class Widget {
   /// preserving cached layout calculations.
   void markDirty(bool layout = true) {
     dirty = true;
-    if (layout || hasAutoSizing() || isParentFlexContainer()) {
+    if (layout || hasAutoSizing() || isFlexContainer() || isParentFlexContainer()) {
       markLayoutDirty();
     }
   }
@@ -127,54 +190,8 @@ final class Widget {
     return false;
   }
 
-  /// Returns the widget's content area rectangle, accounting for border
-  /// and padding components.
-  RectF getContentArea() const {
-    import std.algorithm.comparison : max;
-
-    float borderWidth = 0.0f;
-    if (components.border !is null &&
-        components.border.style != Border.Style.none) {
-      borderWidth = max(0.0f, components.border.width);
-    }
-
-    float padLeft = 0.0f;
-    float padRight = 0.0f;
-    float padTop = 0.0f;
-    float padBottom = 0.0f;
-
-    if (components.size !is null) {
-      padLeft = components.size.padding.left;
-      padRight = components.size.padding.right;
-      padTop = components.size.padding.top;
-      padBottom = components.size.padding.bottom;
-    }
-
-    const float startX = borderWidth + padLeft;
-    const float startY = borderWidth + padTop;
-    const float availW = max(
-      0.0f,
-      rect.width - (borderWidth * 2.0f + padLeft + padRight)
-    );
-    const float availH = max(
-      0.0f,
-      rect.height - (borderWidth * 2.0f + padTop + padBottom)
-    );
-
-    return RectF(startX, startY, availW, availH);
-  }
-
-  Widget parent;
-  RectF rect;
-  WidgetComponents components;
-  bool handleInput;
-  /// call markDirty(true), when finish with changes to children
-  Widget[] children;
   bool dirty = true;
   bool layoutDirty = true;
-  bool visible = true;
-  bool clipContents = true;
-  bool clipChildren = false;
 }
 
 unittest {

@@ -110,21 +110,17 @@ final class MainView {
     if (tracker.update()) {
       if (toggleWidget.visible != tracker.model.toggleVisible) {
         toggleWidget.visible = tracker.model.toggleVisible;
-        if (toggleWidget.visible) {
-          toggleWidget.markTreeDirty();
-        } else {
-          toggleWidget.markDirty();
-        }
+        toggleWidget.update();
       }
       if (alphaWidget.components.background !is null &&
           alphaWidget.components.background.color.a !=
           tracker.model.alphaValue) {
         alphaWidget.components.background.color.a = tracker.model.alphaValue;
-        alphaWidget.markDirty(false);
+        alphaWidget.update();
       }
       if (fc.alignItems != tracker.model.alignItems) {
         fc.alignItems = tracker.model.alignItems;
-        container.markDirty();
+        container.update();
         writeln("alignItems=", fc.alignItems);
       }
     }

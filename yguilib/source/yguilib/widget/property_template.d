@@ -1,8 +1,7 @@
-// deprecated
-module yguilib.widget.property_template;
+deprecated module yguilib.widget.property_template;
 
 // mixins break autocompletion, so a candidate for removal
-mixin template MarkDirtyProperty(
+deprecated mixin template MarkDirtyProperty(
   T,
   string name,
   T defaultVal = T.init,
