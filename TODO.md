@@ -1,3 +1,4 @@
+- see documentation/yguilib_api_improvements.md
 - AppEvent is large (136+ bytes) copied by value
 
   ### 9. render/internal/text_cache.d — cache eviction is all-or-nothing
