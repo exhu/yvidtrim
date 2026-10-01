@@ -1,9 +1,9 @@
 module yguilib.events;
 import yguilib.events.keyboard;
 
-// TODO make it clear what events are consumed, which propagated up the
-// controller stack
-// TODO convert to union?
+/// Current and up the stack controllers decide what events are consumed, which propagated up the
+/// controller stack.
+// TODO too big, convert to union or SumType?
 struct AppEvent {
   enum Kind {
     /// when this event is received controller should run update logic
@@ -37,8 +37,8 @@ struct AppEvent {
   float x = 0.0f;
   float y = 0.0f;
   float scale = 1.0f;
-  KeyCode key;
-  ScanCode scancode;
+  Keycode key;
+  Scancode scancode;
   ushort mod = 0;
   bool repeat = false;
   string text = null;
@@ -72,8 +72,8 @@ struct AppEvent {
     this.x = x;
     this.y = y;
     this.scale = scale;
-    this.key = cast(KeyCode)key;
-    this.scancode = cast(ScanCode)scancode;
+    this.key = cast(Keycode)key;
+    this.scancode = cast(Scancode)scancode;
     this.mod = mod;
     this.repeat = repeat;
     this.text = text;
@@ -105,8 +105,8 @@ unittest {
 
   AppEvent keyEv = AppEvent(AppEvent.Kind.keyDown);
   keyEv.windowId = 1;
-  keyEv.key = KeyCode.return_;
-  keyEv.scancode = ScanCode.return_;
+  keyEv.key = Keycode.return_;
+  keyEv.scancode = Scancode.return_;
   keyEv.mod = 0x0001;
   keyEv.repeat = true;
   assert(keyEv.kind == AppEvent.Kind.keyDown);

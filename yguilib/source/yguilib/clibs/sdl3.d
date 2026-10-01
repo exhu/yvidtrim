@@ -315,7 +315,6 @@ enum yguilib_sdl3_Scancode : uint {
   reserved = 400,
   count = 512,
 }
-alias SDL_Scancode = yguilib_sdl3_Scancode;
 
 /// Directly mapped to SDL3 SDL_Keycode values.
 enum yguilib_sdl3_Keycode : uint {
@@ -576,7 +575,6 @@ enum yguilib_sdl3_Keycode : uint {
   lhyper = 0x20000006u,
   rhyper = 0x20000007u,
 }
-alias SDL_Keycode = yguilib_sdl3_Keycode;
 
 /// Directly mapped to SDL3 SDL_Keymod values.
 enum yguilib_sdl3_Keymod : ushort {
@@ -599,7 +597,6 @@ enum yguilib_sdl3_Keymod : ushort {
   alt = lalt | ralt,
   gui = lgui | rgui,
 }
-alias SDL_Keymod = yguilib_sdl3_Keymod;
 
 extern(C) {
   int yguilib_sdl3_init();
@@ -666,12 +663,12 @@ extern(C) {
 unittest {
   assert(yguilib_sdl3_Scancode.a == 4);
   assert(yguilib_sdl3_Scancode.return_ == 40);
-  assert(SDL_Scancode.space == 44);
+  assert(yguilib_sdl3_Scancode.space == 44);
 
   assert(yguilib_sdl3_Keycode.return_ == 13);
   assert(yguilib_sdl3_Keycode.escape == 27);
-  assert(SDL_Keycode.a == 'a');
-  assert(SDL_Keycode.f1 == 0x4000003au);
+  assert(yguilib_sdl3_Keycode.a == 'a');
+  assert(yguilib_sdl3_Keycode.f1 == 0x4000003au);
 
   assert(yguilib_sdl3_Keymod.ctrl == (0x0040u | 0x0080u));
   assert(yguilib_sdl3_Keymod.shift == (0x0001u | 0x0002u));
@@ -683,4 +680,3 @@ unittest {
   uint keyRet = yguilib_sdl3_get_key_from_name("Return".toStringz);
   assert(keyRet == 13);
 }
-

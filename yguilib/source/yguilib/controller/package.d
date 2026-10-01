@@ -102,11 +102,11 @@ class DefaultController : Controller {
 
   /// request additional update (e.g. when thread updated the model)
   void sendUpdate() {
-    sendAppEvent(AppEvent(AppEvent.kind.update));
+    sendAppEvent(AppEvent(AppEvent.Kind.update));
   }
 
   void sendQuit() {
-    sendAppEvent(AppEvent(AppEvent.kind.appQuit));
+    sendAppEvent(AppEvent(AppEvent.Kind.appQuit));
   }
 private:
   bool isModal_ = false;

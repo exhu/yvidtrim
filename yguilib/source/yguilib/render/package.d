@@ -12,6 +12,7 @@ import yguilib.render.internal.text_cache : TextCache, TextTexture;
 import yguilib.render.render_types;
 import yguilib.assets : defaultTtfFontData;
 
+/// Managed by Window class.
 final class Renderer {
   this(int width = 0, int height = 0, float displayScaling = 1.0f) {
     viewportPixelWidth = width;

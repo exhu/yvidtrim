@@ -46,6 +46,7 @@ class TextLabel : Component {
   Alignment alignment = Alignment.left;
 
 package(yguilib):
+  // TODO move caching to a struct or class
   /// Cached text formatting to avoid repeating line splitting, wrapping,
   /// ellipsis truncation, and string measurements when parameters
   /// are unchanged.
@@ -70,6 +71,7 @@ package(yguilib):
   bool cachedContentEllipsis;
   bool hasCachedContentSize;
 
+  // TODO move formatting and cache methods from TextLabel
   /// Returns caption with '\r\n', '\n', and '\r' replaced with a single space.
   string getSingleLineCaption() const {
     return sanitizeSingleLine(caption);

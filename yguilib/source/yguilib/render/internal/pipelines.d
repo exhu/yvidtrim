@@ -18,10 +18,12 @@ struct ColorPipeline {
   GLint uColorLoc = -1;
 
   void initialize() {
-    GLuint vertShader = compileShader(GL_VERTEX_SHADER, colorVertexShaderSource);
+    GLuint vertShader = compileShader(GL_VERTEX_SHADER,
+      colorVertexShaderSource);
     scope(exit) glDeleteShader(vertShader);
 
-    GLuint fragShader = compileShader(GL_FRAGMENT_SHADER, colorFragmentShaderSource);
+    GLuint fragShader = compileShader(GL_FRAGMENT_SHADER,
+      colorFragmentShaderSource);
     scope(exit) glDeleteShader(fragShader);
 
     program = linkProgram(vertShader, fragShader);

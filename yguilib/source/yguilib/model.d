@@ -22,10 +22,8 @@ abstract class VersionedModel {
     editStarted = false;
   }
 
-protected:
-  ModelVersion version_ = 1;
-
 private:
+  ModelVersion version_ = 1;
   bool editStarted;
 }
 

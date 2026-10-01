@@ -6,7 +6,7 @@ module guidemo.controller;
 import yguilib.app : App;
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
-import yguilib.events.keyboard : KeyCode, ScanCode;
+import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.model : ModelTracker;
 import yguilib.widget.drawing_components : TextLabel;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
@@ -81,32 +81,32 @@ final class DemoController : DefaultController {
     if (ev.kind == AppEvent.Kind.keyDown) {
       auto model = tracker.edit();
 
-      if (isKey(ev, KeyCode.q, ScanCode.q) ||
-          isKey(ev, KeyCode.escape, ScanCode.escape)) {
+      if (isKey(ev, Keycode.q, Scancode.q) ||
+          isKey(ev, Keycode.escape, Scancode.escape)) {
         model.quitRequested = true;
         tracker.commit(model);
         sendQuit();
         return HandleResult(HandleResult.Result.quit, true);
-      } else if (isKey(ev, KeyCode.tab, ScanCode.tab)) {
+      } else if (isKey(ev, Keycode.tab, Scancode.tab)) {
         model.activePage = (model.activePage + 1) % 2;
         consumed = true;
-      } else if (isKey(ev, KeyCode.key1, ScanCode.key1)) {
+      } else if (isKey(ev, Keycode.key1, Scancode.key1)) {
         model.activePage = 0;
         consumed = true;
-      } else if (isKey(ev, KeyCode.key2, ScanCode.key2)) {
+      } else if (isKey(ev, Keycode.key2, Scancode.key2)) {
         model.activePage = 1;
         consumed = true;
-      } else if (isKey(ev, KeyCode.m, ScanCode.m)) {
+      } else if (isKey(ev, Keycode.m, Scancode.m)) {
         model.labelMultiline = !model.labelMultiline;
         consumed = true;
-      } else if (isKey(ev, KeyCode.e, ScanCode.e)) {
+      } else if (isKey(ev, Keycode.e, Scancode.e)) {
         model.labelEllipsis = !model.labelEllipsis;
         consumed = true;
-      } else if (isKey(ev, KeyCode.l, ScanCode.l)) {
+      } else if (isKey(ev, Keycode.l, Scancode.l)) {
         size_t nextAlign = (cast(size_t)model.labelAlignment + 1) % 3;
         model.labelAlignment = cast(TextLabel.Alignment)nextAlign;
         consumed = true;
-      } else if (isKey(ev, KeyCode.t, ScanCode.t)) {
+      } else if (isKey(ev, Keycode.t, Scancode.t)) {
         if (model.activePage == 0) {
           model.textSampleIndex = (model.textSampleIndex + 1) % 3;
         } else {
@@ -114,22 +114,22 @@ final class DemoController : DefaultController {
             TextLabelPage.labelInteractiveSamples.length;
         }
         consumed = true;
-      } else if (isKey(ev, KeyCode.d, ScanCode.d)) {
+      } else if (isKey(ev, Keycode.d, Scancode.d)) {
         model.direction = model.direction == FlexDirection.row
           ? FlexDirection.column
           : FlexDirection.row;
         consumed = true;
-      } else if (isKey(ev, KeyCode.j, ScanCode.j)) {
+      } else if (isKey(ev, Keycode.j, Scancode.j)) {
         size_t nextJ = (cast(size_t)model.justify + 1) %
           (JustifyContent.max + 1);
         model.justify = cast(JustifyContent)nextJ;
         consumed = true;
-      } else if (isKey(ev, KeyCode.a, ScanCode.a)) {
+      } else if (isKey(ev, Keycode.a, Scancode.a)) {
         size_t nextA = (cast(size_t)model.alignItems + 1) %
           (AlignItems.max + 1);
         model.alignItems = cast(AlignItems)nextA;
         consumed = true;
-      } else if (isKey(ev, KeyCode.g, ScanCode.g)) {
+      } else if (isKey(ev, Keycode.g, Scancode.g)) {
         if (model.gap == 0.0f) {
           model.gap = 8.0f;
         } else if (model.gap == 8.0f) {
@@ -140,7 +140,7 @@ final class DemoController : DefaultController {
           model.gap = 0.0f;
         }
         consumed = true;
-      } else if (isKey(ev, KeyCode.v, ScanCode.v)) {
+      } else if (isKey(ev, Keycode.v, Scancode.v)) {
         model.child2Visible = !model.child2Visible;
         consumed = true;
       }
@@ -162,7 +162,7 @@ final class DemoController : DefaultController {
   }
 
 private:
-  static bool isKey(in AppEvent ev, KeyCode targetKey, ScanCode targetScan) {
+  static bool isKey(in AppEvent ev, Keycode targetKey, Scancode targetScan) {
     if (ev.scancode == targetScan) {
       return true;
     }

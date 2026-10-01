@@ -41,7 +41,6 @@ yguilib_src = files(
   'source/yguilib/widget/internal/widget_painter.d',
   'source/yguilib/widget/layout_components.d',
   'source/yguilib/widget/package.d',
-  'source/yguilib/widget/property_template.d',
   'source/yguilib/window.d',
 )
 

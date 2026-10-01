@@ -22,20 +22,3 @@ class App {
 
   UiSystem ui;
 }
-
-version(none) {
-  abstract class BindingExpression {
-    enum ReturnType {
-      floatValue,
-      integerValue,
-      boolValue,
-      stringValue,
-      arrayValue,
-      mapValue,
-      modelReference,
-    }
-  }
-
-  final class BindingValue : BindingExpression {
-  }
-}

@@ -14,9 +14,10 @@ final class Font {
    * Scaling (`scale = displayScaling * unitsScaling`) is an internal renderer
    * detail used to rasterize glyphs at native display resolution.
    *
-   * @param fontData TTF binary data in memory.
-   * @param ptSize Unscaled logical point size in user space.
-   * @param scale Rendering scaling factor (defaults to 1.0f).
+   * Params:
+   * fontData TTF binary data in memory.
+   * ptSize Unscaled logical point size in user space.
+   * scale Rendering scaling factor (defaults to 1.0f).
    */
   this(const(void)[] fontData, float ptSize, float scale = 1.0f) {
     assert(fontData.length > 0, "fontData must not be empty");

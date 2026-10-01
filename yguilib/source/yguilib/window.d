@@ -17,18 +17,70 @@ class Window {
     this.title = title;
   }
 
-  int width;
-  int height;
-  int pixelWidth;
-  int pixelHeight;
-  float customUnitsScaling = 1.0f;
-  string title;
+  float getDefaultScaling() const {
+    if (handle !is null) {
+      float scale = yguilib_sdl3_get_window_display_scale(handle);
+      if (scale > 0.0f) {
+        return scale;
+      }
+    }
+    return 1.0f;
+  }
+
+  /**
+   * Sets the additional scaling factor above displayScaling (e.g. to support
+   * zooming in/out UI for user preferences). Defaults to 1.0.
+   */
+  void setUnitsScaling(float scaling) {
+    customUnitsScaling = scaling;
+    if (renderer !is null) {
+      renderer.setUnitsScaling(scaling);
+      this.width = renderer.getViewportWidth();
+      this.height = renderer.getViewportHeight();
+      updateViewRect();
+    }
+  }
+
+  /**
+   * Gets the additional scaling factor above displayScaling (defaults to 1.0).
+   */
+  float getUnitsScaling() const {
+    if (renderer !is null) {
+      return renderer.getUnitsScaling();
+    }
+    return customUnitsScaling;
+  }
+
+  float getDisplayScaling() const {
+    if (renderer !is null) {
+      return renderer.getDisplayScaling();
+    }
+    return getDefaultScaling();
+  }
+
+  void setSize(int newWidth, int newHeight) {
+    if (handle !is null) {
+      yguilib_sdl3_set_window_size(handle, newWidth, newHeight);
+      int pw = newWidth;
+      int ph = newHeight;
+      yguilib_sdl3_get_window_size_in_pixels(handle, &pw, &ph);
+      onResize(pw, ph);
+    } else {
+      onResize(newWidth, newHeight);
+    }
+  }
+
+  ~this() {
+    destroy();
+  }
 
   Widget view;
-
-  yguilib_sdl3_Window* handle;
-  yguilib_sdl3_GLContext* glContext;
-  uint id;
+package(yguilib):
+  void swapBuffers() {
+    if (handle !is null) {
+      yguilib_sdl3_gl_swap_window(handle);
+    }
+  }
 
   void create() {
     if (handle !is null) {
@@ -74,99 +126,20 @@ class Window {
     updateViewRect();
   }
 
-  float getDefaultScaling() const {
+  void destroy() {
+    if (renderer !is null) {
+      renderer.destroy();
+      renderer = null;
+    }
+    if (glContext !is null) {
+      yguilib_sdl3_gl_destroy_context(glContext);
+      glContext = null;
+    }
     if (handle !is null) {
-      float scale = yguilib_sdl3_get_window_display_scale(handle);
-      if (scale > 0.0f) {
-        return scale;
-      }
+      yguilib_sdl3_destroy_window(handle);
+      handle = null;
     }
-    return 1.0f;
-  }
-
-  /**
-   * Sets the additional scaling factor above displayScaling (e.g. to support
-   * zooming in/out UI for user preferences). Defaults to 1.0.
-   */
-  void setUnitsScaling(float scaling) {
-    customUnitsScaling = scaling;
-    if (renderer !is null) {
-      renderer.setUnitsScaling(scaling);
-      this.width = renderer.getViewportWidth();
-      this.height = renderer.getViewportHeight();
-      updateViewRect();
-    }
-  }
-
-  /**
-   * Gets the additional scaling factor above displayScaling (defaults to 1.0).
-   */
-  float getUnitsScaling() const {
-    if (renderer !is null) {
-      return renderer.getUnitsScaling();
-    }
-    return customUnitsScaling;
-  }
-
-  float getDisplayScaling() const {
-    if (renderer !is null) {
-      return renderer.getDisplayScaling();
-    }
-    return getDefaultScaling();
-  }
-
-  void onDisplayScaleChanged(float newScale) {
-    if (renderer !is null) {
-      renderer.setDisplayScaling(newScale);
-      this.width = renderer.getViewportWidth();
-      this.height = renderer.getViewportHeight();
-      updateViewRect();
-    }
-  }
-
-  void setDisplayScaling(float scaling) {
-    onDisplayScaleChanged(scaling);
-  }
-
-  // TODO should it draw widgets?
-  void redraw() {
-    makeCurrent();
-    if (view !is null && view.components.background !is null &&
-        renderer !is null) {
-      renderer.clearCanvas(view.components.background.color);
-    } else {
-      clear();
-    }
-    swapBuffers();
-  }
-
-  private void updateViewRect() {
-    if (view !is null && renderer !is null) {
-      const RectF newRect = RectF(
-        0,
-        0,
-        renderer.getLogicWidth(),
-        renderer.getLogicHeight()
-      );
-      if (view.rect != newRect) {
-        view.rect = newRect;
-        view.markTreeDirty();
-      }
-    }
-  }
-
-  void onResize(int newPixelWidth, int newPixelHeight) {
-    this.pixelWidth = newPixelWidth;
-    this.pixelHeight = newPixelHeight;
-    if (renderer !is null) {
-      renderer.setViewport(newPixelWidth, newPixelHeight);
-      this.width = renderer.getViewportWidth();
-      this.height = renderer.getViewportHeight();
-    } else {
-      this.width = newPixelWidth;
-      this.height = newPixelHeight;
-    }
-    updateViewRect();
+    id = 0;
   }
 
   void handleWindowEvent(in AppEvent event) {
@@ -185,54 +158,6 @@ class Window {
       if (event.width > 0 && event.height > 0) {
         onResize(event.width, event.height);
       }
-    }
-  }
-
-  void setSize(int newWidth, int newHeight) {
-    if (handle !is null) {
-      yguilib_sdl3_set_window_size(handle, newWidth, newHeight);
-      int pw = newWidth;
-      int ph = newHeight;
-      yguilib_sdl3_get_window_size_in_pixels(handle, &pw, &ph);
-      onResize(pw, ph);
-    } else {
-      onResize(newWidth, newHeight);
-    }
-  }
-
-  void clear(
-    float r = 0.15f,
-    float g = 0.15f,
-    float b = 0.18f,
-    float a = 1.0f
-  ) {
-    if (handle !is null && glContext !is null) {
-      glClearColor(r, g, b, a);
-      glClear(GL_COLOR_BUFFER_BIT);
-    }
-  }
-
-  void destroy() {
-    if (glContext !is null) {
-      yguilib_sdl3_gl_destroy_context(glContext);
-      glContext = null;
-    }
-    if (handle !is null) {
-      yguilib_sdl3_destroy_window(handle);
-      handle = null;
-    }
-    id = 0;
-  }
-
-  void swapBuffers() {
-    if (handle !is null) {
-      yguilib_sdl3_gl_swap_window(handle);
-    }
-  }
-
-  void makeCurrent() {
-    if (handle !is null && glContext !is null) {
-      yguilib_sdl3_gl_make_current(handle, glContext);
     }
   }
 
@@ -261,11 +186,92 @@ class Window {
     }
   }
 
-  ~this() {
-    destroy();
+  void setDisplayScaling(float scaling) {
+    onDisplayScaleChanged(scaling);
   }
 
   Renderer renderer;
+  uint id;
+  int width;
+  int height;
+
+private:
+  // TODO should it draw widgets?
+  void redraw() {
+    makeCurrent();
+    if (view !is null && view.components.background !is null &&
+        renderer !is null) {
+      renderer.clearCanvas(view.components.background.color);
+    } else {
+      clear();
+    }
+    swapBuffers();
+  }
+
+  void clear(
+    float r = 0.15f,
+    float g = 0.15f,
+    float b = 0.18f,
+    float a = 1.0f
+  ) {
+    if (handle !is null && glContext !is null) {
+      glClearColor(r, g, b, a);
+      glClear(GL_COLOR_BUFFER_BIT);
+    }
+  }
+
+ void updateViewRect() {
+    if (view !is null && renderer !is null) {
+      const RectF newRect = RectF(
+        0,
+        0,
+        renderer.getLogicWidth(),
+        renderer.getLogicHeight()
+      );
+      if (view.rect != newRect) {
+        view.rect = newRect;
+        view.markTreeDirty();
+      }
+    }
+  }
+
+  void onResize(int newPixelWidth, int newPixelHeight) {
+    this.pixelWidth = newPixelWidth;
+    this.pixelHeight = newPixelHeight;
+    if (renderer !is null) {
+      renderer.setViewport(newPixelWidth, newPixelHeight);
+      this.width = renderer.getViewportWidth();
+      this.height = renderer.getViewportHeight();
+    } else {
+      this.width = newPixelWidth;
+      this.height = newPixelHeight;
+    }
+    updateViewRect();
+  }
+
+  void makeCurrent() {
+    if (handle !is null && glContext !is null) {
+      yguilib_sdl3_gl_make_current(handle, glContext);
+    }
+  }
+
+  void onDisplayScaleChanged(float newScale) {
+    if (renderer !is null) {
+      renderer.setDisplayScaling(newScale);
+      this.width = renderer.getViewportWidth();
+      this.height = renderer.getViewportHeight();
+      updateViewRect();
+    }
+  }
+
+
+  int pixelWidth;
+  int pixelHeight;
+  float customUnitsScaling = 1.0f;
+  string title;
+
+  yguilib_sdl3_Window* handle;
+  yguilib_sdl3_GLContext* glContext;
 }
 
 unittest {

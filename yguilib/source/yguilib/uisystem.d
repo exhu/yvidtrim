@@ -6,7 +6,7 @@ import yguilib.clibs.sdl3;
 import yguilib.controller : Controller, DefaultController, HandleResult;
 import yguilib.controller.internal.controller_stack : ControllerStack;
 import yguilib.events : AppEvent;
-import yguilib.events.keyboard : KeyCode, ScanCode;
+import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.events.internal.message_bus : MessageBus;
 import yguilib.events.internal.sdl_events : appEventFromSdlEvent;
 import yguilib.render : Renderer;
@@ -85,8 +85,8 @@ class UiSystem {
 
 private:
   bool isViewAvailableForRendering() const {
-  return (mainWindow !is null && mainWindow.view !is null &&
-          mainWindow.renderer !is null);
+    return (mainWindow !is null && mainWindow.view !is null &&
+      mainWindow.renderer !is null);
   }
 
   void drawUi() {
@@ -373,6 +373,7 @@ private:
     return .appEventFromSdlEvent(sdlEv);
   }
 
+private:
   ControllerStack controllers;
   MessageBus messageBus;
   Window mainWindow;
@@ -910,4 +911,3 @@ unittest {
   ui.renderFrame();
   assert(!root.isTreeDirty());
 }
-

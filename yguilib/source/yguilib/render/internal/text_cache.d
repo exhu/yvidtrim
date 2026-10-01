@@ -25,6 +25,11 @@ struct TextTexture {
   }
 }
 
+/* TODO
+  Using a raw void* as part of an AA key is fragile — if the font is destroyed
+  and its handle reused by SDL_ttf, stale cache entries become invalid. The
+  clear() call on scaling changes mitigates this, but it's a subtle invariant.
+*/
 private struct TextCacheKey {
   void* fontHandle;
   float ptSize;
@@ -56,6 +61,7 @@ final class TextCache {
       return *p;
     }
 
+    // TODO implement LRU cache instead of full discard.
     if (cache.length >= maxCacheEntries) {
       clear();
     }

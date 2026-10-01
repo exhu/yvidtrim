@@ -5,7 +5,7 @@ package(yguilib):
 import std.typecons : Nullable;
 import yguilib.clibs.sdl3;
 import yguilib.events : AppEvent;
-import yguilib.events.keyboard : KeyCode, ScanCode;
+import yguilib.events.keyboard : Keycode, Scancode;
 
 Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
   switch (sdlEv.type) {
@@ -110,8 +110,8 @@ private AppEvent makeKeyEvent(
 ) {
   AppEvent ev = AppEvent(kind);
   ev.windowId = sdlEv.windowId;
-  ev.key = cast(KeyCode)sdlEv.key;
-  ev.scancode = cast(ScanCode)sdlEv.scancode;
+  ev.key = cast(Keycode)sdlEv.key;
+  ev.scancode = cast(Scancode)sdlEv.scancode;
   ev.mod = sdlEv.mod;
   ev.repeat = sdlEv.repeat != 0;
   return ev;
