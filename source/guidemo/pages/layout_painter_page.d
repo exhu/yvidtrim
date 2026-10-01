@@ -26,49 +26,43 @@ final class LayoutPainterPage {
 
   void update(const DemoModel m) {
     // 1. Update animated alpha chip
-    if (alphaChip !is null && alphaChip.components.background !is null) {
-      if (alphaChip.components.background.color.a != m.alphaValue) {
-        alphaChip.components.background.color.a = m.alphaValue;
-        alphaChip.markDirty(false);
-      }
+    if (alphaChip.components.background.color.a != m.alphaValue) {
+      alphaChip.modify!Background((bg) {
+        bg.color.a = m.alphaValue;
+      });
     }
 
     // 2. Update auto-sized label text sample
-    if (autoLabelWidget !is null &&
-        autoLabelWidget.components.textLabel !is null) {
-      const string targetText =
-        textSamples[m.textSampleIndex % textSamples.length];
-      if (autoLabelWidget.components.textLabel.caption != targetText) {
-        autoLabelWidget.components.textLabel.caption = targetText;
-        autoLabelWidget.markDirty();
-      }
+    const string targetText =
+      textSamples[m.textSampleIndex % textSamples.length];
+    if (autoLabelWidget.components.textLabel.caption != targetText) {
+      autoLabelWidget.modify!TextLabel((tl) {
+        tl.caption = targetText;
+      });
     }
 
     // 3. Update interactive flex playground container
-    if (playgroundFlex !is null) {
-      if (playgroundFlex.direction != m.direction ||
-          playgroundFlex.justify != m.justify ||
-          playgroundFlex.alignItems != m.alignItems ||
-          playgroundFlex.gap != m.gap) {
-        playgroundFlex.direction = m.direction;
-        playgroundFlex.justify = m.justify;
-        playgroundFlex.alignItems = m.alignItems;
-        playgroundFlex.gap = m.gap;
-        playgroundContainer.markDirty();
-      }
+    if (playgroundFlex.direction != m.direction ||
+        playgroundFlex.justify != m.justify ||
+        playgroundFlex.alignItems != m.alignItems ||
+        playgroundFlex.gap != m.gap) {
+      playgroundContainer.modify!FlexContainer((fc) {
+        fc.direction = m.direction;
+        fc.justify = m.justify;
+        fc.alignItems = m.alignItems;
+        fc.gap = m.gap;
+      });
     }
 
     // 4. Update dynamic visibility child
-    if (playgroundChild2 !is null) {
-      if (playgroundChild2.visible != m.child2Visible) {
-        playgroundChild2.visible = m.child2Visible;
-        if (playgroundChild2.visible) {
-          playgroundChild2.markTreeDirty();
-        } else {
-          playgroundChild2.markDirty();
-        }
-        playgroundContainer.markDirty();
+    if (playgroundChild2.visible != m.child2Visible) {
+      playgroundChild2.visible = m.child2Visible;
+      if (playgroundChild2.visible) {
+        playgroundChild2.markTreeDirty();
+      } else {
+        playgroundChild2.markDirty();
       }
+      playgroundContainer.markDirty();
     }
   }
 

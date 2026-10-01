@@ -24,32 +24,28 @@ final class TextLabelPage {
   }
 
   void update(const DemoModel m) {
-    if (interactiveLabelWidget !is null &&
-        interactiveLabelWidget.components.textLabel !is null) {
-      auto tl = interactiveLabelWidget.components.textLabel;
-      const string targetText = labelInteractiveSamples[
-        m.labelSampleIndex % labelInteractiveSamples.length
-      ];
-      if (tl.multiline != m.labelMultiline ||
-          tl.overflowEllipsis != m.labelEllipsis ||
-          tl.alignment != m.labelAlignment ||
-          tl.caption != targetText) {
-        tl.multiline = m.labelMultiline;
-        tl.overflowEllipsis = m.labelEllipsis;
-        tl.alignment = m.labelAlignment;
-        tl.caption = targetText;
-        interactiveLabelWidget.markDirty();
-      }
+    auto tl = interactiveLabelWidget.components.textLabel;
+    const string targetText = labelInteractiveSamples[
+      m.labelSampleIndex % labelInteractiveSamples.length
+    ];
+    if (tl.multiline != m.labelMultiline ||
+        tl.overflowEllipsis != m.labelEllipsis ||
+        tl.alignment != m.labelAlignment ||
+        tl.caption != targetText) {
+      interactiveLabelWidget.modify!TextLabel((comp) {
+        comp.multiline = m.labelMultiline;
+        comp.overflowEllipsis = m.labelEllipsis;
+        comp.alignment = m.labelAlignment;
+        comp.caption = targetText;
+      });
     }
 
-    if (interactiveStatusWidget !is null &&
-        interactiveStatusWidget.components.textLabel !is null) {
-      const string targetStatus = formatInteractiveStatus(m);
-      if (interactiveStatusWidget.components.textLabel.caption !=
-          targetStatus) {
-        interactiveStatusWidget.components.textLabel.caption = targetStatus;
-        interactiveStatusWidget.markDirty();
-      }
+    const string targetStatus = formatInteractiveStatus(m);
+    if (interactiveStatusWidget.components.textLabel.caption !=
+        targetStatus) {
+      interactiveStatusWidget.modify!TextLabel((comp) {
+        comp.caption = targetStatus;
+      });
     }
   }
 

@@ -116,15 +116,13 @@ final class MainView {
           toggleWidget.markDirty();
         }
       }
-      if (alphaWidget.components.background !is null &&
-          alphaWidget.components.background.color.a !=
-          tracker.model.alphaValue) {
-        alphaWidget.components.background.color.a = tracker.model.alphaValue;
-        alphaWidget.markDirty(false);
-      }
+      alphaWidget.modify!Background((bg) {
+        bg.color.a = tracker.model.alphaValue;
+      });
       if (fc.alignItems != tracker.model.alignItems) {
-        fc.alignItems = tracker.model.alignItems;
-        container.markDirty();
+        container.modify!FlexContainer((c) {
+          c.alignItems = tracker.model.alignItems;
+        });
         writeln("alignItems=", fc.alignItems);
       }
     }

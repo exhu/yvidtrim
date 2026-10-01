@@ -71,6 +71,8 @@ w.batchUpdate({
 * Keeps components decoupled from widgets.
 * Opens the door to converting small components (`Background`, `Border`) from
   heap-allocated classes to value `struct`s.
+* **Status**: Implemented on `Widget` via `modify!T` and `batchUpdate()`. See
+  `yguilib/source/yguilib/widget/package.d`.
 
 ### Approach 3: Reactive / Signal Data Binding
 Views bind component properties directly to observable model values:
