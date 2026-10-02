@@ -160,7 +160,27 @@ struct AppEvent {
     UserData user;
   }
 
-  // TODO refactor code and remove backward compatibility layer
+  /// constructor for events without data, e.g. appQuit
+  this(Kind kind) {
+    assert(kind == Kind.appQuit);
+    this.kind = kind;
+  }
+
+  this(Kind kind, WindowData data) {
+    // ensure all window events in assert
+    assert(kind == Kind.windowClose ||
+      kind == Kind.windowDisplayScaleChanged ||
+      kind == Kind.windowExposed ||
+      kind == Kind.windowRedraw ||
+      kind == Kind.windowResized
+    );
+    this.kind = kind;
+    window = data;
+  }
+  // TODO implement constructors for MouseData, KeyData, TextData, UserData events
+
+  // TODO refactor external code and remove backward compatibility layer
+  // properties after all event constructors are implemented
   // --- Convenience Properties for Ergonomics & Backward Compatibility ---
 
   /// Window ID.
@@ -304,8 +324,10 @@ struct AppEvent {
   /// ditto
   @property void editLength(int val) { textData.editLength = val; }
 
-  // TODO remove constructor, make builder helper functions e.g. makeKeyEvent, makeUserEvent...
+
+  // TODO remove constructor, use (Kind, data) constructors instead
   /// Constructs an AppEvent initializing only the fields relevant to kind.
+  deprecated
   this(
     Kind kind,
     uint eventId = 0,
