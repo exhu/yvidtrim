@@ -55,14 +55,17 @@ final class DemoController : DefaultController {
   override HandleResult handleEvent(AppEvent ev) {
     bool consumed = false;
 
+    // TODO replace coordinates check when InputEnabled component is implemented
+    // together with MouseEvents component which sends view events
+
     // Mouse click on header tab buttons
     if (ev.kind == AppEvent.Kind.mouseButtonDown) {
       auto model = tracker.edit();
-      if (ev.y >= 20.0f && ev.y <= 52.0f) {
-        if (ev.x >= 840.0f && ev.x <= 1025.0f) {
+      if (ev.mouse.y >= 20.0f && ev.mouse.y <= 52.0f) {
+        if (ev.mouse.x >= 840.0f && ev.mouse.x <= 1025.0f) {
           model.activePage = 0;
           consumed = true;
-        } else if (ev.x >= 1035.0f && ev.x <= 1245.0f) {
+        } else if (ev.mouse.x >= 1035.0f && ev.mouse.x <= 1245.0f) {
           model.activePage = 1;
           consumed = true;
         }
@@ -163,15 +166,15 @@ final class DemoController : DefaultController {
 
 private:
   static bool isKey(in AppEvent ev, Keycode targetKey, Scancode targetScan) {
-    if (ev.scancode == targetScan) {
+    if (ev.keyData.scancode == targetScan) {
       return true;
     }
-    if (ev.key == targetKey) {
+    if (ev.keyData.key == targetKey) {
       return true;
     }
     // Handle potential uppercase ASCII keycode
     if (targetKey >= 'a' && targetKey <= 'z') {
-      if (ev.key == (targetKey - 32)) {
+      if (ev.keyData.key == (targetKey - 32)) {
         return true;
       }
     }

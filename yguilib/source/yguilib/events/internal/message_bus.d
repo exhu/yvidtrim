@@ -123,11 +123,11 @@ unittest {
   assert(bus.hasPending());
 
   auto ev1 = bus.get();
-  assert(!ev1.isNull && ev1.get().eventId == 1);
+  assert(!ev1.isNull && ev1.get().user.eventId == 1);
   assert(bus.hasPending());
 
   auto ev2 = bus.get();
-  assert(!ev2.isNull && ev2.get().eventId == 2);
+  assert(!ev2.isNull && ev2.get().user.eventId == 2);
   assert(!bus.hasPending());
   assert(bus.get().isNull);
 
@@ -135,6 +135,6 @@ unittest {
   bus.send(AppEvent(AppEvent.Kind.user, 3));
   assert(bus.hasPending());
   auto ev3 = bus.get();
-  assert(!ev3.isNull && ev3.get().eventId == 3);
+  assert(!ev3.isNull && ev3.get().user.eventId == 3);
   assert(!bus.hasPending());
 }

@@ -144,19 +144,21 @@ package(yguilib):
 
   void handleWindowEvent(in AppEvent event) {
     if (event.kind == AppEvent.Kind.windowResized) {
-      if (event.scale > 0.0f && event.scale != getDisplayScaling()) {
-        onDisplayScaleChanged(event.scale);
+      if (event.window.scale > 0.0f &&
+          event.window.scale != getDisplayScaling()) {
+        onDisplayScaleChanged(event.window.scale);
       }
-      onResize(event.width, event.height);
+      onResize(event.window.width, event.window.height);
     } else if (event.kind == AppEvent.Kind.windowExposed) {
-      if (event.width > 0 && event.height > 0 &&
-          (event.width != pixelWidth || event.height != pixelHeight)) {
-        onResize(event.width, event.height);
+      if (event.window.width > 0 && event.window.height > 0 &&
+        (event.window.width != pixelWidth ||
+          event.window.height != pixelHeight)) {
+        onResize(event.window.width, event.window.height);
       }
     } else if (event.kind == AppEvent.Kind.windowDisplayScaleChanged) {
-      onDisplayScaleChanged(event.scale);
-      if (event.width > 0 && event.height > 0) {
-        onResize(event.width, event.height);
+      onDisplayScaleChanged(event.window.scale);
+      if (event.window.width > 0 && event.window.height > 0) {
+        onResize(event.window.width, event.window.height);
       }
     }
   }

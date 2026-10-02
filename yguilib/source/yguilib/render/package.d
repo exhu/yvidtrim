@@ -190,7 +190,7 @@ final class Renderer {
   }
 
   PointF coordinatesFromEvent(in AppEvent event) const {
-    return coordinatesFromEvent(event.x, event.y);
+    return coordinatesFromEvent(event.mouse.x, event.mouse.y);
   }
 
   PointF coordinatesFromEvent(float x, float y) const {
@@ -951,10 +951,10 @@ unittest {
   assert(renderer.getDefaultScaling() == 2.0f);
   assert(renderer.getUnitsScaling() == 1.0f);
 
-  AppEvent evMotion = AppEvent(AppEvent.Kind.mouseMotion);
-  evMotion.windowId = win.id;
-  evMotion.x = 100.0f;
-  evMotion.y = 50.0f;
+  AppEvent evMotion = AppEvent(
+    AppEvent.Kind.mouseMotion,
+    AppEvent.MouseData(win.id, 100.0f, 50.0f)
+  );
   PointF converted = renderer.coordinatesFromEvent(evMotion);
   assert(converted.x == 100.0f);
   assert(converted.y == 50.0f);

@@ -12,37 +12,39 @@ Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
     case yguilib_sdl3_EventType.quit:
       return Nullable!AppEvent(AppEvent(AppEvent.Kind.appQuit));
 
-    case yguilib_sdl3_EventType.windowClose: {
-      AppEvent ev = AppEvent(AppEvent.Kind.windowClose);
-      ev.windowId = sdlEv.windowId;
-      return Nullable!AppEvent(ev);
-    }
+    case yguilib_sdl3_EventType.windowClose:
+      return Nullable!AppEvent(AppEvent(
+        AppEvent.Kind.windowClose,
+        AppEvent.WindowData(sdlEv.windowId)
+      ));
 
-    case yguilib_sdl3_EventType.windowResized: {
-      AppEvent ev = AppEvent(AppEvent.Kind.windowResized);
-      ev.windowId = sdlEv.windowId;
-      ev.width = sdlEv.width;
-      ev.height = sdlEv.height;
-      ev.scale = sdlEv.scale;
-      return Nullable!AppEvent(ev);
-    }
+    case yguilib_sdl3_EventType.windowResized:
+      return Nullable!AppEvent(AppEvent(
+        AppEvent.Kind.windowResized,
+        AppEvent.WindowData(
+          sdlEv.windowId,
+          sdlEv.width,
+          sdlEv.height,
+          sdlEv.scale
+        )
+      ));
 
-    case yguilib_sdl3_EventType.windowExposed: {
-      AppEvent ev = AppEvent(AppEvent.Kind.windowExposed);
-      ev.windowId = sdlEv.windowId;
-      ev.width = sdlEv.width;
-      ev.height = sdlEv.height;
-      return Nullable!AppEvent(ev);
-    }
+    case yguilib_sdl3_EventType.windowExposed:
+      return Nullable!AppEvent(AppEvent(
+        AppEvent.Kind.windowExposed,
+        AppEvent.WindowData(sdlEv.windowId, sdlEv.width, sdlEv.height)
+      ));
 
-    case yguilib_sdl3_EventType.windowDisplayScaleChanged: {
-      AppEvent ev = AppEvent(AppEvent.Kind.windowDisplayScaleChanged);
-      ev.windowId = sdlEv.windowId;
-      ev.width = sdlEv.width;
-      ev.height = sdlEv.height;
-      ev.scale = sdlEv.scale;
-      return Nullable!AppEvent(ev);
-    }
+    case yguilib_sdl3_EventType.windowDisplayScaleChanged:
+      return Nullable!AppEvent(AppEvent(
+        AppEvent.Kind.windowDisplayScaleChanged,
+        AppEvent.WindowData(
+          sdlEv.windowId,
+          sdlEv.width,
+          sdlEv.height,
+          sdlEv.scale
+        )
+      ));
 
     case yguilib_sdl3_EventType.mouseMotion:
     case yguilib_sdl3_EventType.mouseButtonDown:
@@ -64,21 +66,22 @@ Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
     case yguilib_sdl3_EventType.keyUp:
       return Nullable!AppEvent(makeKeyEvent(AppEvent.Kind.keyUp, sdlEv));
 
-    case yguilib_sdl3_EventType.textEditing: {
-      AppEvent ev = AppEvent(AppEvent.Kind.textEditing);
-      ev.windowId = sdlEv.windowId;
-      ev.text = fromCStr(sdlEv.text);
-      ev.editStart = sdlEv.start;
-      ev.editLength = sdlEv.length;
-      return Nullable!AppEvent(ev);
-    }
+    case yguilib_sdl3_EventType.textEditing:
+      return Nullable!AppEvent(AppEvent(
+        AppEvent.Kind.textEditing,
+        AppEvent.TextData(
+          sdlEv.windowId,
+          fromCStr(sdlEv.text),
+          sdlEv.start,
+          sdlEv.length
+        )
+      ));
 
-    case yguilib_sdl3_EventType.textInput: {
-      AppEvent ev = AppEvent(AppEvent.Kind.textInput);
-      ev.windowId = sdlEv.windowId;
-      ev.text = fromCStr(sdlEv.text);
-      return Nullable!AppEvent(ev);
-    }
+    case yguilib_sdl3_EventType.textInput:
+      return Nullable!AppEvent(AppEvent(
+        AppEvent.Kind.textInput,
+        AppEvent.TextData(sdlEv.windowId, fromCStr(sdlEv.text))
+      ));
 
     default:
       return Nullable!AppEvent.init;
@@ -97,24 +100,26 @@ private AppEvent makeMouseEvent(
   AppEvent.Kind kind,
   in yguilib_sdl3_Event sdlEv
 ) {
-  AppEvent ev = AppEvent(kind);
-  ev.windowId = sdlEv.windowId;
-  ev.x = sdlEv.x;
-  ev.y = sdlEv.y;
-  return ev;
+  return AppEvent(
+    kind,
+    AppEvent.MouseData(sdlEv.windowId, sdlEv.x, sdlEv.y)
+  );
 }
 
 private AppEvent makeKeyEvent(
   AppEvent.Kind kind,
   in yguilib_sdl3_Event sdlEv
 ) {
-  AppEvent ev = AppEvent(kind);
-  ev.windowId = sdlEv.windowId;
-  ev.key = cast(Keycode)sdlEv.key;
-  ev.scancode = cast(Scancode)sdlEv.scancode;
-  ev.mod = sdlEv.mod;
-  ev.repeat = sdlEv.repeat != 0;
-  return ev;
+  return AppEvent(
+    kind,
+    AppEvent.KeyData(
+      sdlEv.windowId,
+      cast(Keycode)sdlEv.key,
+      cast(Scancode)sdlEv.scancode,
+      sdlEv.mod,
+      sdlEv.repeat != 0
+    )
+  );
 }
 
 // Verifies appEventFromSdlEvent conversions for SDL3 events.
@@ -129,10 +134,10 @@ unittest {
   auto scaleApp = appEventFromSdlEvent(scaleSdl);
   assert(!scaleApp.isNull);
   assert(scaleApp.get().kind == AppEvent.Kind.windowDisplayScaleChanged);
-  assert(scaleApp.get().windowId == 42);
-  assert(scaleApp.get().width == 640);
-  assert(scaleApp.get().height == 480);
-  assert(scaleApp.get().scale == 2.0f);
+  assert(scaleApp.get().window.windowId == 42);
+  assert(scaleApp.get().window.width == 640);
+  assert(scaleApp.get().window.height == 480);
+  assert(scaleApp.get().window.scale == 2.0f);
 
   yguilib_sdl3_Event mouseSdl;
   mouseSdl.type = yguilib_sdl3_EventType.mouseMotion;
@@ -143,9 +148,9 @@ unittest {
   auto mouseApp = appEventFromSdlEvent(mouseSdl);
   assert(!mouseApp.isNull);
   assert(mouseApp.get().kind == AppEvent.Kind.mouseMotion);
-  assert(mouseApp.get().windowId == 42);
-  assert(mouseApp.get().x == 123.5f);
-  assert(mouseApp.get().y == 234.5f);
+  assert(mouseApp.get().mouse.windowId == 42);
+  assert(mouseApp.get().mouse.x == 123.5f);
+  assert(mouseApp.get().mouse.y == 234.5f);
 
   yguilib_sdl3_Event keySdl;
   keySdl.type = yguilib_sdl3_EventType.keyDown;
@@ -158,11 +163,11 @@ unittest {
   auto keyApp = appEventFromSdlEvent(keySdl);
   assert(!keyApp.isNull);
   assert(keyApp.get().kind == AppEvent.Kind.keyDown);
-  assert(keyApp.get().windowId == 42);
-  assert(keyApp.get().key == 13);
-  assert(keyApp.get().scancode == 40);
-  assert(keyApp.get().mod == 1);
-  assert(keyApp.get().repeat);
+  assert(keyApp.get().keyData.windowId == 42);
+  assert((cast(uint)keyApp.get().keyData.key) == 13);
+  assert((cast(uint)keyApp.get().keyData.scancode) == 40);
+  assert(keyApp.get().keyData.mod == 1);
+  assert(keyApp.get().keyData.repeat);
 
   yguilib_sdl3_Event textSdl;
   textSdl.type = yguilib_sdl3_EventType.textInput;
@@ -172,8 +177,8 @@ unittest {
   auto textApp = appEventFromSdlEvent(textSdl);
   assert(!textApp.isNull);
   assert(textApp.get().kind == AppEvent.Kind.textInput);
-  assert(textApp.get().windowId == 42);
-  assert(textApp.get().text == "abc");
+  assert(textApp.get().textData.windowId == 42);
+  assert(textApp.get().textData.text == "abc");
 
   yguilib_sdl3_Event editSdl;
   editSdl.type = yguilib_sdl3_EventType.textEditing;
@@ -185,8 +190,8 @@ unittest {
   auto editApp = appEventFromSdlEvent(editSdl);
   assert(!editApp.isNull);
   assert(editApp.get().kind == AppEvent.Kind.textEditing);
-  assert(editApp.get().windowId == 42);
-  assert(editApp.get().text == "def");
-  assert(editApp.get().editStart == 1);
-  assert(editApp.get().editLength == 2);
+  assert(editApp.get().textData.windowId == 42);
+  assert(editApp.get().textData.text == "def");
+  assert(editApp.get().textData.editStart == 1);
+  assert(editApp.get().textData.editLength == 2);
 }

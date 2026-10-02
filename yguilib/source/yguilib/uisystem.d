@@ -142,7 +142,7 @@ private:
   }
 
   void handleWindowEvent(in AppEvent event) {
-    if (mainWindow !is null && isMainWindowEvent(event.windowId)) {
+    if (mainWindow !is null && isMainWindowEvent(event.window.windowId)) {
       mainWindow.handleWindowEvent(event);
       if (event.kind == AppEvent.Kind.windowResized ||
           event.kind == AppEvent.Kind.windowExposed ||
@@ -400,7 +400,7 @@ unittest {
       if (ev.kind == AppEvent.Kind.user) {
         received ~= ev;
       }
-      if (ev.kind == AppEvent.Kind.user && ev.eventId == 999) {
+      if (ev.kind == AppEvent.Kind.user && ev.user.eventId == 999) {
         return HandleResult(HandleResult.Result.quit);
       }
       return HandleResult(HandleResult.Result.nothing);
@@ -425,9 +425,9 @@ unittest {
 
   assert(ctrl.received.length == 3);
   assert(ctrl.received[0].kind == AppEvent.Kind.user);
-  assert(ctrl.received[0].eventId == 101);
-  assert(ctrl.received[1].eventId == 102);
-  assert(ctrl.received[2].eventId == 999);
+  assert(ctrl.received[0].user.eventId == 101);
+  assert(ctrl.received[1].user.eventId == 102);
+  assert(ctrl.received[2].user.eventId == 999);
 }
 
 // Verifies timeout-driven periodic view updates in the main event loop.
@@ -471,18 +471,27 @@ unittest {
 // Verifies window resize event handling and renderer viewport updates.
 unittest {
   class ResizeTestController : DefaultController {
-    this() {
+    this(Window window) {
       super(null);
+      this.window = window;
     }
+    Window window;
     const(AppEvent)[] received;
     int updateCount = 0;
+
+    int viewportWidth = 0;
+    int viewportHeight = 0;
 
     override HandleResult handleEvent(AppEvent ev) {
       received ~= ev;
       if (ev.kind == AppEvent.Kind.windowResized) {
+        if (window.renderer !is null) {
+          viewportWidth = window.renderer.getViewportWidth();
+          viewportHeight = window.renderer.getViewportHeight();
+        }
         return HandleResult(HandleResult.Result.updateView);
       }
-      if (ev.kind == AppEvent.Kind.user && ev.eventId == 999) {
+      if (ev.kind == AppEvent.Kind.user && ev.user.eventId == 999) {
         return HandleResult(HandleResult.Result.quit);
       }
       return super.handleEvent(ev);
@@ -495,11 +504,14 @@ unittest {
 
   auto window = new Window(320, 240, "test_resize_window");
   auto ui = new UiSystem(window);
-  auto ctrl = new ResizeTestController();
+  auto ctrl = new ResizeTestController(window);
   ui.pushController(ctrl);
 
   ui.sendAppEvent(
-    AppEvent(AppEvent.Kind.windowResized, 0, 640, 480)
+    AppEvent(
+      AppEvent.Kind.windowResized,
+      AppEvent.WindowData(0, 640, 480)
+    )
   );
   ui.sendAppEvent(AppEvent(AppEvent.Kind.user, 999));
 
@@ -507,14 +519,13 @@ unittest {
 
   assert(ctrl.received.length == 2);
   assert(ctrl.received[0].kind == AppEvent.Kind.windowResized);
-  assert(ctrl.received[0].width == 640);
-  assert(ctrl.received[0].height == 480);
+  assert(ctrl.received[0].window.width == 640);
+  assert(ctrl.received[0].window.height == 480);
   assert(ctrl.received[1].kind == AppEvent.Kind.user);
   assert(window.width == 640);
   assert(window.height == 480);
-  assert(window.renderer !is null);
-  assert(window.renderer.getViewportWidth() == 640);
-  assert(window.renderer.getViewportHeight() == 480);
+  assert(ctrl.viewportWidth == 640);
+  assert(ctrl.viewportHeight == 480);
   assert(ctrl.updateCount >= 1);
 }
 
@@ -529,7 +540,7 @@ unittest {
 
     override HandleResult handleEvent(AppEvent ev) {
       received ~= ev;
-      if (ev.kind == AppEvent.Kind.user && ev.eventId == 999) {
+      if (ev.kind == AppEvent.Kind.user && ev.user.eventId == 999) {
         return HandleResult(HandleResult.Result.quit);
       }
       return super.handleEvent(ev);
@@ -545,7 +556,10 @@ unittest {
   auto ctrl = new ExposeTestController();
   ui.pushController(ctrl);
 
-  ui.sendAppEvent(AppEvent(AppEvent.Kind.windowExposed, 0, 320, 240));
+  ui.sendAppEvent(AppEvent(
+    AppEvent.Kind.windowExposed,
+    AppEvent.WindowData(0, 320, 240)
+  ));
   ui.sendAppEvent(AppEvent(AppEvent.Kind.user, 999));
 
   ui.mainEventLoop();
@@ -583,14 +597,14 @@ unittest {
     }
 
     override HandleResult handleEvent(AppEvent ev) {
-      if (ev.kind == AppEvent.Kind.user && ev.eventId == 42) {
+      if (ev.kind == AppEvent.Kind.user && ev.user.eventId == 42) {
         *log ~= name ~ ":handleEvent";
         HandleResult res;
         res.result = HandleResult.Result.nothing;
         res.consume = shouldConsume;
         return res;
       }
-      if (ev.kind == AppEvent.Kind.user && ev.eventId == 999) {
+      if (ev.kind == AppEvent.Kind.user && ev.user.eventId == 999) {
         return HandleResult(HandleResult.Result.quit);
       }
       return super.handleEvent(ev);
@@ -629,14 +643,14 @@ unittest {
     }
 
     override HandleResult handleEvent(AppEvent ev) {
-      if (ev.kind == AppEvent.Kind.user && ev.eventId == 42) {
+      if (ev.kind == AppEvent.Kind.user && ev.user.eventId == 42) {
         *log ~= name ~ ":handleEvent";
         HandleResult res;
         res.result = HandleResult.Result.nothing;
         res.consume = shouldConsume;
         return res;
       }
-      if (ev.kind == AppEvent.Kind.user && ev.eventId == 999) {
+      if (ev.kind == AppEvent.Kind.user && ev.user.eventId == 999) {
         return HandleResult(HandleResult.Result.quit);
       }
       return super.handleEvent(ev);
@@ -673,13 +687,13 @@ unittest {
     }
 
     override HandleResult handleEvent(AppEvent ev) {
-      if (ev.kind == AppEvent.Kind.user && ev.eventId == 42) {
+      if (ev.kind == AppEvent.Kind.user && ev.user.eventId == 42) {
         HandleResult res;
         res.result = HandleResult.Result.updateView;
         res.consume = false;
         return res;
       }
-      if (ev.kind == AppEvent.Kind.user && ev.eventId == 999) {
+      if (ev.kind == AppEvent.Kind.user && ev.user.eventId == 999) {
         return HandleResult(HandleResult.Result.quit);
       }
       return super.handleEvent(ev);
@@ -726,7 +740,7 @@ unittest {
     }
 
     override HandleResult handleEvent(AppEvent ev) {
-      if (ev.kind == AppEvent.Kind.user && ev.eventId == 42) {
+      if (ev.kind == AppEvent.Kind.user && ev.user.eventId == 42) {
         HandleResult res;
         res.result = HandleResult.Result.update;
         res.consume = false;

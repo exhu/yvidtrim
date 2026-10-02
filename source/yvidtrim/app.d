@@ -183,12 +183,12 @@ final class MainController : DefaultController {
       return HandleResult(HandleResult.Result.nothing);
 
     if (ev.kind == AppEvent.Kind.keyUp) {
-      if (ev.key == Keycode.q) {
+      if (ev.keyData.key == Keycode.q) {
         auto model = t.edit();
         model.qPressed = true;
         t.commit(model);
         consume = true;
-      } else if (ev.key == Keycode.a) {
+      } else if (ev.keyData.key == Keycode.a) {
         auto model = t.edit();
         model.aPressed = true;
         t.commit(model);
