@@ -42,6 +42,24 @@ struct AppEvent {
     appQuit,
   }
 
+  bool isKeyboardEvent() const {
+    switch (kind) {
+      case Kind.keyDown, Kind.keyUp, Kind.textEditing, Kind.textInput:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  bool isMouseEvent() const {
+    switch (kind) {
+      case Kind.mouseMotion, Kind.mouseButtonDown, Kind.mouseButtonUp, Kind.mouseWheel:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   /// Window event payload.
   struct WindowData {
     /// SDL window ID (0 for all/any window).
