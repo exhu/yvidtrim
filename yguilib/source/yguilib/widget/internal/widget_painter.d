@@ -11,6 +11,7 @@ import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget : Widget;
 import yguilib.widget.internal.collect_visible : VisibleWidgets;
 import yguilib.widget.internal.layout_text : getLineStep;
+import yguilib.widget.internal.text_label_cache : getLayoutLines;
 
 /**
  * System responsible for rendering visible widgets.
@@ -123,11 +124,10 @@ private:
       return;
     }
 
-    auto lines = comp.layoutLines(
-      r,
-      font,
-      absContentRect.width,
-      absContentRect.height
+    auto lines = getLayoutLines(
+      comp.layoutCache, r, font, comp.font,
+      comp.caption, comp.multiline, comp.overflowEllipsis,
+      comp.alignment, absContentRect.width, absContentRect.height
     );
 
     const float lineStep = getLineStep(r, font);

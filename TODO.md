@@ -1,4 +1,3 @@
-- continue AppEvent refactoring: builder functions
 - see documentation/yguilib_api_improvements.md
 
   ### 9. render/internal/text_cache.d — cache eviction is all-or-nothing
@@ -32,17 +31,6 @@
   destroyed and its handle reused by SDL_ttf, stale cache entries
   become invalid. The clear() call on scaling changes mitigates this,
   but it's a subtle invariant.
-
-
-  ### 15. widget/drawing_components.d — excessive cache fields
-
-  drawing_components.d L48-L71
-
-  TextLabel has 15+ cached* fields for layout/content-size
-  caching. This is a lot of mutable state on what is otherwise a
-  simple data component. Consider extracting the cache into a
-  separate struct or even a dedicated cache object to reduce
-  cognitive load and make invalidation logic easier to reason about.
 
 - assets management (transparent mapping to embedded import string and file stream data)
 - extended font management (proper name, styles)

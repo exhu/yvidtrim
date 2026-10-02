@@ -11,6 +11,7 @@ import yguilib.widget.drawing_components;
 import yguilib.widget.internal.layout_axis : getCrossOuterSize,
   getMainOuterSize;
 import yguilib.widget.internal.layout_text : measureTextContentSize;
+import yguilib.widget.internal.text_label_cache : getTextContentSize;
 
 float getBorderWidth(const Border borderComp) {
   if (borderComp !is null && borderComp.style != Border.Style.none) {
@@ -166,38 +167,11 @@ PointF calcTextContentSize(
     return PointF(0.0f, 0.0f);
   }
 
-  if (tl.hasCachedContentSize &&
-      tl.cachedContentAvailWidth == availableWidth &&
-      tl.cachedContentAvailHeight == availableHeight &&
-      tl.cachedContentCaption == tl.caption &&
-      tl.cachedContentFontSize == tl.fontSize &&
-      tl.cachedContentFont == tl.font &&
-      tl.cachedContentMultiline == tl.multiline &&
-      tl.cachedContentEllipsis == tl.overflowEllipsis) {
-    return tl.cachedContentSize;
-  }
-
-  PointF sz = measureTextContentSize(
-    r,
-    font,
-    tl.caption,
-    tl.multiline,
-    tl.overflowEllipsis,
-    availableWidth,
-    availableHeight
+  return getTextContentSize(
+    tl.contentSizeCache, r, font, tl.font,
+    tl.caption, tl.multiline, tl.overflowEllipsis,
+    availableWidth, availableHeight
   );
-
-  tl.cachedContentSize = sz;
-  tl.cachedContentAvailWidth = availableWidth;
-  tl.cachedContentAvailHeight = availableHeight;
-  tl.cachedContentCaption = tl.caption;
-  tl.cachedContentFontSize = tl.fontSize;
-  tl.cachedContentFont = tl.font;
-  tl.cachedContentMultiline = tl.multiline;
-  tl.cachedContentEllipsis = tl.overflowEllipsis;
-  tl.hasCachedContentSize = true;
-
-  return sz;
 }
 
 PointF calcTextContentSize(
