@@ -1,4 +1,6 @@
-- see documentation/yguilib_api_improvements.md
+- input system, mouse events handling
+
+- widget builders, see documentation/yguilib_api_improvements.md
 
   ### 9. render/internal/text_cache.d — cache eviction is all-or-nothing
 
