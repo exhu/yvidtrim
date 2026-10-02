@@ -16,6 +16,7 @@ typedef enum yguilib_sdl3_EventType {
   YGUILIB_SDL3_EVENT_MOUSE_MOTION,
   YGUILIB_SDL3_EVENT_MOUSE_BUTTON_DOWN,
   YGUILIB_SDL3_EVENT_MOUSE_BUTTON_UP,
+  YGUILIB_SDL3_EVENT_MOUSE_WHEEL,
   YGUILIB_SDL3_EVENT_KEY_DOWN,
   YGUILIB_SDL3_EVENT_KEY_UP,
   YGUILIB_SDL3_EVENT_TEXT_EDITING,
@@ -31,22 +32,80 @@ typedef struct yguilib_sdl3_Rect {
   int32_t h;
 } yguilib_sdl3_Rect;
 
-typedef struct yguilib_sdl3_Event {
+typedef struct yguilib_sdl3_WindowEvent {
   yguilib_sdl3_EventType type;
   uint32_t window_id;
   int32_t width;
   int32_t height;
+  float scale;
+} yguilib_sdl3_WindowEvent;
+
+typedef struct yguilib_sdl3_MouseMotionEvent {
+  yguilib_sdl3_EventType type;
+  uint32_t window_id;
   float x;
   float y;
-  float scale;
+  uint32_t state;
+  float xrel;
+  float yrel;
+} yguilib_sdl3_MouseMotionEvent;
+
+typedef struct yguilib_sdl3_MouseButtonEvent {
+  yguilib_sdl3_EventType type;
+  uint32_t window_id;
+  float x;
+  float y;
+  uint8_t button;
+  uint8_t down;
+  uint8_t clicks;
+  uint8_t padding;
+} yguilib_sdl3_MouseButtonEvent;
+
+typedef struct yguilib_sdl3_MouseWheelEvent {
+  yguilib_sdl3_EventType type;
+  uint32_t window_id;
+  float x;
+  float y;
+  float mouse_x;
+  float mouse_y;
+  int32_t direction;
+  int32_t integer_x;
+  int32_t integer_y;
+} yguilib_sdl3_MouseWheelEvent;
+
+typedef struct yguilib_sdl3_KeyEvent {
+  yguilib_sdl3_EventType type;
+  uint32_t window_id;
   uint32_t key;
   uint32_t scancode;
   uint16_t mod;
   uint8_t repeat;
   uint8_t padding;
+} yguilib_sdl3_KeyEvent;
+
+typedef struct yguilib_sdl3_TextEditingEvent {
+  yguilib_sdl3_EventType type;
+  uint32_t window_id;
   const char *text;
   int32_t start;
   int32_t length;
+} yguilib_sdl3_TextEditingEvent;
+
+typedef struct yguilib_sdl3_TextInputEvent {
+  yguilib_sdl3_EventType type;
+  uint32_t window_id;
+  const char *text;
+} yguilib_sdl3_TextInputEvent;
+
+typedef union yguilib_sdl3_Event {
+  yguilib_sdl3_EventType type;
+  yguilib_sdl3_WindowEvent window;
+  yguilib_sdl3_MouseMotionEvent motion;
+  yguilib_sdl3_MouseButtonEvent button;
+  yguilib_sdl3_MouseWheelEvent wheel;
+  yguilib_sdl3_KeyEvent key;
+  yguilib_sdl3_TextEditingEvent text_editing;
+  yguilib_sdl3_TextInputEvent text_input;
 } yguilib_sdl3_Event;
 
 /**

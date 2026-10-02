@@ -13,6 +13,7 @@ enum yguilib_sdl3_EventType : int {
   mouseMotion,
   mouseButtonDown,
   mouseButtonUp,
+  mouseWheel,
   keyDown,
   keyUp,
   textEditing,
@@ -28,25 +29,83 @@ struct yguilib_sdl3_Rect {
   int h;
 }
 
-struct yguilib_sdl3_Event {
+struct yguilib_sdl3_WindowEvent {
   yguilib_sdl3_EventType type;
   uint windowId;
   int width;
   int height;
+  float scale;
+}
+
+struct yguilib_sdl3_MouseMotionEvent {
+  yguilib_sdl3_EventType type;
+  uint windowId;
   float x;
   float y;
-  float scale;
+  uint state;
+  float xrel;
+  float yrel;
+}
+
+struct yguilib_sdl3_MouseButtonEvent {
+  yguilib_sdl3_EventType type;
+  uint windowId;
+  float x;
+  float y;
+  ubyte button;
+  ubyte down;
+  ubyte clicks;
+  ubyte padding;
+}
+
+struct yguilib_sdl3_MouseWheelEvent {
+  yguilib_sdl3_EventType type;
+  uint windowId;
+  float x;
+  float y;
+  float mouseX;
+  float mouseY;
+  int direction;
+  int integerX;
+  int integerY;
+}
+
+struct yguilib_sdl3_KeyEvent {
+  yguilib_sdl3_EventType type;
+  uint windowId;
   uint key;
   uint scancode;
   ushort mod;
   ubyte repeat;
   ubyte padding;
+}
+
+struct yguilib_sdl3_TextEditingEvent {
+  yguilib_sdl3_EventType type;
+  uint windowId;
   const(char)* text;
   int start;
   int length;
 }
 
-static assert(yguilib_sdl3_Event.sizeof == 56);
+struct yguilib_sdl3_TextInputEvent {
+  yguilib_sdl3_EventType type;
+  uint windowId;
+  const(char)* text;
+}
+
+union yguilib_sdl3_Event {
+  yguilib_sdl3_EventType type;
+  yguilib_sdl3_WindowEvent window;
+  yguilib_sdl3_MouseMotionEvent motion;
+  yguilib_sdl3_MouseButtonEvent button;
+  yguilib_sdl3_MouseWheelEvent wheel;
+  yguilib_sdl3_KeyEvent key;
+  yguilib_sdl3_TextEditingEvent textEditing;
+  yguilib_sdl3_TextInputEvent textInput;
+}
+
+static assert(yguilib_sdl3_Event.sizeof == 40);
 
 struct yguilib_sdl3_Window;
 struct yguilib_sdl3_GLContext;
