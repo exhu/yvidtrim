@@ -142,6 +142,13 @@ private:
   }
 
   void handleWindowEvent(in AppEvent event) {
+    if (event.kind != AppEvent.Kind.windowClose &&
+        event.kind != AppEvent.Kind.windowResized &&
+        event.kind != AppEvent.Kind.windowExposed &&
+        event.kind != AppEvent.Kind.windowDisplayScaleChanged &&
+        event.kind != AppEvent.Kind.windowRedraw) {
+      return;
+    }
     if (mainWindow !is null && isMainWindowEvent(event.window.windowId)) {
       mainWindow.handleWindowEvent(event);
       if (event.kind == AppEvent.Kind.windowResized ||

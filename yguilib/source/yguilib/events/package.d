@@ -135,32 +135,62 @@ struct AppEvent {
   /// Event type discriminator. Valid for all events.
   Kind kind;
 
-  // TODO make union private, expose union fields as properties that include
-  // asserts on kind field, to catch data read for wrong event kind.
+  /// Window event details.
+  /// Valid when: Kind.windowClose, Kind.windowResized, Kind.windowExposed,
+  /// Kind.windowDisplayScaleChanged, or Kind.windowRedraw.
+  @property ref inout(WindowData) window() inout {
+    assert(
+      kind == Kind.windowClose ||
+      kind == Kind.windowResized ||
+      kind == Kind.windowExposed ||
+      kind == Kind.windowDisplayScaleChanged ||
+      kind == Kind.windowRedraw,
+      "AppEvent.window accessed for wrong Kind"
+    );
+    return payload.window;
+  }
 
-  /// Compact C-style union storage for event variants.
-  union {
-    /// Window event details.
-    /// Valid when: Kind.windowClose, Kind.windowResized, Kind.windowExposed,
-    /// Kind.windowDisplayScaleChanged, or Kind.windowRedraw.
-    WindowData window;
+  /// Mouse event details.
+  /// Valid when: Kind.mouseMotion, Kind.mouseButtonDown,
+  /// or Kind.mouseButtonUp.
+  @property ref inout(MouseData) mouse() inout {
+    assert(
+      kind == Kind.mouseMotion ||
+      kind == Kind.mouseButtonDown ||
+      kind == Kind.mouseButtonUp,
+      "AppEvent.mouse accessed for wrong Kind"
+    );
+    return payload.mouse;
+  }
 
-    /// Mouse event details.
-    /// Valid when: Kind.mouseMotion, Kind.mouseButtonDown,
-    /// or Kind.mouseButtonUp.
-    MouseData mouse;
+  /// Keyboard event details.
+  /// Valid when: Kind.keyDown or Kind.keyUp.
+  @property ref inout(KeyData) keyData() inout {
+    assert(
+      kind == Kind.keyDown || kind == Kind.keyUp,
+      "AppEvent.keyData accessed for wrong Kind"
+    );
+    return payload.keyData;
+  }
 
-    /// Keyboard event details.
-    /// Valid when: Kind.keyDown or Kind.keyUp.
-    KeyData keyData;
+  /// Text editing and input details.
+  /// Valid when: Kind.textEditing or Kind.textInput.
+  @property ref inout(TextData) textData() inout {
+    assert(
+      kind == Kind.textEditing || kind == Kind.textInput,
+      "AppEvent.textData accessed for wrong Kind"
+    );
+    return payload.textData;
+  }
 
-    /// Text editing and input details.
-    /// Valid when: Kind.textEditing or Kind.textInput.
-    TextData textData;
-
-    /// User and view event details.
-    /// Valid when: Kind.user or Kind.view.
-    UserData user;
+  /// User and view event details.
+  /// Valid when: Kind.user or Kind.view.
+  @property ref inout(UserData) user() inout {
+    assert(
+      kind == Kind.user || kind == Kind.view,
+      "AppEvent.user accessed for wrong Kind"
+    );
+    return payload.user;
   }
 
   /// Constructs events without data (appQuit, update, windowRedraw).
@@ -183,7 +213,7 @@ struct AppEvent {
       kind == Kind.windowResized
     );
     this.kind = kind;
-    window = data;
+    payload.window = data;
   }
 
   /// Constructs mouse events with MouseData payload.
@@ -194,36 +224,47 @@ struct AppEvent {
       kind == Kind.mouseButtonUp
     );
     this.kind = kind;
-    mouse = data;
+    payload.mouse = data;
   }
 
   /// Constructs keyboard events with KeyData payload.
   this(Kind kind, KeyData data) {
     assert(kind == Kind.keyDown || kind == Kind.keyUp);
     this.kind = kind;
-    keyData = data;
+    payload.keyData = data;
   }
 
   /// Constructs text events with TextData payload.
   this(Kind kind, TextData data) {
     assert(kind == Kind.textEditing || kind == Kind.textInput);
     this.kind = kind;
-    textData = data;
+    payload.textData = data;
   }
 
   /// Constructs custom user/view events with UserData payload.
   this(Kind kind, UserData data) {
     assert(kind == Kind.user || kind == Kind.view);
     this.kind = kind;
-    user = data;
+    payload.user = data;
   }
 
   /// Convenience constructor for user and view events.
   this(Kind kind, uint eventId, Object data = null) {
     assert(kind == Kind.user || kind == Kind.view);
     this.kind = kind;
-    user = UserData(eventId, data);
+    payload.user = UserData(eventId, data);
   }
+
+private:
+  /// Compact C-style union storage for event variants.
+  union Payload {
+    WindowData window;
+    MouseData  mouse;
+    KeyData    keyData;
+    TextData   textData;
+    UserData   user;
+  }
+  Payload payload;
 }
 
 unittest {
