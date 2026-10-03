@@ -19,6 +19,7 @@ interface EventControl {
   void sendAppEvent(AppEvent ev);
 }
 
+/// Manages Controllers, Messaging, Windows
 interface UiSystem : ControllerStack, EventControl, FocusControl {
   inout(Window) getMainWindow() inout;
   void mainEventLoop();

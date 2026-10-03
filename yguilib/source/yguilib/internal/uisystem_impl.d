@@ -95,15 +95,14 @@ class UiSystemImpl : UiSystem {
   }
 
 private:
+  // TODO remove
   bool isViewAvailableForRendering() const {
     return (mainWindow !is null && mainWindow.view !is null &&
       mainWindow.renderer !is null);
   }
 
   void drawUi() {
-    if (isViewAvailableForRendering()) {
-      painterSystem.drawTree(lastVisibleWidgets, mainWindow.renderer);
-    }
+    painterSystem.drawTree(lastVisibleWidgets, mainWindow.renderer);
   }
 
   void updateLayout() {
@@ -142,8 +141,10 @@ private:
   void updateAndRender(Controller controller) {
     if (controller !is null) {
       controller.updateView();
+      // TODO remove
       updateLayout();
     }
+    // TODO remove
     renderFrame();
   }
 
@@ -402,11 +403,13 @@ private:
   ControllerStack controllers;
   MessageBus messageBus;
   Window mainWindow;
+  // TODO remove
   WidgetPainterSystem painterSystem;
   VisibleWidgetsCollector visibleWidgetsCollector;
   VisibleWidgets lastVisibleWidgets;
   LayoutSystem layoutSystem;
   InputSystem inputSystem;
+  // ---
 } // -UiSystem
 
 ////// TESTS /////

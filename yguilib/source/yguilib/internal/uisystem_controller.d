@@ -40,6 +40,7 @@ final class UiSystemController : DefaultController {
 private:
   WidgetPainterSystem painterSystem;
   VisibleWidgetsCollector visibleWidgetsCollector;
+  VisibleWidgets lastVisibleWidgets;
   LayoutSystem layoutSystem;
   InputSystem inputSystem;
 }
