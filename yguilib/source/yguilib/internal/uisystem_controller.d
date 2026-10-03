@@ -9,6 +9,9 @@ import yguilib.widget.internal.input_system;
 import yguilib.events;
 import yguilib.uisystem;
 
+// TODO move all rendering and swapBuffers call here
+// check what's missing in UiSystemImpl after that
+
 final class UiSystemController : DefaultController {
   this(UiSystem uiSystem) {
     super(uiSystem);
