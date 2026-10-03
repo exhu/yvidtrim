@@ -25,6 +25,8 @@ final class UiSystemController : DefaultController {
 
   /// actual rendering of the whole app is here
   override bool updateView() {
+    import std.logger;
+    trace("render");
     updateLayout();
     renderFrame();
     // false because we are the ui system layer

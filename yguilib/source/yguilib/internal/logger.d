@@ -34,7 +34,9 @@ class SdlLogger : Logger {
         break;
     }
     import std.string : toStringz;
-    yguilib_sdl3_log_priority(prio, payload.msg.toStringz);
+    import std.format;
+    auto logMsg = format("%s [%s] %s", payload.timestamp, payload.funcName, payload.msg);
+    yguilib_sdl3_log_priority(prio, logMsg.toStringz);
   }
 }
 
