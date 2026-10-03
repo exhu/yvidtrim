@@ -45,6 +45,15 @@ struct AppEvent {
     appQuit,
   }
 
+  bool isWindowEvent() const {
+    switch(kind) {
+    case Kind.windowClose:
+      return true;
+    default:
+      return isWindowRedrawEvent();
+    }
+  }
+
   bool isWindowRedrawEvent() const {
     switch (kind) {
     case Kind.windowDisplayScaleChanged, Kind.windowExposed, Kind.windowRedraw, Kind.windowResized:

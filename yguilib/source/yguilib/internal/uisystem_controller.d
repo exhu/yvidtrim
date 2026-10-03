@@ -9,9 +9,7 @@ import yguilib.widget.internal.input_system;
 import yguilib.events;
 import yguilib.uisystem;
 
-// TODO move all rendering and swapBuffers call here
-// check what's missing in UiSystemImpl after that
-
+// TODO support multiple windows
 final class UiSystemController : DefaultController {
   this(UiSystem uiSystem) {
     super(uiSystem);
@@ -25,10 +23,10 @@ final class UiSystemController : DefaultController {
     return false;
   }
 
+  /// actual rendering of the whole app is here
   override bool updateView() {
-    // do rendering here
-
-
+    updateLayout();
+    renderFrame();
     // false because we are the ui system layer
     return false;
   }
@@ -37,10 +35,72 @@ final class UiSystemController : DefaultController {
     if (ev.kind == AppEvent.Kind.updateUiLayer) {
       return HandleResult(HandleResult.Result.updateView);
     }
+    if (handleWindowEvent(ev))
+      return HandleResult(HandleResult.Result.updateView);
     return super.handleEvent(ev);
   }
 
 private:
+  bool isViewAvailableForRendering() {
+    return (uiSystem.mainWindow !is null && uiSystem.mainWindow.view !is null &&
+      uiSystem.mainWindow.renderer !is null);
+  }
+
+  void renderFrame() {
+    if (uiSystem.mainWindow !is null) {
+      if (isViewAvailableForRendering()) {
+        if (!uiSystem.mainWindow.view.isTreeDirty()) {
+          return;
+        }
+        painterSystem.drawTree(lastVisibleWidgets, uiSystem.mainWindow.renderer);
+      }
+      uiSystem.mainWindow.swapBuffers();
+    }
+  }
+
+  void updateLayout() {
+    if (isViewAvailableForRendering()) {
+      if (!uiSystem.mainWindow.view.isTreeLayoutDirty() &&
+          lastVisibleWidgets.length > 0) {
+        return;
+      }
+      // collect visible on screen without widgets parent clipping
+      lastVisibleWidgets = visibleWidgetsCollector.collectVisible(
+        uiSystem.mainWindow.view, uiSystem.mainWindow.renderer, true
+      );
+      layoutSystem.layoutTree(
+        uiSystem.mainWindow.view, uiSystem.mainWindow.renderer,
+        lastVisibleWidgets
+      );
+      // collect visible with positions and sizes adjusted by layout,
+      // include clipping test
+      lastVisibleWidgets = visibleWidgetsCollector.collectVisible(
+        uiSystem.mainWindow.view, uiSystem.mainWindow.renderer, false
+      );
+    }
+  }
+
+  bool isMainWindowEvent(uint windowId) {
+    return (windowId == 0 || uiSystem.mainWindow.id == 0 || windowId ==
+      uiSystem.mainWindow.id);
+  }
+
+  bool handleWindowEvent(in AppEvent event) {
+    if (uiSystem.mainWindow is null)
+      return false;
+    if (!event.isWindowEvent())
+      return false;
+
+    if (isMainWindowEvent(event.window.windowId)) {
+      uiSystem.mainWindow.handleWindowEvent(event);
+      if (uiSystem.mainWindow.view !is null && event.isWindowRedrawEvent()) {
+        uiSystem.mainWindow.view.markTreeDirty();
+        return true;
+      }
+    }
+    return false;
+  }
+
   WidgetPainterSystem painterSystem;
   VisibleWidgetsCollector visibleWidgetsCollector;
   VisibleWidgets lastVisibleWidgets;

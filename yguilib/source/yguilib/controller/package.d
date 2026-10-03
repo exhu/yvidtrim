@@ -109,7 +109,8 @@ class DefaultController : Controller {
   void sendQuit() {
     sendAppEvent(AppEvent(AppEvent.Kind.appQuit));
   }
+protected:
+  UiSystem uiSystem;
 private:
   bool isModal_ = false;
-  UiSystem uiSystem;
 }

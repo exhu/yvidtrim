@@ -21,6 +21,6 @@ interface EventControl {
 
 /// Manages Controllers, Messaging, Windows
 interface UiSystem : ControllerStack, EventControl, FocusControl {
-  inout(Window) getMainWindow() inout;
+  @property Window mainWindow();
   void mainEventLoop();
 }

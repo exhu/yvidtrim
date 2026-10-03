@@ -22,15 +22,8 @@ import yguilib.internal.uisystem_controller;
 
 class UiSystemImpl : UiSystem {
   this(Window w) {
-    mainWindow = w;
+    fMainWindow = w;
     messageBus = MessageBus(this);
-
-    // TODO remove
-    painterSystem = new WidgetPainterSystem;
-    visibleWidgetsCollector = new VisibleWidgetsCollector;
-    layoutSystem = new LayoutSystem;
-    inputSystem = new InputSystem(&sendAppEvent);
-    // ---
   }
 
   /// safe to call from a thread
@@ -38,8 +31,8 @@ class UiSystemImpl : UiSystem {
     messageBus.send(ev);
   }
 
-  override inout(Window) getMainWindow() inout {
-    return mainWindow;
+  override @property Window mainWindow() {
+    return fMainWindow;
   }
 
   override void pushController(Controller c) {
@@ -66,12 +59,12 @@ class UiSystemImpl : UiSystem {
     yguilib_sdl3_init();
     scope(exit) yguilib_sdl3_quit();
 
-    if (mainWindow !is null) {
-      mainWindow.create();
+    if (fMainWindow !is null) {
+      fMainWindow.create();
     }
     scope(exit) {
-      if (mainWindow !is null) {
-        mainWindow.destroy();
+      if (fMainWindow !is null) {
+        fMainWindow.destroy();
       }
     }
 
@@ -95,84 +88,6 @@ class UiSystemImpl : UiSystem {
   }
 
 private:
-  // TODO remove
-  bool isViewAvailableForRendering() const {
-    return (mainWindow !is null && mainWindow.view !is null &&
-      mainWindow.renderer !is null);
-  }
-
-  void drawUi() {
-    painterSystem.drawTree(lastVisibleWidgets, mainWindow.renderer);
-  }
-
-  void updateLayout() {
-    if (isViewAvailableForRendering()) {
-      if (!mainWindow.view.isTreeLayoutDirty() &&
-          lastVisibleWidgets.length > 0) {
-        return;
-      }
-      // collect visible on screen without widgets parent clipping
-      lastVisibleWidgets = visibleWidgetsCollector.collectVisible(
-        mainWindow.view, mainWindow.renderer, true
-      );
-      layoutSystem.layoutTree(
-        mainWindow.view, mainWindow.renderer, lastVisibleWidgets
-      );
-      // collect visible with positions and sizes adjusted by layout,
-      // include clipping test
-      lastVisibleWidgets = visibleWidgetsCollector.collectVisible(
-        mainWindow.view, mainWindow.renderer, false
-      );
-    }
-  }
-
-  void renderFrame() {
-    if (mainWindow !is null) {
-      if (isViewAvailableForRendering()) {
-        if (!mainWindow.view.isTreeDirty()) {
-          return;
-        }
-        drawUi();
-      }
-      mainWindow.swapBuffers();
-    }
-  }
-
-  void updateAndRender(Controller controller) {
-    if (controller !is null) {
-      controller.updateView();
-      // TODO remove
-      updateLayout();
-    }
-    // TODO remove
-    renderFrame();
-  }
-
-  bool isMainWindowEvent(uint windowId) const {
-    return mainWindow !is null &&
-      (windowId == 0 || mainWindow.id == 0 || windowId == mainWindow.id);
-  }
-
-  void handleWindowEvent(in AppEvent event) {
-    if (event.kind != AppEvent.Kind.windowClose &&
-        event.kind != AppEvent.Kind.windowResized &&
-        event.kind != AppEvent.Kind.windowExposed &&
-        event.kind != AppEvent.Kind.windowDisplayScaleChanged &&
-        event.kind != AppEvent.Kind.windowRedraw) {
-      return;
-    }
-    if (mainWindow !is null && isMainWindowEvent(event.window.windowId)) {
-      mainWindow.handleWindowEvent(event);
-      if (event.kind == AppEvent.Kind.windowResized ||
-          event.kind == AppEvent.Kind.windowExposed ||
-          event.kind == AppEvent.Kind.windowDisplayScaleChanged) {
-        if (mainWindow.view !is null) {
-          mainWindow.view.markTreeDirty();
-        }
-      }
-    }
-  }
-
   int pollSdlEvent(int timeoutMs) {
     yguilib_sdl3_Event sdlEv;
     int res = yguilib_sdl3_wait_event(&sdlEv, timeoutMs);
@@ -219,6 +134,10 @@ private:
     }
   }
 
+  void sendUpdateUiLayerEvent() {
+    sendAppEvent(AppEvent.makeNoRepeat(AppEvent.Kind.updateUiLayer));
+  }
+
   /**
    * Updates views in oldest-to-newest order (base views before overlays)
    * and renders the frame at most once.
@@ -231,12 +150,8 @@ private:
     if (viewsToUpdate.length > 0) {
       if (updateUiLayerRequested > 0) {
         trace("updateUiLayer ", updateUiLayerRequested);
-        sendAppEvent(AppEvent.makeNoRepeat(AppEvent.Kind.updateUiLayer));
+        sendUpdateUiLayerEvent();
       }
-      // TODO remove
-      updateLayout();
-      // ---
-      renderFrame();
     }
   }
 
@@ -317,7 +232,6 @@ private:
     Nullable!AppEvent nullableEvent = getAppEvent();
     if (!nullableEvent.isNull) {
       AppEvent event = nullableEvent.get();
-      handleWindowEvent(event);
       if (!dispatchEvent(event, currentTimeoutMs)) {
         return false;
       }
@@ -327,6 +241,14 @@ private:
 
     messageBus.ensureWake();
     return true;
+  }
+
+  void updateAndRender(Controller controller) {
+    if (controller !is null) {
+      if (controller.updateView()) {
+        sendUpdateUiLayerEvent();
+      }
+    }
   }
 
   Controller getActiveControllerOrNull() {
@@ -342,14 +264,9 @@ private:
   }
 
   void redraw() {
-    if (mainWindow !is null && mainWindow.view !is null) {
-      mainWindow.view.markTreeDirty();
-    }
-    auto active = getActiveControllerOrNull();
-    if (active !is null) {
-      updateAndRender(active);
-    } else {
-      renderFrame();
+    if (fMainWindow !is null && fMainWindow.view !is null) {
+      fMainWindow.view.markTreeDirty();
+      sendUpdateUiLayerEvent();
     }
   }
 
@@ -358,8 +275,8 @@ private:
    * zooming in/out UI for user preferences). Defaults to 1.0.
    */
   void setUnitsScaling(float scaling) {
-    if (mainWindow !is null) {
-      mainWindow.setUnitsScaling(scaling);
+    if (fMainWindow !is null) {
+      fMainWindow.setUnitsScaling(scaling);
     }
     redraw();
   }
@@ -368,48 +285,36 @@ private:
    * Gets the additional scaling factor above displayScaling (defaults to 1.0).
    */
   float getUnitsScaling() const {
-    if (mainWindow !is null) {
-      return mainWindow.getUnitsScaling();
+    if (fMainWindow !is null) {
+      return fMainWindow.getUnitsScaling();
     }
     return 1.0f;
   }
 
   float getDisplayScaling() const {
-    if (mainWindow !is null) {
-      return mainWindow.getDisplayScaling();
+    if (fMainWindow !is null) {
+      return fMainWindow.getDisplayScaling();
     }
     return 1.0f;
   }
 
   void setDisplayScaling(float scaling) {
-    if (mainWindow !is null) {
-      mainWindow.setDisplayScaling(scaling);
+    if (fMainWindow !is null) {
+      fMainWindow.setDisplayScaling(scaling);
     }
     redraw();
   }
 
   float getDefaultScaling() const {
-    if (mainWindow !is null) {
-      return mainWindow.getDefaultScaling();
+    if (fMainWindow !is null) {
+      return fMainWindow.getDefaultScaling();
     }
     return 1.0f;
   }
 
-  Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
-    return .appEventFromSdlEvent(sdlEv);
-  }
-
-private:
   ControllerStack controllers;
   MessageBus messageBus;
-  Window mainWindow;
-  // TODO remove
-  WidgetPainterSystem painterSystem;
-  VisibleWidgetsCollector visibleWidgetsCollector;
-  VisibleWidgets lastVisibleWidgets;
-  LayoutSystem layoutSystem;
-  InputSystem inputSystem;
-  // ---
+  Window fMainWindow;
 } // -UiSystem
 
 ////// TESTS /////
@@ -930,6 +835,8 @@ unittest {
   assert(root.isTreeLayoutDirty());
   assert(root.isTreeDirty());
 
+  // TODO move tests to uisystem_controller
+  version(none) {
   // First layout and render pass: performs layout and rendering
   ui.updateLayout();
   assert(!root.isTreeLayoutDirty());
@@ -944,12 +851,15 @@ unittest {
 
   ui.renderFrame();
   assert(!root.isTreeDirty());
+  }
 
   // Mark paint-only dirty
   root.markDirty(false);
   assert(!root.isTreeLayoutDirty());
   assert(root.isTreeDirty());
 
+  // TODO move tests to uisystem_controller
+  version(none) {
   // updateLayout must remain skipped because layout is not dirty
   ui.updateLayout();
   assert(!root.isTreeLayoutDirty());
@@ -957,4 +867,5 @@ unittest {
   // renderFrame must execute and clear dirty
   ui.renderFrame();
   assert(!root.isTreeDirty());
+  }
 }

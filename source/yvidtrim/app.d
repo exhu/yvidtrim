@@ -147,7 +147,7 @@ final class MainController : DefaultController {
     super(app.ui);
     this.app = app;
     view = new MainView(t);
-    app.ui.getMainWindow().view = view.view;
+    app.ui.mainWindow().view = view.view;
   }
 
   override bool updateView() {
