@@ -222,8 +222,9 @@ struct AppEvent {
   Kind kind;
 
   /// Do not push event if there's already the same in the queue
-  bool noRepeat = false;
-
+  @property bool noRepeat() inout {
+    return fnoRepeat;
+  }
 
   /// Window event details.
   /// Valid when: Kind.windowClose, Kind.windowResized, Kind.windowExposed,
@@ -298,9 +299,16 @@ struct AppEvent {
     assert(
       kind == Kind.appQuit ||
       kind == Kind.update ||
-      kind == Kind.windowRedraw
+      kind == Kind.windowRedraw ||
+      kind == Kind.updateUiLayer
     );
     this.kind = kind;
+  }
+
+  static AppEvent makeNoRepeat(Kind kind) {
+    auto ev = AppEvent(kind);
+    ev.fnoRepeat = true;
+    return ev;
   }
 
   /// Constructs window events with WindowData payload.
@@ -373,6 +381,7 @@ private:
     UserData   user;
   }
   Payload payload;
+  bool fnoRepeat = false;
 }
 
 unittest {
@@ -455,6 +464,6 @@ unittest {
   AppEvent updateEv = AppEvent(AppEvent.Kind.update);
   assert(updateEv.kind == AppEvent.Kind.update);
 
-  // Verify compact footprint: size should be 40 bytes instead of 80 bytes.
-  static assert(AppEvent.sizeof == 40);
+  // Verify compact footprint
+  static assert(AppEvent.sizeof == 48);
 }

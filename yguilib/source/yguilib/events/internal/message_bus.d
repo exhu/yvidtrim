@@ -44,7 +44,7 @@ struct MessageBus {
     synchronized (lock) {
       resetIfEmpty();
       bool allowedToSend = true;
-      if (ev.noRepeat && !isQueueEmpty() && ev == events[head]) {
+      if (ev.noRepeat && !isQueueEmpty() && (ev == events[head])) {
         allowedToSend = false;
       }
       if (allowedToSend) {
@@ -147,4 +147,20 @@ unittest {
   auto ev3 = bus.get();
   assert(!ev3.isNull && ev3.get().user.eventId == 3);
   assert(!bus.hasPending());
+}
+
+// test noRepeat false
+unittest {
+  MessageBus bus = MessageBus(new Object);
+  bus.send(AppEvent(AppEvent.Kind.updateUiLayer));
+  bus.send(AppEvent(AppEvent.Kind.updateUiLayer));
+  assert(bus.events.length == 2);
+}
+
+// test noRepeat true
+unittest {
+  MessageBus bus = MessageBus(new Object);
+  bus.send(AppEvent.makeNoRepeat(AppEvent.Kind.updateUiLayer));
+  bus.send(AppEvent.makeNoRepeat(AppEvent.Kind.updateUiLayer));
+  assert(bus.events.length == 1);
 }
