@@ -1,8 +1,8 @@
 module yguilib.controller;
 import yguilib.events : AppEvent;
+import yguilib.uisystem : UiSystem;
 
 alias HandleResult = Controller.HandleResult;
-alias SendAppEventFunc = void delegate(AppEvent ev);
 
 interface Controller {
   struct HandleResult {
@@ -55,8 +55,8 @@ class DefaultController : Controller {
 
   @disable this();
 
-  this(SendAppEventFunc sendAppEventFunc) {
-    this.sendAppEventFunc = sendAppEventFunc;
+  this(UiSystem uiSystem) {
+    this.uiSystem = uiSystem;
   }
 
   override bool update() {
@@ -98,8 +98,7 @@ class DefaultController : Controller {
   }
 
   override void sendAppEvent(AppEvent ev) {
-    assert(sendAppEventFunc !is null);
-    sendAppEventFunc(ev);
+    uiSystem.sendAppEvent(ev);
   }
 
   /// request additional update (e.g. when thread updated the model)
@@ -112,5 +111,5 @@ class DefaultController : Controller {
   }
 private:
   bool isModal_ = false;
-  SendAppEventFunc sendAppEventFunc;
+  UiSystem uiSystem;
 }

@@ -38,7 +38,7 @@ class SdlLogger : Logger {
   }
 }
 
-void setupSdlLogger(LogLevel lv = LogLevel.info) {
+void setupSdlLogger(LogLevel lv = LogLevel.trace) {
   sharedLog = cast(shared) new SdlLogger(lv);
 }
 

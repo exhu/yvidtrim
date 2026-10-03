@@ -7,10 +7,11 @@ import yguilib.widget.internal.widget_painter : WidgetPainterSystem;
 import yguilib.widget.internal.layout_system : LayoutSystem;
 import yguilib.widget.internal.input_system;
 import yguilib.events;
+import yguilib.uisystem;
 
 final class UiSystemController : DefaultController {
-  this(SendAppEventFunc sendAppEventFunc) {
-    super(sendAppEventFunc);
+  this(UiSystem uiSystem) {
+    super(uiSystem);
     painterSystem = new WidgetPainterSystem;
     visibleWidgetsCollector = new VisibleWidgetsCollector;
     layoutSystem = new LayoutSystem;

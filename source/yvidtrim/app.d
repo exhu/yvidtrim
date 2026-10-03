@@ -144,7 +144,7 @@ private:
 
 final class MainController : DefaultController {
   this(App app) {
-    super(&app.ui.sendAppEvent);
+    super(app.ui);
     this.app = app;
     view = new MainView(t);
     app.ui.getMainWindow().view = view.view;

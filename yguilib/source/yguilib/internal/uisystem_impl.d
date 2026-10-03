@@ -2,7 +2,7 @@ module yguilib.internal.uisystem_impl;
 
 import glad2.gles2;
 import std.typecons : Nullable;
-import std.logger.core;
+import std.logger;
 import yguilib.clibs.sdl3;
 import yguilib.uisystem;
 import yguilib.controller : Controller, DefaultController, HandleResult;
@@ -75,7 +75,7 @@ class UiSystemImpl : UiSystem {
       }
     }
 
-    pushController(new UiSystemController(&sendAppEvent));
+    pushController(new UiSystemController(this));
 
     // TODO remove?
     auto initialController = getActiveControllerOrNull();
@@ -229,8 +229,7 @@ private:
     }
     if (viewsToUpdate.length > 0) {
       if (updateUiLayerRequested > 0) {
-        import std.stdio;
-        writeln("updateUiLayer ", updateUiLayerRequested);
+        trace("updateUiLayer ", updateUiLayerRequested);
         sendAppEvent(AppEvent.makeNoRepeat(AppEvent.Kind.updateUiLayer));
       }
       // TODO remove

@@ -19,7 +19,7 @@ import guidemo.view : DemoView;
 /// Controller handling keyboard shortcuts, animation ticks, and view updates.
 final class DemoController : DefaultController {
   this(App app) {
-    super(&app.ui.sendAppEvent);
+    super(app.ui);
     this.app = app;
     tracker = ModelTracker!DemoModel(new DemoModel);
     view = new DemoView(tracker);
