@@ -45,6 +45,15 @@ struct AppEvent {
     appQuit,
   }
 
+  bool isWindowRedrawEvent() const {
+    switch (kind) {
+    case Kind.windowDisplayScaleChanged, Kind.windowExposed, Kind.windowRedraw, Kind.windowResized:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   bool isKeyboardEvent() const {
     switch (kind) {
       case Kind.keyDown, Kind.keyUp, Kind.textEditing, Kind.textInput:

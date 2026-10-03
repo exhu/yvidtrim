@@ -18,6 +18,8 @@ yguilib_src = files(
   'source/yguilib/events/package.d',
   'source/yguilib/internal/assets.d',
   'source/yguilib/internal/logger.d',
+  'source/yguilib/internal/uisystem_impl.d',
+  'source/yguilib/internal/uisystem_controller.d',
   'source/yguilib/model.d',
   'source/yguilib/render/font.d',
   'source/yguilib/render/font_manager.d',

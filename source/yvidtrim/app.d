@@ -150,8 +150,9 @@ final class MainController : DefaultController {
     app.ui.getMainWindow().view = view.view;
   }
 
-  override void updateView() {
+  override bool updateView() {
     view.update();
+    return true;
   }
 
   override bool update() {
@@ -179,7 +180,7 @@ final class MainController : DefaultController {
     bool consume = false;
     writefln("event = %s", ev);
 
-    if (ev.Kind.update)
+    if (ev.kind == AppEvent.Kind.updateUiLayer)
       return HandleResult(HandleResult.Result.nothing);
 
     if (ev.kind == AppEvent.Kind.keyUp) {

@@ -2,6 +2,7 @@ module yguilib.controller;
 import yguilib.events : AppEvent;
 
 alias HandleResult = Controller.HandleResult;
+alias SendAppEventFunc = void delegate(AppEvent ev);
 
 interface Controller {
   struct HandleResult {
@@ -30,12 +31,16 @@ interface Controller {
   /// and it should be lightweight and quick.
   /// Move complex event handling to `update` method.
   HandleResult handleEvent(AppEvent ev);
-  /// called once, and then uisystem is called to recheck models and update
-  /// put view model update code (or calls to ui) there
-  void updateView();
+
+  /// Called once, and then uisystem is called to recheck models and update if true.
+  /// Put view model update code (or calls to ui) there.
+  /// Returns true if ui layer should be redrawn.
+  bool updateView();
+
   /// return true if the view needs update.
   /// put heavy logic into update.
   bool update();
+
   void onPush();
   void onPop();
   void onSuspendByModal();
@@ -47,7 +52,6 @@ interface Controller {
 }
 
 class DefaultController : Controller {
-  alias SendAppEventFunc = void delegate(AppEvent ev);
 
   @disable this();
 
@@ -63,10 +67,7 @@ class DefaultController : Controller {
     if (ev.kind == AppEvent.Kind.windowClose ||
         ev.kind == AppEvent.Kind.appQuit)
       return HandleResult(HandleResult.Result.quit);
-    if (ev.kind == AppEvent.Kind.windowResized ||
-        ev.kind == AppEvent.Kind.windowExposed ||
-        ev.kind == AppEvent.Kind.windowDisplayScaleChanged ||
-        ev.kind == AppEvent.Kind.windowRedraw)
+    if (ev.isWindowRedrawEvent())
       return HandleResult(HandleResult.Result.updateView);
     if (ev.kind == AppEvent.Kind.update) {
       return HandleResult(
@@ -78,7 +79,8 @@ class DefaultController : Controller {
 
     return HandleResult(HandleResult.Result.nothing);
   }
-  override void updateView() {
+  override bool updateView() {
+    return true;
   }
   override void onPush() {
   }

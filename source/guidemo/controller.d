@@ -26,8 +26,9 @@ final class DemoController : DefaultController {
     app.ui.getMainWindow().view = view.getRootWidget();
   }
 
-  override void updateView() {
+  override bool updateView() {
     view.update();
+    return true;
   }
 
   override bool update() {
