@@ -15,6 +15,7 @@ import yguilib.widget.internal.collect_visible;
 import yguilib.widget.internal.widget_painter : WidgetPainterSystem;
 import yguilib.widget.internal.layout_system : LayoutSystem;
 import yguilib.window : Window;
+import yguilib.widget.internal.input_system;
 
 class UiSystem {
   this(Window w) {
@@ -23,6 +24,7 @@ class UiSystem {
     painterSystem = new WidgetPainterSystem;
     visibleWidgetsCollector = new VisibleWidgetsCollector;
     layoutSystem = new LayoutSystem;
+    inputSystem = new InputSystem(&sendAppEvent);
   }
 
   /// safe to call from a thread
@@ -388,6 +390,7 @@ private:
   VisibleWidgetsCollector visibleWidgetsCollector;
   VisibleWidgets lastVisibleWidgets;
   LayoutSystem layoutSystem;
+  InputSystem inputSystem;
 } // -UiSystem
 
 ////// TESTS /////
