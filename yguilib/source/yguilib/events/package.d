@@ -12,6 +12,9 @@ struct AppEvent {
     user,
     /// Events that are produced by uisystem controls.
     view,
+    /// Notify system ui controller to redraw/relayout widgets.
+    /// use with noRepeat = true
+    updateUiLayer,
     /// Window close requested.
     windowClose,
     /// Window size changed.
@@ -217,6 +220,10 @@ struct AppEvent {
 
   /// Event type discriminator. Valid for all events.
   Kind kind;
+
+  /// Do not push event if there's already the same in the queue
+  bool noRepeat = false;
+
 
   /// Window event details.
   /// Valid when: Kind.windowClose, Kind.windowResized, Kind.windowExposed,

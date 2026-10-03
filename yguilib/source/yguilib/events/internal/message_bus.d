@@ -43,10 +43,16 @@ struct MessageBus {
     bool needWake = false;
     synchronized (lock) {
       resetIfEmpty();
-      events ~= ev;
-      if (!wakeSent) {
-        wakeSent = true;
-        needWake = true;
+      bool allowedToSend = true;
+      if (ev.noRepeat && !isQueueEmpty() && ev == events[head]) {
+        allowedToSend = false;
+      }
+      if (allowedToSend) {
+        events ~= ev;
+        if (!wakeSent) {
+          wakeSent = true;
+          needWake = true;
+        }
       }
     }
     if (needWake) {
@@ -104,6 +110,10 @@ private:
       head = 0;
       wakeSent = false;
     }
+  }
+
+  bool isQueueEmpty() {
+    return head >= events.length;
   }
 
   AppEvent[] events;
