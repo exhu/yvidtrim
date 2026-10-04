@@ -16,6 +16,15 @@ import yguilib.widget.internal.layout_flex : alignChildCrossAxis,
   updateFlexChildTextHeight;
 import yguilib.widget.internal.layout_anchor : handleAnchorComp;
 
+
+// TODO move to public module, allow to register in LayoutSystem
+interface CustomLayout {
+  /// initial size, position computation
+  void handleLeafToRoot(VisibleWidget vw, Renderer r);
+  /// final size, position computation
+  void handleRootToLeaf(VisibleWidget vw, Renderer r);
+}
+
 final class LayoutSystem {
   /// expects visibleWidgets to include clipped children as well
   void layoutTree(Widget root, Renderer r, VisibleWidgets visibleWidgets) {
@@ -36,12 +45,14 @@ final class LayoutSystem {
     // compute initial sizes: leaf to root
     foreach_reverse (VisibleWidget vw; visibleWidgets) {
       handleSizeComp(vw, r);
+      // TODO allow to extend via CustomLayout.handleLeafToRoot here
     }
 
     // compute position and sizes: root to leaf
     foreach (VisibleWidget vw; visibleWidgets) {
       handleAnchorComp(vw);
       handleFlexContainerComp(vw, r);
+      // TODO allow to extend via CustomLayout.handleRootToLeaf here
     }
 
     // Mark dirty if rect changed, and reset layoutDirty
@@ -595,4 +606,3 @@ unittest {
   // secondChild must be below textChild, without overlap!
   assert(secondChild.rect.y >= textChild.rect.height + 5.0f);
 }
-

@@ -13,6 +13,12 @@ import yguilib.widget.internal.collect_visible : VisibleWidgets;
 import yguilib.widget.internal.layout_text : getLineStep;
 import yguilib.widget.internal.text_label_cache : getLayoutLines;
 
+interface CustomWidgetPainter {
+  void drawBackground(Widget w, in RectF absRect, Renderer r);
+  void drawContent(Widget w, in RectF absContentRect, Renderer r);
+  void drawBorder(Widget w, in RectF absRect, Renderer r);
+}
+
 /**
  * System responsible for rendering visible widgets.
  *
@@ -24,6 +30,7 @@ import yguilib.widget.internal.text_label_cache : getLayoutLines;
  * Widget.rect is parent-relative; the absolute screen rect is resolved by
  * collectVisible and passed to drawWidgets via VisibleWidget.absRect.
  */
+/// TODO support CustomWidgetPainter
 final class WidgetPainterSystem {
   void drawTree(VisibleWidgets widgets, Renderer r) {
     assert(widgets !is null);
@@ -50,6 +57,8 @@ private:
       drawBackground(w, absRect, r);
     }
 
+    // TODO CustomWidgetPainter.drawBackground
+
     const RectF contentArea = w.getContentArea();
     const RectF absContentRect = RectF(
       absRect.x + contentArea.x,
@@ -65,6 +74,7 @@ private:
     if (w.components.textLabel !is null) {
       drawTextLabel(w, absContentRect, r);
     }
+    // TODO CustomWidgetPainter.drawContent
 
     if (w.clipContents) {
       r.popClipRect();
@@ -73,6 +83,8 @@ private:
     if (w.components.border !is null) {
       drawBorder(w, absRect, r);
     }
+
+    // TODO CustomWidgetPainter.drawBorder
 
     w.dirty = false;
   }

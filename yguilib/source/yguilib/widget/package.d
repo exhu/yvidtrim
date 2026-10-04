@@ -54,8 +54,13 @@ final class Widget {
   }
 
   /// force update everything (usually not necessary)
-  void forceUpdate() {
+  void updateLayout() {
     markLayoutDirty();
+  }
+
+  /// force only rerender (could be used to optimize animation-only updates)
+  void updateOnlyVisuals() {
+    dirty = true;
   }
 
   /// Returns the widget's content area rectangle, accounting for border
