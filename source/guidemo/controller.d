@@ -77,7 +77,7 @@ final class DemoController : DefaultController {
         HandleResult res;
         res.result = HandleResult.Result.updateView;
         res.consume = true;
-        res.timeoutMs = 16;
+        // res.timeoutMs = 16;
         return res;
       }
     }
@@ -155,13 +155,15 @@ final class DemoController : DefaultController {
         HandleResult res;
         res.result = HandleResult.Result.updateView;
         res.consume = true;
-        res.timeoutMs = 16;
+        // timeout will abuse rendering
+        //res.timeoutMs = 16;
         return res;
       }
     }
 
     auto res = super.handleEvent(ev);
-    res.timeoutMs = 16;
+    // timeout will abuse rendering
+    //res.timeoutMs = 16;
     return res;
   }
 
