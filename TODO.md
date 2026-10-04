@@ -1,4 +1,7 @@
-- input system, mouse events handling
+- events filtering for subtree reuse, i.e. before sendAppEvent is called by input_systen it checks if
+that event name is allowed or translated up the hierarchy
+
+- implement hover button that animates background on mouse enter/leave to test View component concept
 
 - widget builders, see documentation/yguilib_api_improvements.md
 

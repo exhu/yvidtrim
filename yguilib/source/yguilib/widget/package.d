@@ -18,6 +18,12 @@ abstract class View : Component {
 
   /// must update controls
   abstract void update();
+
+  // Idea.
+  // This component is needed to implement widget tree reuse, e.g. to have commonly used
+  // dialogs, or complex widgets (e.g. text input field with a label, or button that highlights on mouse hover).
+  // This is actually what a controller does. Widget subtree is the view, and attached code that
+  // translates events and updates data in the view is a view controller.
 }
 
 struct WidgetComponents {
