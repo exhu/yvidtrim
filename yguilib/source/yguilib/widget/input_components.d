@@ -1,10 +1,6 @@
 module yguilib.widget.input_components;
 import yguilib.widget.component;
 
-final class InputEnabled : Component {
-  bool enabled;
-}
-
 /// participates in focus loop
 final class Focus : Component {
   /// currently in focus, mark one control with true to mark the first focused

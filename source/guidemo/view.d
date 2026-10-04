@@ -14,6 +14,7 @@ import yguilib.widget : Widget;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.layout_components : AlignItems, FlexDirection, Insets,
   JustifyContent, Size;
+import yguilib.widget.input_components : MouseEvent;
 
 /// View building and updating all demo widget hierarchies.
 final class DemoView {
@@ -208,6 +209,12 @@ private:
     );
     tab1Btn.components.textLabel.alignment = TextLabel.Alignment.center;
 
+    // add mouse action
+    tab1Btn.inputEnabled = true;
+    tab1Btn.components.mouseEvent = new MouseEvent;
+    tab1Btn.components.mouseEvent.mouseDown = "tab1Btn";
+
+
     // Tab 2 button: TextLabel Showcase
     tab2Btn = new Widget(header, RectF(1015, 9, 210, 30));
     auto szTab2 = new Size;
@@ -228,6 +235,11 @@ private:
       ColorF(0.80f, 0.85f, 0.95f, 1.0f)
     );
     tab2Btn.components.textLabel.alignment = TextLabel.Alignment.center;
+
+    // add mouse action
+    tab2Btn.inputEnabled = true;
+    tab2Btn.components.mouseEvent = new MouseEvent;
+    tab2Btn.components.mouseEvent.mouseDown = "tab2Btn";
   }
 
   void buildStatusBar() {

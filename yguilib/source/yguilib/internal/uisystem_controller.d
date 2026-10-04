@@ -39,7 +39,8 @@ final class UiSystemController : DefaultController {
     }
     if (handleWindowEvent(ev))
       return HandleResult(HandleResult.Result.updateView);
-    // TODO input system
+    if (inputSystem.handleEventAndUpdateView(ev, lastVisibleWidgets))
+      return HandleResult(HandleResult.Result.updateView);
     return super.handleEvent(ev);
   }
 

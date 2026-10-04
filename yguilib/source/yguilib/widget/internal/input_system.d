@@ -20,6 +20,8 @@ final class InputSystem {
     // TODO call to focus system
     if (event.isMouseEvent())
       foreach_reverse(VisibleWidget vw; widgets) {
+        if (!vw.widget.inputEnabled)
+          continue;
         if (handleMouseEvent(vw, event))
           return false;
       }
@@ -44,10 +46,13 @@ private:
       return false;
 
     // TODO handle mouse down/up
-    if (vw.absRect.contains(PointF(event.mouse.x, event.mouse.y))) {
+    import std.logger;
+    auto p = PointF(event.mouse.x, event.mouse.y);
+    if (vw.absRect.contains(p)) {
       uiSystem.sendAppEvent(AppEvent(AppEvent.ViewData(vw.widget.components.mouseEvent.mouseDown,
                                                        vw.widget, event.mouse.button)));
-      }
+      return true;
+    }
     return false;
   }
 

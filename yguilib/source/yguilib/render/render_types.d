@@ -12,8 +12,21 @@ struct RectF {
   float height = 1.0f;
 
   bool contains(in PointF p) {
-    return p.x >= x && p.y >= y && x < (x+width) && y < (y+height);
+    return (p.x >= x) && (p.y >= y) && (p.x < (x+width)) && (p.y < (y+height));
   }
+}
+
+// RectF
+unittest {
+  auto r = RectF(10, 12, 25, 35);
+  auto p1 = PointF(10, 12);
+  assert(r.contains(p1));
+  auto p2 = PointF(0, 0);
+  assert(!r.contains(p2));
+  auto p3 = PointF(r.x + r.width, 0);
+  assert(!r.contains(p3));
+
+  assert(!RectF(840, 21, 162, 26).contains(PointF(921.734, 307.453)));
 }
 
 struct ColorF {

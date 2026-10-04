@@ -34,7 +34,6 @@ struct WidgetComponents {
 
   // action/logic
   View view;
-  InputEnabled inputEnabled;
   Focus focus;
   DefaultButton defaultButton;
   KeyboardEvent keyboardEvent;
@@ -111,6 +110,7 @@ final class Widget {
   bool clipContents = true;
   bool clipChildren = false;
   bool visible = true;
+  bool inputEnabled = false;
 
 package(yguilib):
   /// Returns true if this widget has auto sizing on width or height.

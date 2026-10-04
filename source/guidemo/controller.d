@@ -56,20 +56,20 @@ final class DemoController : DefaultController {
   override HandleResult handleEvent(AppEvent ev) {
     bool consumed = false;
 
-    // TODO replace coordinates check when InputEnabled component is implemented
-    // together with MouseEvents component which sends view events
-
     // Mouse click on header tab buttons
-    if (ev.kind == AppEvent.Kind.mouseButtonDown) {
+    if (ev.kind == AppEvent.Kind.view) {
+      import std.logger;
+      warning(ev.view.eventName);
       auto model = tracker.edit();
-      if (ev.mouse.y >= 20.0f && ev.mouse.y <= 52.0f) {
-        if (ev.mouse.x >= 840.0f && ev.mouse.x <= 1025.0f) {
+      auto eventName = ev.view.eventName;
+      if (eventName == "tab1Btn") {
           model.activePage = 0;
           consumed = true;
-        } else if (ev.mouse.x >= 1035.0f && ev.mouse.x <= 1245.0f) {
+          warning(model.activePage);
+      } else if (eventName == "tab2Btn") {
           model.activePage = 1;
           consumed = true;
-        }
+          warning(model.activePage);
       }
       tracker.commit(model);
 
