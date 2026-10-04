@@ -21,19 +21,30 @@ final class DefaultButton : Component {
 }
 
 /// convert event press and release to event with parameter
-final class KeyboardAction : Component {
+final class KeyboardEvent : Component {
   struct Params {
     bool isPressed;
   }
   string[string] keyToViewEvent;
 }
 
-final class MouseAction : Component {
-  final class MouseActionEventData {
+final class MouseEvent : Component {
+  // TODO need to reuse some storage for events
+  // because allocating new instance on each mouse movement is expensive
+  // use releaseData delegate
+  /*
+  final class MouseEventData {
     ubyte button;
     float x;
     float y;
   }
+  */
+  union AppEventViewValue {
+    ubyte buttons;
+    float absX;
+    float absY;
+  }
+  /// view.value contains button index
   string mouseDown;
   string mouseUp;
   string mouseEnter;

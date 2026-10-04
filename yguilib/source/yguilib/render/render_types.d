@@ -10,6 +10,10 @@ struct RectF {
   float y = 0.0f;
   float width = 1.0f;
   float height = 1.0f;
+
+  bool contains(in PointF p) {
+    return p.x >= x && p.y >= y && x < (x+width) && y < (y+height);
+  }
 }
 
 struct ColorF {

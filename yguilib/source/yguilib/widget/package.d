@@ -37,7 +37,8 @@ struct WidgetComponents {
   InputEnabled inputEnabled;
   Focus focus;
   DefaultButton defaultButton;
-  KeyboardAction keyboardAction;
+  KeyboardEvent keyboardEvent;
+  MouseEvent mouseEvent;
 }
 
 final class Widget {

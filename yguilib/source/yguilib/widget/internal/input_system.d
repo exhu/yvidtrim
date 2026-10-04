@@ -2,11 +2,14 @@ module yguilib.widget.internal.input_system;
 import yguilib.widget.internal.focus_system;
 import yguilib.widget.internal.collect_visible : VisibleWidgets, VisibleWidget;
 import yguilib.events;
+import yguilib.uisystem : UiSystem;
+import yguilib.render.render_types;
+import yguilib.widget : Widget;
 
 // TODO support multiple windows
 final class InputSystem {
-  this(void delegate(AppEvent event) sendAppEvent) {
-    this.sendAppEvent = sendAppEvent;
+  this(UiSystem uiSystem) {
+    this.uiSystem = uiSystem;
     this.focusSystem = new FocusSystem;
   }
 
@@ -15,14 +18,40 @@ final class InputSystem {
     if (!event.isKeyboardEvent() && !event.isMouseEvent())
       return false;
     // TODO call to focus system
-    foreach_reverse(VisibleWidget w; widgets) {
-      // TODO handle mouse down/up
-
-    }
+    if (event.isMouseEvent())
+      foreach_reverse(VisibleWidget vw; widgets) {
+        if (handleMouseEvent(vw, event))
+          return false;
+      }
     return false;
   }
 
 private:
-  void delegate(AppEvent event) sendAppEvent;
+  bool widgetExpectsMouseEvent(Widget w, AppEvent.Kind kind) {
+    if (w.components.mouseEvent is null)
+      return false;
+    switch (kind) {
+    case AppEvent.Kind.mouseButtonDown:
+      return w.components.mouseEvent.mouseDown.length > 0;
+    default: break;
+    }
+    return false;
+  }
+
+  /// returns true to consume event
+  bool handleMouseEvent(ref VisibleWidget vw, in AppEvent event) {
+    if (!widgetExpectsMouseEvent(vw.widget, event.kind))
+      return false;
+
+    // TODO handle mouse down/up
+    if (vw.absRect.contains(PointF(event.mouse.x, event.mouse.y))) {
+      uiSystem.sendAppEvent(AppEvent(AppEvent.ViewData(vw.widget.components.mouseEvent.mouseDown,
+                                                       vw.widget, event.mouse.button)));
+      }
+    return false;
+  }
+
+
   FocusSystem focusSystem;
+  UiSystem uiSystem;
 }

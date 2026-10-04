@@ -240,8 +240,11 @@ struct AppEvent {
   struct ViewData {
     string eventName;
     Widget widget;
+    /// opaque value to be used to manage
+    /// data either by integer or object instance, or both
+    ulong value;
     Object data;
-    void delegate(Object data) releaseData;
+    void delegate(ulong value, Object data) releaseData;
   }
 
   /// Event type discriminator. Valid for all events.
@@ -331,7 +334,7 @@ struct AppEvent {
   ~this() {
     if (kind == Kind.view && payload.view.data !is null &&
       payload.view.releaseData !is null)
-        payload.view.releaseData(payload.view.data);
+        payload.view.releaseData(payload.view.value, payload.view.data);
   }
 
   /// Constructs events without data (appQuit, update, windowRedraw).
@@ -396,16 +399,13 @@ struct AppEvent {
     payload.textData = data;
   }
 
-  /// Constructs custom user events with UserData payload.
-  this(Kind kind, UserData data) {
-    assert(kind == Kind.user);
-    this.kind = kind;
+  this(UserData data) {
+    this.kind = Kind.user;
     payload.user = data;
   }
 
-  this(Kind kind, ViewData data) {
-    assert(kind == Kind.view);
-    this.kind = kind;
+  this(ViewData data) {
+    this.kind = Kind.view;
     payload.view = data;
   }
 
@@ -493,7 +493,7 @@ unittest {
   assert(editEv.textData.editStart == 2);
   assert(editEv.textData.editLength == 1);
 
-  AppEvent userEv = AppEvent(AppEvent.Kind.user, AppEvent.UserData(42));
+  AppEvent userEv = AppEvent(AppEvent.UserData(42));
   assert(userEv.kind == AppEvent.Kind.user);
   assert(userEv.user.eventId == 42);
   assert(userEv.user.data is null);

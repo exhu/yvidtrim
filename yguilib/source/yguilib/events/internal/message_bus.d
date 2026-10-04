@@ -128,8 +128,8 @@ unittest {
   assert(!bus.hasPending());
   assert(bus.get().isNull);
 
-  bus.send(AppEvent(AppEvent.Kind.user, AppEvent.UserData(1)));
-  bus.send(AppEvent(AppEvent.Kind.user, AppEvent.UserData(2)));
+  bus.send(AppEvent(AppEvent.UserData(1)));
+  bus.send(AppEvent(AppEvent.UserData(2)));
   assert(bus.hasPending());
 
   auto ev1 = bus.get();
@@ -142,7 +142,7 @@ unittest {
   assert(bus.get().isNull);
 
   // Re-enqueue to verify queue reuse without reallocation
-  bus.send(AppEvent(AppEvent.Kind.user, AppEvent.UserData(3)));
+  bus.send(AppEvent(AppEvent.UserData(3)));
   assert(bus.hasPending());
   auto ev3 = bus.get();
   assert(!ev3.isNull && ev3.get().user.eventId == 3);

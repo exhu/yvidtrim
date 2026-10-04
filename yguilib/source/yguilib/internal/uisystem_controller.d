@@ -16,7 +16,7 @@ final class UiSystemController : DefaultController {
     painterSystem = new WidgetPainterSystem;
     visibleWidgetsCollector = new VisibleWidgetsCollector;
     layoutSystem = new LayoutSystem;
-    inputSystem = new InputSystem(&sendAppEvent);
+    inputSystem = new InputSystem(uiSystem);
   }
 
   override bool update() {
@@ -39,6 +39,7 @@ final class UiSystemController : DefaultController {
     }
     if (handleWindowEvent(ev))
       return HandleResult(HandleResult.Result.updateView);
+    // TODO input system
     return super.handleEvent(ev);
   }
 
