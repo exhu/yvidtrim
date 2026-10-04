@@ -1,9 +1,3 @@
-- move UiSystem widgets drawing, layout etc. into a
-UiSystemController, pushed before main one in app.d
-- add event updateUiLayer which is sent by DefaultController updateView,
-- add noRepeat flag to AppEvent, so no consecutive updateUiLayer events are
-stored (it does not push event if it's identical to already waiting in the queue)
-
 - input system, mouse events handling
 
 - widget builders, see documentation/yguilib_api_improvements.md

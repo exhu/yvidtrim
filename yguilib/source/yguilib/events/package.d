@@ -1,6 +1,7 @@
 module yguilib.events;
 
 import yguilib.events.keyboard : Keycode, Scancode;
+import yguilib.widget : Widget;
 
 /// Current and up the stack controllers decide what events are consumed,
 /// which propagated up the controller stack.
@@ -238,7 +239,9 @@ struct AppEvent {
 
   struct ViewData {
     string eventName;
+    Widget widget;
     Object data;
+    void delegate(Object data) releaseData;
   }
 
   /// Event type discriminator. Valid for all events.
@@ -315,6 +318,20 @@ struct AppEvent {
       "AppEvent.user accessed for wrong Kind"
     );
     return payload.user;
+  }
+
+  @property ref inout(ViewData) view() inout {
+    assert(
+      kind == Kind.view,
+      "AppEvent.view accessed for wrong Kind"
+    );
+    return payload.view;
+  }
+
+  ~this() {
+    if (kind == Kind.view && payload.view.data !is null &&
+      payload.view.releaseData !is null)
+        payload.view.releaseData(payload.view.data);
   }
 
   /// Constructs events without data (appQuit, update, windowRedraw).
@@ -486,7 +503,4 @@ unittest {
 
   AppEvent updateEv = AppEvent(AppEvent.Kind.update);
   assert(updateEv.kind == AppEvent.Kind.update);
-
-  // Verify compact footprint
-  static assert(AppEvent.sizeof == 48);
 }
