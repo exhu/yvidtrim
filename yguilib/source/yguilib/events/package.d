@@ -225,7 +225,7 @@ struct AppEvent {
     int editLength = 0;
   }
 
-  /// User and view custom event payload.
+  /// User custom event payload.
   struct UserData {
     /// Custom event identifier.
     /// Valid when: Kind.user or Kind.view.
@@ -234,6 +234,11 @@ struct AppEvent {
     /// Custom user payload object.
     /// Valid when: Kind.user or Kind.view.
     Object data = null;
+  }
+
+  struct ViewData {
+    string eventName;
+    Object data;
   }
 
   /// Event type discriminator. Valid for all events.
@@ -306,7 +311,7 @@ struct AppEvent {
   /// Valid when: Kind.user or Kind.view.
   @property ref inout(UserData) user() inout {
     assert(
-      kind == Kind.user || kind == Kind.view,
+      kind == Kind.user,
       "AppEvent.user accessed for wrong Kind"
     );
     return payload.user;
@@ -374,29 +379,29 @@ struct AppEvent {
     payload.textData = data;
   }
 
-  /// Constructs custom user/view events with UserData payload.
+  /// Constructs custom user events with UserData payload.
   this(Kind kind, UserData data) {
-    assert(kind == Kind.user || kind == Kind.view);
+    assert(kind == Kind.user);
     this.kind = kind;
     payload.user = data;
   }
 
-  /// Convenience constructor for user and view events.
-  this(Kind kind, uint eventId, Object data = null) {
-    assert(kind == Kind.user || kind == Kind.view);
+  this(Kind kind, ViewData data) {
+    assert(kind == Kind.view);
     this.kind = kind;
-    payload.user = UserData(eventId, data);
+    payload.view = data;
   }
 
 private:
   /// Compact C-style union storage for event variants.
   union Payload {
     WindowData window;
-    MouseData  mouse;
-    WheelData  wheel;
-    KeyData    keyData;
-    TextData   textData;
-    UserData   user;
+    MouseData mouse;
+    WheelData wheel;
+    KeyData keyData;
+    TextData textData;
+    UserData user;
+    ViewData view;
   }
   Payload payload;
   bool fnoRepeat = false;
@@ -471,7 +476,7 @@ unittest {
   assert(editEv.textData.editStart == 2);
   assert(editEv.textData.editLength == 1);
 
-  AppEvent userEv = AppEvent(AppEvent.Kind.user, 42);
+  AppEvent userEv = AppEvent(AppEvent.Kind.user, AppEvent.UserData(42));
   assert(userEv.kind == AppEvent.Kind.user);
   assert(userEv.user.eventId == 42);
   assert(userEv.user.data is null);
