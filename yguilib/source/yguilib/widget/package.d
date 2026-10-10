@@ -5,6 +5,8 @@ import yguilib.render.render_types;
 import yguilib.widget.layout_components;
 import yguilib.widget.input_components;
 import yguilib.controller : Controller;
+import yguilib.render.font : defaultFontPtSize;
+import std.typecons : Nullable;
 
 // TODO implement code first approach, without symbolic bindings
 
@@ -124,6 +126,223 @@ final class Widget {
     return RectF(startX, startY, availW, availH);
   }
 
+  Widget withPadding(Insets insets) {
+    if (components.size is null) {
+      components.size = new Size();
+    }
+    components.size.padding = insets;
+    return this;
+  }
+
+  Widget withPadding(float top, float right, float bottom, float left) {
+    return withPadding(Insets(top, right, bottom, left));
+  }
+
+  Widget withPadding(float vertical, float horizontal) {
+    return withPadding(Insets(vertical, horizontal));
+  }
+
+  Widget withPadding(float all) {
+    return withPadding(Insets(all));
+  }
+
+  Widget withMargin(Insets insets) {
+    if (components.size is null) {
+      components.size = new Size();
+    }
+    components.size.margin = insets;
+    return this;
+  }
+
+  Widget withSize(Size sz) {
+    components.size = sz;
+    return this;
+  }
+
+  Widget withFixedSize(float w, float h) {
+    if (components.size is null) {
+      components.size = Size.fixed(w, h);
+    } else {
+      components.size.width = Dimension(w, SizingMode.fixed);
+      components.size.height = Dimension(h, SizingMode.fixed);
+    }
+    return this;
+  }
+
+  Widget withAutoSize() {
+    if (components.size is null) {
+      components.size = Size.autoSize();
+    } else {
+      components.size.width = Dimension(0, SizingMode.auto_);
+      components.size.height = Dimension(0, SizingMode.auto_);
+    }
+    return this;
+  }
+
+  Widget withFractionSize(float wFr, float hFr = 0.0f) {
+    if (components.size is null) {
+      components.size = Size.fraction(wFr, hFr);
+    } else {
+      components.size.width = Dimension(wFr, SizingMode.fraction);
+      components.size.height = Dimension(
+        hFr,
+        hFr > 0.0f ? SizingMode.fraction : SizingMode.auto_
+      );
+    }
+    return this;
+  }
+
+  Widget withBackground(
+    ColorF color,
+    Background.Style style = Background.Style.rect,
+    float cornerRadius = 0.0f
+  ) {
+    components.background = new Background(color, style, cornerRadius);
+    return this;
+  }
+
+  Widget withRoundBackground(ColorF color, float cornerRadius = 6.0f) {
+    components.background = Background.round(color, cornerRadius);
+    return this;
+  }
+
+  Widget withBorder(
+    ColorF color,
+    float width = 1.0f,
+    Border.Style style = Border.Style.rect,
+    float cornerRadius = 0.0f
+  ) {
+    auto b = new Border(color, width, style);
+    if (cornerRadius > 0.0f) {
+      b.cornerRadius = cornerRadius;
+    }
+    components.border = b;
+    return this;
+  }
+
+  Widget withText(
+    string caption,
+    ColorF color = ColorF(1, 1, 1, 1),
+    float fontSize = defaultFontPtSize,
+    TextLabel.Alignment align_ = TextLabel.Alignment.left
+  ) {
+    components.textLabel = new TextLabel(caption, color)
+      .withFontSize(fontSize)
+      .withAlignment(align_);
+    return this;
+  }
+
+  Widget withFlex(
+    FlexDirection dir = FlexDirection.row,
+    float gap = 0.0f,
+    JustifyContent justify = JustifyContent.start,
+    AlignItems align_ = AlignItems.stretch
+  ) {
+    components.flexContainer = new FlexContainer(dir, gap)
+      .withJustify(justify)
+      .withAlign(align_);
+    return this;
+  }
+
+  Widget withAnchor(
+    Nullable!float left = Nullable!float.init,
+    Nullable!float top = Nullable!float.init,
+    Nullable!float right = Nullable!float.init,
+    Nullable!float bottom = Nullable!float.init
+  ) {
+    components.anchor = new Anchor(left, top, right, bottom);
+    return this;
+  }
+
+  Widget onMouseDown(string eventName) {
+    inputEnabled = true;
+    if (components.mouseEvent is null) {
+      components.mouseEvent = new MouseEvent();
+    }
+    components.mouseEvent.mouseDown = eventName;
+    return this;
+  }
+
+  Widget withClipContents(bool clip = true) {
+    clipContents = clip;
+    return this;
+  }
+
+  Widget withClipChildren(bool clip = true) {
+    clipChildren = clip;
+    return this;
+  }
+
+  /// Sets text caption. If unchanged, returns false.
+  /// If changed, updates caption and marks layout-dirty if auto-sized
+  /// or multiline, otherwise marks only visual-dirty.
+  bool setCaption(string newCaption) {
+    if (components.textLabel is null) {
+      return false;
+    }
+    if (components.textLabel.caption == newCaption) {
+      return false;
+    }
+    components.textLabel.caption = newCaption;
+    const bool needsLayout = hasAutoSizing() || components.textLabel.multiline;
+    markDirty(needsLayout);
+    return true;
+  }
+
+  /// Sets background color. If unchanged, returns false.
+  /// If changed, updates color and marks only visual-dirty (dirty = true),
+  /// avoiding layout recalculation on parent flex containers.
+  bool setBackgroundColor(ColorF newColor) {
+    if (components.background is null) {
+      return false;
+    }
+    if (components.background.color == newColor) {
+      return false;
+    }
+    components.background.color = newColor;
+    updateOnlyVisuals();
+    return true;
+  }
+
+  /// Sets text color. If unchanged, returns false.
+  /// If changed, updates color and marks only visual-dirty (dirty = true).
+  bool setTextColor(ColorF newColor) {
+    if (components.textLabel is null) {
+      return false;
+    }
+    if (components.textLabel.color == newColor) {
+      return false;
+    }
+    components.textLabel.color = newColor;
+    updateOnlyVisuals();
+    return true;
+  }
+
+  /// Sets border color. If unchanged, returns false.
+  /// If changed, updates color and marks only visual-dirty (dirty = true).
+  bool setBorderColor(ColorF newColor) {
+    if (components.border is null) {
+      return false;
+    }
+    if (components.border.color == newColor) {
+      return false;
+    }
+    components.border.color = newColor;
+    updateOnlyVisuals();
+    return true;
+  }
+
+  /// Sets widget visibility. If unchanged, returns false.
+  /// If changed, updates visibility and marks layout-dirty.
+  bool setVisible(bool newVis) {
+    if (visible == newVis) {
+      return false;
+    }
+    visible = newVis;
+    markDirty(true);
+    return true;
+  }
+
   Widget parent;
   RectF rect;
   /// it is not allowed to change available components after initialization
@@ -167,8 +386,7 @@ package(yguilib):
   /// preserving cached layout calculations.
   void markDirty(bool layout = true) {
     dirty = true;
-    if (layout || hasAutoSizing() || isFlexContainer() ||
-        isParentFlexContainer()) {
+    if (layout || hasAutoSizing() || isFlexContainer()) {
       markLayoutDirty();
     }
   }
@@ -305,10 +523,80 @@ unittest {
   assert(root.dirty && root.layoutDirty);
   assert(child.dirty && child.layoutDirty);
 
-  // Test visibility culling in tree checks
   root.dirty = false;
   child.dirty = true;
   assert(root.isTreeDirty());
   child.visible = false;
   assert(!root.isTreeDirty());
+}
+
+unittest {
+  auto root = new Widget(null, RectF(0, 0, 800, 600))
+    .withFlex(FlexDirection.row, 10.0f)
+    .withBackground(ColorF(0.1f, 0.1f, 0.1f, 1.0f));
+
+  auto item = new Widget(root, RectF(0, 0, 100, 50))
+    .withFixedSize(100.0f, 50.0f)
+    .withPadding(4.0f, 8.0f)
+    .withMargin(Insets(2.0f))
+    .withRoundBackground(ColorF(0.2f, 0.4f, 0.8f, 1.0f), 6.0f)
+    .withBorder(ColorF(1.0f, 1.0f, 1.0f, 1.0f), 1.5f)
+    .withText("Button")
+    .onMouseDown("btnClick")
+    .withClipContents(true)
+    .withClipChildren(false);
+
+  assert(item.components.size !is null);
+  assert(item.components.size.width.value == 100.0f);
+  assert(item.components.size.padding.top == 4.0f);
+  assert(item.components.size.padding.right == 8.0f);
+  assert(item.components.background !is null);
+  assert(item.components.border !is null);
+  assert(item.components.textLabel !is null);
+  assert(item.components.textLabel.caption == "Button");
+  assert(item.inputEnabled);
+  assert(item.components.mouseEvent !is null);
+  assert(item.components.mouseEvent.mouseDown == "btnClick");
+  assert(item.clipContents);
+  assert(!item.clipChildren);
+
+  // Test mutators: setCaption
+  root.dirty = false;
+  root.layoutDirty = false;
+  item.dirty = false;
+  item.layoutDirty = false;
+
+  // Same caption: no-op
+  assert(!item.setCaption("Button"));
+  assert(!item.dirty);
+
+  // New caption: changed, since fixed size and single line, layout is NOT dirty
+  assert(item.setCaption("New Title"));
+  assert(item.components.textLabel.caption == "New Title");
+  assert(item.dirty);
+  assert(!item.layoutDirty);
+  assert(!root.layoutDirty);
+
+  // setBackgroundColor: marks only visual dirty
+  root.dirty = false;
+  item.dirty = false;
+  assert(!item.setBackgroundColor(item.components.background.color));
+  assert(!item.dirty);
+
+  assert(item.setBackgroundColor(ColorF(0.5f, 0.5f, 0.5f, 1.0f)));
+  assert(item.dirty);
+  assert(!item.layoutDirty);
+  assert(!root.layoutDirty);
+
+  // setVisible
+  item.dirty = false;
+  item.layoutDirty = false;
+  root.layoutDirty = false;
+  assert(!item.setVisible(true));
+  assert(!item.dirty);
+
+  assert(item.setVisible(false));
+  assert(!item.visible);
+  assert(item.dirty && item.layoutDirty);
+  assert(root.layoutDirty);
 }

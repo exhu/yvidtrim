@@ -1,5 +1,4 @@
-- events filtering for subtree reuse, i.e. before sendAppEvent is called by input_systen it checks if
-that event name is allowed or translated up the hierarchy
+- widget duplicates builder functionality, refactor
 
 - implement hover button that animates background on mouse enter/leave to test View component concept
 

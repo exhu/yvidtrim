@@ -30,6 +30,7 @@ yguilib_src = files(
   'source/yguilib/render/package.d',
   'source/yguilib/render/render_types.d',
   'source/yguilib/uisystem.d',
+  'source/yguilib/widget/builder.d',
   'source/yguilib/widget/component.d',
   'source/yguilib/widget/drawing_components.d',
   'source/yguilib/widget/input_components.d',

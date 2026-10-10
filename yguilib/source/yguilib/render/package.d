@@ -1,7 +1,6 @@
 module yguilib.render;
 
 import glad2.gles2;
-import std.algorithm : max, min;
 import yguilib.events : AppEvent;
 import yguilib.render.internal.clip_stack : ClipStack;
 import yguilib.render.font : Font, defaultFontPtSize;
@@ -19,21 +18,10 @@ final class Renderer {
     viewportPixelHeight = height;
     this.displayScaling = displayScaling > 0.0f ? displayScaling : 1.0f;
     this.unitsScaling = 1.0f;
-    initialize();
-  }
-
-  private void initialize() {
-    if (initialized) {
-      return;
+    if (width > 0 && height > 0) {
+      glViewport(0, 0, width, height);
     }
-
-    colorPipeline.initialize();
-    texPipeline.initialize();
-    rrPipeline.initialize();
-    textCache = new TextCache();
-    fontManager = new FontManager();
-
-    initialized = true;
+    initialize();
   }
 
   void destroy() {
@@ -726,6 +714,20 @@ final class Renderer {
   }
 
 private:
+  void initialize() {
+    if (initialized) {
+      return;
+    }
+
+    colorPipeline.initialize();
+    texPipeline.initialize();
+    rrPipeline.initialize();
+    textCache = new TextCache();
+    fontManager = new FontManager();
+
+    initialized = true;
+  }
+
   TextTexture createTextTexture(Font font, string text) {
     if (!initialized) {
       return TextTexture();
@@ -831,9 +833,11 @@ unittest {
   auto win = new Window(320, 240, "test_renderer");
   win.create();
   scope(exit) win.destroy();
+  win.setDisplayScaling(1.0f);
 
-  auto renderer = new Renderer(320, 240);
-  scope(exit) renderer.destroy();
+  auto renderer = win.renderer;
+  assert(renderer !is null);
+  renderer.setViewport(320, 240);
 
   assert(renderer.getViewportWidth() == 320);
   assert(renderer.getViewportHeight() == 240);
@@ -1027,6 +1031,8 @@ unittest {
     ColorF(1.0f, 1.0f, 1.0f, 1.0f),
     customFont
   );
+
+  import std.algorithm : min;
 
   int litCount = 0;
   int checkW = min(cast(int)mLong.x, 50);

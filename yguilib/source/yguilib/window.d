@@ -223,7 +223,7 @@ private:
     }
   }
 
- void updateViewRect() {
+  void updateViewRect() {
     if (view !is null && renderer !is null) {
       const RectF newRect = RectF(
         0,
@@ -302,11 +302,12 @@ unittest {
   window.clearTextInputArea();
   window.stopTextInput();
 
+  const float scale = window.getDisplayScaling();
   window.onResize(640, 480);
-  assert(window.width == 640);
-  assert(window.height == 480);
-  assert(window.renderer.getViewportWidth() == 640);
-  assert(window.renderer.getViewportHeight() == 480);
+  assert(window.width == cast(int)(640.0f / scale));
+  assert(window.height == cast(int)(480.0f / scale));
+  assert(window.renderer.getViewportWidth() == window.width);
+  assert(window.renderer.getViewportHeight() == window.height);
 
   window.makeCurrent();
   window.swapBuffers();
@@ -316,15 +317,15 @@ unittest {
 
   window.setUnitsScaling(2.0f);
   assert(window.getUnitsScaling() == 2.0f);
-  assert(window.width == 320);
-  assert(window.height == 240);
+  assert(window.width == cast(int)(640.0f / (scale * 2.0f)));
+  assert(window.height == cast(int)(480.0f / (scale * 2.0f)));
 
   window.onDisplayScaleChanged(1.5f);
   // Custom scaling was set to 2.0f, so it retains custom scaling
   assert(window.getUnitsScaling() == 2.0f);
   assert(window.getDisplayScaling() == 1.5f);
-  assert(window.width == 213);
-  assert(window.height == 160);
+  assert(window.width == cast(int)(640.0f / (1.5f * 2.0f)));
+  assert(window.height == cast(int)(480.0f / (1.5f * 2.0f)));
 
   window.redraw();
 }

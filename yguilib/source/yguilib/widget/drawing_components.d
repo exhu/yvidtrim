@@ -14,23 +14,65 @@ class Background : Component {
     round,
     none,
   }
-  this(ColorF color, Style style = Style.rect) {
+
+  this(ColorF color, Style style = Style.rect, float cornerRadius = 15.0f) {
     this.color = color;
     this.style = style;
+    this.cornerRadius = cornerRadius;
   }
+
+  Background withCornerRadius(float r) {
+    this.cornerRadius = r;
+    return this;
+  }
+
+  static Background rect(ColorF color) {
+    return new Background(color, Style.rect);
+  }
+
+  static Background round(ColorF color, float cornerRadius = 15.0f) {
+    return new Background(color, Style.round, cornerRadius);
+  }
+
   ColorF color;
   Style style;
-  float cornerRadius = 15.0;
+  float cornerRadius = 15.0f;
 }
 
 class TextLabel : Component {
   // TODO RTL support
   alias Alignment = TextAlignment;
 
-  this(string caption, ColorF color) {
+  this(string caption, ColorF color = ColorF(1, 1, 1, 1)) {
     this.caption = caption;
     this.color = color;
   }
+
+  TextLabel withFontSize(float pt) {
+    this.fontSize = pt;
+    return this;
+  }
+
+  TextLabel withAlignment(Alignment align_) {
+    this.alignment = align_;
+    return this;
+  }
+
+  TextLabel withMultiline(bool multi = true) {
+    this.multiline = multi;
+    return this;
+  }
+
+  TextLabel withEllipsis(bool ellipsis = true) {
+    this.overflowEllipsis = ellipsis;
+    return this;
+  }
+
+  TextLabel withFont(string fontName) {
+    this.font = fontName;
+    return this;
+  }
+
   // empty means default embedded font
   string font;
   // 0 or infinity must fallback to defaultFontPtSize
@@ -62,17 +104,67 @@ class Border : Component {
     roundDashed,
     none,
   }
-  this(ColorF color, Style style = Style.rect) {
+
+  this(ColorF color, float width = 2.0f, Style style = Style.rect) {
     this.color = color;
+    this.width = width;
     this.style = style;
   }
+
+  Border withCornerRadius(float r) {
+    this.cornerRadius = r;
+    return this;
+  }
+
+  Border withDashes(float dashLen, float gap) {
+    this.dashLen = dashLen;
+    this.gap = gap;
+    return this;
+  }
+
+  static Border rect(ColorF color, float width = 1.0f) {
+    return new Border(color, width, Style.rect);
+  }
+
+  static Border round(
+    ColorF color,
+    float cornerRadius = 10.0f,
+    float width = 1.0f
+  ) {
+    auto b = new Border(color, width, Style.round);
+    b.cornerRadius = cornerRadius;
+    return b;
+  }
+
+  static Border dashed(
+    ColorF color,
+    float width = 1.0f,
+    float dashLen = 5.0f,
+    float gap = 2.0f
+  ) {
+    auto b = new Border(color, width, Style.dashed);
+    b.dashLen = dashLen;
+    b.gap = gap;
+    return b;
+  }
+
+  static Border roundDashed(
+    ColorF color,
+    float cornerRadius = 10.0f,
+    float width = 1.0f
+  ) {
+    auto b = new Border(color, width, Style.roundDashed);
+    b.cornerRadius = cornerRadius;
+    return b;
+  }
+
   ColorF color;
   Style style;
   /// pixels
-  float width = 2.0;
-  float dashLen = 5.0;
-  float gap = 2.0;
-  float cornerRadius = 10.0;
+  float width = 2.0f;
+  float dashLen = 5.0f;
+  float gap = 2.0f;
+  float cornerRadius = 10.0f;
 }
 
 class CustomDraw : Component {
@@ -248,4 +340,39 @@ unittest {
   assert(linesC3.length == 1);
   assert(linesC3[0].text == "Updated line");
   assert(linesC3.ptr != linesC1.ptr);
+}
+
+unittest {
+  // Test Background builder & factories
+  auto bgRound = Background.round(ColorF(1, 0, 0, 1), 8.0f);
+  assert(bgRound.style == Background.Style.round);
+  assert(bgRound.cornerRadius == 8.0f);
+
+  auto bgRect = Background.rect(ColorF(0, 1, 0, 1))
+    .withCornerRadius(4.0f);
+  assert(bgRect.style == Background.Style.rect);
+  assert(bgRect.cornerRadius == 4.0f);
+
+  // Test Border builder & factories
+  auto bRound = Border.round(ColorF(0, 0, 1, 1), 6.0f, 2.0f);
+  assert(bRound.style == Border.Style.round);
+  assert(bRound.cornerRadius == 6.0f);
+  assert(bRound.width == 2.0f);
+
+  auto bDashed = Border.dashed(ColorF(1, 1, 0, 1), 1.5f, 6.0f, 3.0f);
+  assert(bDashed.style == Border.Style.dashed);
+  assert(bDashed.dashLen == 6.0f);
+  assert(bDashed.gap == 3.0f);
+
+  // Test TextLabel builder
+  auto tl = new TextLabel("Title", ColorF(1, 1, 1, 1))
+    .withFontSize(16.0f)
+    .withAlignment(TextLabel.Alignment.center)
+    .withMultiline(true)
+    .withEllipsis(false);
+  assert(tl.caption == "Title");
+  assert(tl.fontSize == 16.0f);
+  assert(tl.alignment == TextLabel.Alignment.center);
+  assert(tl.multiline);
+  assert(!tl.overflowEllipsis);
 }

@@ -42,14 +42,27 @@ struct Dimension {
   SizingMode mode = SizingMode.auto_;
 }
 
-/// Four-sided insets used for padding and margin.
-///
-/// Follows CSS shorthand order: top, right, bottom, left.
 struct Insets {
   float top = 0;
   float right = 0;
   float bottom = 0;
   float left = 0;
+
+  this(float all) {
+    top = right = bottom = left = all;
+  }
+
+  this(float vertical, float horizontal) {
+    top = bottom = vertical;
+    left = right = horizontal;
+  }
+
+  this(float top, float right, float bottom, float left) {
+    this.top = top;
+    this.right = right;
+    this.bottom = bottom;
+    this.left = left;
+  }
 }
 
 /// Direction a flex container lays out its children along the
@@ -93,6 +106,31 @@ enum AlignItems {
 /// according to the flexbox-lite model. A container without
 /// this component uses no automatic layout.
 class FlexContainer : Component {
+  this() {}
+
+  this(FlexDirection direction, float gap = 0) {
+    this.direction = direction;
+    this.gap = gap;
+  }
+
+  FlexContainer withJustify(JustifyContent justify) {
+    this.justify = justify;
+    return this;
+  }
+
+  FlexContainer withAlign(AlignItems align_) {
+    this.alignItems = align_;
+    return this;
+  }
+
+  static FlexContainer row(float gap = 0) {
+    return new FlexContainer(FlexDirection.row, gap);
+  }
+
+  static FlexContainer column(float gap = 0) {
+    return new FlexContainer(FlexDirection.column, gap);
+  }
+
   // -- Phase 2: Direction & Spacing --
 
   /// Main axis direction for child flow.
@@ -115,6 +153,63 @@ class FlexContainer : Component {
 /// (Phase 1 & 3).  Every widget that participates in
 /// layout should carry this component.
 class Size : Component {
+  this() {}
+
+  this(Insets padding) {
+    this.padding = padding;
+  }
+
+  this(Dimension width, Dimension height) {
+    this.width = width;
+    this.height = height;
+  }
+
+  Size withPadding(Insets insets) {
+    this.padding = insets;
+    return this;
+  }
+
+  Size withMargin(Insets insets) {
+    this.margin = insets;
+    return this;
+  }
+
+  Size withMinSize(float minW, float minH = 0.0f) {
+    this.minWidth = minW;
+    this.minHeight = minH;
+    return this;
+  }
+
+  Size withMaxSize(float maxW, float maxH = float.infinity) {
+    this.maxWidth = maxW;
+    this.maxHeight = maxH;
+    return this;
+  }
+
+  static Size fixed(float w, float h) {
+    auto sz = new Size();
+    sz.width = Dimension(w, SizingMode.fixed);
+    sz.height = Dimension(h, SizingMode.fixed);
+    return sz;
+  }
+
+  static Size autoSize() {
+    auto sz = new Size();
+    sz.width = Dimension(0, SizingMode.auto_);
+    sz.height = Dimension(0, SizingMode.auto_);
+    return sz;
+  }
+
+  static Size fraction(float wFr, float hFr = 0.0f) {
+    auto sz = new Size();
+    sz.width = Dimension(wFr, SizingMode.fraction);
+    sz.height = Dimension(
+      hFr,
+      hFr > 0.0f ? SizingMode.fraction : SizingMode.auto_
+    );
+    return sz;
+  }
+
   // -- Phase 3: Sizing Modes --
 
   /// Desired width of the widget.
@@ -168,6 +263,30 @@ class Anchor : Component {
     this.bottom = bottom;
   }
 
+  Anchor withRight(float right) {
+    import std.typecons : nullable;
+    this.right = nullable(right);
+    return this;
+  }
+
+  Anchor withBottom(float bottom) {
+    import std.typecons : nullable;
+    this.bottom = nullable(bottom);
+    return this;
+  }
+
+  Anchor withLeft(float left) {
+    import std.typecons : nullable;
+    this.left = nullable(left);
+    return this;
+  }
+
+  Anchor withTop(float top) {
+    import std.typecons : nullable;
+    this.top = nullable(top);
+    return this;
+  }
+
   /// Offset from parent's left content edge in logical points.
   Nullable!float left;
   /// Offset from parent's top content edge in logical points.
@@ -176,4 +295,52 @@ class Anchor : Component {
   Nullable!float right;
   /// Offset from parent's bottom content edge in logical points.
   Nullable!float bottom;
+}
+
+unittest {
+  // Insets constructors
+  const Insets i1 = Insets(8.0f);
+  assert(i1.top == 8.0f && i1.right == 8.0f && i1.bottom == 8.0f &&
+    i1.left == 8.0f);
+
+  const Insets i2 = Insets(6.0f, 12.0f);
+  assert(i2.top == 6.0f && i2.bottom == 6.0f);
+  assert(i2.left == 12.0f && i2.right == 12.0f);
+
+  // FlexContainer builder
+  auto fc = FlexContainer.row(8.0f)
+    .withJustify(JustifyContent.center)
+    .withAlign(AlignItems.stretch);
+  assert(fc.direction == FlexDirection.row);
+  assert(fc.gap == 8.0f);
+  assert(fc.justify == JustifyContent.center);
+  assert(fc.alignItems == AlignItems.stretch);
+
+  // Size builder & factories
+  auto szFixed = Size.fixed(100.0f, 50.0f)
+    .withPadding(Insets(4.0f))
+    .withMargin(Insets(2.0f))
+    .withMinSize(80.0f)
+    .withMaxSize(200.0f);
+  assert(szFixed.width.mode == SizingMode.fixed);
+  assert(szFixed.width.value == 100.0f);
+  assert(szFixed.padding.top == 4.0f);
+  assert(szFixed.margin.left == 2.0f);
+  assert(szFixed.minWidth == 80.0f);
+  assert(szFixed.maxWidth == 200.0f);
+
+  auto szAuto = Size.autoSize();
+  assert(szAuto.width.mode == SizingMode.auto_);
+
+  auto szFrac = Size.fraction(1.0f);
+  assert(szFrac.width.mode == SizingMode.fraction);
+
+  // Anchor builder
+  import std.typecons : nullable;
+  auto anch = new Anchor(nullable(5.0f), nullable(10.0f))
+    .withRight(15.0f)
+    .withBottom(20.0f);
+  assert(!anch.left.isNull && anch.left.get == 5.0f);
+  assert(!anch.right.isNull && anch.right.get == 15.0f);
+  assert(!anch.bottom.isNull && anch.bottom.get == 20.0f);
 }
