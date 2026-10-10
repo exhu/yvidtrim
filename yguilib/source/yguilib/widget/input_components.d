@@ -24,13 +24,41 @@ final class KeyboardEvent : Component {
   string[string] keyToViewEvent;
 }
 
+import yguilib.events : AppEvent;
+
 final class MouseEvent : Component {
+  /// Packed value passed in AppEvent.ViewData.value to avoid heap
+  /// allocations during frequent mouse events.
   union AppEventViewValue {
-    ubyte buttons;
-    float absX;
-    float absY;
+    /// Raw 64-bit integer array stored in AppEvent.ViewData.value.
+    ulong[AppEvent.ViewData.valueSize] raw;
+    struct {
+      /// Mouse button index (1=left, 2=middle, 3=right).
+      ubyte buttons;
+      /// Absolute cursor X coordinate in window coordinates.
+      float absX;
+      /// Absolute cursor Y coordinate in window coordinates.
+      float absY;
+    }
+
+    /// Allows implicit conversion to array for ViewAppEventBuilder.value.
+    alias raw this;
+
+    /// Constructs from raw array payload.
+    this(in ulong[AppEvent.ViewData.valueSize] raw) {
+      this.raw = raw;
+    }
+
+    /// Constructs from cursor coordinates and optional button index.
+    this(float absX, float absY, ubyte buttons = 0) {
+      this.raw = 0;
+      this.buttons = buttons;
+      this.absX = absX;
+      this.absY = absY;
+    }
   }
-  /// view.value contains button index
+
+  /// view.value contains button index and cursor coordinates
   string mouseDown;
   string mouseUp;
   /// mouse entered widget abs rect, mouseMove is sent together with enter/leave

@@ -238,14 +238,16 @@ struct AppEvent {
   }
 
   struct ViewData {
+    enum valueSize = 4;
+
     string eventName;
     Widget widget;
     Widget viewWidget;
     /// opaque value to be used to manage
     /// data either by integer or object instance, or both
-    ulong value;
+    ulong[valueSize] value;
     Object data;
-    void delegate(ulong value, Object data) releaseData;
+    void delegate(in ViewData) releaseData;
   }
 
   /// Event type discriminator. Valid for all events.
@@ -335,7 +337,7 @@ struct AppEvent {
   ~this() {
     if (kind == Kind.view && payload.view.data !is null &&
       payload.view.releaseData !is null)
-        payload.view.releaseData(payload.view.value, payload.view.data);
+        payload.view.releaseData(payload.view);
   }
 
   /// Constructs events without data (appQuit, update, windowRedraw).

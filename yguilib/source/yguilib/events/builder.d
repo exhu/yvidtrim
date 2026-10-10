@@ -44,8 +44,17 @@ struct ViewAppEventBuilder {
     return this;
   }
 
-  /// Sets the opaque numeric value (e.g. mouse button, state flag).
+  /// Sets the primary value in the opaque payload array and zeroes the rest.
   ref ViewAppEventBuilder value(ulong val) return {
+    viewData.value = 0;
+    viewData.value[0] = val;
+    return this;
+  }
+
+  /// Sets the full opaque payload array.
+  ref ViewAppEventBuilder value(
+    in ulong[AppEvent.ViewData.valueSize] val
+  ) return {
     viewData.value = val;
     return this;
   }
@@ -58,7 +67,7 @@ struct ViewAppEventBuilder {
   ///             Allowed to be null.
   ref ViewAppEventBuilder data(
     Object obj,
-    void delegate(ulong value, Object data) release = null
+    void delegate(in AppEvent.ViewData) release = null
   ) return {
     viewData.data = obj;
     viewData.releaseData = release;
@@ -71,7 +80,7 @@ struct ViewAppEventBuilder {
   ///   release = Cleanup delegate called on event destruction.
   ///             Allowed to be null.
   ref ViewAppEventBuilder releaseData(
-    void delegate(ulong value, Object data) release
+    void delegate(in AppEvent.ViewData) release
   ) return {
     viewData.releaseData = release;
     return this;
@@ -104,7 +113,7 @@ unittest {
   assert(ev1.view.eventName == "buttonClick");
   assert(ev1.view.widget is child);
   assert(ev1.view.viewWidget is parent);
-  assert(ev1.view.value == 42);
+  assert(ev1.view.value[0] == 42);
   assert(ev1.view.data is null);
   assert(ev1.view.releaseData is null);
 
@@ -118,7 +127,7 @@ unittest {
   assert(ev2.view.eventName == "menuAction");
   assert(ev2.view.widget is child);
   assert(ev2.view.viewWidget is null);
-  assert(ev2.view.value == 1);
+  assert(ev2.view.value[0] == 1);
 
   // Test 3: Parameterized constructor (eventName and widget)
   auto ev3 = ViewAppEventBuilder("itemSelected", child).build();
@@ -126,7 +135,7 @@ unittest {
   assert(ev3.view.eventName == "itemSelected");
   assert(ev3.view.widget is child);
   assert(ev3.view.viewWidget is null);
-  assert(ev3.view.value == 0);
+  assert(ev3.view.value[0] == 0);
 
   // Test 4: Custom object payload with release delegate
   static class TestPayload {
@@ -140,16 +149,16 @@ unittest {
   ulong releasedVal = 0;
   {
     auto ev4 = ViewAppEventBuilder("withPayload")
-      .data(new TestPayload(777), (ulong val, Object obj) {
+      .data(new TestPayload(777), (in AppEvent.ViewData vd) {
         released = true;
-        releasedVal = val;
+        releasedVal = vd.value[0];
       })
       .value(99)
       .build();
 
     assert(ev4.view.data !is null);
     assert((cast(TestPayload)ev4.view.data).id == 777);
-    assert(ev4.view.value == 99);
+    assert(ev4.view.value[0] == 99);
     assert(!released);
   }
   assert(released);
@@ -160,7 +169,7 @@ unittest {
   {
     auto ev5 = ViewAppEventBuilder("separateRelease")
       .data(new TestPayload(888))
-      .releaseData((ulong val, Object obj) {
+      .releaseData((in AppEvent.ViewData vd) {
         separateReleased = true;
       })
       .build();
@@ -169,4 +178,11 @@ unittest {
     assert(!separateReleased);
   }
   assert(separateReleased);
+
+  // Test 6: Setting full value array
+  ulong[AppEvent.ViewData.valueSize] fullVal = [10, 20, 30, 40];
+  auto ev6 = ViewAppEventBuilder("fullVal")
+    .value(fullVal)
+    .build();
+  assert(ev6.view.value == fullVal);
 }

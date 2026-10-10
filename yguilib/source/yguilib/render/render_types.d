@@ -11,7 +11,7 @@ struct RectF {
   float width = 1.0f;
   float height = 1.0f;
 
-  bool contains(in PointF p) {
+  bool contains(in PointF p) const {
     return (p.x >= x) && (p.y >= y) && (p.x < (x+width)) && (p.y < (y+height));
   }
 }

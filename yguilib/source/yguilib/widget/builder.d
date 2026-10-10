@@ -241,6 +241,39 @@ struct WidgetBuilder {
     return this;
   }
 
+  ref WidgetBuilder onMouseUp(string eventName) return {
+    widget.inputEnabled = true;
+    if (widget.components.mouseEvent is null) {
+      widget.components.mouseEvent = new MouseEvent();
+    }
+    widget.components.mouseEvent.mouseUp = eventName;
+    return this;
+  }
+
+  ref WidgetBuilder onMouseEnter(string eventName) return {
+    if (widget.components.mouseEvent is null) {
+      widget.components.mouseEvent = new MouseEvent();
+    }
+    widget.components.mouseEvent.mouseEnter = eventName;
+    return this;
+  }
+
+  ref WidgetBuilder onMouseLeave(string eventName) return {
+    if (widget.components.mouseEvent is null) {
+      widget.components.mouseEvent = new MouseEvent();
+    }
+    widget.components.mouseEvent.mouseLeave = eventName;
+    return this;
+  }
+
+  ref WidgetBuilder onMouseMove(string eventName) return {
+    if (widget.components.mouseEvent is null) {
+      widget.components.mouseEvent = new MouseEvent();
+    }
+    widget.components.mouseEvent.mouseMove = eventName;
+    return this;
+  }
+
   ref WidgetBuilder clipContents(bool clip = true) return {
     widget.clipContents = clip;
     return this;
