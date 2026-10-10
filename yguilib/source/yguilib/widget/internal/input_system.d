@@ -4,7 +4,7 @@ import yguilib.widget.internal.collect_visible : VisibleWidgets, VisibleWidget;
 import yguilib.events;
 import yguilib.uisystem : UiSystem;
 import yguilib.render.render_types;
-import yguilib.widget : Widget;
+import yguilib.widget : Widget, View;
 
 // TODO support multiple windows
 final class InputSystem {
@@ -51,37 +51,186 @@ private:
     if (vw.absRect.contains(p)) {
       // TODO implement builder pattern for ViewData AppEvent to
       // replace constructor call with so many parameters
-      auto ev = AppEvent(AppEvent.ViewData(vw.widget
-                                           .components
-                                           .mouseEvent
-                                           .mouseDown,
-                                           vw.widget,
-                                           null,
-                                           event.mouse.button));
+      auto ev = AppEvent(AppEvent.ViewData(
+        vw.widget.components.mouseEvent.mouseDown,
+        vw.widget,
+        null,
+        event.mouse.button
+      ));
       passEvent(vw.widget, ev);
       return true;
     }
     return false;
   }
 
-  void passEvent(in Widget w, in AppEvent event) {
-    if (w.parentView !is null) {
-      // TODO filter via w.components.view.renameEvents
-      // if no event in renameEvents then passEvent(w.parentView).
-      // else if empty string at renameEvents[event.view.eventName]
-      // return.
-      // if new name, then change event.view.viewWidget to w.parentView
-      // and passEvent(...)
-      return;
+  void passEvent(Widget w, AppEvent event) {
+    Widget curr = w;
+
+    // Check if the originating widget itself has a View component
+    if (curr !is null && curr.components.view !is null) {
+      if (applyViewRenaming(curr, event)) {
+        return;
+      }
     }
 
-    if (w.parent is null)
-      uiSystem.sendAppEvent(event);
-    else
-      passEvent(w.parent, event);
+    // Bubble up through ancestor views
+    while (curr !is null) {
+      Widget pv = curr.parentView;
+      if (pv is null && curr.parent !is null) {
+        pv = curr.findParentView();
+        curr.parentView = pv;
+      }
+      if (pv is null) {
+        break;
+      }
+      curr = pv;
+      if (applyViewRenaming(curr, event)) {
+        return;
+      }
+    }
+
+    uiSystem.sendAppEvent(event);
+  }
+
+  bool applyViewRenaming(Widget viewWidget, ref AppEvent event) {
+    if (viewWidget.components.view is null) {
+      return false;
+    }
+    const string currentName = event.view.eventName;
+    auto pNewName = currentName in viewWidget.components.view.renameEvents;
+    if (pNewName !is null) {
+      if ((*pNewName).length == 0) {
+        return true;
+      }
+      event.view.eventName = *pNewName;
+      event.view.viewWidget = viewWidget;
+    }
+    return false;
+  }
+
+  FocusSystem focusSystem;
+  UiSystem uiSystem;
 }
 
+unittest {
+  import yguilib.controller : Controller;
+  import yguilib.window : Window;
 
-FocusSystem focusSystem;
-UiSystem uiSystem;
+  class TestUiSystem : UiSystem {
+    AppEvent[] sentEvents;
+    override void sendAppEvent(AppEvent ev) {
+      sentEvents ~= ev;
+    }
+    override void popController() {}
+    override void pushController(Controller c) {}
+    override void pushModalController(Controller c) {}
+    override void popFocusRoot() {}
+    override void pushFocusRoot(Widget w) {}
+    override @property Window mainWindow() { return null; }
+    override void mainEventLoop() {}
+  }
+
+  auto testUi = new TestUiSystem;
+  auto inputSys = new InputSystem(testUi);
+
+  // Test 1: Direct pass-through without any View in the tree
+  auto rootNoView = new Widget(null, RectF(0, 0, 200, 200));
+  auto childNoView = new Widget(rootNoView, RectF(0, 0, 50, 50));
+  auto ev1 = AppEvent(AppEvent.ViewData(
+    "rawClick",
+    childNoView,
+    null,
+    1
+  ));
+  inputSys.passEvent(childNoView, ev1);
+  assert(testUi.sentEvents.length == 1);
+  assert(testUi.sentEvents[0].kind == AppEvent.Kind.view);
+  assert(testUi.sentEvents[0].view.eventName == "rawClick");
+  assert(testUi.sentEvents[0].view.widget is childNoView);
+  assert(testUi.sentEvents[0].view.viewWidget is null);
+
+  // Test 2: Single View Renaming
+  testUi.sentEvents = null;
+  auto rootView = new Widget(null, RectF(0, 0, 200, 200));
+  rootView.components.view = new View;
+  rootView.components.view.renameEvents["btnClick"] = "playVideo";
+  auto childBtn = new Widget(rootView, RectF(0, 0, 50, 50));
+  auto ev2 = AppEvent(AppEvent.ViewData(
+    "btnClick",
+    childBtn,
+    null,
+    1
+  ));
+  inputSys.passEvent(childBtn, ev2);
+  assert(testUi.sentEvents.length == 1);
+  assert(testUi.sentEvents[0].view.eventName == "playVideo");
+  assert(testUi.sentEvents[0].view.widget is childBtn);
+  assert(testUi.sentEvents[0].view.viewWidget is rootView);
+
+  // Test 3: Event Suppression (empty string value consumes)
+  testUi.sentEvents = null;
+  rootView.components.view.renameEvents["suppressMe"] = "";
+  auto ev3 = AppEvent(AppEvent.ViewData(
+    "suppressMe",
+    childBtn,
+    null,
+    1
+  ));
+  inputSys.passEvent(childBtn, ev3);
+  assert(testUi.sentEvents.length == 0);
+
+  // Test 4: Nested Views Chaining
+  testUi.sentEvents = null;
+  auto outerView = new Widget(null, RectF(0, 0, 400, 400));
+  outerView.components.view = new View;
+  outerView.components.view.renameEvents["itemSelected"] = "orderUpdated";
+
+  auto innerView = new Widget(outerView, RectF(0, 0, 200, 200));
+  innerView.components.view = new View;
+  innerView.components.view.renameEvents["click"] = "itemSelected";
+
+  auto nestedBtn = new Widget(innerView, RectF(0, 0, 50, 50));
+  auto ev4 = AppEvent(AppEvent.ViewData(
+    "click",
+    nestedBtn,
+    null,
+    1
+  ));
+  inputSys.passEvent(nestedBtn, ev4);
+  assert(testUi.sentEvents.length == 1);
+  assert(testUi.sentEvents[0].view.eventName == "orderUpdated");
+  assert(testUi.sentEvents[0].view.widget is nestedBtn);
+  assert(testUi.sentEvents[0].view.viewWidget is outerView);
+
+  // Test 5: Unmapped Passthrough in Inner View
+  testUi.sentEvents = null;
+  auto ev5 = AppEvent(AppEvent.ViewData(
+    "unmappedInInner",
+    nestedBtn,
+    null,
+    1
+  ));
+  outerView.components.view.renameEvents["unmappedInInner"] = "handledByOuter";
+  inputSys.passEvent(nestedBtn, ev5);
+  assert(testUi.sentEvents.length == 1);
+  assert(testUi.sentEvents[0].view.eventName == "handledByOuter");
+  assert(testUi.sentEvents[0].view.widget is nestedBtn);
+  assert(testUi.sentEvents[0].view.viewWidget is outerView);
+
+  // Test 6: Source Widget Itself Has View Component
+  testUi.sentEvents = null;
+  auto selfView = new Widget(null, RectF(0, 0, 100, 100));
+  selfView.components.view = new View;
+  selfView.components.view.renameEvents["panelClick"] = "openPanel";
+  auto ev6 = AppEvent(AppEvent.ViewData(
+    "panelClick",
+    selfView,
+    null,
+    1
+  ));
+  inputSys.passEvent(selfView, ev6);
+  assert(testUi.sentEvents.length == 1);
+  assert(testUi.sentEvents[0].view.eventName == "openPanel");
+  assert(testUi.sentEvents[0].view.widget is selfView);
+  assert(testUi.sentEvents[0].view.viewWidget is selfView);
 }

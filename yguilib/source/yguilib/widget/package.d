@@ -8,24 +8,37 @@ import yguilib.controller : Controller;
 
 // TODO implement code first approach, without symbolic bindings
 
-/// Widgets can have this component to mark a root view to rename events e.g. "buttonClick" into "togglePlay", or to select which events propagated up via the same event name.
-/// This component is needed to implement widget tree reuse, e.g. to have commonly used
-/// dialogs, or complex widgets (e.g. text input field with a label, or button that highlights on mouse hover).
-/// Widget subtree is the view, and attached code that
-/// translates events and updates data in the view is a view controller.
-/// View event name and view widget reference help the corresponding controller to handle the proper event.
+/// Widgets can have this component to mark a root view to rename events
+/// (e.g. "buttonClick" into "togglePlay"), or to select which events are
+/// propagated up via the same event name.
+/// This component is needed to implement widget tree reuse, e.g. to have
+/// commonly used dialogs, or complex widgets (e.g. text input field with a
+/// label, or button that highlights on mouse hover).
+/// A widget subtree is the view, and attached code that translates events and
+/// updates data in the view is a view controller.
+/// The view event name and view widget reference help the corresponding
+/// controller handle the proper event.
 /// The default controllers are the whole screen.
-/// Event handling is so that first UiSystem's controllers get input events,
-/// then when UiSystemController receives the input event, if upper controllers do not consume the raw input event, it passes to InputSystem, which
-/// then generates a *view* event (e.g. defined name for a mouseDown), and passes
-/// it up the hierarchy from the widget, that generated the view event to it's neares view widget.
-/// consumed it uses events map to rename it and passes upwards under the new name and so forth.
-/// If the root widget for the window is reached (i.e. parent is null), UiSystem.sendAppEvent is called.
-/// Thus widget tree can be constructed separately from controller code.
-/// The controllers then are created with pointers to view widgets and data.
+///
+/// Event handling flow:
+/// 1. Controllers on ControllerStack receive raw input events first.
+/// 2. If upper controllers do not consume the raw input event,
+///    UiSystemController receives it and passes it to InputSystem.
+/// 3. InputSystem generates a view event (e.g. defined name for a mouseDown)
+///    and bubbles it up the hierarchy through parent views.
+/// 4. At each View boundary, renameEvents is checked:
+///    - If mapped to a non-empty name: renames the event and updates
+///      event.view.viewWidget to that view widget.
+///    - If mapped to an empty string (""): suppresses (consumes) the event.
+///    - If unmapped: passes through unchanged up the tree.
+/// 5. When the root widget for the window is reached (i.e. parent is null),
+///    UiSystem.sendAppEvent is called.
+///
+/// Thus the widget tree can be constructed separately from controller code.
+/// Controllers are then created with pointers to view widgets and data.
 class View : Component {
-  /// renames event and changes event.view.viewWidget to the one this component is attached.
-  /// empty string value prevents event from going up the tree (consumes).
+  /// Renames an event and changes event.view.viewWidget to the attached widget.
+  /// An empty string value ("") prevents the event from going up the tree.
   string[string] renameEvents;
 }
 
@@ -154,7 +167,8 @@ package(yguilib):
   /// preserving cached layout calculations.
   void markDirty(bool layout = true) {
     dirty = true;
-    if (layout || hasAutoSizing() || isFlexContainer() || isParentFlexContainer()) {
+    if (layout || hasAutoSizing() || isFlexContainer() ||
+        isParentFlexContainer()) {
       markLayoutDirty();
     }
   }

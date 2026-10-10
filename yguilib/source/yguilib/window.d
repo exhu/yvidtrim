@@ -74,6 +74,7 @@ class Window {
     destroy();
   }
 
+  /// The view widget must have a non-null View component.
   Widget view;
 package(yguilib):
   void swapBuffers() {
