@@ -240,6 +240,7 @@ struct AppEvent {
   struct ViewData {
     string eventName;
     Widget widget;
+    Widget viewWidget;
     /// opaque value to be used to manage
     /// data either by integer or object instance, or both
     ulong value;

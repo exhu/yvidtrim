@@ -49,14 +49,39 @@ private:
     import std.logger;
     auto p = PointF(event.mouse.x, event.mouse.y);
     if (vw.absRect.contains(p)) {
-      uiSystem.sendAppEvent(AppEvent(AppEvent.ViewData(vw.widget.components.mouseEvent.mouseDown,
-                                                       vw.widget, event.mouse.button)));
+      // TODO implement builder pattern for ViewData AppEvent to
+      // replace constructor call with so many parameters
+      auto ev = AppEvent(AppEvent.ViewData(vw.widget
+                                           .components
+                                           .mouseEvent
+                                           .mouseDown,
+                                           vw.widget,
+                                           null,
+                                           event.mouse.button));
+      passEvent(vw.widget, ev);
       return true;
     }
     return false;
   }
 
+  void passEvent(in Widget w, in AppEvent event) {
+    if (w.parentView !is null) {
+      // TODO filter via w.components.view.renameEvents
+      // if no event in renameEvents then passEvent(w.parentView).
+      // else if empty string at renameEvents[event.view.eventName]
+      // return.
+      // if new name, then change event.view.viewWidget to w.parentView
+      // and passEvent(...)
+      return;
+    }
 
-  FocusSystem focusSystem;
-  UiSystem uiSystem;
+    if (w.parent is null)
+      uiSystem.sendAppEvent(event);
+    else
+      passEvent(w.parent, event);
+}
+
+
+FocusSystem focusSystem;
+UiSystem uiSystem;
 }

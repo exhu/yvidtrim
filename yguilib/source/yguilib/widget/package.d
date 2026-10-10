@@ -8,29 +8,25 @@ import yguilib.controller : Controller;
 
 // TODO implement code first approach, without symbolic bindings
 
-/// Widgets can have this component to mark a root view to rename events e.g. "buttonClick" into "togglePlay",
-/// and/or optionally pass to controller.handleEvent.
+/// Widgets can have this component to mark a root view to rename events e.g. "buttonClick" into "togglePlay", or to select which events propagated up via the same event name.
 /// This component is needed to implement widget tree reuse, e.g. to have commonly used
 /// dialogs, or complex widgets (e.g. text input field with a label, or button that highlights on mouse hover).
-/// This is actually what a controller does. Widget subtree is the view, and attached code that
+/// Widget subtree is the view, and attached code that
 /// translates events and updates data in the view is a view controller.
+/// View event name and view widget reference help the corresponding controller to handle the proper event.
 /// The default controllers are the whole screen.
 /// Event handling is so that first UiSystem's controllers get input events,
-/// then when UiSystemController receives the input event, it passes to InputSystem, which
+/// then when UiSystemController receives the input event, if upper controllers do not consume the raw input event, it passes to InputSystem, which
 /// then generates a *view* event (e.g. defined name for a mouseDown), and passes
 /// it up the hierarchy from the widget, that generated the view event to it's neares view widget.
-/// If View.controller is not null it calls handleEvent for this view event. If the event is not
 /// consumed it uses events map to rename it and passes upwards under the new name and so forth.
 /// If the root widget for the window is reached (i.e. parent is null), UiSystem.sendAppEvent is called.
-abstract class View : Component {
-  //TrackedViewModel[string] params;
-
-  /// exported events, if values are not null/empty then the event is exported
-  /// under a new name up the tree
-  string[string] events;
-
-  /// optional controller to be called before renaming, can consume.
-  Controller controller;
+/// Thus widget tree can be constructed separately from controller code.
+/// The controllers then are created with pointers to view widgets and data.
+class View : Component {
+  /// renames event and changes event.view.viewWidget to the one this component is attached.
+  /// empty string value prevents event from going up the tree (consumes).
+  string[string] renameEvents;
 }
 
 struct WidgetComponents {
@@ -59,7 +55,7 @@ final class Widget {
     this.rect = rect;
     if (parent) {
       parent.children ~= this;
-      view = findView();
+      parentView = findParentView();
     }
   }
 
@@ -127,7 +123,7 @@ final class Widget {
   bool visible = true;
   bool inputEnabled = false;
   /// points to nearest parent widget with View component
-  Widget view;
+  Widget parentView;
 
 package(yguilib):
   /// Returns true if this widget has auto sizing on width or height.
@@ -213,12 +209,12 @@ package(yguilib):
     return false;
   }
 
-  Widget findView() {
+  Widget findParentView() {
     if (parent is null)
       return null;
     if (parent.components.view !is null)
       return parent;
-    return parent.findView();
+    return parent.findParentView();
   }
 
   bool dirty = true;
