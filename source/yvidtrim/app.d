@@ -1,20 +1,19 @@
 module yvidtrim.app;
-import std.stdio;
-import yguilib.app;
-import yguilib.controller;
-import yguilib.events;
-import yguilib.events.keyboard;
-import yguilib.model;
-import yguilib.render;
-import colors = yguilib.render.colors;
-import yguilib.render.render_types;
-import yguilib.uisystem;
-import yguilib.widget;
-import yguilib.widget.drawing_components;
-import yguilib.widget.layout_components;
-import yguilib.window;
 
-import std.algorithm;
+import std.stdio : writefln, writeln;
+import yguilib.app : App;
+import yguilib.controller : DefaultController, HandleResult;
+import yguilib.events : AppEvent;
+import yguilib.events.keyboard : Keycode;
+import yguilib.model : ModelTracker, VersionedModel;
+import colors = yguilib.render.colors;
+import yguilib.render.render_types : ColorF, RectF;
+import yguilib.widget : Widget;
+import yguilib.widget.builder : WidgetBuilder;
+import yguilib.widget.drawing_components : Background, Border;
+import yguilib.widget.layout_components : AlignItems, Anchor, FlexContainer,
+  JustifyContent;
+import yguilib.window : Window;
 
 final class MainModel : VersionedModel {
   bool toggleVisible = true;
@@ -23,7 +22,6 @@ final class MainModel : VersionedModel {
   bool aPressed;
   AlignItems alignItems;
 }
-
 
 // TODO 1) widgets will not have bindings,
 // instead all updates to widgest are performed in code in update()
@@ -34,50 +32,43 @@ final class MainModel : VersionedModel {
 // widgets usually should not update on changing their properties.
 
 final class MainView {
+public:
   this(ref ModelTracker!MainModel otherTracker) {
     tracker = ModelTracker!MainModel(otherTracker);
 
-    view = new Widget(null, RectF(10, 10, 200, 200));
-    view.components.view = new View;
-    view.components.background = new Background(ColorF(0.5, 0.5, 0, 1));
-    auto smaller2 = new Widget(view, RectF(35, 45, 150, 190));
-    smaller2.components.background = new Background(ColorF(0.0, 1, 0.5, 0.3));
-    smaller2.components.border = new Border(ColorF(0.0, 0, 0.5, 1), Border.style.roundDashed);
-    smaller2.components.textLabel = new TextLabel("Hello-0123456789", ColorF(0,0,1,1));
-    smaller2.components.size = new Size;
-    smaller2.components.size.width = Dimension(0, SizingMode.auto_);
-    smaller2.components.size.height = Dimension(0, SizingMode.auto_);
-    auto smaller = new Widget(view, RectF(15, 15, 300, 90));
-    smaller.components.background = new Background(ColorF(0.5, 1, 0.5, 0.3), Background.Style.round);
-    smaller2.clipChildren = true;
+    view = WidgetBuilder(RectF(10, 10, 200, 200))
+      .view()
+      .background(ColorF(0.5f, 0.5f, 0.0f, 1.0f))
+      .build();
 
-    toggleWidget = smaller;
-    alphaWidget = smaller2;
+    alphaWidget = WidgetBuilder(view, RectF(35, 45, 150, 190))
+      .background(ColorF(0.0f, 1.0f, 0.5f, 0.3f))
+      .border(ColorF(0.0f, 0.0f, 0.5f, 1.0f), 2.0f, Border.Style.roundDashed)
+      .text("Hello-0123456789", ColorF(0.0f, 0.0f, 1.0f, 1.0f))
+      .autoSize()
+      .clipChildren(true)
+      .build();
+
+    toggleWidget = WidgetBuilder(view, RectF(15, 15, 300, 90))
+      .background(ColorF(0.5f, 1.0f, 0.5f, 0.3f), Background.Style.round)
+      .build();
 
     // --- layout testing ---
-    container = makeBox(view, RectF(35, 250, 400, 300), colors.darkGray);
-    container.components.border = new Border(colors.brightWhite, Border.style.dashed);
-    container.components.border.width = 3;
-    fc = new FlexContainer;
-    fc.direction = FlexDirection.row;
-    fc.gap = 8;
-    fc.justify = JustifyContent.start;
-    fc.alignItems = tracker.model.alignItems; //AlignItems.center;
-    container.components.flexContainer = fc;
-    auto c1 = makeBox(container, RectF(5, 8, 1, 1), colors.yellow);
-    auto sz = new Size;
-    sz.width = Dimension(100, SizingMode.fixed);
-    sz.height = Dimension(40, SizingMode.fixed);
-    c1.components.size = sz;
-    auto c2 = makeBox(container, RectF(15, 18, 1, 1), colors.brown);
-    auto sz2 =new Size;
-    c2.components.size = sz2;
-    sz2.margin.left = 15;
-    sz2.margin.right = 10;
-    sz2.margin.bottom = 14;
-    sz2.margin.top = 10;
-    sz2.width = Dimension(110, SizingMode.fixed);
-    sz2.height = Dimension(50, SizingMode.fixed);
+    container = WidgetBuilder(view, RectF(35, 250, 400, 300))
+      .background(colors.darkGray)
+      .border(colors.brightWhite, 3.0f, Border.Style.dashed)
+      .flexRow(8.0f, JustifyContent.start, tracker.model.alignItems)
+      .child(RectF(5, 8, 1, 1), (ref WidgetBuilder b) {
+        b.background(colors.yellow)
+          .fixedSize(100.0f, 40.0f);
+      })
+      .child(RectF(15, 18, 1, 1), (ref WidgetBuilder b) {
+        b.background(colors.brown)
+          .margin(10.0f, 10.0f, 14.0f, 15.0f)
+          .fixedSize(110.0f, 50.0f);
+      })
+      .build();
+    fc = container.components.flexContainer;
 
     // TODO demo all other supported flex etc.
     addRightTopAnchor();
@@ -86,25 +77,24 @@ final class MainView {
   }
 
   void addRightTopAnchor() {
-    auto w = makeBox(view, RectF(0, 0, 30, 30), colors.red);
-    auto a = new Anchor;
-    a.right = 0.0f;
-    a.top = 3.0f;
-    w.components.anchor = a;
+    WidgetBuilder(view, RectF(0, 0, 30, 30))
+      .background(colors.red)
+      .anchor(new Anchor().withRight(0.0f).withTop(3.0f))
+      .build();
   }
+
   void addLeftBottomAnchor() {
-    auto w = makeBox(view, RectF(0, 0, 30, 30), colors.brightRed);
-    auto a = new Anchor;
-    a.left = 3.0f;
-    a.bottom = 7.0f;
-    w.components.anchor = a;
+    WidgetBuilder(view, RectF(0, 0, 30, 30))
+      .background(colors.brightRed)
+      .anchor(new Anchor().withLeft(3.0f).withBottom(7.0f))
+      .build();
   }
+
   void addRightBottomAnchor() {
-    auto w = makeBox(view, RectF(0, 0, 30, 30), colors.magenta);
-    auto a = new Anchor;
-    a.right = 5.0f;
-    a.bottom = 2.0f;
-    w.components.anchor = a;
+    WidgetBuilder(view, RectF(0, 0, 30, 30))
+      .background(colors.magenta)
+      .anchor(new Anchor().withRight(5.0f).withBottom(2.0f))
+      .build();
   }
 
   void update() {
@@ -127,15 +117,10 @@ final class MainView {
     }
   }
 
-private:
-  static Widget makeBox(Widget parent, RectF rect, ColorF color) {
-    auto w = new Widget(parent, rect);
-    w.components.background = new Background(color);
-    return w;
-  }
-
-
+package(yvidtrim):
   Widget view;
+
+private:
   ModelTracker!MainModel tracker;
   Widget toggleWidget;
   Widget alphaWidget;
@@ -145,6 +130,7 @@ private:
 
 final class MainController : DefaultController {
   this(App app) {
+    assert(app !is null);
     super(app.ui);
     this.app = app;
     view = new MainView(t);
@@ -157,9 +143,12 @@ final class MainController : DefaultController {
   }
 
   override bool update() {
+    import std.algorithm.comparison : clamp;
+
     auto model = t.edit();
-    if (model.qPressed)
+    if (model.qPressed) {
       sendQuit();
+    }
 
     if (model.aPressed) {
       size_t e = cast(size_t)model.alignItems;
@@ -171,7 +160,7 @@ final class MainController : DefaultController {
     }
 
     model.toggleVisible ^= true;
-    model.alphaValue = clamp((model.alphaValue + 0.01)%1.0, 0.1, 1.0);
+    model.alphaValue = clamp((model.alphaValue + 0.01f) % 1.0f, 0.1f, 1.0f);
     t.commit(model);
 
     return t.update();
@@ -181,8 +170,9 @@ final class MainController : DefaultController {
     bool consume = false;
     writefln("event = %s", ev);
 
-    if (ev.kind == AppEvent.Kind.updateUiLayer)
+    if (ev.kind == AppEvent.Kind.updateUiLayer) {
       return HandleResult(HandleResult.Result.nothing);
+    }
 
     if (ev.kind == AppEvent.Kind.keyUp) {
       if (ev.keyData.key == Keycode.q) {
@@ -203,6 +193,7 @@ final class MainController : DefaultController {
       HandleResult(HandleResult.Result.update, consume);
   }
 
+private:
   App app;
   MainView view;
   ModelTracker!MainModel t = ModelTracker!MainModel(new MainModel);

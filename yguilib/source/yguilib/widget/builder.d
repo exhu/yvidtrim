@@ -3,7 +3,7 @@ module yguilib.widget.builder;
 import std.typecons : Nullable;
 import yguilib.render.font : defaultFontPtSize;
 import yguilib.render.render_types : ColorF, RectF;
-import yguilib.widget : Widget;
+import yguilib.widget : View, Widget;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.input_components : MouseEvent;
 import yguilib.widget.layout_components : AlignItems, Anchor, Dimension,
@@ -251,6 +251,15 @@ struct WidgetBuilder {
     return this;
   }
 
+  /// Attaches a View component to mark a view root and optional event mappings.
+  ref WidgetBuilder view(string[string] events = null) return {
+    if (widget.components.view is null) {
+      widget.components.view = new View();
+    }
+    widget.components.view.renameEvents = events;
+    return this;
+  }
+
   /// Appends and configures a child widget within a scoped delegate.
   ref WidgetBuilder child(
     RectF rect,
@@ -376,4 +385,11 @@ unittest {
   auto col = flexColumn(root, RectF(0, 0, 100, 200), 8.0f);
   assert(col.components.flexContainer.direction == FlexDirection.column);
   assert(col.components.flexContainer.gap == 8.0f);
+
+  // View component test
+  auto viewWidget = WidgetBuilder(RectF(0, 0, 100, 100))
+    .view(["btn": "press"])
+    .build();
+  assert(viewWidget.components.view !is null);
+  assert(viewWidget.components.view.renameEvents["btn"] == "press");
 }
