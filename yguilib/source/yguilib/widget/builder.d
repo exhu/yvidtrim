@@ -5,8 +5,9 @@ import yguilib.render.font : defaultFontPtSize;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.widget : Widget;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
-import yguilib.widget.layout_components : AlignItems, Dimension, FlexDirection,
-  Insets, JustifyContent, Size, SizingMode;
+import yguilib.widget.input_components : MouseEvent;
+import yguilib.widget.layout_components : AlignItems, Anchor, Dimension,
+  FlexContainer, FlexDirection, Insets, JustifyContent, Size, SizingMode;
 
 /// Fluent builder for constructing and configuring widgets.
 struct WidgetBuilder {
@@ -20,42 +21,108 @@ struct WidgetBuilder {
   }
 
   ref WidgetBuilder padding(Insets insets) return {
-    widget.withPadding(insets);
+    if (widget.components.size is null) {
+      widget.components.size = new Size();
+    }
+    widget.components.size.padding = insets;
     return this;
+  }
+
+  ref WidgetBuilder padding(
+    float top,
+    float right,
+    float bottom,
+    float left
+  ) return {
+    return padding(Insets(top, right, bottom, left));
   }
 
   ref WidgetBuilder padding(float vertical, float horizontal) return {
-    widget.withPadding(vertical, horizontal);
-    return this;
+    return padding(Insets(vertical, horizontal));
   }
 
   ref WidgetBuilder padding(float all) return {
-    widget.withPadding(all);
-    return this;
+    return padding(Insets(all));
   }
 
   ref WidgetBuilder margin(Insets insets) return {
-    widget.withMargin(insets);
+    if (widget.components.size is null) {
+      widget.components.size = new Size();
+    }
+    widget.components.size.margin = insets;
     return this;
   }
 
+  ref WidgetBuilder margin(
+    float top,
+    float right,
+    float bottom,
+    float left
+  ) return {
+    return margin(Insets(top, right, bottom, left));
+  }
+
+  ref WidgetBuilder margin(float vertical, float horizontal) return {
+    return margin(Insets(vertical, horizontal));
+  }
+
+  ref WidgetBuilder margin(float all) return {
+    return margin(Insets(all));
+  }
+
   ref WidgetBuilder size(Size sz) return {
-    widget.withSize(sz);
+    widget.components.size = sz;
     return this;
   }
 
   ref WidgetBuilder fixedSize(float w, float h) return {
-    widget.withFixedSize(w, h);
+    if (widget.components.size is null) {
+      widget.components.size = Size.fixed(w, h);
+    } else {
+      widget.components.size.width = Dimension(w, SizingMode.fixed);
+      widget.components.size.height = Dimension(h, SizingMode.fixed);
+    }
     return this;
   }
 
   ref WidgetBuilder autoSize() return {
-    widget.withAutoSize();
+    if (widget.components.size is null) {
+      widget.components.size = Size.autoSize();
+    } else {
+      widget.components.size.width = Dimension(0, SizingMode.auto_);
+      widget.components.size.height = Dimension(0, SizingMode.auto_);
+    }
     return this;
   }
 
   ref WidgetBuilder fractionSize(float wFr, float hFr = 0.0f) return {
-    widget.withFractionSize(wFr, hFr);
+    if (widget.components.size is null) {
+      widget.components.size = Size.fraction(wFr, hFr);
+    } else {
+      widget.components.size.width = Dimension(wFr, SizingMode.fraction);
+      widget.components.size.height = Dimension(
+        hFr,
+        hFr > 0.0f ? SizingMode.fraction : SizingMode.auto_
+      );
+    }
+    return this;
+  }
+
+  ref WidgetBuilder minSize(float minW, float minH = 0.0f) return {
+    if (widget.components.size is null) {
+      widget.components.size = new Size();
+    }
+    widget.components.size.minWidth = minW;
+    widget.components.size.minHeight = minH;
+    return this;
+  }
+
+  ref WidgetBuilder maxSize(float maxW, float maxH = float.infinity) return {
+    if (widget.components.size is null) {
+      widget.components.size = new Size();
+    }
+    widget.components.size.maxWidth = maxW;
+    widget.components.size.maxHeight = maxH;
     return this;
   }
 
@@ -64,7 +131,12 @@ struct WidgetBuilder {
     Background.Style style = Background.Style.rect,
     float cornerRadius = 0.0f
   ) return {
-    widget.withBackground(color, style, cornerRadius);
+    widget.components.background = new Background(color, style, cornerRadius);
+    return this;
+  }
+
+  ref WidgetBuilder background(Background bg) return {
+    widget.components.background = bg;
     return this;
   }
 
@@ -72,7 +144,7 @@ struct WidgetBuilder {
     ColorF color,
     float cornerRadius = 6.0f
   ) return {
-    widget.withRoundBackground(color, cornerRadius);
+    widget.components.background = Background.round(color, cornerRadius);
     return this;
   }
 
@@ -82,7 +154,16 @@ struct WidgetBuilder {
     Border.Style style = Border.Style.rect,
     float cornerRadius = 0.0f
   ) return {
-    widget.withBorder(color, width, style, cornerRadius);
+    auto b = new Border(color, width, style);
+    if (cornerRadius > 0.0f) {
+      b.cornerRadius = cornerRadius;
+    }
+    widget.components.border = b;
+    return this;
+  }
+
+  ref WidgetBuilder border(Border b) return {
+    widget.components.border = b;
     return this;
   }
 
@@ -92,7 +173,14 @@ struct WidgetBuilder {
     float fontSize = defaultFontPtSize,
     TextLabel.Alignment align_ = TextLabel.Alignment.left
   ) return {
-    widget.withText(caption, color, fontSize, align_);
+    widget.components.textLabel = new TextLabel(caption, color)
+      .withFontSize(fontSize)
+      .withAlignment(align_);
+    return this;
+  }
+
+  ref WidgetBuilder text(TextLabel tl) return {
+    widget.components.textLabel = tl;
     return this;
   }
 
@@ -102,7 +190,14 @@ struct WidgetBuilder {
     JustifyContent justify = JustifyContent.start,
     AlignItems align_ = AlignItems.stretch
   ) return {
-    widget.withFlex(dir, gap, justify, align_);
+    widget.components.flexContainer = new FlexContainer(dir, gap)
+      .withJustify(justify)
+      .withAlign(align_);
+    return this;
+  }
+
+  ref WidgetBuilder flex(FlexContainer fc) return {
+    widget.components.flexContainer = fc;
     return this;
   }
 
@@ -128,22 +223,31 @@ struct WidgetBuilder {
     Nullable!float right = Nullable!float.init,
     Nullable!float bottom = Nullable!float.init
   ) return {
-    widget.withAnchor(left, top, right, bottom);
+    widget.components.anchor = new Anchor(left, top, right, bottom);
+    return this;
+  }
+
+  ref WidgetBuilder anchor(Anchor a) return {
+    widget.components.anchor = a;
     return this;
   }
 
   ref WidgetBuilder onMouseDown(string eventName) return {
-    widget.onMouseDown(eventName);
+    widget.inputEnabled = true;
+    if (widget.components.mouseEvent is null) {
+      widget.components.mouseEvent = new MouseEvent();
+    }
+    widget.components.mouseEvent.mouseDown = eventName;
     return this;
   }
 
   ref WidgetBuilder clipContents(bool clip = true) return {
-    widget.withClipContents(clip);
+    widget.clipContents = clip;
     return this;
   }
 
   ref WidgetBuilder clipChildren(bool clip = true) return {
-    widget.withClipChildren(clip);
+    widget.clipChildren = clip;
     return this;
   }
 
@@ -173,8 +277,9 @@ Widget flexRow(
   JustifyContent justify = JustifyContent.start,
   AlignItems align_ = AlignItems.stretch
 ) {
-  return new Widget(parent, rect)
-    .withFlex(FlexDirection.row, gap, justify, align_);
+  return WidgetBuilder(parent, rect)
+    .flex(FlexDirection.row, gap, justify, align_)
+    .build();
 }
 
 /// Creates a flex row container and configures children inside a delegate.
@@ -199,8 +304,9 @@ Widget flexColumn(
   JustifyContent justify = JustifyContent.start,
   AlignItems align_ = AlignItems.stretch
 ) {
-  return new Widget(parent, rect)
-    .withFlex(FlexDirection.column, gap, justify, align_);
+  return WidgetBuilder(parent, rect)
+    .flex(FlexDirection.column, gap, justify, align_)
+    .build();
 }
 
 /// Creates a flex column container and configures children inside a delegate.
@@ -225,11 +331,14 @@ unittest {
     .child(RectF(0, 0, 100, 40), (ref WidgetBuilder b) {
       b.fixedSize(100.0f, 40.0f)
         .padding(4.0f, 8.0f)
+        .margin(2.0f, 4.0f)
         .text("Child 1", ColorF(1, 1, 1, 1))
         .onMouseDown("child1Click");
     })
     .child(RectF(0, 0, 120, 40), (ref WidgetBuilder b) {
       b.autoSize()
+        .minSize(50.0f, 20.0f)
+        .maxSize(200.0f, 100.0f)
         .text("Child 2", ColorF(1, 1, 1, 1));
     })
     .build();
@@ -240,7 +349,21 @@ unittest {
   assert(root.components.flexContainer.gap == 12.0f);
   assert(root.children[0].components.textLabel.caption == "Child 1");
   assert(root.children[0].components.mouseEvent.mouseDown == "child1Click");
+  assert(root.children[0].components.size.margin.top == 2.0f);
   assert(root.children[1].components.textLabel.caption == "Child 2");
+  assert(root.children[1].components.size.minWidth == 50.0f);
+
+  // Component setter overloads test
+  auto customBorder = Border.dashed(ColorF(1, 0, 0, 1), 2.0f, 4.0f, 2.0f);
+  auto customText = new TextLabel("Custom").withMultiline(true);
+  auto item = WidgetBuilder(root, RectF(0, 0, 50, 50))
+    .border(customBorder)
+    .text(customText)
+    .padding(2.0f, 3.0f, 4.0f, 5.0f)
+    .build();
+  assert(item.components.border is customBorder);
+  assert(item.components.textLabel is customText);
+  assert(item.components.size.padding.left == 5.0f);
 
   // Factory container tests
   auto row = flexRow(root, RectF(0, 0, 200, 50), 6.0f, (Widget r) {

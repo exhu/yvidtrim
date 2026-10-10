@@ -9,6 +9,7 @@ import guidemo.pages.textlabel_page : TextLabelPage;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.widget : Widget;
+import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.layout_components : AlignItems, FlexDirection, Insets,
   JustifyContent, Size;
@@ -20,8 +21,9 @@ final class DemoView {
     tracker = ModelTracker!DemoModel(modelTracker);
 
     // Root background
-    view = new Widget(null, RectF(0, 0, 1280, 720))
-      .withBackground(ColorF(0.08f, 0.09f, 0.11f, 1.0f));
+    view = WidgetBuilder(RectF(0, 0, 1280, 720))
+      .background(ColorF(0.08f, 0.09f, 0.11f, 1.0f))
+      .build();
 
     buildHeader();
 
@@ -151,48 +153,68 @@ private:
   }
 
   void buildHeader() {
-    auto header = new Widget(view, RectF(20, 12, 1240, 48))
-      .withRoundBackground(ColorF(0.11f, 0.13f, 0.17f, 1.0f), 6.0f)
-      .withBorder(ColorF(0.22f, 0.25f, 0.32f, 1.0f), 1.0f);
+    auto header = WidgetBuilder(view, RectF(20, 12, 1240, 48))
+      .roundBackground(ColorF(0.11f, 0.13f, 0.17f, 1.0f), 6.0f)
+      .border(ColorF(0.22f, 0.25f, 0.32f, 1.0f), 1.0f)
+      .build();
 
-    new Widget(header, RectF(14, 5, 780, 20))
-      .withText("yguilib GUI Feature Demo & Showcase (guidemo)",
-        ColorF(1.0f, 1.0f, 1.0f, 1.0f), 16.0f);
+    WidgetBuilder(header, RectF(14, 5, 780, 20))
+      .text(
+        "yguilib GUI Feature Demo & Showcase (guidemo)",
+        ColorF(1.0f, 1.0f, 1.0f, 1.0f),
+        16.0f
+      )
+      .build();
 
-    new Widget(header, RectF(14, 26, 780, 16))
-      .withText(
+    WidgetBuilder(header, RectF(14, 26, 780, 16))
+      .text(
         "Verification for widget_painter.d, layout_system.d & " ~
           "drawing_components.d",
         ColorF(0.60f, 0.65f, 0.75f, 1.0f)
-      );
+      )
+      .build();
 
     // Tab 1 button: Layout & Painter
-    tab1Btn = new Widget(header, RectF(820, 9, 185, 30))
-      .withPadding(5, 10, 5, 10)
-      .withRoundBackground(ColorF(0.20f, 0.45f, 0.85f, 1.0f), 4.0f)
-      .withBorder(ColorF(0.40f, 0.70f, 1.0f, 1.0f), 1.0f)
-      .withText("[1] Layout & Painter", ColorF(1.0f, 1.0f, 1.0f, 1.0f),
-        14.0f, TextLabel.Alignment.center)
-      .onMouseDown("tab1Btn");
+    tab1Btn = WidgetBuilder(header, RectF(820, 9, 185, 30))
+      .padding(5, 10, 5, 10)
+      .roundBackground(ColorF(0.20f, 0.45f, 0.85f, 1.0f), 4.0f)
+      .border(ColorF(0.40f, 0.70f, 1.0f, 1.0f), 1.0f)
+      .text(
+        "[1] Layout & Painter",
+        ColorF(1.0f, 1.0f, 1.0f, 1.0f),
+        14.0f,
+        TextLabel.Alignment.center
+      )
+      .onMouseDown("tab1Btn")
+      .build();
 
     // Tab 2 button: TextLabel Showcase
-    tab2Btn = new Widget(header, RectF(1015, 9, 210, 30))
-      .withPadding(5, 10, 5, 10)
-      .withRoundBackground(ColorF(0.16f, 0.18f, 0.23f, 1.0f), 4.0f)
-      .withBorder(ColorF(0.30f, 0.35f, 0.45f, 1.0f), 1.0f)
-      .withText("[2] TextLabel Showcase", ColorF(0.80f, 0.85f, 0.95f, 1.0f),
-        14.0f, TextLabel.Alignment.center)
-      .onMouseDown("tab2Btn");
+    tab2Btn = WidgetBuilder(header, RectF(1015, 9, 210, 30))
+      .padding(5, 10, 5, 10)
+      .roundBackground(ColorF(0.16f, 0.18f, 0.23f, 1.0f), 4.0f)
+      .border(ColorF(0.30f, 0.35f, 0.45f, 1.0f), 1.0f)
+      .text(
+        "[2] TextLabel Showcase",
+        ColorF(0.80f, 0.85f, 0.95f, 1.0f),
+        14.0f,
+        TextLabel.Alignment.center
+      )
+      .onMouseDown("tab2Btn")
+      .build();
   }
 
   void buildStatusBar() {
-    auto footer = new Widget(view, RectF(20, 656, 1240, 52))
-      .withRoundBackground(ColorF(0.12f, 0.14f, 0.18f, 1.0f), 6.0f)
-      .withBorder(ColorF(0.25f, 0.30f, 0.40f, 1.0f), 1.0f);
+    auto footer = WidgetBuilder(view, RectF(20, 656, 1240, 52))
+      .roundBackground(ColorF(0.12f, 0.14f, 0.18f, 1.0f), 6.0f)
+      .border(ColorF(0.25f, 0.30f, 0.40f, 1.0f), 1.0f)
+      .build();
 
-    statusLabel = new Widget(footer, RectF(14, 16, 1210, 20))
-      .withText(formatStatusString(tracker.model),
-        ColorF(0.95f, 0.95f, 0.40f, 1.0f));
+    statusLabel = WidgetBuilder(footer, RectF(14, 16, 1210, 20))
+      .text(
+        formatStatusString(tracker.model),
+        ColorF(0.95f, 0.95f, 0.40f, 1.0f)
+      )
+      .build();
   }
 
   Widget view;

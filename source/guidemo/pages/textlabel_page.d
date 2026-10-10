@@ -7,6 +7,7 @@ import guidemo.common : makeSectionCard;
 import guidemo.model : DemoModel;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.widget : Widget;
+import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.layout_components : Dimension, Insets, Size, SizingMode;
 
@@ -106,11 +107,12 @@ private:
   }
 
   void buildSingleLineAlignment(Widget card) {
-    new Widget(card, RectF(12, 34, 581, 16))
-      .withText(
+    WidgetBuilder(card, RectF(12, 34, 581, 16))
+      .text(
         "Single-line alignment within fixed-width boxes:",
         ColorF(0.70f, 0.75f, 0.85f, 1.0f)
-      );
+      )
+      .build();
 
     Widget makeAlignBox(
       RectF rect,
@@ -119,13 +121,13 @@ private:
       TextLabel.Alignment alignment,
       ColorF borderCol
     ) {
-      auto box = new Widget(card, rect)
-        .withFixedSize(rect.width, rect.height)
-        .withPadding(Insets(6, 10, 6, 10))
-        .withRoundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-        .withText(text, textCol, 14.0f, alignment);
-      box.components.border = Border.dashed(borderCol, 1.5f);
-      return box;
+      return WidgetBuilder(card, rect)
+        .fixedSize(rect.width, rect.height)
+        .padding(Insets(6, 10, 6, 10))
+        .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
+        .border(Border.dashed(borderCol, 1.5f))
+        .text(text, textCol, 14.0f, alignment)
+        .build();
     }
 
     makeAlignBox(
@@ -152,33 +154,36 @@ private:
   }
 
   void buildMultilineAlignment(Widget card) {
-    new Widget(card, RectF(12, 110, 581, 16))
-      .withText(
+    WidgetBuilder(card, RectF(12, 110, 581, 16))
+      .text(
         "Multiline alignment (each line aligned individually):",
         ColorF(0.70f, 0.75f, 0.85f, 1.0f)
-      );
+      )
+      .build();
 
-    auto multiCenterBox = new Widget(card, RectF(12, 130, 285, 138))
-      .withFixedSize(285, 138)
-      .withPadding(Insets(8, 12, 8, 12))
-      .withRoundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .withBorder(ColorF(0.30f, 0.55f, 0.45f, 1.0f), 1.5f);
-    multiCenterBox.components.textLabel = new TextLabel(
-      "Centered Paragraph:\nEach wrapped line\nis positioned at the\n" ~
-        "exact horizontal center\nof the content bounds.",
-      ColorF(0.80f, 1.0f, 0.85f, 1.0f)
-    ).withMultiline(true).withAlignment(TextLabel.Alignment.center);
+    auto multiCenterBox = WidgetBuilder(card, RectF(12, 130, 285, 138))
+      .fixedSize(285, 138)
+      .padding(Insets(8, 12, 8, 12))
+      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
+      .border(ColorF(0.30f, 0.55f, 0.45f, 1.0f), 1.5f)
+      .text(new TextLabel(
+        "Centered Paragraph:\nEach wrapped line\nis positioned at the\n" ~
+          "exact horizontal center\nof the content bounds.",
+        ColorF(0.80f, 1.0f, 0.85f, 1.0f)
+      ).withMultiline(true).withAlignment(TextLabel.Alignment.center))
+      .build();
 
-    auto multiRightBox = new Widget(card, RectF(307, 130, 286, 138))
-      .withFixedSize(286, 138)
-      .withPadding(Insets(8, 12, 8, 12))
-      .withRoundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .withBorder(ColorF(0.60f, 0.45f, 0.30f, 1.0f), 1.5f);
-    multiRightBox.components.textLabel = new TextLabel(
-      "Right-Aligned Paragraph:\nEach wrapped line\nis pushed against\n" ~
-        "the right boundary\nof the container area.",
-      ColorF(1.0f, 0.85f, 0.70f, 1.0f)
-    ).withMultiline(true).withAlignment(TextLabel.Alignment.right);
+    auto multiRightBox = WidgetBuilder(card, RectF(307, 130, 286, 138))
+      .fixedSize(286, 138)
+      .padding(Insets(8, 12, 8, 12))
+      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
+      .border(ColorF(0.60f, 0.45f, 0.30f, 1.0f), 1.5f)
+      .text(new TextLabel(
+        "Right-Aligned Paragraph:\nEach wrapped line\nis pushed against\n" ~
+          "the right boundary\nof the container area.",
+        ColorF(1.0f, 0.85f, 0.70f, 1.0f)
+      ).withMultiline(true).withAlignment(TextLabel.Alignment.right))
+      .build();
   }
 
   void buildEllipsisSection() {
@@ -193,72 +198,79 @@ private:
   }
 
   void buildSingleLineEllipsis(Widget card) {
-    new Widget(card, RectF(12, 34, 591, 16))
-      .withText(
+    WidgetBuilder(card, RectF(12, 34, 591, 16))
+      .text(
         "Single-line overflow (overflowEllipsis = true vs false):",
         ColorF(0.70f, 0.75f, 0.85f, 1.0f)
-      );
+      )
+      .build();
 
-    auto boxEllipsis = new Widget(card, RectF(12, 54, 288, 48))
-      .withFixedSize(288, 48)
-      .withPadding(Insets(6, 10, 6, 10))
-      .withRoundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .withBorder(ColorF(0.30f, 0.55f, 0.75f, 1.0f), 1.5f);
-    boxEllipsis.components.textLabel = new TextLabel(
-      "overflowEllipsis=true: Very long sentence truncated with ellipsis.",
-      ColorF(0.60f, 0.85f, 1.0f, 1.0f)
-    ).withMultiline(false).withEllipsis(true);
+    auto boxEllipsis = WidgetBuilder(card, RectF(12, 54, 288, 48))
+      .fixedSize(288, 48)
+      .padding(Insets(6, 10, 6, 10))
+      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
+      .border(ColorF(0.30f, 0.55f, 0.75f, 1.0f), 1.5f)
+      .text(new TextLabel(
+        "overflowEllipsis=true: Very long sentence truncated with ellipsis.",
+        ColorF(0.60f, 0.85f, 1.0f, 1.0f)
+      ).withMultiline(false).withEllipsis(true))
+      .build();
 
-    auto boxNoEllipsis = new Widget(card, RectF(308, 54, 295, 48))
-      .withFixedSize(295, 48)
-      .withPadding(Insets(6, 10, 6, 10))
-      .withClipContents(true)
-      .withRoundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .withBorder(ColorF(0.65f, 0.35f, 0.40f, 1.0f), 1.5f);
-    boxNoEllipsis.components.textLabel = new TextLabel(
-      "overflowEllipsis=false: Long sentence scissored without ellipsis dots.",
-      ColorF(1.0f, 0.65f, 0.70f, 1.0f)
-    ).withMultiline(false).withEllipsis(false);
+    auto boxNoEllipsis = WidgetBuilder(card, RectF(308, 54, 295, 48))
+      .fixedSize(295, 48)
+      .padding(Insets(6, 10, 6, 10))
+      .clipContents(true)
+      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
+      .border(ColorF(0.65f, 0.35f, 0.40f, 1.0f), 1.5f)
+      .text(new TextLabel(
+        "overflowEllipsis=false: Long sentence scissored without " ~
+          "ellipsis dots.",
+        ColorF(1.0f, 0.65f, 0.70f, 1.0f)
+      ).withMultiline(false).withEllipsis(false))
+      .build();
   }
 
   void buildMultilineEllipsis(Widget card) {
-    new Widget(card, RectF(12, 110, 591, 16))
-      .withText(
+    WidgetBuilder(card, RectF(12, 110, 591, 16))
+      .text(
         "Multiline vertical overflow (last visible line truncated with '...'):",
         ColorF(0.70f, 0.75f, 0.85f, 1.0f)
-      );
+      )
+      .build();
 
-    auto multiVertEllipsis = new Widget(card, RectF(12, 130, 288, 138))
-      .withFixedSize(288, 138)
-      .withPadding(Insets(8, 12, 8, 12))
-      .withClipContents(true)
-      .withRoundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .withBorder(ColorF(0.35f, 0.65f, 0.50f, 1.0f), 1.5f);
-    multiVertEllipsis.components.textLabel = new TextLabel(
-      "Line 1: Primary line\nLine 2: Secondary line\n" ~
-        "Line 3: Content line\nLine 4: Approaching boundary\n" ~
-        "Line 5: Near container limit\n" ~
-        "Line 6: Last visible truncated line\n" ~
-        "Line 7: Overflow line\nLine 8: Clipped line\n" ~
-        "Line 9: Invisible extra line",
-      ColorF(0.70f, 1.0f, 0.80f, 1.0f)
-    ).withMultiline(true).withEllipsis(true);
+    auto multiVertEllipsis = WidgetBuilder(card, RectF(12, 130, 288, 138))
+      .fixedSize(288, 138)
+      .padding(Insets(8, 12, 8, 12))
+      .clipContents(true)
+      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
+      .border(ColorF(0.35f, 0.65f, 0.50f, 1.0f), 1.5f)
+      .text(new TextLabel(
+        "Line 1: Primary line\nLine 2: Secondary line\n" ~
+          "Line 3: Content line\nLine 4: Approaching boundary\n" ~
+          "Line 5: Near container limit\n" ~
+          "Line 6: Last visible truncated line\n" ~
+          "Line 7: Overflow line\nLine 8: Clipped line\n" ~
+          "Line 9: Invisible extra line",
+        ColorF(0.70f, 1.0f, 0.80f, 1.0f)
+      ).withMultiline(true).withEllipsis(true))
+      .build();
 
-    auto multiVertNoEllipsis = new Widget(card, RectF(308, 130, 295, 138))
-      .withFixedSize(295, 138)
-      .withPadding(Insets(8, 12, 8, 12))
-      .withClipContents(true)
-      .withRoundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .withBorder(ColorF(0.65f, 0.50f, 0.30f, 1.0f), 1.5f);
-    multiVertNoEllipsis.components.textLabel = new TextLabel(
-      "Line 1: Primary line\nLine 2: Secondary line\n" ~
-        "Line 3: Content line\nLine 4: Approaching boundary\n" ~
-        "Line 5: Near container limit\n" ~
-        "Line 6: Last visible line (no ellipsis)\n" ~
-        "Line 7: Overflow line\nLine 8: Clipped line\n" ~
-        "Line 9: Invisible extra line",
-      ColorF(1.0f, 0.85f, 0.60f, 1.0f)
-    ).withMultiline(true).withEllipsis(false);
+    auto multiVertNoEllipsis = WidgetBuilder(card, RectF(308, 130, 295, 138))
+      .fixedSize(295, 138)
+      .padding(Insets(8, 12, 8, 12))
+      .clipContents(true)
+      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
+      .border(ColorF(0.65f, 0.50f, 0.30f, 1.0f), 1.5f)
+      .text(new TextLabel(
+        "Line 1: Primary line\nLine 2: Secondary line\n" ~
+          "Line 3: Content line\nLine 4: Approaching boundary\n" ~
+          "Line 5: Near container limit\n" ~
+          "Line 6: Last visible line (no ellipsis)\n" ~
+          "Line 7: Overflow line\nLine 8: Clipped line\n" ~
+          "Line 9: Invisible extra line",
+        ColorF(1.0f, 0.85f, 0.60f, 1.0f)
+      ).withMultiline(true).withEllipsis(false))
+      .build();
   }
 
   void buildMultilineSection() {
@@ -273,57 +285,62 @@ private:
   }
 
   void buildWrappingBoxes(Widget card) {
-    new Widget(card, RectF(12, 34, 581, 16))
-      .withText(
+    WidgetBuilder(card, RectF(12, 34, 581, 16))
+      .text(
         "Automatic word wrapping & explicit newlines [multiline = true]:",
         ColorF(0.70f, 0.75f, 0.85f, 1.0f)
-      );
+      )
+      .build();
 
-    auto wrapBox = new Widget(card, RectF(12, 54, 285, 120))
-      .withFixedSize(285, 120)
-      .withPadding(Insets(8, 12, 8, 12))
-      .withRoundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .withBorder(ColorF(0.35f, 0.45f, 0.65f, 1.0f), 1.5f);
-    wrapBox.components.textLabel = new TextLabel(
-      "Word wrapping algorithm wraps lines cleanly at space delimiters " ~
-        "when width is limited.",
-      ColorF(0.85f, 0.90f, 1.0f, 1.0f)
-    ).withMultiline(true);
+    auto wrapBox = WidgetBuilder(card, RectF(12, 54, 285, 120))
+      .fixedSize(285, 120)
+      .padding(Insets(8, 12, 8, 12))
+      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
+      .border(ColorF(0.35f, 0.45f, 0.65f, 1.0f), 1.5f)
+      .text(new TextLabel(
+        "Word wrapping algorithm wraps lines cleanly at space delimiters " ~
+          "when width is limited.",
+        ColorF(0.85f, 0.90f, 1.0f, 1.0f)
+      ).withMultiline(true))
+      .build();
 
-    auto newlinesBox = new Widget(card, RectF(307, 54, 286, 120))
-      .withFixedSize(286, 120)
-      .withPadding(Insets(8, 12, 8, 12))
-      .withRoundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .withBorder(ColorF(0.40f, 0.35f, 0.55f, 1.0f), 1.5f);
-    newlinesBox.components.textLabel = new TextLabel(
-      "Explicit newlines:\n" ~
-        "• First item in list\n" ~
-        "• Second item with line break\n" ~
-        "• Third item preserved",
-      ColorF(0.90f, 0.80f, 1.0f, 1.0f)
-    ).withMultiline(true);
+    auto newlinesBox = WidgetBuilder(card, RectF(307, 54, 286, 120))
+      .fixedSize(286, 120)
+      .padding(Insets(8, 12, 8, 12))
+      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
+      .border(ColorF(0.40f, 0.35f, 0.55f, 1.0f), 1.5f)
+      .text(new TextLabel(
+        "Explicit newlines:\n" ~
+          "• First item in list\n" ~
+          "• Second item with line break\n" ~
+          "• Third item preserved",
+        ColorF(0.90f, 0.80f, 1.0f, 1.0f)
+      ).withMultiline(true))
+      .build();
   }
 
   void buildSanitizedComparison(Widget card) {
-    new Widget(card, RectF(12, 180, 581, 16))
-      .withText(
+    WidgetBuilder(card, RectF(12, 180, 581, 16))
+      .text(
         "Multiline disabled comparison [multiline = false]:",
         ColorF(0.70f, 0.75f, 0.85f, 1.0f)
-      );
+      )
+      .build();
 
-    auto sanitizedBox = new Widget(card, RectF(12, 200, 581, 74))
-      .withFixedSize(581, 74)
-      .withPadding(Insets(8, 12, 8, 12))
-      .withRoundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f);
-    sanitizedBox.components.border = Border.dashed(
-      ColorF(0.65f, 0.50f, 0.25f, 1.0f),
-      1.5f
-    );
-    sanitizedBox.components.textLabel = new TextLabel(
-      "Line 1\\nLine 2\\r\\nLine 3 (newlines sanitized into single spaces " ~
-        "automatically when multiline=false, followed by overflow ellipsis)",
-      ColorF(1.0f, 0.90f, 0.60f, 1.0f)
-    ).withMultiline(false).withEllipsis(true);
+    auto sanitizedBox = WidgetBuilder(card, RectF(12, 200, 581, 74))
+      .fixedSize(581, 74)
+      .padding(Insets(8, 12, 8, 12))
+      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
+      .border(Border.dashed(
+        ColorF(0.65f, 0.50f, 0.25f, 1.0f),
+        1.5f
+      ))
+      .text(new TextLabel(
+        "Line 1\\nLine 2\\r\\nLine 3 (newlines sanitized into single spaces " ~
+          "automatically when multiline=false, followed by overflow ellipsis)",
+        ColorF(1.0f, 0.90f, 0.60f, 1.0f)
+      ).withMultiline(false).withEllipsis(true))
+      .build();
   }
 
   void buildPlaygroundSection() {
@@ -333,46 +350,53 @@ private:
       "4. Interactive TextLabel Playground (Keys: [M] [E] [L] [T])"
     );
 
-    interactiveStatusWidget = new Widget(card, RectF(12, 34, 591, 30))
-      .withFixedSize(591, 30)
-      .withPadding(Insets(4, 10, 4, 10))
-      .withRoundBackground(ColorF(0.14f, 0.17f, 0.23f, 1.0f), 4.0f)
-      .withBorder(ColorF(0.35f, 0.45f, 0.65f, 1.0f), 1.0f)
-      .withText(
+    interactiveStatusWidget = WidgetBuilder(card, RectF(12, 34, 591, 30))
+      .fixedSize(591, 30)
+      .padding(Insets(4, 10, 4, 10))
+      .roundBackground(ColorF(0.14f, 0.17f, 0.23f, 1.0f), 4.0f)
+      .border(ColorF(0.35f, 0.45f, 0.65f, 1.0f), 1.0f)
+      .text(
         "[M] Multiline: ON | [E] Ellipsis: ON | [L] Align: left | Sample: 1/3",
         ColorF(0.95f, 0.95f, 0.40f, 1.0f)
-      );
+      )
+      .build();
 
-    interactiveLabelWidget = new Widget(card, RectF(12, 70, 591, 148))
-      .withFixedSize(591, 148)
-      .withPadding(Insets(10, 14, 10, 14))
-      .withClipContents(true)
-      .withRoundBackground(ColorF(0.09f, 0.11f, 0.15f, 1.0f), 6.0f);
-    interactiveLabelWidget.components.border = Border.dashed(
-      ColorF(0.30f, 0.75f, 0.90f, 1.0f),
-      2.0f,
-      6.0f,
-      3.0f
-    );
-    interactiveLabelWidget.components.textLabel = new TextLabel(
-      labelInteractiveSamples[0],
-      ColorF(1.0f, 1.0f, 1.0f, 1.0f)
-    ).withMultiline(true)
-      .withEllipsis(true)
-      .withAlignment(TextLabel.Alignment.left)
-      .withFontSize(15.0f);
+    interactiveLabelWidget = WidgetBuilder(card, RectF(12, 70, 591, 148))
+      .fixedSize(591, 148)
+      .padding(Insets(10, 14, 10, 14))
+      .clipContents(true)
+      .roundBackground(ColorF(0.09f, 0.11f, 0.15f, 1.0f), 6.0f)
+      .border(Border.dashed(
+        ColorF(0.30f, 0.75f, 0.90f, 1.0f),
+        2.0f,
+        6.0f,
+        3.0f
+      ))
+      .text(new TextLabel(
+        labelInteractiveSamples[0],
+        ColorF(1.0f, 1.0f, 1.0f, 1.0f)
+      ).withMultiline(true)
+        .withEllipsis(true)
+        .withAlignment(TextLabel.Alignment.left)
+        .withFontSize(15.0f))
+      .build();
 
-    auto hint = new Widget(card, RectF(12, 226, 591, 52))
-      .withFixedSize(591, 52)
-      .withPadding(Insets(6, 10, 6, 10))
-      .withRoundBackground(ColorF(0.11f, 0.13f, 0.17f, 1.0f), 4.0f)
-      .withBorder(ColorF(0.25f, 0.28f, 0.35f, 1.0f), 1.0f);
-    hint.components.textLabel = new TextLabel(
-      "[M] Toggle multiline | [E] Toggle ellipsis | [L] Cycle alignment\n" ~
-        "[T] Cycle sample text | [Tab] or [1]/[2] Switch demo pages",
-      ColorF(0.65f, 0.72f, 0.85f, 1.0f)
-    ).withMultiline(true)
-      .withFontSize(12.0f);
+    buildPlaygroundHint(card);
+  }
+
+  void buildPlaygroundHint(Widget card) {
+    WidgetBuilder(card, RectF(12, 226, 591, 52))
+      .fixedSize(591, 52)
+      .padding(Insets(6, 10, 6, 10))
+      .roundBackground(ColorF(0.11f, 0.13f, 0.17f, 1.0f), 4.0f)
+      .border(ColorF(0.25f, 0.28f, 0.35f, 1.0f), 1.0f)
+      .text(new TextLabel(
+        "[M] Toggle multiline | [E] Toggle ellipsis | [L] Cycle alignment\n" ~
+          "[T] Cycle sample text | [Tab] or [1]/[2] Switch demo pages",
+        ColorF(0.65f, 0.72f, 0.85f, 1.0f)
+      ).withMultiline(true)
+        .withFontSize(12.0f))
+      .build();
   }
 
   Widget root;

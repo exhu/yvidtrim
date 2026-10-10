@@ -1,5 +1,3 @@
-- widget duplicates builder functionality, refactor
-
 - implement hover button that animates background on mouse enter/leave to test View component concept
 
 - widget builders, see documentation/yguilib_api_improvements.md
