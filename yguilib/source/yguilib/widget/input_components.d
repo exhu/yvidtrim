@@ -25,16 +25,6 @@ final class KeyboardEvent : Component {
 }
 
 final class MouseEvent : Component {
-  // TODO need to reuse some storage for events
-  // because allocating new instance on each mouse movement is expensive
-  // use releaseData delegate
-  /*
-  final class MouseEventData {
-    ubyte button;
-    float x;
-    float y;
-  }
-  */
   union AppEventViewValue {
     ubyte buttons;
     float absX;
@@ -43,7 +33,11 @@ final class MouseEvent : Component {
   /// view.value contains button index
   string mouseDown;
   string mouseUp;
+  /// mouse entered widget abs rect, mouseMove is sent together with enter/leave
+  /// events
   string mouseEnter;
+  /// mouse was over the widget abs rect and left
   string mouseLeave;
+  /// mouse is moving over widget abs rect
   string mouseMove;
 }

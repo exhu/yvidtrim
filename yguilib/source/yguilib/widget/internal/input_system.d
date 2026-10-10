@@ -2,6 +2,7 @@ module yguilib.widget.internal.input_system;
 import yguilib.widget.internal.focus_system;
 import yguilib.widget.internal.collect_visible : VisibleWidgets, VisibleWidget;
 import yguilib.events;
+import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.uisystem : UiSystem;
 import yguilib.render.render_types;
 import yguilib.widget : Widget, View;
@@ -49,14 +50,10 @@ private:
     import std.logger;
     auto p = PointF(event.mouse.x, event.mouse.y);
     if (vw.absRect.contains(p)) {
-      // TODO implement builder pattern for ViewData AppEvent to
-      // replace constructor call with so many parameters
-      auto ev = AppEvent(AppEvent.ViewData(
-        vw.widget.components.mouseEvent.mouseDown,
-        vw.widget,
-        null,
-        event.mouse.button
-      ));
+      auto ev = ViewAppEventBuilder(vw.widget.components.mouseEvent.mouseDown)
+        .widget(vw.widget)
+        .value(event.mouse.button)
+        .build();
       passEvent(vw.widget, ev);
       return true;
     }
@@ -136,12 +133,9 @@ unittest {
   // Test 1: Direct pass-through without any View in the tree
   auto rootNoView = new Widget(null, RectF(0, 0, 200, 200));
   auto childNoView = new Widget(rootNoView, RectF(0, 0, 50, 50));
-  auto ev1 = AppEvent(AppEvent.ViewData(
-    "rawClick",
-    childNoView,
-    null,
-    1
-  ));
+  auto ev1 = ViewAppEventBuilder("rawClick", childNoView)
+    .value(1)
+    .build();
   inputSys.passEvent(childNoView, ev1);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].kind == AppEvent.Kind.view);
@@ -155,12 +149,9 @@ unittest {
   rootView.components.view = new View;
   rootView.components.view.renameEvents["btnClick"] = "playVideo";
   auto childBtn = new Widget(rootView, RectF(0, 0, 50, 50));
-  auto ev2 = AppEvent(AppEvent.ViewData(
-    "btnClick",
-    childBtn,
-    null,
-    1
-  ));
+  auto ev2 = ViewAppEventBuilder("btnClick", childBtn)
+    .value(1)
+    .build();
   inputSys.passEvent(childBtn, ev2);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "playVideo");
@@ -170,12 +161,9 @@ unittest {
   // Test 3: Event Suppression (empty string value consumes)
   testUi.sentEvents = null;
   rootView.components.view.renameEvents["suppressMe"] = "";
-  auto ev3 = AppEvent(AppEvent.ViewData(
-    "suppressMe",
-    childBtn,
-    null,
-    1
-  ));
+  auto ev3 = ViewAppEventBuilder("suppressMe", childBtn)
+    .value(1)
+    .build();
   inputSys.passEvent(childBtn, ev3);
   assert(testUi.sentEvents.length == 0);
 
@@ -190,12 +178,9 @@ unittest {
   innerView.components.view.renameEvents["click"] = "itemSelected";
 
   auto nestedBtn = new Widget(innerView, RectF(0, 0, 50, 50));
-  auto ev4 = AppEvent(AppEvent.ViewData(
-    "click",
-    nestedBtn,
-    null,
-    1
-  ));
+  auto ev4 = ViewAppEventBuilder("click", nestedBtn)
+    .value(1)
+    .build();
   inputSys.passEvent(nestedBtn, ev4);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "orderUpdated");
@@ -204,12 +189,9 @@ unittest {
 
   // Test 5: Unmapped Passthrough in Inner View
   testUi.sentEvents = null;
-  auto ev5 = AppEvent(AppEvent.ViewData(
-    "unmappedInInner",
-    nestedBtn,
-    null,
-    1
-  ));
+  auto ev5 = ViewAppEventBuilder("unmappedInInner", nestedBtn)
+    .value(1)
+    .build();
   outerView.components.view.renameEvents["unmappedInInner"] = "handledByOuter";
   inputSys.passEvent(nestedBtn, ev5);
   assert(testUi.sentEvents.length == 1);
@@ -222,12 +204,9 @@ unittest {
   auto selfView = new Widget(null, RectF(0, 0, 100, 100));
   selfView.components.view = new View;
   selfView.components.view.renameEvents["panelClick"] = "openPanel";
-  auto ev6 = AppEvent(AppEvent.ViewData(
-    "panelClick",
-    selfView,
-    null,
-    1
-  ));
+  auto ev6 = ViewAppEventBuilder("panelClick", selfView)
+    .value(1)
+    .build();
   inputSys.passEvent(selfView, ev6);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "openPanel");

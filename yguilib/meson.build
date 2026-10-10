@@ -12,6 +12,7 @@ yguilib_src = files(
   'source/yguilib/clibs/sdl3_ttf.d',
   'source/yguilib/controller/internal/controller_stack.d',
   'source/yguilib/controller/package.d',
+  'source/yguilib/events/builder.d',
   'source/yguilib/events/internal/message_bus.d',
   'source/yguilib/events/internal/sdl_events.d',
   'source/yguilib/events/keyboard.d',
