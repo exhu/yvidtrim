@@ -81,6 +81,7 @@ private:
       lastVisibleWidgets = visibleWidgetsCollector.collectVisible(
         uiSystem.mainWindow.view, uiSystem.mainWindow.renderer, false
       );
+      inputSystem.refreshHover(lastVisibleWidgets);
     }
   }
 

@@ -336,6 +336,10 @@ struct AppEvent {
     return payload.view;
   }
 
+  /// Destructor releasing custom view payload data if release delegate
+  /// was provided.
+  /// NOTE: AppEvent lacks a postblit or copy disabling, so struct copies with
+  /// releaseData may invoke cleanup multiple times. To be addressed later.
   ~this() {
     if (kind == Kind.view && payload.view.data !is null &&
       payload.view.releaseData !is null)

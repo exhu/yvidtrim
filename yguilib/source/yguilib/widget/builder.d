@@ -304,6 +304,7 @@ struct WidgetBuilder {
   }
 
   Widget build() {
+    widget.updateParentViews();
     return widget;
   }
 

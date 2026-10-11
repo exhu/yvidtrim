@@ -70,7 +70,16 @@ final class Widget {
     this.rect = rect;
     if (parent) {
       parent.children ~= this;
-      parentView = findParentView();
+      fParentView = findParentView();
+    }
+  }
+
+  /// Recomputes cached parentView for this widget and all its descendants.
+  /// Call after adding or removing View components in the widget tree.
+  void updateParentViews() {
+    fParentView = findParentView();
+    foreach (child; children) {
+      child.updateParentViews();
     }
   }
 
@@ -209,7 +218,9 @@ final class Widget {
   bool visible = true;
   bool inputEnabled = false;
   /// points to nearest parent widget with View component
-  Widget parentView;
+  @property inout(Widget) parentView() inout {
+    return fParentView;
+  }
 
 package(yguilib):
   /// Returns true if this widget has auto sizing on width or height.
@@ -305,6 +316,9 @@ package(yguilib):
 
   bool dirty = true;
   bool layoutDirty = true;
+
+private:
+  Widget fParentView;
 }
 
 unittest {

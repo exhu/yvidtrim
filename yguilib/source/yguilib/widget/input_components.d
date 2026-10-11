@@ -33,12 +33,14 @@ final class MouseEvent : Component {
     /// Raw 64-bit integer array stored in AppEvent.ViewData.value.
     ulong[AppEvent.ViewData.valueSize] raw;
     struct {
-      /// Mouse button index (1=left, 2=middle, 3=right).
+      /// Mouse button index (1=left, 2=middle, 3=right), 0 for motion.
       ubyte buttons;
-      /// Absolute cursor X coordinate in window coordinates.
-      float absX;
-      /// Absolute cursor Y coordinate in window coordinates.
-      float absY;
+      /// True if the cursor is inside the widget's hit area.
+      bool inside;
+      /// Cursor X in widget-local space (origin = widget rect left-top).
+      float localX;
+      /// Cursor Y in widget-local space (origin = widget rect left-top).
+      float localY;
     }
 
     /// Allows implicit conversion to array for ViewAppEventBuilder.value.
@@ -49,23 +51,27 @@ final class MouseEvent : Component {
       this.raw = raw;
     }
 
-    /// Constructs from cursor coordinates and optional button index.
-    this(float absX, float absY, ubyte buttons = 0) {
+    /// Constructs from cursor coordinates, button index, and inside flag.
+    this(float localX, float localY, ubyte buttons = 0, bool inside = true) {
       this.raw = 0;
       this.buttons = buttons;
-      this.absX = absX;
-      this.absY = absY;
+      this.inside = inside;
+      this.localX = localX;
+      this.localY = localY;
     }
   }
 
-  /// view.value contains button index and cursor coordinates
+  /// view.value contains button index, inside flag, and local coordinates.
   string mouseDown;
+  /// Sent on mouse button release to the widget that previously received
+  /// mouseDown.
   string mouseUp;
   /// mouse entered widget abs rect, mouseMove is sent together with enter/leave
   /// events
   string mouseEnter;
   /// mouse was over the widget abs rect and left
   string mouseLeave;
-  /// mouse is moving over widget abs rect
+  /// mouse is moving over widget abs rect.
+  /// NOTE: mouseMove is not sent when outside the widget even after mouseDown.
   string mouseMove;
 }

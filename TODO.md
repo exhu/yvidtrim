@@ -1,6 +1,8 @@
-- review input_system.d mouseEnter/Leave impl
-
-- widget builders, see documentation/yguilib_api_improvements.md
+- review guidemo hover button code
+- build widget library
+-- button with hover
+-- combobox
+- styles
 
   ### 9. render/internal/text_cache.d — cache eviction is all-or-nothing
 

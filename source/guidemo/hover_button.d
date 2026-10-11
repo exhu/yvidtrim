@@ -165,7 +165,6 @@ struct HoverButtonBuilder {
     const float initW = rect.width > 0.0f ? rect.width : 100.0f;
     const float initH = rect.height > 0.0f ? rect.height : 36.0f;
     auto child = new Widget(root, RectF(0, 0, initW, initH));
-    child.parentView = root;
     child.inputEnabled = true;
 
     // Sizing and insets for child
@@ -214,6 +213,7 @@ struct HoverButtonBuilder {
     me.mouseMove = "mouseMove";
     child.components.mouseEvent = me;
 
+    root.updateParentViews();
     return root;
   }
 }
@@ -389,27 +389,17 @@ private:
     return clamp(dt, 0.001f, 0.1f);
   }
 
-  static RectF computeAbsoluteRect(Widget w) {
-    if (w is null) {
-      return RectF(0, 0, 0, 0);
-    }
-    float x = 0.0f;
-    float y = 0.0f;
-    for (Widget cur = w; cur !is null; cur = cur.parent) {
-      x += cur.rect.x;
-      y += cur.rect.y;
-    }
-    return RectF(x, y, w.rect.width, w.rect.height);
-  }
-
   void updateCursorNorm(ref ButtonEntry entry, in AppEvent ev) {
     auto val = MouseEvent.AppEventViewValue(ev.view.value);
-    const RectF absRect = computeAbsoluteRect(entry.visualWidget);
-    if (absRect.width > 0.0f && absRect.height > 0.0f) {
-      const float rx = val.absX - absRect.x;
-      const float ry = val.absY - absRect.y;
-      entry.cursorNormX = clamp(rx / absRect.width, 0.0f, 1.0f);
-      entry.cursorNormY = clamp(ry / absRect.height, 0.0f, 1.0f);
+    if (entry.visualWidget !is null &&
+        entry.visualWidget.rect.width > 0.0f &&
+        entry.visualWidget.rect.height > 0.0f) {
+      entry.cursorNormX = clamp(
+        val.localX / entry.visualWidget.rect.width, 0.0f, 1.0f
+      );
+      entry.cursorNormY = clamp(
+        val.localY / entry.visualWidget.rect.height, 0.0f, 1.0f
+      );
     }
   }
 
