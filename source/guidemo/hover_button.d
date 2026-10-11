@@ -56,6 +56,7 @@ import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : View, Widget;
+import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.input_components : MouseEvent;
 import yguilib.widget.layout_components : Anchor, Dimension, Insets, Size,
@@ -142,79 +143,58 @@ struct HoverButtonBuilder {
    * Returns: The root Widget with attached View component.
    */
   Widget build(Widget parent, RectF rect) {
-    // 1. Root container widget (acts as the View boundary)
-    auto root = new Widget(parent, rect);
-    if (customSize !is null) {
-      root.components.size = customSize;
-    }
-    if (customAnchor !is null) {
-      root.components.anchor = customAnchor;
-    }
-
-    auto v = new View();
-    v.renameEvents = [
-      "mouseEnter": "hoverBtn.enter",
-      "mouseLeave": "hoverBtn.leave",
-      "mouseDown": "hoverBtn.down",
-      "mouseUp": "hoverBtn.up",
-      "mouseMove": "hoverBtn.move",
-    ];
-    root.components.view = v;
-
-    // 2. Visual child widget drawing background, border, text, and mouse events
     const float initW = rect.width > 0.0f ? rect.width : 100.0f;
     const float initH = rect.height > 0.0f ? rect.height : 36.0f;
-    auto child = new Widget(root, RectF(0, 0, initW, initH));
-    child.inputEnabled = true;
 
-    // Sizing and insets for child
-    auto childSize = Size.fixed(initW, initH);
-    childSize.padding = config.padding;
-    child.components.size = childSize;
+    auto rootBuilder = WidgetBuilder(parent, rect)
+      .view([
+        "mouseEnter": "hoverBtn.enter",
+        "mouseLeave": "hoverBtn.leave",
+        "mouseDown": "hoverBtn.down",
+        "mouseUp": "hoverBtn.up",
+        "mouseMove": "hoverBtn.move",
+      ]);
 
-    // Background
-    if (config.cornerRadius > 0.0f) {
-      child.components.background = Background.round(
-        config.normalBg,
-        config.cornerRadius
-      );
-    } else {
-      child.components.background = Background.rect(config.normalBg);
+    if (customSize !is null) {
+      rootBuilder.size(customSize);
+    }
+    if (customAnchor !is null) {
+      rootBuilder.anchor(customAnchor);
     }
 
-    // Border
-    if (config.borderWidth > 0.0f) {
+    rootBuilder.child(RectF(0, 0, initW, initH), (ref WidgetBuilder cb) {
+      cb.fixedSize(initW, initH)
+        .padding(config.padding);
+
       if (config.cornerRadius > 0.0f) {
-        child.components.border = Border.round(
-          config.borderColor,
-          config.cornerRadius,
-          config.borderWidth
-        );
+        cb.roundBackground(config.normalBg, config.cornerRadius);
       } else {
-        child.components.border = Border.rect(
+        cb.background(config.normalBg);
+      }
+
+      if (config.borderWidth > 0.0f) {
+        cb.border(
           config.borderColor,
-          config.borderWidth
+          config.borderWidth,
+          config.cornerRadius > 0.0f ? Border.Style.round : Border.Style.rect,
+          config.cornerRadius
         );
       }
-    }
 
-    // TextLabel
-    auto label = new TextLabel(config.text, config.textColor);
-    label.fontSize = config.fontSize;
-    label.alignment = TextLabel.Alignment.center;
-    child.components.textLabel = label;
+      cb.text(
+        config.text,
+        config.textColor,
+        config.fontSize,
+        TextLabel.Alignment.center
+      )
+      .onMouseEnter("mouseEnter")
+      .onMouseLeave("mouseLeave")
+      .onMouseDown("mouseDown")
+      .onMouseUp("mouseUp")
+      .onMouseMove("mouseMove");
+    });
 
-    // MouseEvent
-    auto me = new MouseEvent();
-    me.mouseEnter = "mouseEnter";
-    me.mouseLeave = "mouseLeave";
-    me.mouseDown = "mouseDown";
-    me.mouseUp = "mouseUp";
-    me.mouseMove = "mouseMove";
-    child.components.mouseEvent = me;
-
-    root.updateParentViews();
-    return root;
+    return rootBuilder.build();
   }
 }
 
