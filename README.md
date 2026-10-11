@@ -44,6 +44,8 @@ This is why meson is used to build D code as well as the wrappers.
 yguilib/yguilib-clibs). Sources in ./yguilib/ must not depend on
 ./source/yvidtrim or ./yvidtrim-clibs.
 
+Dependency on SDL3_image
+
 ## guidemo (GUI Feature Demo)
 `guidemo` is an optional interactive demo application built alongside
 `yvidtrim` to showcase and visually test GUI features as they are added to
