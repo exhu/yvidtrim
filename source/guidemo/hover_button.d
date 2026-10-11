@@ -47,8 +47,9 @@
  */
 module guidemo.hover_button;
 
+import core.time : MonoTime;
 import std.algorithm.comparison : clamp, max, min;
-import std.math : PI, sin;
+import std.math : PI, abs, sin;
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.events.builder : ViewAppEventBuilder;
@@ -237,9 +238,10 @@ struct HoverAnimConfig {
 
   AnimStyle style = AnimStyle.fade;
   ColorF hoverBg = ColorF(0.28f, 0.48f, 0.85f, 1.0f);
+  ColorF gradientAccentBg = ColorF(0.20f, 0.80f, 0.95f, 1.0f);
   ColorF pressBg = ColorF(0.16f, 0.32f, 0.65f, 1.0f);
   ColorF hoverBorder = ColorF(0.50f, 0.70f, 1.0f, 1.0f);
-  float fadeSpeed = 9.0f;
+  float fadeSpeed = 3.5f;
   string actionEvent = null;
 }
 
@@ -322,73 +324,27 @@ final class HoverButtonController : DefaultController {
       }
     }
 
-    if (isAnyAnimating() && ev.kind == AppEvent.Kind.updateUiLayer) {
-      return HandleResult(HandleResult.Result.updateView, false, 16);
+    if (ev.kind == AppEvent.Kind.update) {
+      if (isAnyAnimating()) {
+        return HandleResult(HandleResult.Result.updateView, false, 16);
+      } else {
+        hasLastTime = false;
+        return HandleResult(HandleResult.Result.nothing, false, -1);
+      }
     }
 
-    return super.handleEvent(ev);
+    // Keep timeout alive on other events (e.g. updateUiLayer or input)
+    // while animating, without requesting updateView recursion!
+    HandleResult res = super.handleEvent(ev);
+    if (isAnyAnimating()) {
+      res.timeoutMs = 16;
+    }
+    return res;
   }
 
   override bool updateView() {
-    bool anyChanged = false;
-    const float dt = 0.01667f;
-
-    foreach (ref entry; entries) {
-      const float targetHover = entry.isHovered ? 1.0f : 0.0f;
-      const float targetPress = entry.isPressed ? 1.0f : 0.0f;
-      const float speed = entry.animConfig.fadeSpeed;
-
-      bool buttonVisualDirty = false;
-
-      // Hover progress transition
-      if (entry.hoverProgress != targetHover) {
-        if (entry.hoverProgress < targetHover) {
-          entry.hoverProgress = min(
-            targetHover,
-            entry.hoverProgress + dt * speed
-          );
-        } else {
-          entry.hoverProgress = max(
-            targetHover,
-            entry.hoverProgress - dt * speed
-          );
-        }
-        buttonVisualDirty = true;
-      }
-
-      // Press progress transition
-      if (entry.pressProgress != targetPress) {
-        if (entry.pressProgress < targetPress) {
-          entry.pressProgress = min(
-            targetPress,
-            entry.pressProgress + dt * speed * 2.0f
-          );
-        } else {
-          entry.pressProgress = max(
-            targetPress,
-            entry.pressProgress - dt * speed * 2.0f
-          );
-        }
-        buttonVisualDirty = true;
-      }
-
-      // Gradient play oscillation while hovered
-      if (entry.animConfig.style == HoverAnimConfig.AnimStyle.gradientPlay &&
-          entry.hoverProgress > 0.01f) {
-        entry.animPhase += dt * 4.0f;
-        if (entry.animPhase > 2.0f * PI) {
-          entry.animPhase -= 2.0f * PI;
-        }
-        buttonVisualDirty = true;
-      }
-
-      if (buttonVisualDirty) {
-        applyVisualState(entry);
-        anyChanged = true;
-      }
-    }
-
-    return anyChanged;
+    const float dt = computeDeltaTime();
+    return stepAnimation(dt);
   }
 
 private:
@@ -408,15 +364,53 @@ private:
     foreach (const ref e; entries) {
       const float targetHover = e.isHovered ? 1.0f : 0.0f;
       const float targetPress = e.isPressed ? 1.0f : 0.0f;
-      if (e.hoverProgress != targetHover || e.pressProgress != targetPress) {
+      if (abs(e.hoverProgress - targetHover) > 0.001f ||
+          abs(e.pressProgress - targetPress) > 0.001f) {
         return true;
       }
       if (e.animConfig.style == HoverAnimConfig.AnimStyle.gradientPlay &&
-          e.hoverProgress > 0.01f) {
+          (e.isHovered || e.hoverProgress > 0.001f)) {
         return true;
       }
     }
     return false;
+  }
+
+  float computeDeltaTime() {
+    const MonoTime now = MonoTime.currTime;
+    if (!hasLastTime) {
+      lastTime = now;
+      hasLastTime = true;
+      return 0.01667f;
+    }
+    const long usecs = (now - lastTime).total!"usecs";
+    lastTime = now;
+    const float dt = cast(float)usecs / 1_000_000.0f;
+    return clamp(dt, 0.001f, 0.1f);
+  }
+
+  static RectF computeAbsoluteRect(Widget w) {
+    if (w is null) {
+      return RectF(0, 0, 0, 0);
+    }
+    float x = 0.0f;
+    float y = 0.0f;
+    for (Widget cur = w; cur !is null; cur = cur.parent) {
+      x += cur.rect.x;
+      y += cur.rect.y;
+    }
+    return RectF(x, y, w.rect.width, w.rect.height);
+  }
+
+  void updateCursorNorm(ref ButtonEntry entry, in AppEvent ev) {
+    auto val = MouseEvent.AppEventViewValue(ev.view.value);
+    const RectF absRect = computeAbsoluteRect(entry.visualWidget);
+    if (absRect.width > 0.0f && absRect.height > 0.0f) {
+      const float rx = val.absX - absRect.x;
+      const float ry = val.absY - absRect.y;
+      entry.cursorNormX = clamp(rx / absRect.width, 0.0f, 1.0f);
+      entry.cursorNormY = clamp(ry / absRect.height, 0.0f, 1.0f);
+    }
   }
 
   HandleResult handleButtonEvent(ref ButtonEntry entry, in AppEvent ev) {
@@ -425,6 +419,7 @@ private:
     switch (ev.view.eventName) {
     case "hoverBtn.enter":
       entry.isHovered = true;
+      updateCursorNorm(entry, ev);
       consumed = true;
       break;
     case "hoverBtn.leave":
@@ -444,19 +439,10 @@ private:
       consumed = true;
       break;
     case "hoverBtn.move":
-      auto val = MouseEvent.AppEventViewValue(ev.view.value);
-      if (entry.visualWidget.rect.width > 0.0f &&
-          entry.visualWidget.rect.height > 0.0f) {
-        const float rx = val.absX - entry.visualWidget.rect.x;
-        const float ry = val.absY - entry.visualWidget.rect.y;
-        entry.cursorNormX = clamp(
-          rx / entry.visualWidget.rect.width,
-          0.0f, 1.0f
-        );
-        entry.cursorNormY = clamp(
-          ry / entry.visualWidget.rect.height,
-          0.0f, 1.0f
-        );
+      updateCursorNorm(entry, ev);
+      if (entry.animConfig.style == HoverAnimConfig.AnimStyle.gradientPlay &&
+          entry.hoverProgress > 0.01f) {
+        applyVisualState(entry);
       }
       consumed = true;
       break;
@@ -466,9 +452,11 @@ private:
 
     if (consumed) {
       HandleResult res;
-      res.result = HandleResult.Result.updateView;
+      res.result = isAnyAnimating()
+        ? HandleResult.Result.updateView
+        : HandleResult.Result.nothing;
       res.consume = true;
-      res.timeoutMs = 16;
+      res.timeoutMs = isAnyAnimating() ? 16 : -1;
       return res;
     }
 
@@ -488,6 +476,71 @@ private:
     }
   }
 
+  bool stepAnimation(float dt) {
+    bool anyChanged = false;
+
+    foreach (ref entry; entries) {
+      const float targetHover = entry.isHovered ? 1.0f : 0.0f;
+      const float targetPress = entry.isPressed ? 1.0f : 0.0f;
+      const float speed = entry.animConfig.fadeSpeed;
+
+      bool buttonVisualDirty = false;
+
+      // Hover progress transition
+      if (abs(entry.hoverProgress - targetHover) > 0.001f) {
+        if (entry.hoverProgress < targetHover) {
+          entry.hoverProgress = min(
+            targetHover,
+            entry.hoverProgress + dt * speed
+          );
+        } else {
+          entry.hoverProgress = max(
+            targetHover,
+            entry.hoverProgress - dt * speed
+          );
+        }
+        buttonVisualDirty = true;
+      } else {
+        entry.hoverProgress = targetHover;
+      }
+
+      // Press progress transition
+      if (abs(entry.pressProgress - targetPress) > 0.001f) {
+        if (entry.pressProgress < targetPress) {
+          entry.pressProgress = min(
+            targetPress,
+            entry.pressProgress + dt * speed * 3.0f
+          );
+        } else {
+          entry.pressProgress = max(
+            targetPress,
+            entry.pressProgress - dt * speed * 3.0f
+          );
+        }
+        buttonVisualDirty = true;
+      } else {
+        entry.pressProgress = targetPress;
+      }
+
+      // Gradient play oscillation while hovered or fading out
+      if (entry.animConfig.style == HoverAnimConfig.AnimStyle.gradientPlay &&
+          (entry.isHovered || entry.hoverProgress > 0.001f)) {
+        entry.animPhase += dt * 3.5f;
+        if (entry.animPhase > 2.0f * PI) {
+          entry.animPhase -= 2.0f * PI;
+        }
+        buttonVisualDirty = true;
+      }
+
+      if (buttonVisualDirty) {
+        applyVisualState(entry);
+        anyChanged = true;
+      }
+    }
+
+    return anyChanged;
+  }
+
   void applyVisualState(ref ButtonEntry entry) {
     ColorF targetHoverBg = entry.animConfig.hoverBg;
 
@@ -498,13 +551,8 @@ private:
       ) * 0.5f;
       targetHoverBg = lerpColor(
         entry.animConfig.hoverBg,
-        ColorF(
-          min(1.0f, entry.animConfig.hoverBg.r + 0.15f),
-          min(1.0f, entry.animConfig.hoverBg.g + 0.15f),
-          min(1.0f, entry.animConfig.hoverBg.b + 0.15f),
-          entry.animConfig.hoverBg.a
-        ),
-        wave * 0.4f
+        entry.animConfig.gradientAccentBg,
+        wave
       );
     }
 
@@ -543,6 +591,8 @@ private:
   }
 
   ButtonEntry[] entries;
+  MonoTime lastTime;
+  bool hasLastTime = false;
 }
 
 // Unit tests verifying HoverButtonBuilder, View event renaming, and controller.
@@ -650,6 +700,32 @@ unittest {
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "customAction");
   assert(testUi.sentEvents[0].view.widget is btnRoot);
+
+  // Test 4: Gradient play animation and cursor tracking
+  HoverAnimConfig gradCfg;
+  gradCfg.style = HoverAnimConfig.AnimStyle.gradientPlay;
+  gradCfg.hoverBg = ColorF(0.2f, 0.4f, 0.8f, 1.0f);
+  gradCfg.gradientAccentBg = ColorF(0.1f, 0.9f, 0.8f, 1.0f);
+
+  auto gradController = new HoverButtonController(testUi, [btnRoot], [gradCfg]);
+  assert(gradController.entries.length == 1);
+
+  gradController.handleEvent(enterEv);
+  assert(gradController.isAnyAnimating());
+  bool gradUpdated = gradController.updateView();
+  assert(gradUpdated);
+  assert(gradController.entries[0].animPhase > 0.0f);
+
+  // Test mouseMove with cursor coordinate calculation
+  auto moveVal = MouseEvent.AppEventViewValue(50.0f, 15.0f);
+  auto moveEv = ViewAppEventBuilder("hoverBtn.move")
+    .widget(child)
+    .viewWidget(btnRoot)
+    .value(moveVal.raw)
+    .build();
+  auto moveRes = gradController.handleEvent(moveEv);
+  assert(moveRes.result == HandleResult.Result.updateView);
+  assert(moveRes.timeoutMs == 16);
 }
 
 version (unittest) {

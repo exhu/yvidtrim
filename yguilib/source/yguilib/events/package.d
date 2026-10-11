@@ -15,6 +15,8 @@ struct AppEvent {
     view,
     /// Notify system ui controller to redraw/relayout widgets.
     /// use with noRepeat = true
+    /// You should return Controller.HandleResult.Result.nothing
+    /// in any user controller's handleEvent method for that event!
     updateUiLayer,
     /// Window close requested.
     windowClose,

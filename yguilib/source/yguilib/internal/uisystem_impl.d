@@ -236,6 +236,9 @@ private:
         return false;
       }
     } else if (waitRes == 0 && currentTimeoutMs >= 0) {
+      if (!dispatchEvent(AppEvent(AppEvent.Kind.update), currentTimeoutMs)) {
+        return false;
+      }
       updateAndRender(activeController);
     }
 
