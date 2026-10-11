@@ -4,6 +4,7 @@
 module guidemo.view;
 
 import guidemo.model : DemoModel;
+import guidemo.pages.button_page : ButtonPage;
 import guidemo.pages.layout_painter_page : LayoutPainterPage;
 import guidemo.pages.textlabel_page : TextLabelPage;
 import yguilib.model : ModelTracker;
@@ -30,6 +31,8 @@ final class DemoView {
     page1 = new LayoutPainterPage(view);
     page2 = new TextLabelPage(view);
     page2.setVisible(false);
+    page3 = new ButtonPage(view);
+    page3.setVisible(false);
 
     buildStatusBar();
   }
@@ -44,9 +47,13 @@ final class DemoView {
     // 1. Update page visibility
     const bool p1Vis = (m.activePage == 0);
     const bool p2Vis = (m.activePage == 1);
-    if (page1.isVisible() != p1Vis || page2.isVisible() != p2Vis) {
+    const bool p3Vis = (m.activePage == 2);
+    if (page1.isVisible() != p1Vis ||
+        page2.isVisible() != p2Vis ||
+        page3.isVisible() != p3Vis) {
       page1.setVisible(p1Vis);
       page2.setVisible(p2Vis);
+      page3.setVisible(p3Vis);
       view.update();
     }
 
@@ -61,11 +68,18 @@ final class DemoView {
       : ColorF(0.16f, 0.18f, 0.23f, 1.0f);
     tab2Btn.setBackgroundColor(col2);
 
+    const ColorF col3 = m.activePage == 2
+      ? ColorF(0.20f, 0.45f, 0.85f, 1.0f)
+      : ColorF(0.16f, 0.18f, 0.23f, 1.0f);
+    tab3Btn.setBackgroundColor(col3);
+
     // 3. Delegate page-specific updates
     if (p1Vis) {
       page1.update(m);
-    } else {
+    } else if (p2Vis) {
       page2.update(m);
+    } else {
+      page3.update(m);
     }
 
     // 4. Update HUD status label text
@@ -74,6 +88,10 @@ final class DemoView {
 
   Widget getRootWidget() {
     return view;
+  }
+
+  ButtonPage getButtonPage() {
+    return page3;
   }
 
 private:
@@ -148,8 +166,22 @@ private:
     );
   }
 
+  static string formatPage3Status(const DemoModel m) {
+    import std.format : format;
+    return format(
+      "[Tab/1/2/3] Page 3: Hover Buttons | Clicks: %d | [Q/Esc] Quit",
+      m.buttonClickCount
+    );
+  }
+
   static string formatStatusString(const DemoModel m) {
-    return m.activePage == 1 ? formatPage2Status(m) : formatPage1Status(m);
+    if (m.activePage == 1) {
+      return formatPage2Status(m);
+    }
+    if (m.activePage == 2) {
+      return formatPage3Status(m);
+    }
+    return formatPage1Status(m);
   }
 
   void buildHeader() {
@@ -158,7 +190,7 @@ private:
       .border(ColorF(0.22f, 0.25f, 0.32f, 1.0f), 1.0f)
       .build();
 
-    WidgetBuilder(header, RectF(14, 5, 780, 20))
+    WidgetBuilder(header, RectF(14, 5, 560, 20))
       .text(
         "yguilib GUI Feature Demo & Showcase (guidemo)",
         ColorF(1.0f, 1.0f, 1.0f, 1.0f),
@@ -166,40 +198,54 @@ private:
       )
       .build();
 
-    WidgetBuilder(header, RectF(14, 26, 780, 16))
+    WidgetBuilder(header, RectF(14, 26, 560, 16))
       .text(
         "Verification for widget_painter.d, layout_system.d & " ~
-          "drawing_components.d",
+          "input_components.d",
         ColorF(0.60f, 0.65f, 0.75f, 1.0f)
       )
       .build();
 
     // Tab 1 button: Layout & Painter
-    tab1Btn = WidgetBuilder(header, RectF(820, 9, 185, 30))
+    tab1Btn = WidgetBuilder(header, RectF(585, 9, 195, 30))
       .padding(5, 10, 5, 10)
       .roundBackground(ColorF(0.20f, 0.45f, 0.85f, 1.0f), 4.0f)
       .border(ColorF(0.40f, 0.70f, 1.0f, 1.0f), 1.0f)
       .text(
         "[1] Layout & Painter",
         ColorF(1.0f, 1.0f, 1.0f, 1.0f),
-        14.0f,
+        13.0f,
         TextLabel.Alignment.center
       )
       .onMouseDown("tab1Btn")
       .build();
 
     // Tab 2 button: TextLabel Showcase
-    tab2Btn = WidgetBuilder(header, RectF(1015, 9, 210, 30))
+    tab2Btn = WidgetBuilder(header, RectF(790, 9, 210, 30))
       .padding(5, 10, 5, 10)
       .roundBackground(ColorF(0.16f, 0.18f, 0.23f, 1.0f), 4.0f)
       .border(ColorF(0.30f, 0.35f, 0.45f, 1.0f), 1.0f)
       .text(
         "[2] TextLabel Showcase",
         ColorF(0.80f, 0.85f, 0.95f, 1.0f),
-        14.0f,
+        13.0f,
         TextLabel.Alignment.center
       )
       .onMouseDown("tab2Btn")
+      .build();
+
+    // Tab 3 button: Hover Buttons Showcase
+    tab3Btn = WidgetBuilder(header, RectF(1010, 9, 215, 30))
+      .padding(5, 10, 5, 10)
+      .roundBackground(ColorF(0.16f, 0.18f, 0.23f, 1.0f), 4.0f)
+      .border(ColorF(0.30f, 0.35f, 0.45f, 1.0f), 1.0f)
+      .text(
+        "[3] Hover Buttons Demo",
+        ColorF(0.80f, 0.85f, 0.95f, 1.0f),
+        13.0f,
+        TextLabel.Alignment.center
+      )
+      .onMouseDown("tab3Btn")
       .build();
   }
 
@@ -222,8 +268,10 @@ private:
 
   Widget tab1Btn;
   Widget tab2Btn;
+  Widget tab3Btn;
   Widget statusLabel;
 
   LayoutPainterPage page1;
   TextLabelPage page2;
+  ButtonPage page3;
 }

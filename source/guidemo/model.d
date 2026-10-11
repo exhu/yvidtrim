@@ -28,5 +28,8 @@ final class DemoModel : VersionedModel {
   TextLabel.Alignment labelAlignment = TextLabel.Alignment.left;
   size_t labelSampleIndex = 0;
 
+  // Page 3 state (Hover Button Showcase)
+  size_t buttonClickCount = 0;
+
   bool quitRequested = false;
 }

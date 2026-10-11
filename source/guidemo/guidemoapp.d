@@ -51,9 +51,16 @@ import yguilib.app : App;
 import yguilib.window : Window;
 
 import guidemo.controller : DemoController;
+import guidemo.hover_button : HoverButtonController;
 
 void main() {
   auto window = new Window(1280, 720, "yguilib feature demo - guidemo");
   auto app = new App(window);
-  app.run(new DemoController(app));
+  auto demoController = new DemoController(app);
+  auto hoverButtonController = new HoverButtonController(app.ui);
+  demoController.getView().getButtonPage().registerWithController(
+    hoverButtonController
+  );
+  app.ui.pushController(hoverButtonController);
+  app.run(demoController);
 }

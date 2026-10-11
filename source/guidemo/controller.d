@@ -56,20 +56,25 @@ final class DemoController : DefaultController {
   override HandleResult handleEvent(AppEvent ev) {
     bool consumed = false;
 
-    // Mouse click on header tab buttons
+    // Mouse click on header tab buttons or showcase buttons
     if (ev.kind == AppEvent.Kind.view) {
-      import std.logger;
-      warning(ev.view.eventName);
       auto model = tracker.edit();
       auto eventName = ev.view.eventName;
       if (eventName == "tab1Btn") {
-          model.activePage = 0;
-          consumed = true;
-          warning(model.activePage);
+        model.activePage = 0;
+        consumed = true;
       } else if (eventName == "tab2Btn") {
-          model.activePage = 1;
-          consumed = true;
-          warning(model.activePage);
+        model.activePage = 1;
+        consumed = true;
+      } else if (eventName == "tab3Btn") {
+        model.activePage = 2;
+        consumed = true;
+      } else if (eventName == "btnCountAction") {
+        model.buttonClickCount += 1;
+        consumed = true;
+      } else if (eventName == "btnCountReset") {
+        model.buttonClickCount = 0;
+        consumed = true;
       }
       tracker.commit(model);
 
@@ -77,7 +82,6 @@ final class DemoController : DefaultController {
         HandleResult res;
         res.result = HandleResult.Result.updateView;
         res.consume = true;
-        // res.timeoutMs = 16;
         return res;
       }
     }
@@ -92,13 +96,16 @@ final class DemoController : DefaultController {
         sendQuit();
         return HandleResult(HandleResult.Result.quit, true);
       } else if (isKey(ev, Keycode.tab, Scancode.tab)) {
-        model.activePage = (model.activePage + 1) % 2;
+        model.activePage = (model.activePage + 1) % 3;
         consumed = true;
       } else if (isKey(ev, Keycode.key1, Scancode.key1)) {
         model.activePage = 0;
         consumed = true;
       } else if (isKey(ev, Keycode.key2, Scancode.key2)) {
         model.activePage = 1;
+        consumed = true;
+      } else if (isKey(ev, Keycode.key3, Scancode.key3)) {
+        model.activePage = 2;
         consumed = true;
       } else if (isKey(ev, Keycode.m, Scancode.m)) {
         model.labelMultiline = !model.labelMultiline;
@@ -162,9 +169,11 @@ final class DemoController : DefaultController {
     }
 
     auto res = super.handleEvent(ev);
-    // timeout will abuse rendering
-    //res.timeoutMs = 16;
     return res;
+  }
+
+  DemoView getView() {
+    return view;
   }
 
 private:

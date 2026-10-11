@@ -28,7 +28,9 @@ guidemo_src = files(
   'source/guidemo/common.d',
   'source/guidemo/controller.d',
   'source/guidemo/guidemoapp.d',
+  'source/guidemo/hover_button.d',
   'source/guidemo/model.d',
+  'source/guidemo/pages/button_page.d',
   'source/guidemo/pages/layout_painter_page.d',
   'source/guidemo/pages/textlabel_page.d',
   'source/guidemo/view.d',
@@ -41,4 +43,14 @@ executable(
   d_import_dirs : yvidtrim_inc,
   dependencies : [yguilib_dep],
 )
+
+hover_button_test_exe = executable(
+  'hover_button_test',
+  files('source/guidemo/hover_button.d'),
+  d_unittest : true,
+  include_directories : yvidtrim_inc,
+  d_import_dirs : yvidtrim_inc,
+  dependencies : [yguilib_dep],
+)
+test('hover_button_test', hover_button_test_exe)
 
