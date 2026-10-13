@@ -20,6 +20,11 @@ struct WidgetBuilder {
     widget = new Widget(null, rect);
   }
 
+  ref WidgetBuilder name(string widgetName) return {
+    widget.name = widgetName;
+    return this;
+  }
+
   ref WidgetBuilder padding(Insets insets) return {
     if (widget.components.size is null) {
       widget.components.size = new Size();

@@ -206,6 +206,19 @@ final class Widget {
     return true;
   }
 
+  /// Checks if this or child Widget has the name.
+  /// Returns null if none.
+  Widget findByName(string nameToSearch) {
+    if (name == nameToSearch)
+      return this;
+    foreach(c; children) {
+      auto w = c.findByName(nameToSearch);
+      if (w)
+        return w;
+    }
+    return null;
+  }
+
   Widget parent;
   RectF rect;
   /// it is not allowed to change available components after initialization
@@ -221,6 +234,8 @@ final class Widget {
   @property inout(Widget) parentView() inout {
     return fParentView;
   }
+  /// non-unique name to show in serialized form and to find in the tree.
+  string name;
 
 package(yguilib):
   /// Returns true if this widget has auto sizing on width or height.

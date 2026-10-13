@@ -1,10 +1,14 @@
-- add image support
+- composite controller? e.g. a modal dialog owns several controllers so that the stack can skip
+all events when a modal controller is active?
+- add to View component controller name, so user registers a map of controllers and then
+views and controllers are automatically pushed? Modal component?
 - mouse capture component to capture mouse (and hide cursor) to implement
 knobs
 - build widget library
 -- button with hover
 -- combobox
 - styles
+- add image support
 
   ### 9. render/internal/text_cache.d — cache eviction is all-or-nothing
 
