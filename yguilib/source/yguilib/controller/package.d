@@ -1,6 +1,7 @@
 module yguilib.controller;
 import yguilib.events : AppEvent;
 import yguilib.uisystem : UiSystem;
+import yguilib.widget : Widget;
 
 alias HandleResult = Controller.HandleResult;
 
@@ -26,6 +27,8 @@ interface Controller {
     /// useful in case of active video playback
     int timeoutMs = -1;
   }
+
+  void addView(Widget v);
 
   /// handleEvent may be called more than once before updateView or update,
   /// and it should be lightweight and quick.

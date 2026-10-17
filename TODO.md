@@ -1,7 +1,24 @@
-- composite controller? e.g. a modal dialog owns several controllers so that the stack can skip
-all events when a modal controller is active?
-- add to View component controller name, so user registers a map of controllers and then
-views and controllers are automatically pushed? Modal component?
+- controller should not create its own view, the view is added by controller.addView()
+- addView method may support multiple Views or error if already added view
+- update sources to this logic (guidemo etc.)
+- add named controller registry and wiring logic, so that View.addToController is used
+instead of manually adding views to controllers for HoverButton
+- check if it's ergonomically better
+- the controller stack is still manipulated manually by the code (View components do not push/pop them),
+however named controllers should be created in advance and live in the runtime registry.
+
+- discarded for now:
+	- composite controller? e.g. a modal dialog owns several controllers so that the stack can skip
+	all events when a modal controller is active?
+	- add to View component controller name, so user registers a map of controllers and then
+	views and controllers are automatically pushed -- can be problematic if the widget should be
+	visible but change behaviour? Modal component?
+
+	if view requests controller push, and controller can hide view, then there's cycle.
+
+
+
+
 - mouse capture component to capture mouse (and hide cursor) to implement
 knobs
 - build widget library

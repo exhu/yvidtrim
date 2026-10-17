@@ -42,6 +42,12 @@ class View : Component {
   /// Renames an event and changes event.view.viewWidget to the attached widget.
   /// An empty string value ("") prevents the event from going up the tree.
   string[string] renameEvents;
+  /// Add this widget to registered named controller. Can be useful for composite widgets.
+  /// E.g. an app needs to implement one hover button or a colour picker
+  /// controller to monitor and animate Widgets, that controller gets registered
+  /// by name and widgets are autowired to it.
+  // TODO implement
+  string addToController;
 }
 
 struct WidgetComponents {
