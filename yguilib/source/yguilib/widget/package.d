@@ -10,6 +10,10 @@ import std.typecons : Nullable;
 
 // TODO implement code first approach, without symbolic bindings
 
+interface WidgetViewController {
+  void addView(Widget v);
+}
+
 /// Widgets can have this component to mark a root view to rename events
 /// (e.g. "buttonClick" into "togglePlay"), or to select which events are
 /// propagated up via the same event name.
@@ -42,7 +46,7 @@ class View : Component {
   /// Renames an event and changes event.view.viewWidget to the attached widget.
   /// An empty string value ("") prevents the event from going up the tree.
   string[string] renameEvents;
-  /// Add this widget to registered named controller. Can be useful for composite widgets.
+  /// Add this widget to registered named WidgetViewController. Can be useful for composite widgets.
   /// E.g. an app needs to implement one hover button or a colour picker
   /// controller to monitor and animate Widgets, that controller gets registered
   /// by name and widgets are autowired to it.

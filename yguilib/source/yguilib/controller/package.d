@@ -28,8 +28,6 @@ interface Controller {
     int timeoutMs = -1;
   }
 
-  void addView(Widget v);
-
   /// handleEvent may be called more than once before updateView or update,
   /// and it should be lightweight and quick.
   /// Move complex event handling to `update` method.
