@@ -36,12 +36,12 @@ public:
   this(ref ModelTracker!MainModel otherTracker) {
     tracker = ModelTracker!MainModel(otherTracker);
 
-    view = WidgetBuilder(RectF(10, 10, 200, 200))
+    rootWidget = WidgetBuilder(RectF(10, 10, 200, 200))
       .view()
       .background(ColorF(0.5f, 0.5f, 0.0f, 1.0f))
       .build();
 
-    alphaWidget = WidgetBuilder(view, RectF(35, 45, 150, 190))
+    alphaWidget = WidgetBuilder(rootWidget, RectF(35, 45, 150, 190))
       .background(ColorF(0.0f, 1.0f, 0.5f, 0.3f))
       .border(ColorF(0.0f, 0.0f, 0.5f, 1.0f), 2.0f, Border.Style.roundDashed)
       .text("Hello-0123456789", ColorF(0.0f, 0.0f, 1.0f, 1.0f))
@@ -49,12 +49,12 @@ public:
       .clipChildren(true)
       .build();
 
-    toggleWidget = WidgetBuilder(view, RectF(15, 15, 300, 90))
+    toggleWidget = WidgetBuilder(rootWidget, RectF(15, 15, 300, 90))
       .background(ColorF(0.5f, 1.0f, 0.5f, 0.3f), Background.Style.round)
       .build();
 
     // --- layout testing ---
-    container = WidgetBuilder(view, RectF(35, 250, 400, 300))
+    container = WidgetBuilder(rootWidget, RectF(35, 250, 400, 300))
       .background(colors.darkGray)
       .border(colors.brightWhite, 3.0f, Border.Style.dashed)
       .flexRow(8.0f, JustifyContent.start, tracker.model.alignItems)
@@ -77,21 +77,21 @@ public:
   }
 
   void addRightTopAnchor() {
-    WidgetBuilder(view, RectF(0, 0, 30, 30))
+    WidgetBuilder(rootWidget, RectF(0, 0, 30, 30))
       .background(colors.red)
       .anchor(new Anchor().withRight(0.0f).withTop(3.0f))
       .build();
   }
 
   void addLeftBottomAnchor() {
-    WidgetBuilder(view, RectF(0, 0, 30, 30))
+    WidgetBuilder(rootWidget, RectF(0, 0, 30, 30))
       .background(colors.brightRed)
       .anchor(new Anchor().withLeft(3.0f).withBottom(7.0f))
       .build();
   }
 
   void addRightBottomAnchor() {
-    WidgetBuilder(view, RectF(0, 0, 30, 30))
+    WidgetBuilder(rootWidget, RectF(0, 0, 30, 30))
       .background(colors.magenta)
       .anchor(new Anchor().withRight(5.0f).withBottom(2.0f))
       .build();
@@ -118,7 +118,7 @@ public:
   }
 
 package(yvidtrim):
-  Widget view;
+  Widget rootWidget;
 
 private:
   ModelTracker!MainModel tracker;
@@ -134,7 +134,7 @@ final class MainController : DefaultController {
     super(app.ui);
     this.app = app;
     view = new MainView(t);
-    app.ui.mainWindow().view = view.view;
+    app.ui.mainWindow().rootWidget = view.rootWidget;
   }
 
   override bool updateView() {

@@ -1,6 +1,9 @@
-- WidgetViewController to support controllers that only need Widget as a view and
-registered via registry.
-- addView method may support multiple Views or error if already added view
+looks like does not fit the proper paradigm, it should be a system rather than
+a controller:
+	- WidgetViewController to support controllers that only need Widget as a view and
+	registered via registry. --
+	- addView method may support multiple Views or error if already added view
+
 - update sources to this logic (guidemo etc.)
 - add named controller registry and wiring logic, so that View.addToController is used
 instead of manually adding views to controllers for HoverButton

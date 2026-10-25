@@ -46,14 +46,14 @@ final class UiSystemController : DefaultController {
 
 private:
   bool isViewAvailableForRendering() {
-    return (uiSystem.mainWindow !is null && uiSystem.mainWindow.view !is null &&
+    return (uiSystem.mainWindow !is null && uiSystem.mainWindow.rootWidget !is null &&
       uiSystem.mainWindow.renderer !is null);
   }
 
   void renderFrame() {
     if (uiSystem.mainWindow !is null) {
       if (isViewAvailableForRendering()) {
-        if (!uiSystem.mainWindow.view.isTreeDirty()) {
+        if (!uiSystem.mainWindow.rootWidget.isTreeDirty()) {
           return;
         }
         painterSystem.drawTree(lastVisibleWidgets, uiSystem.mainWindow.renderer);
@@ -64,22 +64,22 @@ private:
 
   void updateLayout() {
     if (isViewAvailableForRendering()) {
-      if (!uiSystem.mainWindow.view.isTreeLayoutDirty() &&
+      if (!uiSystem.mainWindow.rootWidget.isTreeLayoutDirty() &&
           lastVisibleWidgets.length > 0) {
         return;
       }
       // collect visible on screen without widgets parent clipping
       lastVisibleWidgets = visibleWidgetsCollector.collectVisible(
-        uiSystem.mainWindow.view, uiSystem.mainWindow.renderer, true
+        uiSystem.mainWindow.rootWidget, uiSystem.mainWindow.renderer, true
       );
       layoutSystem.layoutTree(
-        uiSystem.mainWindow.view, uiSystem.mainWindow.renderer,
+        uiSystem.mainWindow.rootWidget, uiSystem.mainWindow.renderer,
         lastVisibleWidgets
       );
       // collect visible with positions and sizes adjusted by layout,
       // include clipping test
       lastVisibleWidgets = visibleWidgetsCollector.collectVisible(
-        uiSystem.mainWindow.view, uiSystem.mainWindow.renderer, false
+        uiSystem.mainWindow.rootWidget, uiSystem.mainWindow.renderer, false
       );
       inputSystem.refreshHover(lastVisibleWidgets);
     }
@@ -98,8 +98,8 @@ private:
 
     if (isMainWindowEvent(event.window.windowId)) {
       uiSystem.mainWindow.handleWindowEvent(event);
-      if (uiSystem.mainWindow.view !is null && event.isWindowRedrawEvent()) {
-        uiSystem.mainWindow.view.markTreeDirty();
+      if (uiSystem.mainWindow.rootWidget !is null && event.isWindowRedrawEvent()) {
+        uiSystem.mainWindow.rootWidget.markTreeDirty();
         return true;
       }
     }

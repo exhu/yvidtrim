@@ -75,7 +75,7 @@ class Window {
   }
 
   /// The view widget must have a non-null View component.
-  Widget view;
+  Widget rootWidget;
 package(yguilib):
   void swapBuffers() {
     if (handle !is null) {
@@ -202,9 +202,9 @@ private:
   // TODO should it draw widgets?
   void redraw() {
     makeCurrent();
-    if (view !is null && view.components.background !is null &&
+    if (rootWidget !is null && rootWidget.components.background !is null &&
         renderer !is null) {
-      renderer.clearCanvas(view.components.background.color);
+      renderer.clearCanvas(rootWidget.components.background.color);
     } else {
       clear();
     }
@@ -224,16 +224,16 @@ private:
   }
 
   void updateViewRect() {
-    if (view !is null && renderer !is null) {
+    if (rootWidget !is null && renderer !is null) {
       const RectF newRect = RectF(
         0,
         0,
         renderer.getLogicWidth(),
         renderer.getLogicHeight()
       );
-      if (view.rect != newRect) {
-        view.rect = newRect;
-        view.markTreeDirty();
+      if (rootWidget.rect != newRect) {
+        rootWidget.rect = newRect;
+        rootWidget.markTreeDirty();
       }
     }
   }

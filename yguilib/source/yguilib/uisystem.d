@@ -1,13 +1,16 @@
 module yguilib.uisystem;
 import yguilib.controller : Controller;
 import yguilib.events : AppEvent;
-import yguilib.widget : Widget;
+import yguilib.widget : Widget, WidgetViewController;
 import yguilib.window : Window;
 
 interface ControllerStack {
   void popController();
   void pushController(Controller c);
   void pushModalController(Controller c);
+
+  void registerWidgetViewController(WidgetViewController c);
+  void unregisterWidgetViewController(WidgetViewController c);
 }
 
 interface FocusControl {

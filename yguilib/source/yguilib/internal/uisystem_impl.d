@@ -12,7 +12,7 @@ import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.events.internal.message_bus : MessageBus;
 import yguilib.events.internal.sdl_events : appEventFromSdlEvent;
 import yguilib.render : Renderer;
-import yguilib.widget : Widget;
+import yguilib.widget : Widget, WidgetViewController;
 import yguilib.widget.internal.collect_visible;
 import yguilib.widget.internal.widget_painter : WidgetPainterSystem;
 import yguilib.widget.internal.layout_system : LayoutSystem;
@@ -85,6 +85,18 @@ class UiSystemImpl : UiSystem {
         break;
       }
     }
+  }
+
+  override void registerWidgetViewController(WidgetViewController c) {
+    auto name = c.getControllerName();
+    assert(!(name in widgetControllers));
+    widgetControllers[c.getControllerName()] = c;
+  }
+
+  override void unregisterWidgetViewController(WidgetViewController c) {
+    auto name = c.getControllerName();
+    assert(name in widgetControllers && (widgetControllers[name] !is null));
+    widgetControllers[name] = null;
   }
 
 private:
@@ -267,8 +279,8 @@ private:
   }
 
   void redraw() {
-    if (fMainWindow !is null && fMainWindow.view !is null) {
-      fMainWindow.view.markTreeDirty();
+    if (fMainWindow !is null && fMainWindow.rootWidget !is null) {
+      fMainWindow.rootWidget.markTreeDirty();
       sendUpdateUiLayerEvent();
     }
   }
@@ -318,6 +330,7 @@ private:
   ControllerStack controllers;
   MessageBus messageBus;
   Window fMainWindow;
+  WidgetViewController[string] widgetControllers;
 } // -UiSystem
 
 ////// TESTS /////
@@ -831,7 +844,7 @@ unittest {
   auto ui = new UiSystemImpl(win);
   auto root = new Widget(null, RectF(0, 0, 320, 240));
   root.components.background = new Background(ColorF(0.1f, 0.1f, 0.1f, 1.0f));
-  win.view = root;
+  win.rootWidget = root;
 
   assert(root.isTreeLayoutDirty());
   assert(root.isTreeDirty());

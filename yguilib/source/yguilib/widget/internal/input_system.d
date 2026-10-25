@@ -330,12 +330,15 @@ RectF computeWidgetAbsRect(Widget w) {
 version (unittest) {
   import yguilib.controller : Controller;
   import yguilib.window : Window;
+  import yguilib.widget : WidgetViewController;
 
   class TestUiSystem : UiSystem {
     AppEvent[] sentEvents;
     override void sendAppEvent(AppEvent ev) {
       sentEvents ~= ev;
     }
+    override void registerWidgetViewController(WidgetViewController c) {}
+    override void unregisterWidgetViewController(WidgetViewController c) {}
     override void popController() {}
     override void pushController(Controller c) {}
     override void pushModalController(Controller c) {}

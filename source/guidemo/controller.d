@@ -23,7 +23,7 @@ final class DemoController : DefaultController {
     this.app = app;
     tracker = ModelTracker!DemoModel(new DemoModel);
     view = new DemoView(tracker);
-    app.ui.mainWindow().view = view.getRootWidget();
+    app.ui.mainWindow().rootWidget = view.getRootWidget();
   }
 
   override bool updateView() {

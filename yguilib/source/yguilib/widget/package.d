@@ -4,13 +4,13 @@ import yguilib.widget.drawing_components;
 import yguilib.render.render_types;
 import yguilib.widget.layout_components;
 import yguilib.widget.input_components;
-import yguilib.controller : Controller;
 import yguilib.render.font : defaultFontPtSize;
 import std.typecons : Nullable;
 
 // TODO implement code first approach, without symbolic bindings
 
 interface WidgetViewController {
+  string getControllerName();
   void addView(Widget v);
 }
 
