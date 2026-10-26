@@ -50,8 +50,14 @@ class ViewComponent : Component {
   /// E.g. an app needs to implement one hover button or a colour picker
   /// controller to monitor and animate Widgets, that controller gets registered
   /// by name and widgets are autowired to it.
+  // visual editor features:
   // TODO implement
   string addToController;
+  // TODO parameters to that view, whose controller checks models on update.
+  // this is a design parameter, at runtime ModelTracker instances to be constructed.
+  // so need a named registry of model types and a factory, so that ModelTracker instances
+  // can be constructed at runtime via string parameters.
+  string[string] trackedModels;
 }
 
 struct WidgetComponents {

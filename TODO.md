@@ -1,10 +1,12 @@
 looks like does not fit the proper paradigm, it should be a system rather than
-a controller:
+a controller for multiple controls like hover effect, however can be used
+to accept data model name and resolve field names to controls:
 	- WidgetViewController to support controllers that only need Widget as a view and
 	registered via registry. --
 	- addView method may support multiple Views or error if already added view
 
-- update sources to this logic (guidemo etc.)
+- introduce a hover system and demonstrate how hover can be implemented with this together with
+keeping current hover controller in guidemo
 - add named controller registry and wiring logic, so that View.addToController is used
 instead of manually adding views to controllers for HoverButton
 - check if it's ergonomically better
