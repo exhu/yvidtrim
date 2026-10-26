@@ -90,6 +90,12 @@ final class Widget {
     }
   }
 
+  // TODO refactor a lot of update methods into
+  // a coherent solution, and bear semantics, i.e. content may affect layout but
+  // we should distinguish between those for possibility to optimize instead of
+  // using only layout marker, e.g. enum { parentView, content (text, image
+  // anything that may affect layout), visuals, layout, all }
+
   /// Recomputes cached parentView for this widget and all its descendants.
   /// Call after adding or removing View components in the widget tree.
   void updateParentViews() {
