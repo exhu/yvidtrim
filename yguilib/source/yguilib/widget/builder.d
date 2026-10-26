@@ -3,7 +3,7 @@ module yguilib.widget.builder;
 import std.typecons : Nullable;
 import yguilib.render.font : defaultFontPtSize;
 import yguilib.render.render_types : ColorF, RectF;
-import yguilib.widget : View, Widget;
+import yguilib.widget : ViewComponent, Widget;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.input_components : MouseEvent;
 import yguilib.widget.layout_components : AlignItems, Anchor, Dimension,
@@ -289,10 +289,10 @@ struct WidgetBuilder {
     return this;
   }
 
-  /// Attaches a View component to mark a view root and optional event mappings.
+  /// Attaches a ViewComponent to mark a view root and optional event mappings.
   ref WidgetBuilder view(string[string] events = null) return {
     if (widget.components.view is null) {
-      widget.components.view = new View();
+      widget.components.view = new ViewComponent();
     }
     widget.components.view.renameEvents = events;
     return this;

@@ -55,7 +55,7 @@ import yguilib.events : AppEvent;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
-import yguilib.widget : View, Widget;
+import yguilib.widget : ViewComponent, Widget;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.input_components : MouseEvent;

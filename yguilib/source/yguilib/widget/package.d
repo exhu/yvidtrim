@@ -42,7 +42,7 @@ interface WidgetViewController {
 ///
 /// Thus the widget tree can be constructed separately from controller code.
 /// Controllers are then created with pointers to view widgets and data.
-class View : Component {
+class ViewComponent : Component {
   /// Renames an event and changes event.view.viewWidget to the attached widget.
   /// An empty string value ("") prevents the event from going up the tree.
   string[string] renameEvents;
@@ -67,7 +67,7 @@ struct WidgetComponents {
   CustomDraw customDraw;
 
   // action/logic
-  View view;
+  ViewComponent view;
   Focus focus;
   DefaultButton defaultButton;
   KeyboardEvent keyboardEvent;

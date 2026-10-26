@@ -9,7 +9,7 @@ import yguilib.events;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.uisystem : UiSystem;
 import yguilib.render.render_types;
-import yguilib.widget : Widget, View;
+import yguilib.widget : Widget, ViewComponent;
 import yguilib.widget.input_components : MouseEvent;
 
 enum maxMouseButtons = 8;
@@ -365,7 +365,7 @@ unittest {
 
   testUi.sentEvents = null;
   auto rootView = new Widget(null, RectF(0, 0, 200, 200));
-  rootView.components.view = new View;
+  rootView.components.view = new ViewComponent;
   rootView.components.view.renameEvents["btnClick"] = "playVideo";
   auto childBtn = new Widget(rootView, RectF(0, 0, 50, 50));
   auto ev2 = ViewAppEventBuilder("btnClick", childBtn).value(1).build();
@@ -388,11 +388,11 @@ unittest {
   auto inputSys = new InputSystem(testUi);
 
   auto outerView = new Widget(null, RectF(0, 0, 400, 400));
-  outerView.components.view = new View;
+  outerView.components.view = new ViewComponent;
   outerView.components.view.renameEvents["itemSelected"] = "orderUpdated";
 
   auto innerView = new Widget(outerView, RectF(0, 0, 200, 200));
-  innerView.components.view = new View;
+  innerView.components.view = new ViewComponent;
   innerView.components.view.renameEvents["click"] = "itemSelected";
 
   auto nestedBtn = new Widget(innerView, RectF(0, 0, 50, 50));
@@ -411,7 +411,7 @@ unittest {
 
   testUi.sentEvents = null;
   auto selfView = new Widget(null, RectF(0, 0, 100, 100));
-  selfView.components.view = new View;
+  selfView.components.view = new ViewComponent;
   selfView.components.view.renameEvents["panelClick"] = "openPanel";
   auto ev6 = ViewAppEventBuilder("panelClick", selfView).value(1).build();
   inputSys.passEvent(selfView, ev6);
@@ -728,7 +728,7 @@ unittest {
   testUi.sentEvents = null;
   auto parentRoot = new Widget(null, RectF(0, 0, 200, 200));
   auto childW = new Widget(parentRoot, RectF(10, 10, 50, 50));
-  parentRoot.components.view = new View;
+  parentRoot.components.view = new ViewComponent;
   parentRoot.components.view.renameEvents["childClick"] = "renamedClick";
   parentRoot.updateParentViews();
 
