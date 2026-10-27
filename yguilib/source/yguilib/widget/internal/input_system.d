@@ -9,7 +9,7 @@ import yguilib.events;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.uisystem : UiSystem;
 import yguilib.render.render_types;
-import yguilib.widget : Widget, ViewComponent;
+import yguilib.widget : Widget, ViewComponent, WidgetUpdateScope;
 import yguilib.widget.input_components : MouseEvent;
 
 enum maxMouseButtons = 8;
@@ -724,13 +724,13 @@ unittest {
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "aUp");
 
-  // T20: View attached after child creation + updateParentViews works
+  // T20: View attached after child creation + update(parentView) works
   testUi.sentEvents = null;
   auto parentRoot = new Widget(null, RectF(0, 0, 200, 200));
   auto childW = new Widget(parentRoot, RectF(10, 10, 50, 50));
   parentRoot.components.view = new ViewComponent;
   parentRoot.components.view.renameEvents["childClick"] = "renamedClick";
-  parentRoot.updateParentViews();
+  parentRoot.update(WidgetUpdateScope.parentView);
 
   auto childEv = ViewAppEventBuilder("childClick", childW).value(1).build();
   inputSys.passEvent(childW, childEv);

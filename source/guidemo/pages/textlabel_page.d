@@ -6,7 +6,7 @@ module guidemo.pages.textlabel_page;
 import guidemo.common : makeSectionCard;
 import guidemo.model : DemoModel;
 import yguilib.render.render_types : ColorF, PointF, RectF;
-import yguilib.widget : Widget;
+import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.layout_components : Dimension, Insets, Size, SizingMode;
@@ -37,7 +37,7 @@ final class TextLabelPage {
         tl.overflowEllipsis = m.labelEllipsis;
         tl.alignment = m.labelAlignment;
         tl.caption = targetText;
-        interactiveLabelWidget.update();
+        interactiveLabelWidget.update(WidgetUpdateScope.content);
       }
     }
 

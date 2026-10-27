@@ -12,7 +12,7 @@ import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.events.internal.message_bus : MessageBus;
 import yguilib.events.internal.sdl_events : appEventFromSdlEvent;
 import yguilib.render : Renderer;
-import yguilib.widget : Widget, WidgetViewController;
+import yguilib.widget : Widget, WidgetUpdateScope, WidgetViewController;
 import yguilib.widget.internal.collect_visible;
 import yguilib.widget.internal.widget_painter : WidgetPainterSystem;
 import yguilib.widget.internal.layout_system : LayoutSystem;
@@ -280,7 +280,7 @@ private:
 
   void redraw() {
     if (fMainWindow !is null && fMainWindow.rootWidget !is null) {
-      fMainWindow.rootWidget.markTreeDirty();
+      fMainWindow.rootWidget.update(WidgetUpdateScope.all);
       sendUpdateUiLayerEvent();
     }
   }
@@ -872,7 +872,7 @@ unittest {
   version(none) {
 
   // Mark paint-only dirty
-  root.markDirty(false);
+  root.update(WidgetUpdateScope.visuals);
   assert(!root.isTreeLayoutDirty());
   assert(root.isTreeDirty());
   // updateLayout must remain skipped because layout is not dirty

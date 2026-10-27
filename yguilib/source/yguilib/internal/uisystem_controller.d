@@ -1,7 +1,7 @@
 module yguilib.internal.uisystem_controller;
 import yguilib.controller;
 import yguilib.render : Renderer;
-import yguilib.widget : Widget;
+import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.internal.collect_visible;
 import yguilib.widget.internal.widget_painter : WidgetPainterSystem;
 import yguilib.widget.internal.layout_system : LayoutSystem;
@@ -98,8 +98,9 @@ private:
 
     if (isMainWindowEvent(event.window.windowId)) {
       uiSystem.mainWindow.handleWindowEvent(event);
-      if (uiSystem.mainWindow.rootWidget !is null && event.isWindowRedrawEvent()) {
-        uiSystem.mainWindow.rootWidget.markTreeDirty();
+      if (uiSystem.mainWindow.rootWidget !is null &&
+          event.isWindowRedrawEvent()) {
+        uiSystem.mainWindow.rootWidget.update(WidgetUpdateScope.all);
         return true;
       }
     }

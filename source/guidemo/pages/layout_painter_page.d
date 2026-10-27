@@ -8,7 +8,7 @@ import std.typecons : Nullable, nullable;
 import guidemo.common : makeSectionCard;
 import guidemo.model : DemoModel;
 import yguilib.render.render_types : ColorF, PointF, RectF;
-import yguilib.widget : Widget;
+import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.layout_components : AlignItems, Anchor, Dimension,
@@ -50,14 +50,14 @@ final class LayoutPainterPage {
         playgroundFlex.justify = m.justify;
         playgroundFlex.alignItems = m.alignItems;
         playgroundFlex.gap = m.gap;
-        playgroundContainer.update();
+        playgroundContainer.update(WidgetUpdateScope.layout);
       }
     }
 
     // 4. Update dynamic visibility child
     if (playgroundChild2 !is null) {
       if (playgroundChild2.setVisible(m.child2Visible)) {
-        playgroundContainer.update();
+        playgroundContainer.update(WidgetUpdateScope.layout);
       }
     }
   }

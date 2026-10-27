@@ -8,7 +8,7 @@ import yguilib.events.keyboard : Keycode;
 import yguilib.model : ModelTracker, VersionedModel;
 import colors = yguilib.render.colors;
 import yguilib.render.render_types : ColorF, RectF;
-import yguilib.widget : Widget;
+import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border;
 import yguilib.widget.layout_components : AlignItems, Anchor, FlexContainer,
@@ -101,17 +101,17 @@ public:
     if (tracker.update()) {
       if (toggleWidget.visible != tracker.model.toggleVisible) {
         toggleWidget.visible = tracker.model.toggleVisible;
-        toggleWidget.update();
+        toggleWidget.update(WidgetUpdateScope.layout);
       }
       if (alphaWidget.components.background !is null &&
           alphaWidget.components.background.color.a !=
           tracker.model.alphaValue) {
         alphaWidget.components.background.color.a = tracker.model.alphaValue;
-        alphaWidget.update();
+        alphaWidget.update(WidgetUpdateScope.visuals);
       }
       if (fc.alignItems != tracker.model.alignItems) {
         fc.alignItems = tracker.model.alignItems;
-        container.update();
+        container.update(WidgetUpdateScope.layout);
         writeln("alignItems=", fc.alignItems);
       }
     }

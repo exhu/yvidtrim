@@ -3,7 +3,7 @@ module yguilib.widget.builder;
 import std.typecons : Nullable;
 import yguilib.render.font : defaultFontPtSize;
 import yguilib.render.render_types : ColorF, RectF;
-import yguilib.widget : ViewComponent, Widget;
+import yguilib.widget : ViewComponent, Widget, WidgetUpdateScope;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.input_components : MouseEvent;
 import yguilib.widget.layout_components : AlignItems, Anchor, Dimension,
@@ -309,7 +309,7 @@ struct WidgetBuilder {
   }
 
   Widget build() {
-    widget.updateParentViews();
+    widget.update(WidgetUpdateScope.parentView);
     return widget;
   }
 

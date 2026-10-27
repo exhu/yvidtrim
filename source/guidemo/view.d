@@ -9,7 +9,7 @@ import guidemo.pages.layout_painter_page : LayoutPainterPage;
 import guidemo.pages.textlabel_page : TextLabelPage;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
-import yguilib.widget : Widget;
+import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.layout_components : AlignItems, FlexDirection, Insets,
@@ -54,7 +54,7 @@ final class DemoView {
       page1.setVisible(p1Vis);
       page2.setVisible(p2Vis);
       page3.setVisible(p3Vis);
-      view.update();
+      view.update(WidgetUpdateScope.layout);
     }
 
     // 2. Update tab button highlights

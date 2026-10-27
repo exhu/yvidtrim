@@ -80,7 +80,51 @@ struct WidgetComponents {
   MouseEvent mouseEvent;
 }
 
+/// Specifies which aspect of a widget changed when calling `Widget.update`.
+///
+/// Semantics overview:
+/// - `parentView`: Recomputes cached `parentView` for this widget and all
+///   descendants. Use when `ViewComponent` is added/removed or a subtree is
+///   attached.
+/// - `content`: Marks `dirty = true` on this widget, and if `hasAutoSizing()`
+///   is true, marks this widget and its ancestors `layoutDirty` and `dirty`.
+///   Use when text caption, font, multiline, ellipsis, or image content
+///   changed.
+/// - `visuals`: Marks only `this.dirty = true` without triggering layout
+///   recalculation. Use when color, alpha, corner radius, dash style, or
+///   alignment within fixed bounds changed.
+/// - `layout`: Marks this widget and its ancestors `layoutDirty = true` and
+///   `dirty = true`. Use when `visible`, `rect`, `Size`, `FlexContainer`,
+///   `Anchor`, padding, margin, or border width changed.
+/// - `all`: Recomputes `parentView` for the subtree, marks ancestors
+///   `layoutDirty`, and marks this widget and all descendants `dirty` and
+///   `layoutDirty`. Safe catch-all and full-tree invalidation (e.g. window
+///   redraw or scaling change).
+enum WidgetUpdateScope {
+  /// Recomputes cached `parentView` for this widget and all descendants.
+  /// Use when `ViewComponent` is added/removed or a subtree is attached.
+  parentView,
+  /// Intrinsic content changed (e.g. text caption, font, multiline, ellipsis,
+  /// or image). Sets `dirty = true`, and if `hasAutoSizing()` is true, marks
+  /// this widget and its ancestors `layoutDirty` and `dirty`.
+  content,
+  /// Visual-only properties changed (e.g. color, alpha, corner radius, dash
+  /// style, or alignment within fixed bounds). Sets `dirty = true` on this
+  /// widget and never triggers layout recalculation.
+  visuals,
+  /// Geometry, visibility, or layout components changed (e.g. `visible`,
+  /// `rect`, `Size`, `FlexContainer`, `Anchor`, padding, margin, or border
+  /// width). Marks this widget and its ancestors `layoutDirty = true` and
+  /// `dirty = true`.
+  layout,
+  /// Full invalidation: recomputes `parentView` for the subtree, marks
+  /// ancestors `layoutDirty`, and marks this widget and all descendants
+  /// `dirty` and `layoutDirty`.
+  all,
+}
+
 final class Widget {
+  /// Constructs a widget. `parent` is allowed to be null for root widgets.
   this(Widget parent, RectF rect) {
     this.parent = parent;
     this.rect = rect;
@@ -90,34 +134,31 @@ final class Widget {
     }
   }
 
-  // TODO refactor a lot of update methods into
-  // a coherent solution, and bear semantics, i.e. content may affect layout but
-  // we should distinguish between those for possibility to optimize instead of
-  // using only layout marker, e.g. enum { parentView, content (text, image
-  // anything that may affect layout), visuals, layout, all }
-
-  /// Recomputes cached parentView for this widget and all its descendants.
-  /// Call after adding or removing View components in the widget tree.
-  void updateParentViews() {
-    fParentView = findParentView();
-    foreach (child; children) {
-      child.updateParentViews();
+  /// Invalidates cached state and marks the widget for redraw and/or layout
+  /// according to `scope_`.
+  void update(WidgetUpdateScope scope_ = WidgetUpdateScope.all) {
+    final switch (scope_) {
+    case WidgetUpdateScope.parentView:
+      updateParentViews();
+      break;
+    case WidgetUpdateScope.visuals:
+      dirty = true;
+      break;
+    case WidgetUpdateScope.content:
+      dirty = true;
+      if (hasAutoSizing()) {
+        markLayoutDirty();
+      }
+      break;
+    case WidgetUpdateScope.layout:
+      markLayoutDirty();
+      break;
+    case WidgetUpdateScope.all:
+      updateParentViews();
+      markLayoutDirty();
+      markTreeDirty();
+      break;
     }
-  }
-
-  /// call after changing properties' or components' values
-  void update() {
-    markDirty(false);
-  }
-
-  /// force update everything (usually not necessary)
-  void updateLayout() {
-    markLayoutDirty();
-  }
-
-  /// force only rerender (could be used to optimize animation-only updates)
-  void updateOnlyVisuals() {
-    dirty = true;
   }
 
   /// Returns the widget's content area rectangle, accounting for border
@@ -159,8 +200,8 @@ final class Widget {
 
 
   /// Sets text caption. If unchanged, returns false.
-  /// If changed, updates caption and marks layout-dirty if auto-sized
-  /// or multiline, otherwise marks only visual-dirty.
+  /// If changed, updates caption and marks content-dirty (which triggers
+  /// layout recalculation only when auto-sized).
   bool setCaption(string newCaption) {
     if (components.textLabel is null) {
       return false;
@@ -169,8 +210,7 @@ final class Widget {
       return false;
     }
     components.textLabel.caption = newCaption;
-    const bool needsLayout = hasAutoSizing() || components.textLabel.multiline;
-    markDirty(needsLayout);
+    update(WidgetUpdateScope.content);
     return true;
   }
 
@@ -185,7 +225,7 @@ final class Widget {
       return false;
     }
     components.background.color = newColor;
-    updateOnlyVisuals();
+    update(WidgetUpdateScope.visuals);
     return true;
   }
 
@@ -199,7 +239,7 @@ final class Widget {
       return false;
     }
     components.textLabel.color = newColor;
-    updateOnlyVisuals();
+    update(WidgetUpdateScope.visuals);
     return true;
   }
 
@@ -213,7 +253,7 @@ final class Widget {
       return false;
     }
     components.border.color = newColor;
-    updateOnlyVisuals();
+    update(WidgetUpdateScope.visuals);
     return true;
   }
 
@@ -224,7 +264,7 @@ final class Widget {
       return false;
     }
     visible = newVis;
-    markDirty(true);
+    update(WidgetUpdateScope.layout);
     return true;
   }
 
@@ -233,7 +273,7 @@ final class Widget {
   Widget findByName(string nameToSearch) {
     if (name == nameToSearch)
       return this;
-    foreach(c; children) {
+    foreach (c; children) {
       auto w = c.findByName(nameToSearch);
       if (w)
         return w;
@@ -280,37 +320,6 @@ package(yguilib):
     return components.flexContainer !is null;
   }
 
-  /// Sets the dirty flag.
-  /// If layout is true, or if this widget has auto-sized dimensions,
-  /// marks this widget and its ancestors as layout-dirty so the layout
-  /// system recalculates stale geometry.
-  /// If layout is false, marks only this widget as dirty for redrawing,
-  /// preserving cached layout calculations.
-  void markDirty(bool layout = true) {
-    dirty = true;
-    if (layout || hasAutoSizing() || isFlexContainer()) {
-      markLayoutDirty();
-    }
-  }
-
-  /// Marks this widget and its ancestors as layout dirty.
-  void markLayoutDirty() {
-    layoutDirty = true;
-    dirty = true;
-    if (parent !is null && !parent.layoutDirty) {
-      parent.markLayoutDirty();
-    }
-  }
-
-  /// Marks this widget and all its descendants as dirty and layout-dirty.
-  void markTreeDirty() {
-    dirty = true;
-    layoutDirty = true;
-    foreach (child; children) {
-      child.markTreeDirty();
-    }
-  }
-
   /// Returns true if this widget or any visible descendant needs redrawing.
   bool isTreeDirty() const {
     if (!visible) {
@@ -355,6 +364,32 @@ package(yguilib):
   bool layoutDirty = true;
 
 private:
+  /// Recomputes cached parentView for this widget and all its descendants.
+  void updateParentViews() {
+    fParentView = findParentView();
+    foreach (child; children) {
+      child.updateParentViews();
+    }
+  }
+
+  /// Marks this widget and its ancestors as layout dirty.
+  void markLayoutDirty() {
+    layoutDirty = true;
+    dirty = true;
+    if (parent !is null && !parent.layoutDirty) {
+      parent.markLayoutDirty();
+    }
+  }
+
+  /// Marks this widget and all its descendants as dirty and layout-dirty.
+  void markTreeDirty() {
+    dirty = true;
+    layoutDirty = true;
+    foreach (child; children) {
+      child.markTreeDirty();
+    }
+  }
+
   Widget fParentView;
 }
 
@@ -396,8 +431,8 @@ unittest {
   assert(!root.isTreeDirty());
   assert(!root.isTreeLayoutDirty());
 
-  // Paint-only dirty on child (no auto sizing)
-  child.markDirty(false);
+  // Visuals-only update on child
+  child.update(WidgetUpdateScope.visuals);
   assert(child.dirty);
   assert(!child.layoutDirty);
   assert(!root.dirty);
@@ -405,28 +440,56 @@ unittest {
   assert(root.isTreeDirty());
   assert(!root.isTreeLayoutDirty());
 
-  // Reset and test auto sizing upgrade
+  // Content update on child without auto sizing: only visual dirty
+  child.dirty = false;
+  child.update(WidgetUpdateScope.content);
+  assert(child.dirty);
+  assert(!child.layoutDirty);
+  assert(!root.dirty);
+  assert(!root.layoutDirty);
+
+  // Content update on child with auto sizing: upgrades to layout dirty
   child.dirty = false;
   auto sz = new Size;
   sz.width = Dimension(0, SizingMode.auto_);
   child.components.size = sz;
   assert(child.hasAutoSizing());
 
-  child.markDirty(false); // even with layout=false, auto_ forces layout
+  child.update(WidgetUpdateScope.content);
   assert(child.dirty);
   assert(child.layoutDirty);
   assert(root.dirty);
   assert(root.layoutDirty);
   assert(root.isTreeLayoutDirty());
 
-  // Test markTreeDirty
+  // Visuals update on auto-sized child does NOT trigger layout dirty
   root.dirty = false;
   root.layoutDirty = false;
   child.dirty = false;
   child.layoutDirty = false;
-  root.markTreeDirty();
+  child.update(WidgetUpdateScope.visuals);
+  assert(child.dirty);
+  assert(!child.layoutDirty);
+  assert(!root.layoutDirty);
+
+  // Layout update marks widget and ancestors layout dirty
+  child.dirty = false;
+  child.components.size = null;
+  child.update(WidgetUpdateScope.layout);
+  assert(child.dirty && child.layoutDirty);
+  assert(root.dirty && root.layoutDirty);
+
+  // Test WidgetUpdateScope.all (default update())
+  root.dirty = false;
+  root.layoutDirty = false;
+  child.dirty = false;
+  child.layoutDirty = false;
+  root.components.view = new ViewComponent;
+  assert(child.parentView is null);
+  root.update();
   assert(root.dirty && root.layoutDirty);
   assert(child.dirty && child.layoutDirty);
+  assert(child.parentView is root);
 
   root.dirty = false;
   child.dirty = true;

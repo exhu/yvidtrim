@@ -5,7 +5,7 @@ import yguilib.clibs.sdl3;
 import yguilib.events : AppEvent;
 import yguilib.render : Renderer;
 import yguilib.render.render_types : RectF;
-import yguilib.widget : Widget;
+import yguilib.widget : Widget, WidgetUpdateScope;
 
 // TODO support minimum width and height based on view's Size component.
 class Window {
@@ -233,7 +233,7 @@ private:
       );
       if (rootWidget.rect != newRect) {
         rootWidget.rect = newRect;
-        rootWidget.markTreeDirty();
+        rootWidget.update(WidgetUpdateScope.all);
       }
     }
   }
