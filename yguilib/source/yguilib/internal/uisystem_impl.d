@@ -13,17 +13,25 @@ import yguilib.events.internal.message_bus : MessageBus;
 import yguilib.events.internal.sdl_events : appEventFromSdlEvent;
 import yguilib.render : Renderer;
 import yguilib.widget : Widget, WidgetUpdateScope, WidgetViewController;
-import yguilib.widget.internal.collect_visible;
-import yguilib.widget.internal.widget_painter : WidgetPainterSystem;
-import yguilib.widget.internal.layout_system : LayoutSystem;
-import yguilib.window : Window;
+import yguilib.widget.internal.focus_system : FocusSystem;
 import yguilib.widget.internal.input_system;
+import yguilib.widget.internal.layout_system : LayoutSystem;
+import yguilib.widget.internal.system_pipeline : WidgetSystemPipeline;
+import yguilib.widget.internal.widget_painter : WidgetPainterSystem;
+import yguilib.widget.system : WidgetSystem;
+import yguilib.window : Window;
 import yguilib.internal.uisystem_controller;
 
 class UiSystemImpl : UiSystem {
+  /// Constructs UiSystemImpl. Window w is allowed to be null in headless tests.
   this(Window w) {
     fMainWindow = w;
     messageBus = MessageBus(this);
+    pipeline = new WidgetSystemPipeline(this);
+    pipeline.registerSystem(new FocusSystem());
+    pipeline.registerSystem(new InputSystem(this));
+    pipeline.registerSystem(new LayoutSystem());
+    pipeline.registerSystem(new WidgetPainterSystem());
   }
 
   /// safe to call from a thread
@@ -33,6 +41,24 @@ class UiSystemImpl : UiSystem {
 
   override @property Window mainWindow() {
     return fMainWindow;
+  }
+
+  override void registerWidgetSystem(WidgetSystem system) {
+    assert(system !is null);
+    pipeline.registerSystem(system);
+  }
+
+  override void unregisterWidgetSystem(WidgetSystem system) {
+    assert(system !is null);
+    pipeline.unregisterSystem(system);
+  }
+
+  package(yguilib) @property WidgetSystemPipeline systemPipeline() {
+    return pipeline;
+  }
+
+  protected override WidgetSystem findWidgetSystemByType(TypeInfo_Class type) {
+    return pipeline.findSystemByType(type);
   }
 
   override void pushController(Controller c) {
@@ -68,7 +94,7 @@ class UiSystemImpl : UiSystem {
       }
     }
 
-    pushController(new UiSystemController(this));
+    pushController(new UiSystemController(this, pipeline));
 
     // TODO remove?
     auto initialController = getActiveControllerOrNull();
@@ -331,6 +357,7 @@ private:
   MessageBus messageBus;
   Window fMainWindow;
   WidgetViewController[string] widgetControllers;
+  WidgetSystemPipeline pipeline;
 } // -UiSystem
 
 ////// TESTS /////
@@ -829,17 +856,17 @@ unittest {
   assert(timeoutMs == -1);
 }
 
-// Verifies dirty flag optimization gating in updateLayout and renderFrame.
+// Verifies dirty flag optimization gating in updateAndRender.
 unittest {
   import yguilib.render.render_types : ColorF, RectF;
   import yguilib.widget.drawing_components : Background;
 
   yguilib_sdl3_init();
-  scope(exit) yguilib_sdl3_quit();
+  scope (exit) yguilib_sdl3_quit();
 
   auto win = new Window(320, 240, "test_dirty_gating");
   win.create();
-  scope(exit) win.destroy();
+  scope (exit) win.destroy();
 
   auto ui = new UiSystemImpl(win);
   auto root = new Widget(null, RectF(0, 0, 320, 240));
@@ -849,38 +876,99 @@ unittest {
   assert(root.isTreeLayoutDirty());
   assert(root.isTreeDirty());
 
-  // TODO move tests to uisystem_controller
-  version(none) {
   // First layout and render pass: performs layout and rendering
-  ui.updateLayout();
+  ui.systemPipeline.updateAndRender(win);
   assert(!root.isTreeLayoutDirty());
-  assert(root.isTreeDirty());
-
-  ui.renderFrame();
   assert(!root.isTreeDirty());
 
   // With flags clean, layout and rendering must be skipped
-  ui.updateLayout();
+  ui.systemPipeline.updateAndRender(win);
   assert(!root.isTreeLayoutDirty());
-
-  ui.renderFrame();
   assert(!root.isTreeDirty());
-  }
-
-
-  // TODO move tests to uisystem_controller
-  version(none) {
 
   // Mark paint-only dirty
   root.update(WidgetUpdateScope.visuals);
   assert(!root.isTreeLayoutDirty());
   assert(root.isTreeDirty());
-  // updateLayout must remain skipped because layout is not dirty
-  ui.updateLayout();
-  assert(!root.isTreeLayoutDirty());
 
-  // renderFrame must execute and clear dirty
-  ui.renderFrame();
+  // updateAndRender must execute render and clear dirty without layoutDirty
+  ui.systemPipeline.updateAndRender(win);
+  assert(!root.isTreeLayoutDirty());
   assert(!root.isTreeDirty());
+}
+
+// Verifies end-to-end custom WidgetSystem registration, lookup, and execution.
+unittest {
+  import yguilib.render.render_types : ColorF, RectF;
+  import yguilib.widget.component : Component;
+  import yguilib.widget.system : SystemPhase, WidgetSystemContext;
+
+  final class CounterComponent : Component {
+    int count;
+    this(int count) {
+      this.count = count;
+    }
   }
+
+  final class CounterSystem : WidgetSystem {
+    this() nothrow @safe {
+      super(10);
+    }
+
+    override @property SystemPhase phases() const nothrow @safe {
+      return SystemPhase.preLayout;
+    }
+
+    override void preLayout(ref WidgetSystemContext ctx) {
+      if (ctx.root is null) {
+        return;
+      }
+      traverse(ctx.root);
+    }
+
+    int totalCount = 0;
+
+  private:
+    void traverse(Widget w) {
+      if (auto c = w.components.get!CounterComponent()) {
+        totalCount += c.count;
+      }
+      foreach (child; w.children) {
+        traverse(child);
+      }
+    }
+  }
+
+  yguilib_sdl3_init();
+  scope (exit) yguilib_sdl3_quit();
+
+  auto win = new Window(320, 240, "test_custom_system");
+  win.create();
+  scope (exit) win.destroy();
+
+  auto ui = new UiSystemImpl(win);
+  auto customSys = new CounterSystem();
+  ui.registerWidgetSystem(customSys);
+
+  // Verify typed lookup via UiSystem interface
+  UiSystem uiSys = ui;
+  auto found = uiSys.findWidgetSystem!CounterSystem();
+  assert(found is customSys);
+
+  auto root = new Widget(null, RectF(0, 0, 320, 240));
+  root.components.set(new CounterComponent(5));
+  auto child = new Widget(root, RectF(10, 10, 100, 50));
+  child.components.set(new CounterComponent(10));
+  win.rootWidget = root;
+
+  assert(customSys.totalCount == 0);
+  ui.systemPipeline.updateAndRender(win);
+  assert(customSys.totalCount == 15);
+
+  // Unregister system
+  ui.unregisterWidgetSystem(customSys);
+  assert(uiSys.findWidgetSystem!CounterSystem() is null);
+
+  ui.systemPipeline.updateAndRender(win);
+  assert(customSys.totalCount == 15); // not incremented further
 }

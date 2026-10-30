@@ -78,6 +78,32 @@ struct WidgetComponents {
   DefaultButton defaultButton;
   KeyboardEvent keyboardEvent;
   MouseEvent mouseEvent;
+
+  /// Attaches or replaces a user-defined component of type `C`.
+  /// Pass `null` to remove the component of type `C`.
+  void set(C : Component)(C comp) {
+    if (comp is null) {
+      custom.remove(typeid(C));
+    } else {
+      custom[typeid(C)] = comp;
+    }
+  }
+
+  /// Retrieves a user-defined component of type `C`, or `null` if absent.
+  inout(C) get(C : Component)() inout {
+    if (auto p = typeid(C) in custom) {
+      return cast(inout(C))*p;
+    }
+    return null;
+  }
+
+  /// Returns true if a user-defined component of type `C` is attached.
+  bool has(C : Component)() const {
+    return (typeid(C) in custom) !is null;
+  }
+
+private:
+  Component[TypeInfo_Class] custom;
 }
 
 /// Specifies which aspect of a widget changed when calling `Widget.update`.
@@ -571,4 +597,65 @@ unittest {
   assert(!item.visible);
   assert(item.dirty && item.layoutDirty);
   assert(root.layoutDirty);
+}
+
+// Verifies custom user-defined Component storage in WidgetComponents.
+unittest {
+  final class TooltipComponent : Component {
+    string text;
+    this(string text) {
+      this.text = text;
+    }
+  }
+
+  final class BadgeComponent : Component {
+    int count;
+    this(int count) {
+      this.count = count;
+    }
+  }
+
+  auto w = new Widget(null, RectF(0, 0, 100, 100));
+
+  // Initial state: empty
+  assert(!w.components.has!TooltipComponent());
+  assert(w.components.get!TooltipComponent() is null);
+  assert(!w.components.has!BadgeComponent());
+  assert(w.components.get!BadgeComponent() is null);
+
+  // Set first component
+  auto tooltip = new TooltipComponent("Info");
+  w.components.set(tooltip);
+  assert(w.components.has!TooltipComponent());
+  assert(w.components.get!TooltipComponent() is tooltip);
+  assert(w.components.get!TooltipComponent().text == "Info");
+
+  // Read via const reference
+  const(Widget) cw = w;
+  assert(cw.components.has!TooltipComponent());
+  assert(cw.components.get!TooltipComponent() is tooltip);
+  assert(cw.components.get!TooltipComponent().text == "Info");
+
+  // Set second component without overwriting first
+  auto badge = new BadgeComponent(5);
+  w.components.set(badge);
+  assert(w.components.has!TooltipComponent());
+  assert(w.components.get!TooltipComponent() is tooltip);
+  assert(w.components.has!BadgeComponent());
+  assert(w.components.get!BadgeComponent() is badge);
+  assert(w.components.get!BadgeComponent().count == 5);
+
+  // Replace existing component
+  auto newTooltip = new TooltipComponent("Updated");
+  w.components.set(newTooltip);
+  assert(w.components.get!TooltipComponent() is newTooltip);
+  assert(w.components.get!TooltipComponent().text == "Updated");
+  assert(w.components.get!BadgeComponent() is badge);
+
+  // Remove component with null
+  w.components.set!TooltipComponent(null);
+  assert(!w.components.has!TooltipComponent());
+  assert(w.components.get!TooltipComponent() is null);
+  assert(w.components.has!BadgeComponent());
+  assert(w.components.get!BadgeComponent() is badge);
 }

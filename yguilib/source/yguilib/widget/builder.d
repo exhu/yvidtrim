@@ -4,6 +4,7 @@ import std.typecons : Nullable;
 import yguilib.render.font : defaultFontPtSize;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.widget : ViewComponent, Widget, WidgetUpdateScope;
+import yguilib.widget.component : Component;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.input_components : MouseEvent;
 import yguilib.widget.layout_components : AlignItems, Anchor, Dimension,
@@ -308,6 +309,12 @@ struct WidgetBuilder {
     return this;
   }
 
+  /// Attaches a custom user-defined Component of type C to the widget.
+  ref WidgetBuilder component(C : Component)(C comp) return {
+    widget.components.set!C(comp);
+    return this;
+  }
+
   Widget build() {
     widget.update(WidgetUpdateScope.parentView);
     return widget;
@@ -431,4 +438,19 @@ unittest {
     .build();
   assert(viewWidget.components.view !is null);
   assert(viewWidget.components.view.renameEvents["btn"] == "press");
+
+  // Custom component builder test
+  final class ExtraDataComponent : Component {
+    int tag;
+    this(int tag) {
+      this.tag = tag;
+    }
+  }
+  auto extra = new ExtraDataComponent(42);
+  auto customWidget = WidgetBuilder(RectF(0, 0, 50, 50))
+    .component(extra)
+    .build();
+  assert(customWidget.components.has!ExtraDataComponent());
+  assert(customWidget.components.get!ExtraDataComponent() is extra);
+  assert(customWidget.components.get!ExtraDataComponent().tag == 42);
 }

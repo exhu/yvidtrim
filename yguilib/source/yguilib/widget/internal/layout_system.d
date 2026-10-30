@@ -7,7 +7,9 @@ import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.widget;
 import yguilib.widget.layout_components;
 import yguilib.widget.drawing_components;
-import yguilib.widget.internal.collect_visible : VisibleWidgets, VisibleWidget;
+import yguilib.widget.system : SystemPhase, TwoPassWidgetSystem,
+  WidgetSystem, WidgetSystemContext;
+import yguilib.widget.visible : VisibleWidget, VisibleWidgets;
 import yguilib.widget.internal.layout_dimension : computeDimension;
 import yguilib.widget.internal.layout_content_size : calcContentSize,
   calcPaddingAndBorder;
@@ -15,7 +17,6 @@ import yguilib.widget.internal.layout_flex : alignChildCrossAxis,
   arrangeMainAxis, calcContentRect, computeJustifyOffsets, resolveFractionSizes,
   updateFlexChildTextHeight;
 import yguilib.widget.internal.layout_anchor : handleAnchorComp;
-
 
 // TODO move to public module, allow to register in LayoutSystem
 interface CustomLayout {
@@ -25,7 +26,38 @@ interface CustomLayout {
   void handleRootToLeaf(VisibleWidget vw, Renderer r);
 }
 
-final class LayoutSystem {
+final class LayoutSystem : TwoPassWidgetSystem {
+  this() nothrow @safe {
+    super(layoutSystemPriority);
+  }
+
+  override @property SystemPhase phases() const nothrow @safe {
+    return SystemPhase.layout;
+  }
+
+  override void layout(ref WidgetSystemContext ctx) {
+    if (ctx.root is null || !ctx.root.visible ||
+        ctx.unclippedWidgets.length == 0) {
+      return;
+    }
+    runTwoPass(ctx.unclippedWidgets, ctx);
+  }
+
+  override void processLeafToRoot(
+    ref VisibleWidget vw,
+    ref WidgetSystemContext ctx
+  ) {
+    handleSizeComp(vw, ctx.renderer);
+  }
+
+  override void processRootToLeaf(
+    ref VisibleWidget vw,
+    ref WidgetSystemContext ctx
+  ) {
+    handleAnchorComp(vw);
+    handleFlexContainerComp(vw, ctx.renderer);
+  }
+
   /// expects visibleWidgets to include clipped children as well
   void layoutTree(Widget root, Renderer r, VisibleWidgets visibleWidgets) {
     assert(root !is null);
@@ -42,18 +74,11 @@ final class LayoutSystem {
     }
     const RectF[] oldRects = oldRectBuf[];
 
-    // compute initial sizes: leaf to root
-    foreach_reverse (VisibleWidget vw; visibleWidgets) {
-      handleSizeComp(vw, r);
-      // TODO allow to extend via CustomLayout.handleLeafToRoot here
-    }
-
-    // compute position and sizes: root to leaf
-    foreach (VisibleWidget vw; visibleWidgets) {
-      handleAnchorComp(vw);
-      handleFlexContainerComp(vw, r);
-      // TODO allow to extend via CustomLayout.handleRootToLeaf here
-    }
+    WidgetSystemContext ctx;
+    ctx.root = root;
+    ctx.renderer = r;
+    ctx.unclippedWidgets = visibleWidgets;
+    layout(ctx);
 
     // Mark dirty if rect changed, and reset layoutDirty
     foreach (size_t i, ref vw; visibleWidgets) {
@@ -605,4 +630,11 @@ unittest {
   assert(textChild.rect.height > singleH);
   // secondChild must be below textChild, without overlap!
   assert(secondChild.rect.y >= textChild.rect.height + 5.0f);
+}
+
+// Verifies LayoutSystem priority and phases.
+unittest {
+  auto ls = new LayoutSystem();
+  assert(ls.priority == WidgetSystem.layoutSystemPriority);
+  assert(ls.phases == SystemPhase.layout);
 }

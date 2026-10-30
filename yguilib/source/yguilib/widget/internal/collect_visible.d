@@ -5,15 +5,7 @@ import std.array : Appender;
 import yguilib.render;
 import yguilib.render.render_types;
 import yguilib.widget;
-
-struct VisibleWidget {
-  Widget widget;
-  RectF absRect;
-  bool hasClip;
-  RectF clipRect;
-}
-
-alias VisibleWidgets = VisibleWidget[];
+import yguilib.widget.visible : VisibleWidget, VisibleWidgets;
 
 final class VisibleWidgetsCollector {
   /// recalculate visible list to use for layout and painter system.

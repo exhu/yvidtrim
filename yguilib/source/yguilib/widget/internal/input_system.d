@@ -4,10 +4,11 @@ package(yguilib):
 
 import std.algorithm.searching : canFind;
 import yguilib.widget.internal.focus_system;
-import yguilib.widget.internal.collect_visible : VisibleWidgets, VisibleWidget;
+import yguilib.widget.system : SystemEventResult, SystemPhase,
+  WidgetSystem, WidgetSystemContext, WidgetSystemHost;
+import yguilib.widget.visible : VisibleWidget, VisibleWidgets;
 import yguilib.events;
 import yguilib.events.builder : ViewAppEventBuilder;
-import yguilib.uisystem : UiSystem;
 import yguilib.render.render_types;
 import yguilib.widget : Widget, ViewComponent, WidgetUpdateScope;
 import yguilib.widget.input_components : MouseEvent;
@@ -20,21 +21,47 @@ struct HoverEntry {
 }
 
 // TODO support multiple windows
-final class InputSystem {
-  this(UiSystem uiSystem) {
-    assert(uiSystem !is null);
-    this.uiSystem = uiSystem;
+final class InputSystem : WidgetSystem {
+  this(WidgetSystemHost host) {
+    assert(host !is null);
+    super(inputSystemPriority);
+    this.host = host;
     this.focusSystem = new FocusSystem;
   }
 
   invariant {
-    assert(uiSystem !is null);
+    assert(host !is null);
     assert(focusSystem !is null);
+  }
+
+  override @property SystemPhase phases() const nothrow @safe {
+    return SystemPhase.event | SystemPhase.postLayout;
+  }
+
+  override void onRegister(WidgetSystemHost newHost) {
+    if (newHost !is null) {
+      host = newHost;
+    }
+  }
+
+  override SystemEventResult handleEvent(
+    in AppEvent event,
+    ref WidgetSystemContext ctx
+  ) {
+    const bool updateView = handleEventAndUpdateView(
+      event,
+      ctx.visibleWidgets
+    );
+    return SystemEventResult(false, updateView);
+  }
+
+  override void postLayout(ref WidgetSystemContext ctx) {
+    refreshHover(ctx.visibleWidgets);
   }
 
   /// Handles incoming input events.
   /// Returns true if the view needs updating (e.g. when focus changes).
-  bool handleEventAndUpdateView(AppEvent event, VisibleWidgets widgets) {
+  bool handleEventAndUpdateView(in AppEvent event, VisibleWidgets widgets) {
     if (!event.isKeyboardEvent() && !event.isMouseEvent())
       return false;
     // TODO call to focus system
@@ -251,7 +278,7 @@ private:
         return;
     }
 
-    uiSystem.sendAppEvent(event);
+    host.sendAppEvent(event);
   }
 
   bool applyViewRenaming(Widget viewWidget, ref AppEvent event) {
@@ -275,7 +302,7 @@ private:
   PointF lastMousePos;
   bool hasLastMousePos = false;
   FocusSystem focusSystem;
-  UiSystem uiSystem;
+  WidgetSystemHost host;
 }
 
 private:
@@ -328,24 +355,11 @@ RectF computeWidgetAbsRect(Widget w) {
 }
 
 version (unittest) {
-  import yguilib.controller : Controller;
-  import yguilib.window : Window;
-  import yguilib.widget : WidgetViewController;
-
-  class TestUiSystem : UiSystem {
+  class TestUiSystem : WidgetSystemHost {
     AppEvent[] sentEvents;
     override void sendAppEvent(AppEvent ev) {
       sentEvents ~= ev;
     }
-    override void registerWidgetViewController(WidgetViewController c) {}
-    override void unregisterWidgetViewController(WidgetViewController c) {}
-    override void popController() {}
-    override void pushController(Controller c) {}
-    override void pushModalController(Controller c) {}
-    override void popFocusRoot() {}
-    override void pushFocusRoot(Widget w) {}
-    override @property Window mainWindow() { return null; }
-    override void mainEventLoop() {}
   }
 }
 
@@ -802,4 +816,33 @@ unittest {
   inputSys.handleEventAndUpdateView(downEv, visKbOverBtn);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "btnDown");
+}
+
+// Verifies InputSystem WidgetSystem priority, phases, and phase entry points.
+unittest {
+  auto testUi = new TestUiSystem;
+  auto inputSys = new InputSystem(testUi);
+
+  assert(inputSys.priority == WidgetSystem.inputSystemPriority);
+  assert(inputSys.phases == (SystemPhase.event | SystemPhase.postLayout));
+
+  WidgetSystemContext ctx;
+  ctx.host = testUi;
+  auto btn = new Widget(null, RectF(0, 0, 100, 100));
+  btn.inputEnabled = true;
+  ctx.visibleWidgets = [
+    VisibleWidget(btn, RectF(0, 0, 100, 100), false, RectF.init)
+  ];
+
+  auto motion = AppEvent(
+    AppEvent.Kind.mouseMotion,
+    AppEvent.MouseData(0, 50.0f, 50.0f, 0, 0, 0, 0, false, 0)
+  );
+
+  auto res = inputSys.handleEvent(motion, ctx);
+  assert(!res.consumed);
+  assert(!res.requestUpdateView);
+
+  // postLayout triggers refreshHover
+  inputSys.postLayout(ctx);
 }

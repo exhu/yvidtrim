@@ -45,10 +45,13 @@ yguilib_src = files(
   'source/yguilib/widget/internal/layout_flex.d',
   'source/yguilib/widget/internal/layout_system.d',
   'source/yguilib/widget/internal/layout_text.d',
+  'source/yguilib/widget/internal/system_pipeline.d',
   'source/yguilib/widget/internal/text_label_cache.d',
   'source/yguilib/widget/internal/widget_painter.d',
   'source/yguilib/widget/layout_components.d',
   'source/yguilib/widget/package.d',
+  'source/yguilib/widget/system.d',
+  'source/yguilib/widget/visible.d',
   'source/yguilib/window.d',
 )
 

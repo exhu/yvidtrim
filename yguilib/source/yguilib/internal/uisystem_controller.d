@@ -1,34 +1,36 @@
 module yguilib.internal.uisystem_controller;
-import yguilib.controller;
-import yguilib.render : Renderer;
-import yguilib.widget : Widget, WidgetUpdateScope;
-import yguilib.widget.internal.collect_visible;
-import yguilib.widget.internal.widget_painter : WidgetPainterSystem;
-import yguilib.widget.internal.layout_system : LayoutSystem;
-import yguilib.widget.internal.input_system;
-import yguilib.events;
-import yguilib.uisystem;
+
+package(yguilib):
+
+import yguilib.controller : DefaultController, HandleResult;
+import yguilib.events : AppEvent;
+import yguilib.uisystem : UiSystem;
+import yguilib.widget : WidgetUpdateScope;
+import yguilib.widget.internal.system_pipeline : WidgetSystemPipeline;
+import yguilib.widget.system : SystemEventResult;
 
 // TODO support multiple windows
 final class UiSystemController : DefaultController {
-  this(UiSystem uiSystem) {
+  this(UiSystem uiSystem, WidgetSystemPipeline pipeline) {
+    assert(uiSystem !is null);
+    assert(pipeline !is null);
     super(uiSystem);
-    painterSystem = new WidgetPainterSystem;
-    visibleWidgetsCollector = new VisibleWidgetsCollector;
-    layoutSystem = new LayoutSystem;
-    inputSystem = new InputSystem(uiSystem);
+    this.pipeline = pipeline;
+  }
+
+  invariant {
+    assert(pipeline !is null);
   }
 
   override bool update() {
     return false;
   }
 
-  /// actual rendering of the whole app is here
+  /// Actual layout, post-layout, and rendering of the whole app is here.
   override bool updateView() {
-    import std.logger;
+    import std.logger : trace;
     trace("render");
-    updateLayout();
-    renderFrame();
+    pipeline.updateAndRender(uiSystem.mainWindow);
     // false because we are the ui system layer
     return false;
   }
@@ -37,64 +39,35 @@ final class UiSystemController : DefaultController {
     if (ev.kind == AppEvent.Kind.updateUiLayer) {
       return HandleResult(HandleResult.Result.updateView);
     }
-    if (handleWindowEvent(ev))
+    if (handleWindowEvent(ev)) {
       return HandleResult(HandleResult.Result.updateView);
-    if (inputSystem.handleEventAndUpdateView(ev, lastVisibleWidgets))
-      return HandleResult(HandleResult.Result.updateView);
+    }
+    const SystemEventResult sysRes = pipeline.handleEvent(
+      ev,
+      uiSystem.mainWindow
+    );
+    if (sysRes.requestUpdateView) {
+      return HandleResult(HandleResult.Result.updateView, sysRes.consumed);
+    }
+    if (sysRes.consumed) {
+      return HandleResult(HandleResult.Result.nothing, true);
+    }
     return super.handleEvent(ev);
   }
 
 private:
-  bool isViewAvailableForRendering() {
-    return (uiSystem.mainWindow !is null && uiSystem.mainWindow.rootWidget !is null &&
-      uiSystem.mainWindow.renderer !is null);
-  }
-
-  void renderFrame() {
-    if (uiSystem.mainWindow !is null) {
-      if (isViewAvailableForRendering()) {
-        if (!uiSystem.mainWindow.rootWidget.isTreeDirty()) {
-          return;
-        }
-        painterSystem.drawTree(lastVisibleWidgets, uiSystem.mainWindow.renderer);
-      }
-      uiSystem.mainWindow.swapBuffers();
-    }
-  }
-
-  void updateLayout() {
-    if (isViewAvailableForRendering()) {
-      if (!uiSystem.mainWindow.rootWidget.isTreeLayoutDirty() &&
-          lastVisibleWidgets.length > 0) {
-        return;
-      }
-      // collect visible on screen without widgets parent clipping
-      lastVisibleWidgets = visibleWidgetsCollector.collectVisible(
-        uiSystem.mainWindow.rootWidget, uiSystem.mainWindow.renderer, true
-      );
-      layoutSystem.layoutTree(
-        uiSystem.mainWindow.rootWidget, uiSystem.mainWindow.renderer,
-        lastVisibleWidgets
-      );
-      // collect visible with positions and sizes adjusted by layout,
-      // include clipping test
-      lastVisibleWidgets = visibleWidgetsCollector.collectVisible(
-        uiSystem.mainWindow.rootWidget, uiSystem.mainWindow.renderer, false
-      );
-      inputSystem.refreshHover(lastVisibleWidgets);
-    }
-  }
-
   bool isMainWindowEvent(uint windowId) {
-    return (windowId == 0 || uiSystem.mainWindow.id == 0 || windowId ==
-      uiSystem.mainWindow.id);
+    return (windowId == 0 || uiSystem.mainWindow.id == 0 ||
+      windowId == uiSystem.mainWindow.id);
   }
 
   bool handleWindowEvent(in AppEvent event) {
-    if (uiSystem.mainWindow is null)
+    if (uiSystem.mainWindow is null) {
       return false;
-    if (!event.isWindowEvent())
+    }
+    if (!event.isWindowEvent()) {
       return false;
+    }
 
     if (isMainWindowEvent(event.window.windowId)) {
       uiSystem.mainWindow.handleWindowEvent(event);
@@ -107,9 +80,5 @@ private:
     return false;
   }
 
-  WidgetPainterSystem painterSystem;
-  VisibleWidgetsCollector visibleWidgetsCollector;
-  VisibleWidgets lastVisibleWidgets;
-  LayoutSystem layoutSystem;
-  InputSystem inputSystem;
+  WidgetSystemPipeline pipeline;
 }

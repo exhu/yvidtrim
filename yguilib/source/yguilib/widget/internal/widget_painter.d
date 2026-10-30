@@ -9,7 +9,9 @@ import yguilib.render.font : Font, defaultFontPtSize;
 import yguilib.render.render_types : PointF, RectF, intersectRects;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget : Widget;
-import yguilib.widget.internal.collect_visible : VisibleWidgets;
+import yguilib.widget.system : SystemPhase, WidgetSystem,
+  WidgetSystemContext;
+import yguilib.widget.visible : VisibleWidgets;
 import yguilib.widget.internal.layout_text : getLineStep;
 import yguilib.widget.internal.text_label_cache : getLayoutLines;
 
@@ -31,12 +33,30 @@ interface CustomWidgetPainter {
  * collectVisible and passed to drawWidgets via VisibleWidget.absRect.
  */
 /// TODO support CustomWidgetPainter
-final class WidgetPainterSystem {
+final class WidgetPainterSystem : WidgetSystem {
+  this() nothrow @safe {
+    super(painterSystemPriority);
+  }
+
+  override @property SystemPhase phases() const nothrow @safe {
+    return SystemPhase.render;
+  }
+
+  override void render(ref WidgetSystemContext ctx) {
+    if (ctx.renderer is null || ctx.visibleWidgets.length == 0) {
+      return;
+    }
+    drawWidgets(ctx.visibleWidgets, ctx.renderer);
+  }
+
   void drawTree(VisibleWidgets widgets, Renderer r) {
     assert(widgets !is null);
     assert(r !is null);
 
     drawWidgets(widgets, r);
+    foreach (ref vw; widgets) {
+      vw.widget.dirty = false;
+    }
   }
 
 private:
@@ -85,8 +105,6 @@ private:
     }
 
     // TODO CustomWidgetPainter.drawBorder
-
-    w.dirty = false;
   }
 
   static void drawBackground(Widget w, in RectF absRect, Renderer r) {
@@ -190,6 +208,8 @@ unittest {
   auto widgets = collector.collectVisible(w, 320.0f, 240.0f);
 
   auto painter = new WidgetPainterSystem;
+  assert(painter.priority == WidgetSystem.painterSystemPriority);
+  assert(painter.phases == SystemPhase.render);
   painter.drawTree(widgets, renderer);
 
   assert(!w.dirty);

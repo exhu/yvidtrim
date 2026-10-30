@@ -568,8 +568,9 @@ private:
 // Unit tests verifying HoverButtonBuilder, View event renaming, and controller.
 unittest {
   import yguilib.controller : Controller;
-  import yguilib.window : Window;
   import yguilib.widget : WidgetViewController;
+  import yguilib.widget.system : WidgetSystem;
+  import yguilib.window : Window;
 
   class TestUiSystem : UiSystem {
     AppEvent[] sentEvents;
@@ -583,6 +584,13 @@ unittest {
     override void pushModalController(Controller c) {}
     override void popFocusRoot() {}
     override void pushFocusRoot(Widget w) {}
+    override void registerWidgetSystem(WidgetSystem system) {}
+    override void unregisterWidgetSystem(WidgetSystem system) {}
+    override protected WidgetSystem findWidgetSystemByType(
+      TypeInfo_Class type
+    ) {
+      return null;
+    }
     override @property Window mainWindow() { return null; }
     override void mainEventLoop() {}
   }
