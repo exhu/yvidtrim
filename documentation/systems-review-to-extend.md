@@ -287,6 +287,10 @@ abstract class WidgetSystem {
   /// Called once when the system is unregistered.
   void onUnregister() {}
 
+  /// Called when a window is closed/removed so systems with per-window state
+  /// can clean up entries keyed by `window` or `window.id`.
+  void onWindowClosed(Window window) {}
+
   /// Phase 1: Handle incoming AppEvent.
   SystemEventResult handleEvent(
     in AppEvent event,
@@ -407,8 +411,14 @@ while allowing user systems to query `w.components.get!TooltipComponent()`.
 1. **`InputSystem : WidgetSystem`**
    - `phases`: `SystemPhase.event | SystemPhase.postLayout`
    - `handleEvent(event, ctx)`: Delegates to existing
-     `handleEventAndUpdateView(event, ctx.visibleWidgets)`.
-   - `postLayout(ctx)`: Delegates to `refreshHover(ctx.visibleWidgets)`.
+     `handleEventAndUpdateView(event, ctx.visibleWidgets)` using the state for
+     `ctx.window`.
+   - `postLayout(ctx)`: Delegates to `refreshHover(ctx.visibleWidgets)` for
+     `ctx.window`.
+   - **Per-Window State**: Encapsulates `hoveredWidgets`, `hoverScratch`,
+     `pressedWidgets`, `lastMousePos`, `hasLastMousePos`, and `focusSystem`
+     inside a `WindowInputState` struct keyed by `Window` (or `window.id`),
+     cleaning up on `onWindowClosed(Window)`.
 
 2. **`LayoutSystem : TwoPassWidgetSystem` (or `WidgetSystem`)**
    - `phases`: `SystemPhase.layout`
@@ -474,7 +484,53 @@ exposed via `UiSystem` interface):
    - Clear `w.dirty = false` across rendered widgets.
    - Call `win.swapBuffers()`.
 
-### 6.3 Public Registration API on `UiSystem`
+### 6.3 Multi-Window Support: Shared Systems + Per-Window Context
+A single application (`UiSystem`) may manage multiple windows. Rather than
+duplicating `WidgetSystemPipeline` and system instances per window, **each
+`WidgetSystem` is registered once as a shared instance on `UiSystem`** and
+invoked with a per-window `WidgetSystemContext`:
+
+1. **Cross-Window Systems Work Naturally**:
+   - **Drag-and-Drop (`DragDropSystem`)**: A single system instance tracks the
+     drag operation started in a source window (`sourceWindow`, `sourceWidget`,
+     payload) and seamlessly resolves drop targets when `mouseMotion` and
+     `mouseButtonUp` events arrive with `ctx.window` set to a destination
+     window.
+   - **Data Binding (`BindingSyncSystem`) & Global Shortcuts**: Can centrally
+     track shared `Model` versions or global hotkeys across all open windows.
+   - **Stateless Systems (`LayoutSystem`, `WidgetPainterSystem`)**: Only use
+     `ctx` and reusable scratch buffers (`oldRectBuf`, `childBuf`), requiring
+     zero duplication across windows.
+2. **Per-Window State in `WidgetSystemPipeline`**:
+   - The pipeline maintains a `WindowPipelineState` entry per active `Window`
+     (holding its `VisibleWidgetsCollector` and cached `lastVisibleWidgets`).
+   - During the **`event` phase**, the pipeline resolves the target `Window`
+     from the event's `windowId` (or broadcasts to active windows for non-window
+     events) and constructs `WidgetSystemContext` for that specific window.
+   - During **`updateAndRender`**, the pipeline iterates over each open
+     `Window`, activates its OpenGL context (`win.makeCurrent()`), and executes
+     `preLayout` -> `layout` -> `postLayout` -> `render` with that window's
+     `WidgetSystemContext`.
+3. **Per-Window State in Stateful Systems (`InputSystem`, `FocusSystem`)**:
+   - Systems whose state is strictly window-local (such as `hoveredWidgets`,
+     `pressedWidgets`, `lastMousePos`, and `FocusSystem` in `InputSystem`) store
+     that state in a per-window map keyed by `ctx.window` (or `ctx.window.id`)
+     and release it in `onWindowClosed(Window)`.
+
+```text
++-----------------------------------------------------------------------+
+|                        WidgetSystemPipeline                           |
+|                                                                       |
+|  Shared Systems: [ FocusSystem, InputSystem, DragDropSystem,          |
+|                    LayoutSystem, WidgetPainterSystem, ... ]           |
+|                                                                       |
+|  Per-Window Contexts:                                                 |
+|    +-- Window A (id=1): rootWidgetA, rendererA, lastVisibleWidgetsA   |
+|    +-- Window B (id=2): rootWidgetB, rendererB, lastVisibleWidgetsB   |
++-----------------------------------------------------------------------+
+```
+
+### 6.4 Public Registration API on `UiSystem`
 In `yguilib/source/yguilib/uisystem.d`, `UiSystem` inherits `WidgetSystemHost`
 (which itself extends `EventControl`) and exposes system management so user
 applications can register custom systems:
