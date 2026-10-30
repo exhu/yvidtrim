@@ -1,3 +1,7 @@
+- support custom systems
+- introduce a hover system and demonstrate how hover can be implemented with this together with
+keeping current hover controller in guidemo
+
 looks like does not fit the proper paradigm, it should be a system rather than
 a controller for multiple controls like hover effect, however can be used
 to accept data model name and resolve field names to controls:
@@ -5,8 +9,6 @@ to accept data model name and resolve field names to controls:
 	registered via registry. --
 	- addView method may support multiple Views or error if already added view
 
-- introduce a hover system and demonstrate how hover can be implemented with this together with
-keeping current hover controller in guidemo
 - add named controller registry and wiring logic, so that View.addToController is used
 instead of manually adding views to controllers for HoverButton
 - check if it's ergonomically better
