@@ -1,4 +1,4 @@
-- support custom systems
+- review new systems refactoring result
 - introduce a hover system and demonstrate how hover can be implemented with this together with
 keeping current hover controller in guidemo
 
