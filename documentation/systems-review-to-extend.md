@@ -200,23 +200,42 @@ Every widget system operates in one or more well-defined execution phases:
 
 ## 4. Proposed Architecture & Common Interface
 
-### 4.1 Execution Context (`WidgetSystemContext`)
-Instead of passing varying parameter lists, pass a unified context struct to
-all system hooks:
+### 4.1 Host Interface (`WidgetSystemHost`) & Context (`WidgetSystemContext`)
+Instead of exposing the full `UiSystem` interface (which has `mainEventLoop`
+and controller-stack mutations) to widget tree systems, define a narrow,
+purpose-built `WidgetSystemHost` interface. Today it only exposes `sendAppEvent`
+(inheriting or matching `EventControl`), and can be extended later with
+controller lookup/autowiring (for `ViewComponent.addToController`) or focus-root
+manipulation (for `FocusSystem`) without polluting `WidgetSystem` with unrelated
+`UiSystem` methods. `UiSystem` (and `UiSystemImpl`) implements
+`WidgetSystemHost`, while unit tests only need a 1-method mock.
 
 ```d
 module yguilib.widget.system;
 
 import yguilib.events : AppEvent;
 import yguilib.render : Renderer;
-import yguilib.uisystem : UiSystem;
+import yguilib.uisystem : EventControl;
 import yguilib.widget : Widget;
 import yguilib.widget.visible : VisibleWidget, VisibleWidgets;
 import yguilib.window : Window;
 
+/// Narrow host interface providing UI-system services needed by WidgetSystems.
+/// Currently exposes `sendAppEvent` (via EventControl), and can be extended
+/// with controller/focus services as ViewComponent or FocusSystem require.
+interface WidgetSystemHost : EventControl {
+  // Provided via EventControl:
+  //   void sendAppEvent(AppEvent ev);
+  //
+  // Future extensions when needed by ViewComponent / FocusSystem:
+  //   WidgetViewController findWidgetViewController(string name);
+  //   void pushFocusRoot(Widget w);
+  //   void popFocusRoot();
+}
+
 /// Shared context passed to WidgetSystem lifecycle methods.
 struct WidgetSystemContext {
-  UiSystem uiSystem;
+  WidgetSystemHost host;
   Window window;
   Widget root;
   Renderer renderer;
@@ -263,7 +282,7 @@ abstract class WidgetSystem {
   }
 
   /// Called once when the system is registered with the pipeline.
-  void onRegister(UiSystem uiSystem) {}
+  void onRegister(WidgetSystemHost host) {}
 
   /// Called once when the system is unregistered.
   void onUnregister() {}
@@ -456,7 +475,8 @@ exposed via `UiSystem` interface):
    - Call `win.swapBuffers()`.
 
 ### 6.3 Public Registration API on `UiSystem`
-In `yguilib/source/yguilib/uisystem.d`, expose system management so user
+In `yguilib/source/yguilib/uisystem.d`, `UiSystem` inherits `WidgetSystemHost`
+(which itself extends `EventControl`) and exposes system management so user
 applications can register custom systems:
 
 ```d
@@ -466,7 +486,7 @@ interface WidgetSystemControl {
   T findWidgetSystem(T : WidgetSystem)();
 }
 
-interface UiSystem : ControllerStack, EventControl, FocusControl,
+interface UiSystem : ControllerStack, WidgetSystemHost, FocusControl,
                      WidgetSystemControl {
   @property Window mainWindow();
   void mainEventLoop();
@@ -518,22 +538,24 @@ app.ui.registerWidgetSystem(new DebugHoverHighlightSystem());
    - Add `set!C(C comp)` and `get!C()` to `WidgetComponents` in
      `yguilib/source/yguilib/widget/package.d` with unit tests.
 3. **Create `yguilib.widget.system` Module**:
-   - Define `SystemPhase`, `SystemEventResult`, `WidgetSystemContext`,
-     `WidgetSystem`, and `TwoPassWidgetSystem`.
+   - Define `WidgetSystemHost`, `SystemPhase`, `SystemEventResult`,
+     `WidgetSystemContext`, `WidgetSystem`, and `TwoPassWidgetSystem`.
 4. **Implement `WidgetSystemPipeline`
    (`yguilib.widget.internal.system_pipeline`)**:
    - Manage ordered lists of `WidgetSystem` instances per `SystemPhase`.
    - Centralize `VisibleWidgetsCollector` calls and post-phase `layoutDirty` /
      `dirty` flag clearing.
 5. **Refactor `LayoutSystem`, `WidgetPainterSystem`, and `InputSystem`**:
-   - Inherit from `WidgetSystem`.
+   - Inherit from `WidgetSystem`; update `InputSystem` to take
+     `WidgetSystemHost` instead of `UiSystem` (simplifying `TestUiSystem` in
+     unit tests to a minimal `WidgetSystemHost` stub).
    - Adapt `layoutTree`, `drawTree`, `handleEventAndUpdateView`, and
      `refreshHover` to implement the `WidgetSystem` overrides (keeping existing
      methods as thin wrappers or `package(yguilib)` helpers so existing unit
      tests continue to pass without churn).
 6. **Update `UiSystem` & `UiSystemController`**:
-   - Add `registerWidgetSystem` / `unregisterWidgetSystem` to `UiSystem` and
-     `UiSystemImpl`.
+   - Have `UiSystem` implement `WidgetSystemHost` and `WidgetSystemControl`
+     (`registerWidgetSystem` / `unregisterWidgetSystem`).
    - Replace hardcoded calls in `UiSystemController` with
      `pipeline.handleEvent(ev)` and `pipeline.updateAndRender()`.
 7. **Verify & Test**:
