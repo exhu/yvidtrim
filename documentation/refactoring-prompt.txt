@@ -1,0 +1,10 @@
+Make a detailed step-by-step plan split into compilable phases based on information from documentation/systems-review-to-extend.md
+
+Write overview of the plan (implementation sequence and references to phase
+docs) to documentation/systems-refactoring-plan-overview.md and detailed
+separate phases to individual docs referenced by it as
+documentation/systems-refactoring-plan-phase-<number>.md to be performed by an
+agent.
+
+Classes that need to become public api should be moved from internal modules to public, e.g. `VisibleWidget` and `VisibleWidgets`. Make new modules for new classes in order to not blow out the existing modules context.
+Introduce WidgetSystem.priority constants for already implemented systems instead of magic numbers. Also make it a readonly property for consistency.
