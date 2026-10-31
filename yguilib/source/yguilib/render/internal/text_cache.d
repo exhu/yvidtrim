@@ -3,8 +3,9 @@ module yguilib.render.internal.text_cache;
 package(yguilib):
 
 import glad2.gles2;
+import std.container.dlist : DList;
 import yguilib.clibs.sdl3_ttf;
-import yguilib.render.font : Font;
+import yguilib.render.font : Font, invalidFontId;
 
 struct TextTexture {
   GLuint textureId = 0;
@@ -25,50 +26,77 @@ struct TextTexture {
   }
 }
 
-/* TODO
-  Using a raw void* as part of an AA key is fragile — if the font is destroyed
-  and its handle reused by SDL_ttf, stale cache entries become invalid. The
-  clear() call on scaling changes mitigates this, but it's a subtle invariant.
-*/
-private struct TextCacheKey {
-  void* fontHandle;
+private:
+
+struct TextCacheKey {
+  ulong fontId;
   float ptSize;
   string text;
 }
 
+struct TextCacheEntry {
+  TextTexture texture;
+  DList!TextCacheKey.Range orderRef;
+}
+
+package(yguilib):
+
 final class TextCache {
   enum size_t maxCacheEntries = 512;
+
+  this(size_t maxEntries = maxCacheEntries) {
+    assert(maxEntries > 0, "maxEntries must be positive");
+    this.maxEntries = maxEntries;
+  }
 
   ~this() {
     clear();
   }
 
+  @property size_t length() const {
+    return cache.length;
+  }
+
+  bool contains(const Font font, string text) const {
+    if (font is null || font.handle is null ||
+        font.id == invalidFontId || text.length == 0) {
+      return false;
+    }
+    const TextCacheKey key = TextCacheKey(font.id, font.scaledSize, text);
+    return (key in cache) !is null;
+  }
+
   void clear() {
-    foreach (key, tex; cache) {
-      tex.destroy();
+    foreach (key, ref entry; cache) {
+      entry.texture.destroy();
     }
     cache.clear();
+    accessOrder.clear();
   }
 
   TextTexture getOrCreate(Font font, string text) {
-    if (font is null || font.handle is null || text.length == 0) {
+    if (font is null || font.handle is null ||
+        font.id == invalidFontId || text.length == 0) {
       return TextTexture();
     }
 
-    TextCacheKey key = TextCacheKey(font.handle, font.scaledSize, text);
+    const TextCacheKey key = TextCacheKey(font.id, font.scaledSize, text);
     auto p = key in cache;
     if (p !is null) {
-      return *p;
+      accessOrder.popFirstOf(p.orderRef);
+      accessOrder.insertFront(key);
+      p.orderRef = accessOrder[];
+      return p.texture;
     }
 
-    // TODO implement LRU cache instead of full discard.
-    if (cache.length >= maxCacheEntries) {
-      clear();
+    if (cache.length >= maxEntries) {
+      evictOldest();
     }
 
     TextTexture tex = createTextTexture(font, text);
     if (tex.isValid()) {
-      cache[key] = tex;
+      accessOrder.insertFront(key);
+      cache[key] = TextCacheEntry(tex, accessOrder[]);
     }
     return tex;
   }
@@ -101,6 +129,17 @@ final class TextCache {
       return TextTexture();
     }
 
+    GLuint texId = uploadTextPixels(pixels, w, h, pitch);
+    return TextTexture(texId, w, h);
+  }
+
+  private:
+  static GLuint uploadTextPixels(
+    const(void)* pixels,
+    int w,
+    int h,
+    int pitch
+  ) {
     GLuint texId;
     glGenTextures(1, &texId);
     glBindTexture(GL_TEXTURE_2D, texId);
@@ -128,9 +167,76 @@ final class TextCache {
       glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     }
     glBindTexture(GL_TEXTURE_2D, 0);
-
-    return TextTexture(texId, w, h);
+    return texId;
   }
 
-  private TextTexture[TextCacheKey] cache;
+  void evictOldest() {
+    import std.algorithm.comparison : max;
+
+    const size_t evictCount = max(1, maxEntries / 4);
+    foreach (_; 0 .. evictCount) {
+      if (accessOrder.empty) {
+        break;
+      }
+      const TextCacheKey oldestKey = accessOrder.back;
+      accessOrder.removeBack();
+      if (auto p = oldestKey in cache) {
+        p.texture.destroy();
+        cache.remove(oldestKey);
+      }
+    }
+  }
+
+  size_t maxEntries = maxCacheEntries;
+  TextCacheEntry[TextCacheKey] cache;
+  DList!TextCacheKey accessOrder;
+}
+
+unittest {
+  import std.conv : to;
+  import yguilib.assets : defaultTtfFontData;
+  import yguilib.clibs.sdl3;
+  import yguilib.window : Window;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(160, 120, "test_text_cache");
+  win.create();
+  scope(exit) win.destroy();
+
+  Font fontA = new Font(cast(const(void)[])defaultTtfFontData, 12.0f);
+  scope(exit) fontA.destroy();
+
+  auto tc = new TextCache(8);
+  scope(exit) tc.clear();
+
+  // Insert 8 distinct entries (capacity reached)
+  foreach (i; 0 .. 8) {
+    TextTexture tex = tc.getOrCreate(fontA, "item" ~ i.to!string);
+    assert(tex.isValid());
+  }
+  assert(tc.length == 8);
+
+  // Cache hit on "item0" moves it to front (most recently used)
+  TextTexture tex0 = tc.getOrCreate(fontA, "item0");
+  assert(tex0.isValid());
+  assert(tc.length == 8);
+
+  // Adding 9th item triggers eviction of oldest 25% (8 / 4 = 2 items).
+  // "item1" and "item2" were the oldest and should be evicted.
+  // "item0" was touched and must still be present.
+  TextTexture tex8 = tc.getOrCreate(fontA, "item8");
+  assert(tex8.isValid());
+  assert(tc.length == 7);
+  assert(!tc.contains(fontA, "item1"));
+  assert(!tc.contains(fontA, "item2"));
+  assert(tc.contains(fontA, "item0"));
+  assert(tc.contains(fontA, "item8"));
+
+  // Destroying fontA and allocating fontB produces distinct font IDs
+  Font fontB = new Font(cast(const(void)[])defaultTtfFontData, 12.0f);
+  scope(exit) fontB.destroy();
+  assert(fontB.id != fontA.id);
+  assert(!tc.contains(fontB, "item0"));
 }

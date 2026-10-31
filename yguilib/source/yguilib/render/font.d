@@ -5,6 +5,7 @@ import yguilib.render.render_types : PointF;
 import yguilib.assets : defaultTtfFontData;
 
 package(yguilib) enum float defaultFontPtSize = 11.0f;
+package(yguilib) enum ulong invalidFontId = 0;
 
 final class Font {
   /**
@@ -33,6 +34,7 @@ final class Font {
     }
     this.logicalPtSize = ptSize;
     this.currentScale = effectiveScale;
+    this.id_ = ++nextFontId;
   }
 
   /**
@@ -60,6 +62,7 @@ final class Font {
     }
     this.logicalPtSize = ptSize;
     this.currentScale = effectiveScale;
+    this.id_ = ++nextFontId;
   }
 
   ~this() {
@@ -71,6 +74,15 @@ final class Font {
       yguilib_sdl3_ttf_close_font(handle);
       handle = null;
     }
+    id_ = invalidFontId;
+  }
+
+  /**
+   * Gets the unique monotonic identifier of this font instance
+   * (`invalidFontId` if destroyed).
+   */
+  package(yguilib) @property ulong id() const {
+    return id_;
   }
 
   /**
@@ -144,6 +156,31 @@ final class Font {
   }
 
   package(yguilib) yguilib_sdl3_ttf_Font* handle;
-  private float logicalPtSize;
-  private float currentScale = 1.0f;
+
+private:
+  ulong id_ = invalidFontId;
+  float logicalPtSize;
+  float currentScale = 1.0f;
+}
+
+private ulong nextFontId = invalidFontId;
+
+unittest {
+  import yguilib.clibs.sdl3;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  Font f1 = new Font(cast(const(void)[])defaultTtfFontData, 12.0f);
+  scope(exit) f1.destroy();
+  assert(f1.id != invalidFontId);
+
+  Font f2 = new Font(cast(const(void)[])defaultTtfFontData, 14.0f);
+  scope(exit) f2.destroy();
+  assert(f2.id != invalidFontId);
+  assert(f1.id != f2.id);
+
+  const ulong id2 = f2.id;
+  f2.destroy();
+  assert(f2.id == invalidFontId);
 }
