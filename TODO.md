@@ -1,17 +1,29 @@
 - explore how to make tabs in guidemo use a view-model-controller or
 system-component to implement growing number of tabs and then add scrolling
 
-WidgetAppenderComponent -- accepts a model of a collection and a widget template
-function (makes a new Widget instance), somehow model element with index must be passed to widget template,
-maintains childlist. Widget instances must be reusable. E.g. a scroll list may just append new widgets
-on container resize, but on shrink just hide unnecessary, then reuse already allocated on scrolling and on
-growing.
+WidgetArrayComponent -- accepts a model of a collection and a widget template
+function (makes a new Widget instance), collection element with index must be
+passed to widget update, maintains childlist. Widget instances must be
+reusable. E.g. a scroll list may just append new widgets on container resize,
+but on shrink just hide unnecessary, then reuse already allocated on scrolling
+and on growing.
 
 with FlexContainer component it can produce horizontal or vertical lists.
 
-To make lists scrollable we need additional component ScrollableComponent, which
-expects a single child Widget that it moves and sends events
+Fast scrolling (without animation, just switching which tab button is the
+first visible may be implemented just by changing visibility of buttons (hide
+all until the current left-most).
 
+- Systems and components satisfy the case of parent and child widgets and
+multitude of instances, while WidgetController may be more appropriate when
+multiple Widgets are at play, e.g. a scrollable list may be implemented
+with (root (scroll-view-container (contents...))(scroll-bar)), so it must
+listen to events of scroll-bar and scroll-view on contents size change or
+also it must accept an array model and pass it to scroll-view-container.
+
+- To make lists scrollable we need additional component ScrollviewComponent, which
+expects a single child Widget that it moves and sends event when size of the
+child or its own size changed.
 
 - make combobox switch in guidemo (no more space to insert buttons)
 and/or scrollable tab panel
