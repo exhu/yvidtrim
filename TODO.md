@@ -1,4 +1,3 @@
-- fix black window on start
 - window-leave AppEvent.Kind is not yet available
 - introduce a hover system and demonstrate how hover can be implemented with this together with
 keeping current hover controller in guidemo

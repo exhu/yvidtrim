@@ -117,13 +117,16 @@ final class WidgetSystemPipeline {
   }
 
   /// Runs preLayout, layout (if tree layout is dirty), postLayout, and render
-  /// (if tree is dirty) for `window`, followed by `window.swapBuffers()`.
+  /// (if tree is dirty) for `window`, followed by `window.swapBuffers()` when
+  /// a frame was rendered.
   void updateAndRender(Window window) {
     if (window is null) {
       return;
     }
     if (window.rootWidget !is null && window.renderer !is null) {
-      updateAndRenderTree(window);
+      if (!updateAndRenderTree(window)) {
+        return;
+      }
     }
     window.swapBuffers();
   }
@@ -143,14 +146,14 @@ private:
 
   /// Runs preLayout, layout, postLayout, and render on `window.rootWidget` and
   /// `window.renderer` without calling `window.swapBuffers()`. Useful for unit
-  /// testing.
-  void updateAndRenderTree(Window window) {
+  /// testing. Returns true if the render phase was executed.
+  bool updateAndRenderTree(Window window) {
     WidgetSystemContext ctx = makeContext(window);
     assert(ctx.root !is null);
     assert(ctx.renderer !is null);
     runPreLayoutPhase(ctx);
     runLayoutAndPostLayoutPhases(ctx);
-    runRenderPhase(ctx);
+    return runRenderPhase(ctx);
   }
 
   void runPreLayoutPhase(ref WidgetSystemContext ctx) {
@@ -190,9 +193,9 @@ private:
     }
   }
 
-  void runRenderPhase(ref WidgetSystemContext ctx) {
+  bool runRenderPhase(ref WidgetSystemContext ctx) {
     if (!ctx.root.isTreeDirty()) {
-      return;
+      return false;
     }
 
     foreach (s; renderSystems) {
@@ -200,6 +203,7 @@ private:
     }
 
     clearDirtyAfterRender(ctx.root, ctx.visibleWidgets);
+    return true;
   }
 
   void snapshotRects(VisibleWidgets widgets) {
@@ -482,7 +486,7 @@ unittest {
   assert(root.isTreeDirty());
 
   phaseLog = null;
-  pipeline.updateAndRenderTree(win);
+  assert(pipeline.updateAndRenderTree(win));
 
   assert(phaseLog == ["preLayout", "layout", "postLayout", "render"]);
   assert(layoutRanWhileDirty);
@@ -495,6 +499,6 @@ unittest {
 
   // Subsequent call without invalidation should only run preLayout
   phaseLog = null;
-  pipeline.updateAndRenderTree(win);
+  assert(!pipeline.updateAndRenderTree(win));
   assert(phaseLog == ["preLayout"]);
 }
