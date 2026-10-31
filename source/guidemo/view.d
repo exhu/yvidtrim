@@ -8,6 +8,7 @@ import guidemo.pages.button_page : ButtonPage;
 import guidemo.pages.button_system_page : ButtonSystemPage;
 import guidemo.pages.layout_painter_page : LayoutPainterPage;
 import guidemo.pages.textlabel_page : TextLabelPage;
+import guidemo.tab_button : createTabButton, updateTabButtonState;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.widget : Widget, WidgetUpdateScope;
@@ -64,25 +65,10 @@ final class DemoView {
     }
 
     // 2. Update tab button highlights
-    const ColorF col1 = m.activePage == 0
-      ? ColorF(0.20f, 0.45f, 0.85f, 1.0f)
-      : ColorF(0.16f, 0.18f, 0.23f, 1.0f);
-    tab1Btn.setBackgroundColor(col1);
-
-    const ColorF col2 = m.activePage == 1
-      ? ColorF(0.20f, 0.45f, 0.85f, 1.0f)
-      : ColorF(0.16f, 0.18f, 0.23f, 1.0f);
-    tab2Btn.setBackgroundColor(col2);
-
-    const ColorF col3 = m.activePage == 2
-      ? ColorF(0.20f, 0.45f, 0.85f, 1.0f)
-      : ColorF(0.16f, 0.18f, 0.23f, 1.0f);
-    tab3Btn.setBackgroundColor(col3);
-
-    const ColorF col4 = m.activePage == 3
-      ? ColorF(0.20f, 0.45f, 0.85f, 1.0f)
-      : ColorF(0.16f, 0.18f, 0.23f, 1.0f);
-    tab4Btn.setBackgroundColor(col4);
+    updateTabButtonState(tab1Btn, m.activePage == 0);
+    updateTabButtonState(tab2Btn, m.activePage == 1);
+    updateTabButtonState(tab3Btn, m.activePage == 2);
+    updateTabButtonState(tab4Btn, m.activePage == 3);
 
     // 3. Delegate page-specific updates
     if (p1Vis) {
@@ -234,61 +220,27 @@ private:
       )
       .build();
 
-    // Tab 1 button: Layout & Painter
-    tab1Btn = WidgetBuilder(header, RectF(495, 9, 175, 30))
-      .padding(5, 8, 5, 8)
-      .roundBackground(ColorF(0.20f, 0.45f, 0.85f, 1.0f), 4.0f)
-      .border(ColorF(0.40f, 0.70f, 1.0f, 1.0f), 1.0f)
-      .text(
-        "[1] Layout & Paint",
-        ColorF(1.0f, 1.0f, 1.0f, 1.0f),
-        13.0f,
-        TextLabel.Alignment.center
+    auto tabContainer = WidgetBuilder(header, RectF(495, 9, 730, 30))
+      .flex(
+        FlexDirection.row,
+        10.0f,
+        JustifyContent.start,
+        AlignItems.center
       )
-      .onMouseDown("tab1Btn")
       .build();
 
-    // Tab 2 button: TextLabel Showcase
-    tab2Btn = WidgetBuilder(header, RectF(680, 9, 175, 30))
-      .padding(5, 8, 5, 8)
-      .roundBackground(ColorF(0.16f, 0.18f, 0.23f, 1.0f), 4.0f)
-      .border(ColorF(0.30f, 0.35f, 0.45f, 1.0f), 1.0f)
-      .text(
-        "[2] TextLabel Demo",
-        ColorF(0.80f, 0.85f, 0.95f, 1.0f),
-        13.0f,
-        TextLabel.Alignment.center
-      )
-      .onMouseDown("tab2Btn")
-      .build();
-
-    // Tab 3 button: Hover Buttons Showcase
-    tab3Btn = WidgetBuilder(header, RectF(865, 9, 175, 30))
-      .padding(5, 8, 5, 8)
-      .roundBackground(ColorF(0.16f, 0.18f, 0.23f, 1.0f), 4.0f)
-      .border(ColorF(0.30f, 0.35f, 0.45f, 1.0f), 1.0f)
-      .text(
-        "[3] Hover (Ctrl)",
-        ColorF(0.80f, 0.85f, 0.95f, 1.0f),
-        13.0f,
-        TextLabel.Alignment.center
-      )
-      .onMouseDown("tab3Btn")
-      .build();
-
-    // Tab 4 button: Hover System Showcase
-    tab4Btn = WidgetBuilder(header, RectF(1050, 9, 175, 30))
-      .padding(5, 8, 5, 8)
-      .roundBackground(ColorF(0.16f, 0.18f, 0.23f, 1.0f), 4.0f)
-      .border(ColorF(0.30f, 0.35f, 0.45f, 1.0f), 1.0f)
-      .text(
-        "[4] Hover (System)",
-        ColorF(0.80f, 0.85f, 0.95f, 1.0f),
-        13.0f,
-        TextLabel.Alignment.center
-      )
-      .onMouseDown("tab4Btn")
-      .build();
+    tab1Btn = createTabButton(
+      tabContainer, "[1] Layout & Paint", "tab1Btn", true
+    );
+    tab2Btn = createTabButton(
+      tabContainer, "[2] TextLabel Demo", "tab2Btn"
+    );
+    tab3Btn = createTabButton(
+      tabContainer, "[3] Hover (Ctrl)", "tab3Btn"
+    );
+    tab4Btn = createTabButton(
+      tabContainer, "[4] Hover (System)", "tab4Btn"
+    );
   }
 
   void buildStatusBar() {

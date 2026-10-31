@@ -35,6 +35,7 @@ guidemo_src = files(
   'source/guidemo/pages/button_system_page.d',
   'source/guidemo/pages/layout_painter_page.d',
   'source/guidemo/pages/textlabel_page.d',
+  'source/guidemo/tab_button.d',
   'source/guidemo/view.d',
 )
 
@@ -65,4 +66,14 @@ hover_button_system_test_exe = executable(
   dependencies : [yguilib_dep],
 )
 test('hover_button_system_test', hover_button_system_test_exe)
+
+tab_button_test_exe = executable(
+  'tab_button_test',
+  files('source/guidemo/tab_button.d'),
+  d_unittest : true,
+  include_directories : yvidtrim_inc,
+  d_import_dirs : yvidtrim_inc,
+  dependencies : [yguilib_dep],
+)
+test('tab_button_test', tab_button_test_exe)
 
