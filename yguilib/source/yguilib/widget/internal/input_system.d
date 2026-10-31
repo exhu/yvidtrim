@@ -62,6 +62,13 @@ final class InputSystem : WidgetSystem {
   /// Handles incoming input events.
   /// Returns true if the view needs updating (e.g. when focus changes).
   bool handleEventAndUpdateView(in AppEvent event, VisibleWidgets widgets) {
+    if (event.kind == AppEvent.Kind.windowMouseLeave) {
+      handleWindowMouseLeave(widgets);
+      return false;
+    }
+    if (event.kind == AppEvent.Kind.windowMouseEnter) {
+      return false;
+    }
     if (!event.isKeyboardEvent() && !event.isMouseEvent())
       return false;
     // TODO call to focus system
@@ -173,8 +180,13 @@ private:
     updateHoverState(p, widgets, true);
   }
 
-  // NOTE: no mouseLeave is sent when cursor leaves window because
-  // window-leave AppEvent.Kind is not yet available.
+  void handleWindowMouseLeave(VisibleWidgets widgets) {
+    hasLastMousePos = false;
+    updateHoverState(lastMousePos, widgets, false);
+  }
+
+  // NOTE: when cursor leaves the window (windowMouseLeave), hasLastMousePos
+  // is cleared and updateHoverState sends mouseLeave to all hovered widgets.
   // NOTE: a widget disabled while hovered does not receive mouseLeave;
   // its controller should clear hover visuals upon disabling.
   void updateHoverState(PointF p, VisibleWidgets widgets, bool sendMove) {
@@ -190,6 +202,9 @@ private:
   void collectHovered(VisibleWidgets widgets, PointF p) {
     hoverScratch.length = 0;
     hoverScratch.assumeSafeAppend();
+
+    if (!hasLastMousePos)
+      return;
 
     const topIdx = findHoverTargetIndex(widgets, p);
     if (topIdx < 0)
@@ -845,4 +860,71 @@ unittest {
 
   // postLayout triggers refreshHover
   inputSys.postLayout(ctx);
+}
+
+// Verifies windowMouseLeave dispatches mouseLeave and clears hover state.
+unittest {
+  auto testUi = new TestUiSystem;
+  auto inputSys = new InputSystem(testUi);
+
+  auto parentBox = new Widget(null, RectF(0, 0, 200, 200));
+  parentBox.inputEnabled = true;
+  parentBox.components.mouseEvent = new MouseEvent;
+  parentBox.components.mouseEvent.mouseEnter = "parentEnter";
+  parentBox.components.mouseEvent.mouseLeave = "parentLeave";
+
+  auto childBox = new Widget(parentBox, RectF(50, 50, 50, 50));
+  childBox.inputEnabled = true;
+  childBox.components.mouseEvent = new MouseEvent;
+  childBox.components.mouseEvent.mouseEnter = "childEnter";
+  childBox.components.mouseEvent.mouseLeave = "childLeave";
+
+  VisibleWidgets vis = [
+    VisibleWidget(parentBox, RectF(0, 0, 200, 200), false, RectF.init),
+    VisibleWidget(childBox, RectF(50, 50, 50, 50), false, RectF.init)
+  ];
+
+  auto motionIn = AppEvent(
+    AppEvent.Kind.mouseMotion,
+    AppEvent.MouseData(1, 60.0f, 70.0f, 0, 0, 0, 0, false, 0)
+  );
+  inputSys.handleEventAndUpdateView(motionIn, vis);
+  assert(testUi.sentEvents.length == 2);
+  assert(testUi.sentEvents[0].view.eventName == "childEnter");
+  assert(testUi.sentEvents[1].view.eventName == "parentEnter");
+
+  testUi.sentEvents = null;
+  auto winLeave = AppEvent(
+    AppEvent.Kind.windowMouseLeave,
+    AppEvent.WindowData(1)
+  );
+  inputSys.handleEventAndUpdateView(winLeave, vis);
+  assert(testUi.sentEvents.length == 2);
+  assert(testUi.sentEvents[0].view.eventName == "childLeave");
+  assert(testUi.sentEvents[1].view.eventName == "parentLeave");
+  auto childLeaveVal = MouseEvent.AppEventViewValue(
+    testUi.sentEvents[0].view.value
+  );
+  assert(!childLeaveVal.inside);
+  assert(childLeaveVal.localX == 10.0f);
+  assert(childLeaveVal.localY == 20.0f);
+
+  // refreshHover while outside window should not re-hover
+  testUi.sentEvents = null;
+  inputSys.refreshHover(vis);
+  assert(testUi.sentEvents.length == 0);
+
+  // windowMouseEnter does not re-hover at stale position before mouseMotion
+  auto winEnter = AppEvent(
+    AppEvent.Kind.windowMouseEnter,
+    AppEvent.WindowData(1)
+  );
+  inputSys.handleEventAndUpdateView(winEnter, vis);
+  assert(testUi.sentEvents.length == 0);
+
+  // Re-entering with mouseMotion dispatches mouseEnter again
+  inputSys.handleEventAndUpdateView(motionIn, vis);
+  assert(testUi.sentEvents.length == 2);
+  assert(testUi.sentEvents[0].view.eventName == "childEnter");
+  assert(testUi.sentEvents[1].view.eventName == "parentEnter");
 }

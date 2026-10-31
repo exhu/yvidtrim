@@ -74,6 +74,14 @@ static int convert_sdl_event(const SDL_Event *src, yguilib_sdl3_Event *dst) {
       }
       return 1;
     }
+    case SDL_EVENT_WINDOW_MOUSE_ENTER:
+      dst->type = YGUILIB_SDL3_EVENT_WINDOW_MOUSE_ENTER;
+      dst->window.window_id = src->window.windowID;
+      return 1;
+    case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+      dst->type = YGUILIB_SDL3_EVENT_WINDOW_MOUSE_LEAVE;
+      dst->window.window_id = src->window.windowID;
+      return 1;
     case SDL_EVENT_MOUSE_MOTION: {
       dst->type = YGUILIB_SDL3_EVENT_MOUSE_MOTION;
       dst->motion.window_id = src->motion.windowID;

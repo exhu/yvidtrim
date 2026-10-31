@@ -1,9 +1,3 @@
-- window-leave AppEvent.Kind is not yet available
-implement SDL_EVENT_WINDOW_MOUSE_LEAVE, SDL_EVENT_WINDOW_MOUSE_ENTER
-and fix updateHoverState in yguilib/source/yguilib/widget/internal/input_system.d to handle that.
-update the comment note around that function.
-
-
 - introduce a hover system and demonstrate how hover can be implemented with this together with
 keeping current hover controller in guidemo
 

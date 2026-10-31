@@ -10,6 +10,8 @@ enum yguilib_sdl3_EventType : int {
   windowResized,
   windowExposed,
   windowDisplayScaleChanged,
+  windowMouseEnter,
+  windowMouseLeave,
   mouseMotion,
   mouseButtonDown,
   mouseButtonUp,

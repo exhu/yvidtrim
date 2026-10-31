@@ -50,6 +50,18 @@ Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
         )
       ));
 
+    case yguilib_sdl3_EventType.windowMouseEnter:
+      return Nullable!AppEvent(AppEvent(
+        AppEvent.Kind.windowMouseEnter,
+        AppEvent.WindowData(sdlEv.window.windowId)
+      ));
+
+    case yguilib_sdl3_EventType.windowMouseLeave:
+      return Nullable!AppEvent(AppEvent(
+        AppEvent.Kind.windowMouseLeave,
+        AppEvent.WindowData(sdlEv.window.windowId)
+      ));
+
     case yguilib_sdl3_EventType.mouseMotion:
     case yguilib_sdl3_EventType.mouseButtonDown:
     case yguilib_sdl3_EventType.mouseButtonUp: {
@@ -294,4 +306,20 @@ unittest {
   assert(editApp.get().textData.text == "def");
   assert(editApp.get().textData.editStart == 1);
   assert(editApp.get().textData.editLength == 2);
+
+  yguilib_sdl3_Event winEnterSdl;
+  winEnterSdl.window.type = yguilib_sdl3_EventType.windowMouseEnter;
+  winEnterSdl.window.windowId = 42;
+  auto winEnterApp = appEventFromSdlEvent(winEnterSdl);
+  assert(!winEnterApp.isNull);
+  assert(winEnterApp.get().kind == AppEvent.Kind.windowMouseEnter);
+  assert(winEnterApp.get().window.windowId == 42);
+
+  yguilib_sdl3_Event winLeaveSdl;
+  winLeaveSdl.window.type = yguilib_sdl3_EventType.windowMouseLeave;
+  winLeaveSdl.window.windowId = 42;
+  auto winLeaveApp = appEventFromSdlEvent(winLeaveSdl);
+  assert(!winLeaveApp.isNull);
+  assert(winLeaveApp.get().kind == AppEvent.Kind.windowMouseLeave);
+  assert(winLeaveApp.get().window.windowId == 42);
 }

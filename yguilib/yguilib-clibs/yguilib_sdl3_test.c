@@ -64,6 +64,8 @@ int main(void) {
   float display_scale = yguilib_sdl3_get_window_display_scale(win);
   assert(display_scale > 0.0f);
   assert(sizeof(yguilib_sdl3_Event) == 40);
+  assert(YGUILIB_SDL3_EVENT_WINDOW_MOUSE_ENTER > 0);
+  assert(YGUILIB_SDL3_EVENT_WINDOW_MOUSE_LEAVE > 0);
   assert(YGUILIB_SDL3_EVENT_MOUSE_WHEEL > 0);
 
   int start_text_res = yguilib_sdl3_start_text_input(win);

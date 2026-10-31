@@ -26,6 +26,10 @@ struct AppEvent {
     windowExposed,
     /// Window DPI or display scale factor changed.
     windowDisplayScaleChanged,
+    /// Mouse cursor entered window bounds.
+    windowMouseEnter,
+    /// Mouse cursor left window bounds.
+    windowMouseLeave,
     /// Synthetic window redraw trigger.
     windowRedraw,
     /// Mouse moved within window bounds.
@@ -49,8 +53,8 @@ struct AppEvent {
   }
 
   bool isWindowEvent() const {
-    switch(kind) {
-    case Kind.windowClose:
+    switch (kind) {
+    case Kind.windowClose, Kind.windowMouseEnter, Kind.windowMouseLeave:
       return true;
     default:
       return isWindowRedrawEvent();
@@ -262,13 +266,16 @@ struct AppEvent {
 
   /// Window event details.
   /// Valid when: Kind.windowClose, Kind.windowResized, Kind.windowExposed,
-  /// Kind.windowDisplayScaleChanged, or Kind.windowRedraw.
+  /// Kind.windowDisplayScaleChanged, Kind.windowMouseEnter,
+  /// Kind.windowMouseLeave, or Kind.windowRedraw.
   @property ref inout(WindowData) window() inout {
     assert(
       kind == Kind.windowClose ||
       kind == Kind.windowResized ||
       kind == Kind.windowExposed ||
       kind == Kind.windowDisplayScaleChanged ||
+      kind == Kind.windowMouseEnter ||
+      kind == Kind.windowMouseLeave ||
       kind == Kind.windowRedraw,
       "AppEvent.window accessed for wrong Kind"
     );
@@ -369,6 +376,8 @@ struct AppEvent {
       kind == Kind.windowClose ||
       kind == Kind.windowDisplayScaleChanged ||
       kind == Kind.windowExposed ||
+      kind == Kind.windowMouseEnter ||
+      kind == Kind.windowMouseLeave ||
       kind == Kind.windowRedraw ||
       kind == Kind.windowResized
     );
@@ -512,4 +521,22 @@ unittest {
 
   AppEvent updateEv = AppEvent(AppEvent.Kind.update);
   assert(updateEv.kind == AppEvent.Kind.update);
+
+  AppEvent enterEv = AppEvent(
+    AppEvent.Kind.windowMouseEnter,
+    AppEvent.WindowData(7)
+  );
+  assert(enterEv.kind == AppEvent.Kind.windowMouseEnter);
+  assert(enterEv.isWindowEvent());
+  assert(!enterEv.isWindowRedrawEvent());
+  assert(enterEv.window.windowId == 7);
+
+  AppEvent leaveEv = AppEvent(
+    AppEvent.Kind.windowMouseLeave,
+    AppEvent.WindowData(7)
+  );
+  assert(leaveEv.kind == AppEvent.Kind.windowMouseLeave);
+  assert(leaveEv.isWindowEvent());
+  assert(!leaveEv.isWindowRedrawEvent());
+  assert(leaveEv.window.windowId == 7);
 }
