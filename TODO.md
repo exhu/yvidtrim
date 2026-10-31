@@ -1,6 +1,13 @@
-- explore how to make tabs in guidemo use a view-model-controller or system-component
-to implement growing number of tabs and then add scrolling
+- explore how to make tabs in guidemo use a view-model-controller or
+system-component to implement growing number of tabs and then add scrolling
+
 - make combobox switch in guidemo (no more space to insert buttons)
+and/or scrollable tab panel
+
+- first devise reusable composite widgets in code (how to pass models, events,
+reusable views and controllers), then we'll invent a text format to construct
+widget trees to allow for visual editing
+
 
 - video player component and system is external to yguilib to be independent from ffmpeg
 
