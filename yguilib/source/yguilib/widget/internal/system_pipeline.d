@@ -141,9 +141,9 @@ private:
     return ctx;
   }
 
-  /// Runs preLayout, layout, postLayout, and render on an explicit `(root, r)`
-  /// pair without calling `window.swapBuffers()`. Useful for unit testing.
-  /// `window` is allowed to be null.
+  /// Runs preLayout, layout, postLayout, and render on `window.rootWidget` and
+  /// `window.renderer` without calling `window.swapBuffers()`. Useful for unit
+  /// testing.
   void updateAndRenderTree(Window window) {
     WidgetSystemContext ctx = makeContext(window);
     assert(ctx.root !is null);
@@ -420,9 +420,6 @@ unittest {
   win.create();
   scope (exit) win.destroy();
 
-  auto renderer = new Renderer(320, 240);
-  scope (exit) renderer.destroy();
-
   auto host = new DummyHost;
   auto pipeline = new WidgetSystemPipeline(host);
 
@@ -478,13 +475,14 @@ unittest {
   root.components.background = new Background(ColorF(0.1f, 0.1f, 0.1f, 1.0f));
   auto child = new Widget(root, RectF(10, 10, 100, 50));
   child.components.background = new Background(ColorF(1.0f, 0, 0, 1.0f));
+  win.rootWidget = root;
 
   // Initial state: root and child are dirty and layoutDirty
   assert(root.isTreeLayoutDirty());
   assert(root.isTreeDirty());
 
   phaseLog = null;
-  pipeline.updateAndRenderTree(win, root, renderer);
+  pipeline.updateAndRenderTree(win);
 
   assert(phaseLog == ["preLayout", "layout", "postLayout", "render"]);
   assert(layoutRanWhileDirty);
@@ -497,6 +495,6 @@ unittest {
 
   // Subsequent call without invalidation should only run preLayout
   phaseLog = null;
-  pipeline.updateAndRenderTree(win, root, renderer);
+  pipeline.updateAndRenderTree(win);
   assert(phaseLog == ["preLayout"]);
 }
