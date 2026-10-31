@@ -82,6 +82,7 @@ final class WidgetSystemPipeline {
     return null;
   }
 
+  // TODO call it when window is closed
   /// Notifies all registered systems that a window has closed.
   void notifyWindowClosed(Window window) {
     assert(window !is null);
@@ -122,28 +123,9 @@ final class WidgetSystemPipeline {
       return;
     }
     if (window.rootWidget !is null && window.renderer !is null) {
-      updateAndRenderTree(window, window.rootWidget, window.renderer);
+      updateAndRenderTree(window);
     }
     window.swapBuffers();
-  }
-
-  /// Runs preLayout, layout, postLayout, and render on an explicit `(root, r)`
-  /// pair without calling `window.swapBuffers()`. Useful for unit testing.
-  /// `window` is allowed to be null.
-  void updateAndRenderTree(Window window, Widget root, Renderer r) {
-    assert(root !is null);
-    assert(r !is null);
-
-    WidgetSystemContext ctx;
-    ctx.host = host;
-    ctx.window = window;
-    ctx.root = root;
-    ctx.renderer = r;
-    ctx.visibleWidgets = fLastVisibleWidgets;
-
-    runPreLayoutPhase(ctx);
-    runLayoutAndPostLayoutPhases(ctx);
-    runRenderPhase(ctx);
   }
 
 private:
@@ -157,6 +139,18 @@ private:
     }
     ctx.visibleWidgets = fLastVisibleWidgets;
     return ctx;
+  }
+
+  /// Runs preLayout, layout, postLayout, and render on an explicit `(root, r)`
+  /// pair without calling `window.swapBuffers()`. Useful for unit testing.
+  /// `window` is allowed to be null.
+  void updateAndRenderTree(Window window) {
+    WidgetSystemContext ctx = makeContext(window);
+    assert(ctx.root !is null);
+    assert(ctx.renderer !is null);
+    runPreLayoutPhase(ctx);
+    runLayoutAndPostLayoutPhases(ctx);
+    runRenderPhase(ctx);
   }
 
   void runPreLayoutPhase(ref WidgetSystemContext ctx) {
@@ -262,6 +256,7 @@ private:
       }
     }
     list ~= item;
+
     for (size_t i = list.length - 1; i > insertPos; --i) {
       list[i] = list[i - 1];
     }
@@ -292,6 +287,7 @@ private:
   Appender!(RectF[]) oldRectBuf;
 
   WidgetSystem[] systems;
+  // references to systems
   WidgetSystem[] eventSystems;
   WidgetSystem[] preLayoutSystems;
   WidgetSystem[] layoutSystems;
