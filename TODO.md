@@ -25,6 +25,7 @@ however named controllers should be created in advance and live in the runtime r
 	if view requests controller push, and controller can hide view, then there's cycle.
 
 
+- video player component and system is external to yguilib to be independent from ffmpeg
 
 
 - mouse capture component to capture mouse (and hide cursor) to implement

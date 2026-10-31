@@ -31,6 +31,8 @@ meson setup _build .        # Setup (or --reconfigure)
   in `subprojects/glad2gles31/` and `subprojects/glad2gles31d/`).
 - **Independence**: `yguilib/` (sources and wrappers) must not depend on
   `source/yvidtrim/` or `yvidtrim-clibs/`.
+- GUI changes, graphics api access is allowed only on main thread, only message passing
+between threads via sendAppEvent.
 
 
 ## Code Style & Workflow
