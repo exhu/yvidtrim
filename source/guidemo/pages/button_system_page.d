@@ -345,7 +345,7 @@ private:
     auto card = makeSectionCard(
       root,
       RectF(645, 360, 615, 280),
-      "4. Architecture: WidgetSystem & Component (ECS-Style)"
+      "4. Architecture: WidgetSystem & WidgetComponent (ECS-Style)"
     );
 
     WidgetBuilder(card, RectF(16, 36, 580, 50))

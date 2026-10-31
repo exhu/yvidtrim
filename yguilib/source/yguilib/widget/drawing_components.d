@@ -8,7 +8,7 @@ import yguilib.widget : Widget;
 package(yguilib) import yguilib.widget.internal.layout_text : FormattedTextLine,
   TextAlignment, sanitizeSingleLine;
 
-class Background : Component {
+class Background : WidgetComponent {
   enum Style {
     rect,
     round,
@@ -39,7 +39,7 @@ class Background : Component {
   float cornerRadius = 15.0f;
 }
 
-class TextLabel : Component {
+class TextLabel : WidgetComponent {
   // TODO RTL support
   alias Alignment = TextAlignment;
 
@@ -96,7 +96,7 @@ package(yguilib):
   TextContentSizeCache contentSizeCache;
 }
 
-class Border : Component {
+class Border : WidgetComponent {
   enum Style {
     rect,
     dashed,
@@ -167,7 +167,7 @@ class Border : Component {
   float cornerRadius = 10.0f;
 }
 
-class CustomDraw : Component {
+class CustomDraw : WidgetComponent {
   void delegate(in Renderer r, in Widget w) drawFunc;
 }
 

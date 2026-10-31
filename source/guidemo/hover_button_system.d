@@ -34,7 +34,7 @@ import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
-import yguilib.widget.component : Component;
+import yguilib.widget.component : WidgetComponent;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.layout_components : Anchor, Insets, Size;
 import yguilib.widget.system : SystemEventResult, SystemPhase, WidgetSystem,
@@ -71,7 +71,7 @@ struct HoverAnimConfig {
 }
 
 /// Component attached to a Widget to declare hover and press animation.
-final class AnimatedHoverButtonComponent : Component {
+final class AnimatedHoverButtonComponent : WidgetComponent {
   HoverAnimConfig animConfig;
   ColorF normalBg = ColorF(0.20f, 0.22f, 0.28f, 1.0f);
   ColorF normalBorder = ColorF(0.35f, 0.38f, 0.48f, 1.0f);

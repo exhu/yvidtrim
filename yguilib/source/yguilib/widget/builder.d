@@ -4,7 +4,7 @@ import std.typecons : Nullable;
 import yguilib.render.font : defaultFontPtSize;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.widget : ViewComponent, Widget, WidgetUpdateScope;
-import yguilib.widget.component : Component;
+import yguilib.widget.component : WidgetComponent;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.input_components : MouseEvent;
 import yguilib.widget.layout_components : AlignItems, Anchor, Dimension,
@@ -309,8 +309,8 @@ struct WidgetBuilder {
     return this;
   }
 
-  /// Attaches a custom user-defined Component of type C to the widget.
-  ref WidgetBuilder component(C : Component)(C comp) return {
+  /// Attaches a custom user-defined WidgetComponent of type C to the widget.
+  ref WidgetBuilder component(C : WidgetComponent)(C comp) return {
     widget.components.set!C(comp);
     return this;
   }
@@ -440,7 +440,7 @@ unittest {
   assert(viewWidget.components.view.renameEvents["btn"] == "press");
 
   // Custom component builder test
-  final class ExtraDataComponent : Component {
+  final class ExtraDataComponent : WidgetComponent {
     int tag;
     this(int tag) {
       this.tag = tag;

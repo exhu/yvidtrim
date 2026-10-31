@@ -1,5 +1,5 @@
 module yguilib.widget.component;
 
-abstract class Component {
+abstract class WidgetComponent {
 
 }

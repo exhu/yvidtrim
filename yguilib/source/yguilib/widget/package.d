@@ -42,7 +42,7 @@ interface WidgetViewController {
 ///
 /// Thus the widget tree can be constructed separately from controller code.
 /// Controllers are then created with pointers to view widgets and data.
-class ViewComponent : Component {
+class ViewComponent : WidgetComponent {
   /// Renames an event and changes event.view.viewWidget to the attached widget.
   /// An empty string value ("") prevents the event from going up the tree.
   string[string] renameEvents;
@@ -81,7 +81,7 @@ struct WidgetComponents {
 
   /// Attaches or replaces a user-defined component of type `C`.
   /// Pass `null` to remove the component of type `C`.
-  void set(C : Component)(C comp) {
+  void set(C : WidgetComponent)(C comp) {
     if (comp is null) {
       custom.remove(typeid(C));
     } else {
@@ -90,7 +90,7 @@ struct WidgetComponents {
   }
 
   /// Retrieves a user-defined component of type `C`, or `null` if absent.
-  inout(C) get(C : Component)() inout {
+  inout(C) get(C : WidgetComponent)() inout {
     if (auto p = typeid(C) in custom) {
       return cast(inout(C))*p;
     }
@@ -98,12 +98,12 @@ struct WidgetComponents {
   }
 
   /// Returns true if a user-defined component of type `C` is attached.
-  bool has(C : Component)() const {
+  bool has(C : WidgetComponent)() const {
     return (typeid(C) in custom) !is null;
   }
 
 private:
-  Component[TypeInfo_Class] custom;
+  WidgetComponent[TypeInfo_Class] custom;
 }
 
 /// Specifies which aspect of a widget changed when calling `Widget.update`.
@@ -599,16 +599,16 @@ unittest {
   assert(root.layoutDirty);
 }
 
-// Verifies custom user-defined Component storage in WidgetComponents.
+// Verifies custom user-defined WidgetComponent storage in WidgetComponents.
 unittest {
-  final class TooltipComponent : Component {
+  final class TooltipComponent : WidgetComponent {
     string text;
     this(string text) {
       this.text = text;
     }
   }
 
-  final class BadgeComponent : Component {
+  final class BadgeComponent : WidgetComponent {
     int count;
     this(int count) {
       this.count = count;

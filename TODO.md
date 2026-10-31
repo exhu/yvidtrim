@@ -1,5 +1,3 @@
-- rename Component to WidgetComponent
-
 - make combobox switch in guidemo (no more space to insert buttons)
 
 - video player component and system is external to yguilib to be independent from ffmpeg

@@ -2,7 +2,7 @@ module yguilib.widget.input_components;
 import yguilib.widget.component;
 
 /// participates in focus loop
-final class Focus : Component {
+final class Focus : WidgetComponent {
   /// currently in focus, mark one control with true to mark the first focused
   /// item. Only one widget can be focused between focusRoots
   bool focused;
@@ -13,11 +13,11 @@ final class Focus : Component {
 }
 
 /// this button is pressed by enter
-final class DefaultButton : Component {
+final class DefaultButton : WidgetComponent {
 }
 
 /// convert event press and release to event with parameter
-final class KeyboardEvent : Component {
+final class KeyboardEvent : WidgetComponent {
   struct Params {
     bool isPressed;
   }
@@ -26,7 +26,7 @@ final class KeyboardEvent : Component {
 
 import yguilib.events : AppEvent;
 
-final class MouseEvent : Component {
+final class MouseEvent : WidgetComponent {
   /// Packed value passed in AppEvent.ViewData.value to avoid heap
   /// allocations during frequent mouse events.
   union AppEventViewValue {

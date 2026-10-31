@@ -900,10 +900,10 @@ unittest {
 // Verifies end-to-end custom WidgetSystem registration, lookup, and execution.
 unittest {
   import yguilib.render.render_types : ColorF, RectF;
-  import yguilib.widget.component : Component;
+  import yguilib.widget.component : WidgetComponent;
   import yguilib.widget.system : SystemPhase, WidgetSystemContext;
 
-  final class CounterComponent : Component {
+  final class CounterComponent : WidgetComponent {
     int count;
     this(int count) {
       this.count = count;

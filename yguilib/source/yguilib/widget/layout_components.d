@@ -105,7 +105,7 @@ enum AlignItems {
 /// Attach to a `Widget` to make it lay out its children
 /// according to the flexbox-lite model. A container without
 /// this component uses no automatic layout.
-class FlexContainer : Component {
+class FlexContainer : WidgetComponent {
   this() {}
 
   this(FlexDirection direction, float gap = 0) {
@@ -152,7 +152,7 @@ class FlexContainer : Component {
 /// Holds explicit width/height plus min/max constraints
 /// (Phase 1 & 3).  Every widget that participates in
 /// layout should carry this component.
-class Size : Component {
+class Size : WidgetComponent {
   this() {}
 
   this(Insets padding) {
@@ -248,7 +248,7 @@ class Size : Component {
 ///
 /// Out-of-flow: ignored by parent `FlexContainer` flow and positioned
 /// relative to the parent's content area (deducting border and padding).
-class Anchor : Component {
+class Anchor : WidgetComponent {
   this() {}
 
   this(
