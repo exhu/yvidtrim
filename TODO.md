@@ -8,6 +8,8 @@ but add a new page (add a new module for it), and a new module
 implementation which implements the same effects a `hover_button.d` but uses
 system and component instead of controller.
 
+- rename Component to WidgetComponent
+
 - video player component and system is external to yguilib to be independent from ffmpeg
 
 - mouse capture component to capture mouse (and hide cursor) to implement
