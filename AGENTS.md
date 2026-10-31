@@ -33,6 +33,11 @@ meson setup _build .        # Setup (or --reconfigure)
   `source/yvidtrim/` or `yvidtrim-clibs/`.
 - GUI changes, graphics api access is allowed only on main thread, only message passing
 between threads via sendAppEvent.
+- ARCHITECTURE.md: The system's conceptual and structural reality (module
+  dependencies, invariants, topologies, and patterns, data flow).
+- Keep ARCHITECTURE.md updated whenever adding new modules, altering directory
+  structures, or changing core data flows.
+- Keep ARCHITECTURE.md under 250 lines.
 
 
 ## Code Style & Workflow
