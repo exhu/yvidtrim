@@ -1,6 +1,18 @@
 - explore how to make tabs in guidemo use a view-model-controller or
 system-component to implement growing number of tabs and then add scrolling
 
+WidgetAppenderComponent -- accepts a model of a collection and a widget template
+function (makes a new Widget instance), somehow model element with index must be passed to widget template,
+maintains childlist. Widget instances must be reusable. E.g. a scroll list may just append new widgets
+on container resize, but on shrink just hide unnecessary, then reuse already allocated on scrolling and on
+growing.
+
+with FlexContainer component it can produce horizontal or vertical lists.
+
+To make lists scrollable we need additional component ScrollableComponent, which
+expects a single child Widget that it moves and sends events
+
+
 - make combobox switch in guidemo (no more space to insert buttons)
 and/or scrollable tab panel
 
