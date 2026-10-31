@@ -69,6 +69,9 @@ final class DemoController : DefaultController {
       } else if (eventName == "tab3Btn") {
         model.activePage = 2;
         consumed = true;
+      } else if (eventName == "tab4Btn") {
+        model.activePage = 3;
+        consumed = true;
       } else if (eventName == "btnCountAction") {
         model.buttonClickCount += 1;
         consumed = true;
@@ -96,7 +99,7 @@ final class DemoController : DefaultController {
         sendQuit();
         return HandleResult(HandleResult.Result.quit, true);
       } else if (isKey(ev, Keycode.tab, Scancode.tab)) {
-        model.activePage = (model.activePage + 1) % 3;
+        model.activePage = (model.activePage + 1) % 4;
         consumed = true;
       } else if (isKey(ev, Keycode.key1, Scancode.key1)) {
         model.activePage = 0;
@@ -106,6 +109,9 @@ final class DemoController : DefaultController {
         consumed = true;
       } else if (isKey(ev, Keycode.key3, Scancode.key3)) {
         model.activePage = 2;
+        consumed = true;
+      } else if (isKey(ev, Keycode.key4, Scancode.key4)) {
+        model.activePage = 3;
         consumed = true;
       } else if (isKey(ev, Keycode.m, Scancode.m)) {
         model.labelMultiline = !model.labelMultiline;

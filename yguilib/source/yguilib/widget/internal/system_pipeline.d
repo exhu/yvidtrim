@@ -96,6 +96,21 @@ final class WidgetSystemPipeline {
     return fLastVisibleWidgets;
   }
 
+  /// Returns the minimum non-negative timeout requested across registered
+  /// systems, or -1 if no system requires a timeout.
+  @property int timeoutMs() const nothrow @safe {
+    int nextTimeout = -1;
+    foreach (s; systems) {
+      const int t = s.timeoutMs;
+      if (t >= 0) {
+        if (nextTimeout < 0 || t < nextTimeout) {
+          nextTimeout = t;
+        }
+      }
+    }
+    return nextTimeout;
+  }
+
   /// Dispatches an AppEvent through all SystemPhase.event systems in priority
   /// order. Stops early if a system sets `result.consumed = true`.
   /// Note: `window` is allowed to be null in headless unit tests.
@@ -107,6 +122,11 @@ final class WidgetSystemPipeline {
       const SystemEventResult res = s.handleEvent(event, ctx);
       if (res.requestUpdateView) {
         aggregate.requestUpdateView = true;
+      }
+      if (res.timeoutMs >= 0) {
+        if (aggregate.timeoutMs < 0 || res.timeoutMs < aggregate.timeoutMs) {
+          aggregate.timeoutMs = res.timeoutMs;
+        }
       }
       if (res.consumed) {
         aggregate.consumed = true;

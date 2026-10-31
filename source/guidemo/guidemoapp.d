@@ -33,7 +33,8 @@
  * update this demo with dedicated visual sections and interactive controls.
  *
  * KEYBOARD CONTROLS:
- *   [Tab]/[1]/[2] Switch demo page (Page 1: Layout, Page 2: TextLabel)
+ *   [Tab]/[1-4]   Switch demo page (Page 1: Layout, Page 2: TextLabel,
+ *                 Page 3: Hover Ctrl, Page 4: Hover System)
  *   [M]           Toggle multiline on interactive TextLabel
  *   [E]           Toggle overflow ellipsis on interactive TextLabel
  *   [L]           Cycle horizontal alignment (left -> center -> right)
@@ -52,6 +53,7 @@ import yguilib.window : Window;
 
 import guidemo.controller : DemoController;
 import guidemo.hover_button : HoverButtonController;
+import guidemo.hover_button_system : AnimatedHoverButtonSystem;
 
 void main() {
   auto window = new Window(1280, 720, "yguilib feature demo - guidemo");
@@ -62,5 +64,6 @@ void main() {
     hoverButtonController
   );
   app.ui.pushController(hoverButtonController);
+  app.ui.registerWidgetSystem(new AnimatedHoverButtonSystem());
   app.run(demoController);
 }

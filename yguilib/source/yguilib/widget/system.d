@@ -26,6 +26,7 @@ enum SystemPhase : uint {
 struct SystemEventResult {
   bool consumed;
   bool requestUpdateView;
+  int timeoutMs = -1;
 }
 
 /// Shared per-window context passed to WidgetSystem lifecycle methods.
@@ -74,6 +75,11 @@ abstract class WidgetSystem {
   /// Bitmask of SystemPhase values this system is active in.
   @property SystemPhase phases() const nothrow @safe {
     return SystemPhase.none;
+  }
+
+  /// Desired event loop timeout in milliseconds (< 0 = infinite/idle).
+  @property int timeoutMs() const nothrow @safe {
+    return -1;
   }
 
   /// Called once when the system is registered with the pipeline.

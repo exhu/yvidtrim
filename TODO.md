@@ -1,14 +1,6 @@
-- in guidemo: introduce hover animation system and component.
-Add a new page to guidemo app to demonstrate how hover button animation can be implemented
-with custom WidgetSystem (name it AnimatedHoverButtonSystem) and custom WidgetComponent
-(name it AnimatedHoverButtonComponent).
-Keep current hover animation implementation via controller in `hover_button.d`,
-but add a new page (add a new module for it), and a new module
-`hover_button_system.d` which contains new system and the component
-implementation which implements the same effects a `hover_button.d` but uses
-system and component instead of controller.
-
 - rename Component to WidgetComponent
+
+- make combobox switch in guidemo (no more space to insert buttons)
 
 - video player component and system is external to yguilib to be independent from ffmpeg
 

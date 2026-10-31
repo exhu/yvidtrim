@@ -5,6 +5,7 @@ module guidemo.view;
 
 import guidemo.model : DemoModel;
 import guidemo.pages.button_page : ButtonPage;
+import guidemo.pages.button_system_page : ButtonSystemPage;
 import guidemo.pages.layout_painter_page : LayoutPainterPage;
 import guidemo.pages.textlabel_page : TextLabelPage;
 import yguilib.model : ModelTracker;
@@ -33,6 +34,8 @@ final class DemoView {
     page2.setVisible(false);
     page3 = new ButtonPage(view);
     page3.setVisible(false);
+    page4 = new ButtonSystemPage(view);
+    page4.setVisible(false);
 
     buildStatusBar();
   }
@@ -48,12 +51,15 @@ final class DemoView {
     const bool p1Vis = (m.activePage == 0);
     const bool p2Vis = (m.activePage == 1);
     const bool p3Vis = (m.activePage == 2);
+    const bool p4Vis = (m.activePage == 3);
     if (page1.isVisible() != p1Vis ||
         page2.isVisible() != p2Vis ||
-        page3.isVisible() != p3Vis) {
+        page3.isVisible() != p3Vis ||
+        page4.isVisible() != p4Vis) {
       page1.setVisible(p1Vis);
       page2.setVisible(p2Vis);
       page3.setVisible(p3Vis);
+      page4.setVisible(p4Vis);
       view.update(WidgetUpdateScope.layout);
     }
 
@@ -73,13 +79,20 @@ final class DemoView {
       : ColorF(0.16f, 0.18f, 0.23f, 1.0f);
     tab3Btn.setBackgroundColor(col3);
 
+    const ColorF col4 = m.activePage == 3
+      ? ColorF(0.20f, 0.45f, 0.85f, 1.0f)
+      : ColorF(0.16f, 0.18f, 0.23f, 1.0f);
+    tab4Btn.setBackgroundColor(col4);
+
     // 3. Delegate page-specific updates
     if (p1Vis) {
       page1.update(m);
     } else if (p2Vis) {
       page2.update(m);
-    } else {
+    } else if (p3Vis) {
       page3.update(m);
+    } else {
+      page4.update(m);
     }
 
     // 4. Update HUD status label text
@@ -92,6 +105,10 @@ final class DemoView {
 
   ButtonPage getButtonPage() {
     return page3;
+  }
+
+  ButtonSystemPage getButtonSystemPage() {
+    return page4;
   }
 
 private:
@@ -111,7 +128,7 @@ private:
       break;
     }
     return format(
-      "[Tab/1/2] Page 2: TextLabel | [M] Multiline: %s | " ~
+      "[Tab/1-4] Page 2: TextLabel | [M] Multiline: %s | " ~
       "[E] Ellipsis: %s | [L] Align: %s | [T] Sample: %d/3 | [Q/Esc] Quit",
       m.labelMultiline ? "ON" : "OFF",
       m.labelEllipsis ? "ON" : "OFF",
@@ -159,7 +176,7 @@ private:
     string visStr = m.child2Visible ? "visible" : "hidden";
 
     return format(
-      "[Tab/1/2] Page 1: Layout | [D] Dir: %s | [J] Justify: %s | " ~
+      "[Tab/1-4] Page 1: Layout | [D] Dir: %s | [J] Justify: %s | " ~
       "[A] Align: %s | [G] Gap: %.0f | [V] Box B: %s | [T] Text: %d | " ~
       "[Q/Esc] Quit",
       dirStr, justStr, alignStr, m.gap, visStr, m.textSampleIndex + 1
@@ -169,7 +186,15 @@ private:
   static string formatPage3Status(const DemoModel m) {
     import std.format : format;
     return format(
-      "[Tab/1/2/3] Page 3: Hover Buttons | Clicks: %d | [Q/Esc] Quit",
+      "[Tab/1-4] Page 3: Hover Buttons | Clicks: %d | [Q/Esc] Quit",
+      m.buttonClickCount
+    );
+  }
+
+  static string formatPage4Status(const DemoModel m) {
+    import std.format : format;
+    return format(
+      "[Tab/1-4] Page 4: Hover System | Clicks: %d | [Q/Esc] Quit",
       m.buttonClickCount
     );
   }
@@ -181,6 +206,9 @@ private:
     if (m.activePage == 2) {
       return formatPage3Status(m);
     }
+    if (m.activePage == 3) {
+      return formatPage4Status(m);
+    }
     return formatPage1Status(m);
   }
 
@@ -190,7 +218,7 @@ private:
       .border(ColorF(0.22f, 0.25f, 0.32f, 1.0f), 1.0f)
       .build();
 
-    WidgetBuilder(header, RectF(14, 5, 560, 20))
+    WidgetBuilder(header, RectF(14, 5, 470, 20))
       .text(
         "yguilib GUI Feature Demo & Showcase (guidemo)",
         ColorF(1.0f, 1.0f, 1.0f, 1.0f),
@@ -198,7 +226,7 @@ private:
       )
       .build();
 
-    WidgetBuilder(header, RectF(14, 26, 560, 16))
+    WidgetBuilder(header, RectF(14, 26, 470, 16))
       .text(
         "Verification for widget_painter.d, layout_system.d & " ~
           "input_components.d",
@@ -207,12 +235,12 @@ private:
       .build();
 
     // Tab 1 button: Layout & Painter
-    tab1Btn = WidgetBuilder(header, RectF(585, 9, 195, 30))
-      .padding(5, 10, 5, 10)
+    tab1Btn = WidgetBuilder(header, RectF(495, 9, 175, 30))
+      .padding(5, 8, 5, 8)
       .roundBackground(ColorF(0.20f, 0.45f, 0.85f, 1.0f), 4.0f)
       .border(ColorF(0.40f, 0.70f, 1.0f, 1.0f), 1.0f)
       .text(
-        "[1] Layout & Painter",
+        "[1] Layout & Paint",
         ColorF(1.0f, 1.0f, 1.0f, 1.0f),
         13.0f,
         TextLabel.Alignment.center
@@ -221,12 +249,12 @@ private:
       .build();
 
     // Tab 2 button: TextLabel Showcase
-    tab2Btn = WidgetBuilder(header, RectF(790, 9, 210, 30))
-      .padding(5, 10, 5, 10)
+    tab2Btn = WidgetBuilder(header, RectF(680, 9, 175, 30))
+      .padding(5, 8, 5, 8)
       .roundBackground(ColorF(0.16f, 0.18f, 0.23f, 1.0f), 4.0f)
       .border(ColorF(0.30f, 0.35f, 0.45f, 1.0f), 1.0f)
       .text(
-        "[2] TextLabel Showcase",
+        "[2] TextLabel Demo",
         ColorF(0.80f, 0.85f, 0.95f, 1.0f),
         13.0f,
         TextLabel.Alignment.center
@@ -235,17 +263,31 @@ private:
       .build();
 
     // Tab 3 button: Hover Buttons Showcase
-    tab3Btn = WidgetBuilder(header, RectF(1010, 9, 215, 30))
-      .padding(5, 10, 5, 10)
+    tab3Btn = WidgetBuilder(header, RectF(865, 9, 175, 30))
+      .padding(5, 8, 5, 8)
       .roundBackground(ColorF(0.16f, 0.18f, 0.23f, 1.0f), 4.0f)
       .border(ColorF(0.30f, 0.35f, 0.45f, 1.0f), 1.0f)
       .text(
-        "[3] Hover Buttons Demo",
+        "[3] Hover (Ctrl)",
         ColorF(0.80f, 0.85f, 0.95f, 1.0f),
         13.0f,
         TextLabel.Alignment.center
       )
       .onMouseDown("tab3Btn")
+      .build();
+
+    // Tab 4 button: Hover System Showcase
+    tab4Btn = WidgetBuilder(header, RectF(1050, 9, 175, 30))
+      .padding(5, 8, 5, 8)
+      .roundBackground(ColorF(0.16f, 0.18f, 0.23f, 1.0f), 4.0f)
+      .border(ColorF(0.30f, 0.35f, 0.45f, 1.0f), 1.0f)
+      .text(
+        "[4] Hover (System)",
+        ColorF(0.80f, 0.85f, 0.95f, 1.0f),
+        13.0f,
+        TextLabel.Alignment.center
+      )
+      .onMouseDown("tab4Btn")
       .build();
   }
 
@@ -269,9 +311,11 @@ private:
   Widget tab1Btn;
   Widget tab2Btn;
   Widget tab3Btn;
+  Widget tab4Btn;
   Widget statusLabel;
 
   LayoutPainterPage page1;
   TextLabelPage page2;
   ButtonPage page3;
+  ButtonSystemPage page4;
 }

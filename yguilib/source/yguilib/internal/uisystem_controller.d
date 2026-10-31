@@ -36,23 +36,45 @@ final class UiSystemController : DefaultController {
   }
 
   override HandleResult handleEvent(AppEvent ev) {
+    const int activeTimeout = pipeline.timeoutMs;
     if (ev.kind == AppEvent.Kind.updateUiLayer) {
-      return HandleResult(HandleResult.Result.updateView);
+      return HandleResult(
+        HandleResult.Result.updateView,
+        false,
+        activeTimeout
+      );
     }
     if (handleWindowEvent(ev)) {
-      return HandleResult(HandleResult.Result.updateView);
+      return HandleResult(
+        HandleResult.Result.updateView,
+        false,
+        activeTimeout
+      );
     }
     const SystemEventResult sysRes = pipeline.handleEvent(
       ev,
       uiSystem.mainWindow
     );
+    const int eventTimeout = sysRes.timeoutMs >= 0
+      ? sysRes.timeoutMs
+      : activeTimeout;
+
     if (sysRes.requestUpdateView) {
-      return HandleResult(HandleResult.Result.updateView, sysRes.consumed);
+      return HandleResult(
+        HandleResult.Result.updateView,
+        sysRes.consumed,
+        eventTimeout
+      );
     }
     if (sysRes.consumed) {
-      return HandleResult(HandleResult.Result.nothing, true);
+      return HandleResult(HandleResult.Result.nothing, true, eventTimeout);
     }
-    return super.handleEvent(ev);
+    auto res = super.handleEvent(ev);
+    if (eventTimeout >= 0 &&
+        (res.timeoutMs < 0 || eventTimeout < res.timeoutMs)) {
+      res.timeoutMs = eventTimeout;
+    }
+    return res;
   }
 
 private:
