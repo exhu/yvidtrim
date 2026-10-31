@@ -1,6 +1,34 @@
-- introduce a hover system and demonstrate how hover can be implemented with this together with
-keeping current hover controller in guidemo
+- in guidemo: introduce hover animation system and component.
+Add a new page to guidemo app to demonstrate how hover button animation can be implemented
+with custom WidgetSystem (name it AnimatedHoverButtonSystem) and custom WidgetComponent
+(name it AnimatedHoverButtonComponent).
+Keep current hover animation implementation via controller in `hover_button.d`,
+but add a new page (add a new module for it), and a new module
+`hover_button_system.d` which contains new system and the component
+implementation which implements the same effects a `hover_button.d` but uses
+system and component instead of controller.
 
+- video player component and system is external to yguilib to be independent from ffmpeg
+
+- mouse capture component to capture mouse (and hide cursor) to implement
+knobs
+- build widget library
+-- button with hover
+-- combobox
+- styles
+- add image support
+
+- assets management (transparent mapping to embedded import string and file stream data)
+- extended font management (proper name, styles)
+- define modal controller rules (some controllers must still handle events, when modal is active)
+- add modal dialog displayed by model on key (and closed by click)
+- button
+- focus
+- modal dialog
+- text input
+
+------------
+Noted for future, discarded for now:
 looks like does not fit the proper paradigm, it should be a system rather than
 a controller for multiple controls like hover effect, however can be used
 to accept data model name and resolve field names to controls:
@@ -22,24 +50,3 @@ however named controllers should be created in advance and live in the runtime r
 	visible but change behaviour? Modal component?
 
 	if view requests controller push, and controller can hide view, then there's cycle.
-
-
-- video player component and system is external to yguilib to be independent from ffmpeg
-
-
-- mouse capture component to capture mouse (and hide cursor) to implement
-knobs
-- build widget library
--- button with hover
--- combobox
-- styles
-- add image support
-
-- assets management (transparent mapping to embedded import string and file stream data)
-- extended font management (proper name, styles)
-- define modal controller rules (some controllers must still handle events, when modal is active)
-- add modal dialog displayed by model on key (and closed by click)
-- button
-- focus
-- modal dialog
-- text input
