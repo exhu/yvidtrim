@@ -1,5 +1,8 @@
-- make tab1btn tab2btn... use the same event name "tabNbtn" but pass integer as
-user data in event.
+- in guidemo make tab1btn tab2btn... use new event name "tabBtnClicked" instead of those and pass integer as
+ViewData.value[0] in event which indicates current tab number instead of being formatted into event name string.
+see handleViewEvent in source/guidemo/controller.d however there are only strings to name events e.g. w.componets.mosueEvent.mouseDown, need to add a controller (or view?) which converts mouseDown with widget pointer to view event with payload.
+
+button.mouseDown -> view event tabBtnClicked -> TabPanelView (controller?) -> view event tabBtnClicked with tab number -> app
 
 - explore how to make tabs in guidemo with scrolling
 Fast scrolling (without animation, just switching which tab button is the
