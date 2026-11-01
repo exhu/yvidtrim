@@ -1,7 +1,7 @@
 module yguilib.widget.internal.data_system;
 
 package(yguilib):
-import yguilib.widget : Widget;
+import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.system;
 import yguilib.widget.data_components;
 
@@ -47,6 +47,7 @@ private:
       foreach (i, uw; w.children) {
         uw.setVisible(i < c.itemsCount);
       }
+      w.update(WidgetUpdateScope.layout);
     }
 
     if (shouldUpdateWidgets) {

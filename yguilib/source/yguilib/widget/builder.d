@@ -5,6 +5,8 @@ import yguilib.render.font : defaultFontPtSize;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.widget : ViewComponent, Widget, WidgetUpdateScope;
 import yguilib.widget.component : WidgetComponent;
+import yguilib.widget.data_components : WidgetArrayComponent,
+  WidgetArrayProvider;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.input_components : MouseEvent;
 import yguilib.widget.layout_components : AlignItems, Anchor, Dimension,
@@ -315,6 +317,26 @@ struct WidgetBuilder {
     return this;
   }
 
+  /// Attaches a WidgetArrayComponent with the given provider and item count.
+  /// `provider` is allowed to be null during incremental configuration.
+  ref WidgetBuilder widgetArray(
+    WidgetArrayProvider provider,
+    size_t itemsCount = 0
+  ) return {
+    auto wa = new WidgetArrayComponent();
+    wa.provider = provider;
+    wa.itemsCount = itemsCount;
+    widget.components.widgetArray = wa;
+    return this;
+  }
+
+  /// Attaches a pre-configured WidgetArrayComponent to the widget.
+  /// `wa` is allowed to be null to clear the component.
+  ref WidgetBuilder widgetArray(WidgetArrayComponent wa) return {
+    widget.components.widgetArray = wa;
+    return this;
+  }
+
   Widget build() {
     widget.update(WidgetUpdateScope.parentView);
     return widget;
@@ -453,4 +475,17 @@ unittest {
   assert(customWidget.components.has!ExtraDataComponent());
   assert(customWidget.components.get!ExtraDataComponent() is extra);
   assert(customWidget.components.get!ExtraDataComponent().tag == 42);
+
+  // WidgetArrayComponent builder test
+  final class DummyArrayProvider : WidgetArrayProvider {
+    override void addWidget(Widget parent) {}
+    override void updateWidgetAt(Widget w, size_t index) {}
+  }
+  auto arrProvider = new DummyArrayProvider();
+  auto arrWidget = WidgetBuilder(RectF(0, 0, 100, 30))
+    .widgetArray(arrProvider, 4)
+    .build();
+  assert(arrWidget.components.widgetArray !is null);
+  assert(arrWidget.components.widgetArray.provider is arrProvider);
+  assert(arrWidget.components.widgetArray.itemsCount == 4);
 }

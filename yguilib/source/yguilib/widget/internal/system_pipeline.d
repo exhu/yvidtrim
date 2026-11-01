@@ -171,6 +171,14 @@ private:
     WidgetSystemContext ctx = makeContext(window);
     assert(ctx.root !is null);
     assert(ctx.renderer !is null);
+    if (fLastVisibleWidgets.length == 0) {
+      fLastVisibleWidgets = collector.collectVisible(
+        ctx.root,
+        ctx.renderer,
+        false
+      );
+      ctx.visibleWidgets = fLastVisibleWidgets;
+    }
     runPreLayoutPhase(ctx);
     runLayoutAndPostLayoutPhases(ctx);
     return runRenderPhase(ctx);
@@ -320,16 +328,17 @@ private:
 }
 
 version (unittest) {
-  private class DummyHost : WidgetSystemHost {
+private:
+  class DummyHost : WidgetSystemHost {
     AppEvent[] sentEvents;
     override void sendAppEvent(AppEvent ev) {
       sentEvents ~= ev;
     }
   }
 
-  private static string[] executionLog;
+  static string[] executionLog;
 
-  private class PriorityTestSystem : WidgetSystem {
+  class PriorityTestSystem : WidgetSystem {
     string name;
     this(string name, int priority) nothrow @safe {
       super(priority);

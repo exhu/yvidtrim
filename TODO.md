@@ -1,35 +1,16 @@
-- Refactor tabContainer usage in source/guidemo/view.d to use new data-driven
-widget creation via WidgetArrayComponent:
-in buildHeader() function tabContainer to use WidgetArrayComponent (data_components.d),
-add a new HeaderTabsModel : VersionedModel (with an array of tab names) and HeaderTabButtonsProvider : WidgetArrayProvider instead
-of series of existing createTabButton calls in place. So that adding new tab buttons
-in future would require only adding new label to an array of strings in
-HeaderTabsModel.
+- make tab1btn tab2btn... use the same event name "tabNbtn" but pass integer as
+user data in event.
 
-createTabButton accepts event name, pass null instead in HeaderTabButtonsProvider.addWidget.
+- explore how to make tabs in guidemo with scrolling
+Fast scrolling (without animation, just switching which tab button is the
+first visible may be implemented just by changing visibility of buttons (hide
+all until the current left-most).
 
-Event name should be generated and updated programmatically in WidgetArrayProvider.updateWidgetAt,
-e.g. via format "tab%dBtn"
-
-when tracker.update() (tracker instance for HaeaderTabsModel) returns true
-set tabContainer.widgetArray.modelChanged = true.
-
-
-- explore how to make tabs in guidemo use a view-model-controller or
-system-component to implement growing number of tabs and then add scrolling
-
-WidgetArrayComponent -- accepts a model of a collection and a widget template
-function (makes a new Widget instance), collection element with index must be
-passed to widget update, maintains childlist. Widget instances must be
-reusable. E.g. a scroll list may just append new widgets on container resize,
+a scroll list may just append new widgets on container resize,
 but on shrink just hide unnecessary, then reuse already allocated on scrolling
 and on growing.
 
 with FlexContainer component it can produce horizontal or vertical lists.
-
-Fast scrolling (without animation, just switching which tab button is the
-first visible may be implemented just by changing visibility of buttons (hide
-all until the current left-most).
 
 - Systems and components satisfy the case of parent and child widgets and
 multitude of instances, while WidgetController may be more appropriate when

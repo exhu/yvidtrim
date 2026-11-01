@@ -3,12 +3,12 @@
  */
 module guidemo.view;
 
-import guidemo.model : DemoModel;
+import guidemo.model : DemoModel, HeaderTabsModel;
 import guidemo.pages.button_page : ButtonPage;
 import guidemo.pages.button_system_page : ButtonSystemPage;
 import guidemo.pages.layout_painter_page : LayoutPainterPage;
 import guidemo.pages.textlabel_page : TextLabelPage;
-import guidemo.tab_button : createTabButton, updateTabButtonState;
+import guidemo.tab_button : HeaderTabButtonsProvider;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.widget : Widget, WidgetUpdateScope;
@@ -21,7 +21,18 @@ import yguilib.widget.input_components : MouseEvent;
 /// View building and updating all demo widget hierarchies.
 final class DemoView {
   this(ref ModelTracker!DemoModel modelTracker) {
+    auto defaultTabsTracker = ModelTracker!HeaderTabsModel(
+      new HeaderTabsModel()
+    );
+    this(modelTracker, defaultTabsTracker);
+  }
+
+  this(
+    ref ModelTracker!DemoModel modelTracker,
+    ref ModelTracker!HeaderTabsModel tabsModelTracker
+  ) {
     tracker = ModelTracker!DemoModel(modelTracker);
+    tabsTracker = ModelTracker!HeaderTabsModel(tabsModelTracker);
 
     // Root background
     view = WidgetBuilder(RectF(0, 0, 1280, 720))
@@ -42,6 +53,12 @@ final class DemoView {
   }
 
   void update() {
+    if (tabsTracker.update()) {
+      tabContainer.components.widgetArray.itemsCount =
+        tabsTracker.model.tabNames.length;
+      tabContainer.components.widgetArray.modelChanged = true;
+    }
+
     if (!tracker.update()) {
       return;
     }
@@ -64,13 +81,7 @@ final class DemoView {
       view.update(WidgetUpdateScope.layout);
     }
 
-    // 2. Update tab button highlights
-    updateTabButtonState(tab1Btn, m.activePage == 0);
-    updateTabButtonState(tab2Btn, m.activePage == 1);
-    updateTabButtonState(tab3Btn, m.activePage == 2);
-    updateTabButtonState(tab4Btn, m.activePage == 3);
-
-    // 3. Delegate page-specific updates
+    // 2. Delegate page-specific updates
     if (p1Vis) {
       page1.update(m);
     } else if (p2Vis) {
@@ -81,7 +92,7 @@ final class DemoView {
       page4.update(m);
     }
 
-    // 4. Update HUD status label text
+    // 3. Update HUD status label text
     statusLabel.setCaption(formatStatusString(m));
   }
 
@@ -220,27 +231,18 @@ private:
       )
       .build();
 
-    auto tabContainer = WidgetBuilder(header, RectF(495, 9, 730, 30))
+    tabContainer = WidgetBuilder(header, RectF(495, 9, 730, 30))
       .flex(
         FlexDirection.row,
         10.0f,
         JustifyContent.start,
         AlignItems.center
       )
+      .widgetArray(
+        new HeaderTabButtonsProvider(tabsTracker.model),
+        tabsTracker.model.tabNames.length
+      )
       .build();
-
-    tab1Btn = createTabButton(
-      tabContainer, "[1] Layout & Paint", "tab1Btn", true
-    );
-    tab2Btn = createTabButton(
-      tabContainer, "[2] TextLabel Demo", "tab2Btn"
-    );
-    tab3Btn = createTabButton(
-      tabContainer, "[3] Hover (Ctrl)", "tab3Btn"
-    );
-    tab4Btn = createTabButton(
-      tabContainer, "[4] Hover (System)", "tab4Btn"
-    );
   }
 
   void buildStatusBar() {
@@ -259,11 +261,9 @@ private:
 
   Widget view;
   ModelTracker!DemoModel tracker;
+  ModelTracker!HeaderTabsModel tabsTracker;
 
-  Widget tab1Btn;
-  Widget tab2Btn;
-  Widget tab3Btn;
-  Widget tab4Btn;
+  Widget tabContainer;
   Widget statusLabel;
 
   LayoutPainterPage page1;

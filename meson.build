@@ -69,7 +69,7 @@ test('hover_button_system_test', hover_button_system_test_exe)
 
 tab_button_test_exe = executable(
   'tab_button_test',
-  files('source/guidemo/tab_button.d'),
+  files('source/guidemo/tab_button.d', 'source/guidemo/model.d'),
   d_unittest : true,
   include_directories : yvidtrim_inc,
   d_import_dirs : yvidtrim_inc,

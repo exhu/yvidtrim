@@ -33,3 +33,14 @@ final class DemoModel : VersionedModel {
 
   bool quitRequested = false;
 }
+
+/// Model holding header tab names and active tab index.
+final class HeaderTabsModel : VersionedModel {
+  string[] tabNames = [
+    "[1] Layout & Paint",
+    "[2] TextLabel Demo",
+    "[3] Hover (Ctrl)",
+    "[4] Hover (System)",
+  ];
+  size_t activeTab = 0;
+}

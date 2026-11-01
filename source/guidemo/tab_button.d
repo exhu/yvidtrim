@@ -3,9 +3,11 @@
  */
 module guidemo.tab_button;
 
+import guidemo.model : HeaderTabsModel;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.widget : Widget;
 import yguilib.widget.builder : WidgetBuilder;
+import yguilib.widget.data_components : WidgetArrayProvider;
 import yguilib.widget.drawing_components : TextLabel;
 
 /// Default visual dimensions and font metrics for header tab buttons.
@@ -28,8 +30,9 @@ enum tabInactiveText = ColorF(0.80f, 0.85f, 0.95f, 1.0f);
  *
  * Params:
  *   parent = Parent container widget (must not be null).
- *   label = Text caption displayed on the button.
- *   eventName = Event name emitted on mouse down (e.g., "tab1Btn").
+ *   label = Text caption displayed on the button (allowed to be null).
+ *   eventName = Event name emitted on mouse down, e.g., "tab1Btn" (allowed to
+ *     be null).
  *   isActive = Whether the button initializes in the active highlight state.
  *   width = Desired fixed button width.
  *   height = Desired fixed button height.
@@ -75,6 +78,41 @@ void updateTabButtonState(Widget btn, bool isActive) {
   btn.setBackgroundColor(isActive ? tabActiveBg : tabInactiveBg);
   btn.setBorderColor(isActive ? tabActiveBorder : tabInactiveBorder);
   btn.setTextColor(isActive ? tabActiveText : tabInactiveText);
+}
+
+/**
+ * Data-driven widget provider creating and updating header tab buttons
+ * for a WidgetArrayComponent.
+ */
+final class HeaderTabButtonsProvider : WidgetArrayProvider {
+  this(const(HeaderTabsModel) model) {
+    assert(model !is null, "model must not be null");
+    this.model = model;
+  }
+
+  invariant {
+    assert(model !is null);
+  }
+
+  override void addWidget(Widget parent) {
+    assert(parent !is null, "parent must not be null");
+    createTabButton(parent, null, null);
+  }
+
+  override void updateWidgetAt(Widget w, size_t index) {
+    import std.format : format;
+
+    assert(w !is null, "w must not be null");
+    assert(index < model.tabNames.length, "tab index out of bounds");
+    assert(w.components.mouseEvent !is null);
+
+    w.setCaption(model.tabNames[index]);
+    w.components.mouseEvent.mouseDown = format("tab%dBtn", index + 1);
+    updateTabButtonState(w, index == model.activeTab);
+  }
+
+private:
+  const(HeaderTabsModel) model;
 }
 
 unittest {
@@ -149,6 +187,46 @@ unittest {
   assert(b2.components.size.width.mode == SizingMode.fixed);
   assert(b2.components.size.height.value == defaultTabButtonHeight);
   assert(b2.components.size.height.mode == SizingMode.fixed);
+}
+
+unittest {
+  auto tabsModel = new HeaderTabsModel();
+  auto provider = new HeaderTabButtonsProvider(tabsModel);
+  auto container = new Widget(null, RectF(0, 0, 730, 30));
+
+  foreach (_; 0 .. tabsModel.tabNames.length) {
+    provider.addWidget(container);
+  }
+  assert(container.children.length == 4);
+
+  foreach (i, child; container.children) {
+    provider.updateWidgetAt(child, i);
+  }
+
+  assert(container.children[0].components.textLabel.caption ==
+    "[1] Layout & Paint");
+  assert(container.children[0].components.mouseEvent.mouseDown == "tab1Btn");
+  assert(container.children[0].components.background.color == tabActiveBg);
+
+  assert(container.children[1].components.textLabel.caption ==
+    "[2] TextLabel Demo");
+  assert(container.children[1].components.mouseEvent.mouseDown == "tab2Btn");
+  assert(container.children[1].components.background.color == tabInactiveBg);
+
+  assert(container.children[3].components.textLabel.caption ==
+    "[4] Hover (System)");
+  assert(container.children[3].components.mouseEvent.mouseDown == "tab4Btn");
+  assert(container.children[3].components.background.color == tabInactiveBg);
+
+  // Switch active tab to index 2 and re-update
+  tabsModel.edit();
+  tabsModel.activeTab = 2;
+  tabsModel.commit();
+  foreach (i, child; container.children) {
+    provider.updateWidgetAt(child, i);
+  }
+  assert(container.children[0].components.background.color == tabInactiveBg);
+  assert(container.children[2].components.background.color == tabActiveBg);
 }
 
 version (unittest) {
