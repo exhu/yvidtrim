@@ -36,6 +36,7 @@ yguilib_src = files(
   'source/yguilib/widget/drawing_components.d',
   'source/yguilib/widget/input_components.d',
   'source/yguilib/widget/internal/collect_visible.d',
+  'source/yguilib/widget/internal/data_system.d',
   'source/yguilib/widget/internal/input_system.d',
   'source/yguilib/widget/internal/focus_system.d',
   'source/yguilib/widget/internal/layout_anchor.d',

@@ -4,6 +4,7 @@ import yguilib.widget.drawing_components;
 import yguilib.render.render_types;
 import yguilib.widget.layout_components;
 import yguilib.widget.input_components;
+import yguilib.widget.data_components;
 import yguilib.render.font : defaultFontPtSize;
 import std.typecons : Nullable;
 
@@ -46,6 +47,8 @@ class ViewComponent : WidgetComponent {
   /// Renames an event and changes event.view.viewWidget to the attached widget.
   /// An empty string value ("") prevents the event from going up the tree.
   string[string] renameEvents;
+  // The following is for when graphical WYSIWYG editor (but first building widget tree via
+  // json) phase of yguilib will be in development:
   /// Add this widget to registered named WidgetViewController. Can be useful for composite widgets.
   /// E.g. an app needs to implement one hover button or a colour picker
   /// controller to monitor and animate Widgets, that controller gets registered
@@ -78,6 +81,9 @@ struct WidgetComponents {
   DefaultButton defaultButton;
   KeyboardEvent keyboardEvent;
   MouseEvent mouseEvent;
+
+  // data driven
+  WidgetArrayComponent widgetArray;
 
   /// Attaches or replaces a user-defined component of type `C`.
   /// Pass `null` to remove the component of type `C`.
@@ -155,6 +161,7 @@ final class Widget {
     this.parent = parent;
     this.rect = rect;
     if (parent) {
+      // TODO should ensure unique widgets or allow multiple references
       parent.children ~= this;
       fParentView = findParentView();
     }
