@@ -1,3 +1,20 @@
+- Refactor tabContainer usage in source/guidemo/view.d to use new data-driven
+widget creation via WidgetArrayComponent:
+in buildHeader() function tabContainer to use WidgetArrayComponent (data_components.d),
+add a new HeaderTabsModel : VersionedModel (with an array of tab names) and HeaderTabButtonsProvider : WidgetArrayProvider instead
+of series of existing createTabButton calls in place. So that adding new tab buttons
+in future would require only adding new label to an array of strings in
+HeaderTabsModel.
+
+createTabButton accepts event name, pass null instead in HeaderTabButtonsProvider.addWidget.
+
+Event name should be generated and updated programmatically in WidgetArrayProvider.updateWidgetAt,
+e.g. via format "tab%dBtn"
+
+when tracker.update() (tracker instance for HaeaderTabsModel) returns true
+set tabContainer.widgetArray.modelChanged = true.
+
+
 - explore how to make tabs in guidemo use a view-model-controller or
 system-component to implement growing number of tabs and then add scrolling
 
