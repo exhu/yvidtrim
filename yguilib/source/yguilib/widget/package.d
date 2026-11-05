@@ -6,13 +6,51 @@ import yguilib.widget.layout_components;
 import yguilib.widget.input_components;
 import yguilib.widget.data_components;
 import yguilib.render.font : defaultFontPtSize;
+import yguilib.events : AppEvent;
 import std.typecons : Nullable;
 
 // TODO implement code first approach, without symbolic bindings
 
+/// This reacts to top view events (after translation)
 interface WidgetViewController {
   string getControllerName();
   void addView(Widget v);
+}
+
+/// This translates the event for ViewComponent and fetches data from model
+/// into widgets of the view.
+interface WidgetView {
+  string getWidgetViewName();
+  void registerViewWidget(Widget viewWidget);
+  void unregisterViewWidget(Widget viewWidget);
+  /// called by the system if the event name is in renameEvents
+  /// viewWidget = Widget with ViewComponent
+  ref AppEvent translateEventForView(ref AppEvent sourceEvent, Widget viewWidget) scope return;
+  /// populate widgets with data, this must be called by any controller
+  void update();
+}
+
+abstract class WidgetViewBase : WidgetView {
+public:
+  override void registerViewWidget(Widget viewWidget) {
+    viewWidgets ~= viewWidget;
+  }
+  override void unregisterViewWidget(Widget viewWidget) {
+    import std.algorithm.mutation : remove;
+    viewWidgets = viewWidgets.remove!(a => a is viewWidget);
+  }
+
+  override string getWidgetViewName() {
+    import std.string : lastIndexOf;
+    const fullName = typeid(this).name;
+    const dotIdx = fullName.lastIndexOf('.');
+    return dotIdx >= 0 ? fullName[dotIdx + 1 .. $] : fullName;
+  }
+
+  override void update() {}
+
+protected:
+  Widget[] viewWidgets;
 }
 
 /// Widgets can have this component to mark a root view to rename events
@@ -56,11 +94,15 @@ class ViewComponent : WidgetComponent {
   // visual editor features:
   // TODO implement
   string addToController;
+
   // TODO parameters to that view, whose controller checks models on update.
   // this is a design parameter, at runtime ModelTracker instances to be constructed.
   // so need a named registry of model types and a factory, so that ModelTracker instances
   // can be constructed at runtime via string parameters.
   string[string] trackedModels;
+
+  // TODO optional (can be null) translator for events in renameEvents
+  WidgetView widgetView;
 }
 
 struct WidgetComponents {
@@ -665,4 +707,18 @@ unittest {
   assert(w.components.get!TooltipComponent() is null);
   assert(w.components.has!BadgeComponent());
   assert(w.components.get!BadgeComponent() is badge);
+}
+
+unittest {
+  final class SampleWidgetView : WidgetViewBase {
+    override ref AppEvent translateEventForView(
+      ref AppEvent sourceEvent,
+      Widget viewWidget
+    ) scope return {
+      return sourceEvent;
+    }
+  }
+
+  auto view = new SampleWidgetView();
+  assert(view.getWidgetViewName() == "SampleWidgetView");
 }
