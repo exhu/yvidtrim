@@ -1,20 +1,24 @@
-
-- Use TabControl in guidemo to replace current tab1btn, tab2btn etc
-in guidemo which are tab buttons used to switch current page in guidemo/controller.d . Use new event name "tabBtnClicked" instead
-of those and pass integer as ViewData.value[0] in event which indicates current
-tab number instead of being formatted into event name string.  see
-handleViewEvent in source/guidemo/controller.d however there are only strings to
-name events e.g. w.componets.mosueEvent.mouseDown, need to add a controller (or
-view?) which converts mouseDown with widget pointer to view event with payload.
-
-button.mouseDown -> view event tabBtnClicked -> TabPanelView (controller?) ->
-view event tabBtnClicked with tab number -> app review how events are propagated
-and how view component is handled.
-
 - explore how to make tabs in guidemo with scrolling
 Fast scrolling (without animation, just switching which tab button is the
 first visible may be implemented just by changing visibility of buttons (hide
 all until the current left-most).
+
+```
+TabControlWidget (with ViewComponent)
+ - flex container
+  - left button
+  - scrollable area (has children clipping on)
+   - movable control which may be larger than visible area of the parent in order to align leftmost or rightmost children.
+   has WidgetArrayComponent to display widgets to cover visible area (can produce more widgets to cover all visible parent area)
+  - right button.
+
+[<][tab1][ta...][>]
+```
+
+Scroll area seems to be a separate controller or component?
+We don't know how many WidgetArrayComponent items to request before layout is complete.
+Maybe introduce a layout component that will notify if the space is available
+or lacks?
 
 a scroll list may just append new widgets on container resize,
 but on shrink just hide unnecessary, then reuse already allocated on scrolling
@@ -28,6 +32,8 @@ Rethink widget life time, may be it's constructor must not append to parent.
 - may be just use ViewComponent on root widget + WidgetView +
 WidgetViewController in demo and everywhere for consistency instead of manually
 created View and Controller?
+
+- Use TabControl in guidemo to replace current tab1btn, tab2btn etc
 
 
 - Systems and components satisfy the case of parent and child widgets and
