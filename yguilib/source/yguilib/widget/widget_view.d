@@ -1,6 +1,8 @@
 module yguilib.widget.widget_view;
 import yguilib.widget : Widget;
 import yguilib.events : AppEvent;
+import yguilib.controller : DefaultController;
+import yguilib.uisystem : UiSystem;
 
 // TODO implement code first approach, without symbolic bindings
 
@@ -27,8 +29,11 @@ private string objectName(string fullName) {
     return dotIdx >= 0 ? fullName[dotIdx + 1 .. $] : fullName;
 }
 
-// TODO extend from default controller and implement updateView method
-class WidgetViewControllerBase : WidgetViewController {
+abstract class WidgetViewControllerBase : DefaultController, WidgetViewController {
+  @disable this();
+  this(UiSystem uiSystem) {
+    super(uiSystem);
+  }
   override void registerWidgetView(WidgetView view) {
     views ~= view;
   }
@@ -41,8 +46,27 @@ class WidgetViewControllerBase : WidgetViewController {
     const fullName = typeid(this).name;
     return objectName(fullName);
   }
+
+  override bool updateView() {
+    bool shouldUpdate = false;
+    foreach(v; views) {
+      shouldUpdate = v.update() || shouldUpdate;
+    }
+    return shouldUpdate;
+  }
 protected:
   WidgetView[] views;
+}
+
+final class DefaultWidgetViewController : WidgetViewControllerBase {
+  this(UiSystem uiSystem) {
+    super(uiSystem);
+  }
+
+  override bool update() {
+    // WidgetView will check models
+    return true;
+  }
 }
 
 /// This translates the event for ViewComponent and fetches data from model
@@ -59,7 +83,7 @@ interface WidgetView {
   /// however Controller.updateView only called for the controller which handleEvent returned updateView result.
   /// If one of the controllers returns Result.update the system sends AppEvent.update to all controllers.
   /// See UiSystemImpl.dispatchEvent for events, controller updates and view updates.
-  void update();
+  bool update();
 }
 
 void renameViewWidgetEvent(ref AppEvent event, string newName, Widget viewWidget) {
@@ -81,8 +105,6 @@ public:
     const fullName = typeid(this).name;
     return objectName(fullName);
   }
-
-  override void update() {}
 
   override void translateEventForViewWidget(ref AppEvent sourceEvent,
                                             Widget viewWidget) {

@@ -1,12 +1,4 @@
-- finish TODO items in widget_view.d:
-
-- registerViewWidget must be supported with unregister on widget removal from a tree.
-Rethink widget life time, may be it's constructor must not append to parent.
-
-- may be just use ViewComponent on root widget + WidgetView +
-WidgetViewController in demo and everywhere for consistency instead of manually
-created View and Controller?
-
+- using widget_view.d implement tabPanel which will replace tab1btn etc
 - in guidemo make tab1btn tab2btn... use new event name "tabBtnClicked" instead
 of those and pass integer as ViewData.value[0] in event which indicates current
 tab number instead of being formatted into event name string.  see
@@ -28,6 +20,14 @@ but on shrink just hide unnecessary, then reuse already allocated on scrolling
 and on growing.
 
 with FlexContainer component it can produce horizontal or vertical lists.
+
+- registerViewWidget must be supported with unregister on widget removal from a tree.
+Rethink widget life time, may be it's constructor must not append to parent.
+
+- may be just use ViewComponent on root widget + WidgetView +
+WidgetViewController in demo and everywhere for consistency instead of manually
+created View and Controller?
+
 
 - Systems and components satisfy the case of parent and child widgets and
 multitude of instances, while WidgetController may be more appropriate when
