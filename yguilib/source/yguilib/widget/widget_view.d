@@ -101,6 +101,11 @@ public:
     viewWidgets = viewWidgets.remove!(a => a is viewWidget);
   }
 
+  override bool isWidgetRegistered(Widget viewWidget) {
+    import std.algorithm.searching : canFind;
+    return canFind(viewWidgets, viewWidget);
+  }
+
   override string getWidgetViewName() {
     const fullName = typeid(this).name;
     return objectName(fullName);
