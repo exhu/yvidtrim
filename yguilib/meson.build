@@ -22,6 +22,7 @@ yguilib_src = files(
   'source/yguilib/internal/uisystem_impl.d',
   'source/yguilib/internal/uisystem_controller.d',
   'source/yguilib/model.d',
+  'source/yguilib/object_registry.d',
   'source/yguilib/render/font.d',
   'source/yguilib/render/font_manager.d',
   'source/yguilib/render/internal/clip_stack.d',
