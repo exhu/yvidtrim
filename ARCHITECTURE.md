@@ -24,7 +24,8 @@ yvidtrim/
 │       ├── controller.d   # Demo controller, page routing, keyboard shortcuts
 │       ├── hover_button*.d# Reusable button demos (controller vs system)
 │       ├── tab_button.d   # Reusable header tab buttons in flex container
-│       └── pages/         # Showcase views (layout, text, button variants)
+│       ├── tabcontrol.d   # Composite TabControl widget, view, and controller
+│       └── pages/         # Showcase views (layout, text, buttons, tabcontrol)
 ├── yguilib/               # Independent GUI library (no yvidtrim dependency)
 │   ├── source/yguilib/
 │   │   ├── app.d          # Application wrapper running event loop

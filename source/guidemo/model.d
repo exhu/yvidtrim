@@ -31,6 +31,14 @@ final class DemoModel : VersionedModel {
   // Page 3 state (Hover Button Showcase)
   size_t buttonClickCount = 0;
 
+  // Page 5 state (TabControl Showcase)
+  size_t page5SubTab = 0;
+  size_t page5VerticalTab = 0;
+  size_t page5DynamicTab = 0;
+  size_t page5DynamicTabCount = 3;
+  string page5LastEventName = "none";
+  size_t page5LastEventIndex = 0;
+
   bool quitRequested = false;
 }
 
@@ -41,6 +49,7 @@ final class HeaderTabsModel : VersionedModel {
     "[2] TextLabel Demo",
     "[3] Hover (Ctrl)",
     "[4] Hover (System)",
+    "[5] TabControl",
   ];
   size_t activeTab = 0;
 }

@@ -7,10 +7,12 @@ import guidemo.model : DemoModel, HeaderTabsModel;
 import guidemo.pages.button_page : ButtonPage;
 import guidemo.pages.button_system_page : ButtonSystemPage;
 import guidemo.pages.layout_painter_page : LayoutPainterPage;
+import guidemo.pages.tabcontrol_page : TabControlPage;
 import guidemo.pages.textlabel_page : TextLabelPage;
 import guidemo.tab_button : HeaderTabButtonsProvider;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
+import yguilib.uisystem : UiRegistry;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
@@ -27,9 +29,11 @@ final class DemoView {
     this(modelTracker, defaultTabsTracker);
   }
 
+  /// Constructs DemoView. `registry` is allowed to be null in headless tests.
   this(
     ref ModelTracker!DemoModel modelTracker,
-    ref ModelTracker!HeaderTabsModel tabsModelTracker
+    ref ModelTracker!HeaderTabsModel tabsModelTracker,
+    UiRegistry registry = null
   ) {
     tracker = ModelTracker!DemoModel(modelTracker);
     tabsTracker = ModelTracker!HeaderTabsModel(tabsModelTracker);
@@ -48,6 +52,8 @@ final class DemoView {
     page3.setVisible(false);
     page4 = new ButtonSystemPage(view);
     page4.setVisible(false);
+    page5 = new TabControlPage(view, registry);
+    page5.setVisible(false);
 
     buildStatusBar();
   }
@@ -64,35 +70,7 @@ final class DemoView {
     }
 
     const auto m = tracker.model;
-
-    // 1. Update page visibility
-    const bool p1Vis = (m.activePage == 0);
-    const bool p2Vis = (m.activePage == 1);
-    const bool p3Vis = (m.activePage == 2);
-    const bool p4Vis = (m.activePage == 3);
-    if (page1.isVisible() != p1Vis ||
-        page2.isVisible() != p2Vis ||
-        page3.isVisible() != p3Vis ||
-        page4.isVisible() != p4Vis) {
-      page1.setVisible(p1Vis);
-      page2.setVisible(p2Vis);
-      page3.setVisible(p3Vis);
-      page4.setVisible(p4Vis);
-      view.update(WidgetUpdateScope.layout);
-    }
-
-    // 2. Delegate page-specific updates
-    if (p1Vis) {
-      page1.update(m);
-    } else if (p2Vis) {
-      page2.update(m);
-    } else if (p3Vis) {
-      page3.update(m);
-    } else {
-      page4.update(m);
-    }
-
-    // 3. Update HUD status label text
+    updatePageVisibilityAndContent(m);
     statusLabel.setCaption(formatStatusString(m));
   }
 
@@ -108,7 +86,42 @@ final class DemoView {
     return page4;
   }
 
+  TabControlPage getTabControlPage() {
+    return page5;
+  }
+
 private:
+  void updatePageVisibilityAndContent(const DemoModel m) {
+    const bool p1Vis = (m.activePage == 0);
+    const bool p2Vis = (m.activePage == 1);
+    const bool p3Vis = (m.activePage == 2);
+    const bool p4Vis = (m.activePage == 3);
+    const bool p5Vis = (m.activePage == 4);
+    if (page1.isVisible() != p1Vis ||
+        page2.isVisible() != p2Vis ||
+        page3.isVisible() != p3Vis ||
+        page4.isVisible() != p4Vis ||
+        page5.isVisible() != p5Vis) {
+      page1.setVisible(p1Vis);
+      page2.setVisible(p2Vis);
+      page3.setVisible(p3Vis);
+      page4.setVisible(p4Vis);
+      page5.setVisible(p5Vis);
+      view.update(WidgetUpdateScope.layout);
+    }
+
+    if (p1Vis) {
+      page1.update(m);
+    } else if (p2Vis) {
+      page2.update(m);
+    } else if (p3Vis) {
+      page3.update(m);
+    } else if (p4Vis) {
+      page4.update(m);
+    } else {
+      page5.update(m);
+    }
+  }
   static string formatPage2Status(const DemoModel m) {
     import std.format : format;
 
@@ -191,8 +204,21 @@ private:
   static string formatPage4Status(const DemoModel m) {
     import std.format : format;
     return format(
-      "[Tab/1-4] Page 4: Hover System | Clicks: %d | [Q/Esc] Quit",
+      "[Tab/1-5] Page 4: Hover System | Clicks: %d | [Q/Esc] Quit",
       m.buttonClickCount
+    );
+  }
+
+  static string formatPage5Status(const DemoModel m) {
+    import std.format : format;
+    return format(
+      "[Tab/1-5] Page 5: TabControl | SubTab: %d | VertTab: %d | " ~
+        "DynTabs: %d | LastEv: %s(%d) | [Q/Esc] Quit",
+      m.page5SubTab,
+      m.page5VerticalTab,
+      m.page5DynamicTabCount,
+      m.page5LastEventName,
+      m.page5LastEventIndex
     );
   }
 
@@ -205,6 +231,9 @@ private:
     }
     if (m.activePage == 3) {
       return formatPage4Status(m);
+    }
+    if (m.activePage == 4) {
+      return formatPage5Status(m);
     }
     return formatPage1Status(m);
   }
@@ -270,4 +299,5 @@ private:
   TextLabelPage page2;
   ButtonPage page3;
   ButtonSystemPage page4;
+  TabControlPage page5;
 }

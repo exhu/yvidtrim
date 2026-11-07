@@ -33,8 +33,9 @@
  * update this demo with dedicated visual sections and interactive controls.
  *
  * KEYBOARD CONTROLS:
- *   [Tab]/[1-4]   Switch demo page (Page 1: Layout, Page 2: TextLabel,
- *                 Page 3: Hover Ctrl, Page 4: Hover System)
+ *   [Tab]/[1-5]   Switch demo page (Page 1: Layout, Page 2: TextLabel,
+ *                 Page 3: Hover Ctrl, Page 4: Hover System,
+ *                 Page 5: TabControl)
  *   [M]           Toggle multiline on interactive TextLabel
  *   [E]           Toggle overflow ellipsis on interactive TextLabel
  *   [L]           Cycle horizontal alignment (left -> center -> right)
@@ -64,6 +65,7 @@ void main() {
     hoverButtonController
   );
   app.ui.pushController(hoverButtonController);
+  app.ui.pushController(demoController.getTabControlController());
   app.ui.registerWidgetSystem(new AnimatedHoverButtonSystem());
   app.run(demoController);
 }

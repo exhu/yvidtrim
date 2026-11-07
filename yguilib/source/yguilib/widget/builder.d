@@ -295,16 +295,26 @@ struct WidgetBuilder {
   }
 
   /// Attaches a ViewComponent to mark a view root and optional event mappings.
-  ref WidgetBuilder view(UiRegistry registry, string[string] events = null) return {
+  /// `registry`, `events`, and `widgetViewName` are allowed to be null.
+  ref WidgetBuilder view(
+    UiRegistry registry,
+    string[string] events = null,
+    string widgetViewName = null
+  ) return {
     if (widget.components.view is null) {
       widget.components.view = new ViewComponent();
     }
     ViewComponent view = widget.components.view;
     view.renameEvents = events;
-    if (string name = view.widgetViewName) {
-      if (WidgetView wv = registry.widgetViews.getByName(name)) {
-        wv.registerViewWidget(widget);
-        // TODO unregister on widget removal from a tree
+    if (widgetViewName.length > 0) {
+      view.widgetViewName = widgetViewName;
+    }
+    if (registry !is null) {
+      if (string name = view.widgetViewName) {
+        if (WidgetView wv = registry.widgetViews.getByName(name)) {
+          wv.registerViewWidget(widget);
+          // TODO unregister on widget removal from a tree
+        }
       }
     }
     return this;

@@ -11,7 +11,7 @@ import yguilib.widget.data_components : WidgetArrayProvider;
 import yguilib.widget.drawing_components : TextLabel;
 
 /// Default visual dimensions and font metrics for header tab buttons.
-enum defaultTabButtonWidth = 175.0f;
+enum defaultTabButtonWidth = 138.0f;
 enum defaultTabButtonHeight = 30.0f;
 enum defaultTabButtonRadius = 4.0f;
 enum defaultTabButtonFontSize = 13.0f;
@@ -197,7 +197,7 @@ unittest {
   foreach (_; 0 .. tabsModel.tabNames.length) {
     provider.addWidget(container);
   }
-  assert(container.children.length == 4);
+  assert(container.children.length == tabsModel.tabNames.length);
 
   foreach (i, child; container.children) {
     provider.updateWidgetAt(child, i);

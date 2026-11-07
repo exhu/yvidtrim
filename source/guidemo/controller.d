@@ -14,6 +14,7 @@ import yguilib.widget.layout_components : AlignItems, FlexDirection,
 
 import guidemo.model : DemoModel, HeaderTabsModel;
 import guidemo.pages.textlabel_page : TextLabelPage;
+import guidemo.tabcontrol : TabControlWidgetViewController, registerTabControl;
 import guidemo.view : DemoView;
 
 /// Controller handling keyboard shortcuts, animation ticks, and view updates.
@@ -22,9 +23,10 @@ final class DemoController : DefaultController {
     assert(app !is null);
     super(app.ui);
     this.app = app;
+    tabControlController = registerTabControl(app.ui);
     tracker = ModelTracker!DemoModel(new DemoModel);
     tabsTracker = ModelTracker!HeaderTabsModel(new HeaderTabsModel);
-    view = new DemoView(tracker, tabsTracker);
+    view = new DemoView(tracker, tabsTracker, app.ui);
     app.ui.mainWindow().rootWidget = view.getRootWidget();
   }
 
@@ -92,6 +94,10 @@ final class DemoController : DefaultController {
     return view;
   }
 
+  TabControlWidgetViewController getTabControlController() {
+    return tabControlController;
+  }
+
 private:
   bool handleViewEvent(in AppEvent ev) {
     bool consumed = false;
@@ -110,12 +116,17 @@ private:
     } else if (eventName == "tab4Btn") {
       model.activePage = 3;
       consumed = true;
+    } else if (eventName == "tab5Btn") {
+      model.activePage = 4;
+      consumed = true;
     } else if (eventName == "btnCountAction") {
       model.buttonClickCount += 1;
       consumed = true;
     } else if (eventName == "btnCountReset") {
       model.buttonClickCount = 0;
       consumed = true;
+    } else {
+      consumed = handlePage5ViewEvent(ev, model);
     }
     const size_t newPage = model.activePage;
     tracker.commit(model);
@@ -125,13 +136,53 @@ private:
     return consumed;
   }
 
+  bool handlePage5ViewEvent(in AppEvent ev, DemoModel model) {
+    const auto eventName = ev.view.eventName;
+    const size_t idx = cast(size_t) ev.view.value[0];
+    if (eventName == "pageTabSwitch") {
+      model.page5SubTab = idx;
+      model.page5LastEventName = eventName;
+      model.page5LastEventIndex = idx;
+      return true;
+    } else if (eventName == "dynamicTabSwitch") {
+      model.page5DynamicTab = idx;
+      model.page5LastEventName = eventName;
+      model.page5LastEventIndex = idx;
+      return true;
+    } else if (eventName == "verticalTabSwitch") {
+      model.page5VerticalTab = idx;
+      model.page5LastEventName = eventName;
+      model.page5LastEventIndex = idx;
+      return true;
+    } else if (eventName == "page5AddTab") {
+      auto p5 = view.getTabControlPage();
+      model.page5DynamicTabCount = p5.addDynamicTab();
+      model.page5DynamicTab = p5.getDynamicActiveTab();
+      sendUpdate();
+      return true;
+    } else if (eventName == "page5RemoveTab") {
+      auto p5 = view.getTabControlPage();
+      model.page5DynamicTabCount = p5.removeDynamicTab();
+      model.page5DynamicTab = p5.getDynamicActiveTab();
+      sendUpdate();
+      return true;
+    } else if (eventName == "page5ResetTabs") {
+      auto p5 = view.getTabControlPage();
+      model.page5DynamicTabCount = p5.resetDynamicTabs();
+      model.page5DynamicTab = p5.getDynamicActiveTab();
+      sendUpdate();
+      return true;
+    }
+    return false;
+  }
+
   bool handleKeyDownEvent(in AppEvent ev) {
     bool consumed = false;
     auto model = tracker.edit();
     const size_t prevPage = model.activePage;
 
     if (isKey(ev, Keycode.tab, Scancode.tab)) {
-      model.activePage = (model.activePage + 1) % 4;
+      model.activePage = (model.activePage + 1) % 5;
       consumed = true;
     } else if (isKey(ev, Keycode.key1, Scancode.key1)) {
       model.activePage = 0;
@@ -144,6 +195,9 @@ private:
       consumed = true;
     } else if (isKey(ev, Keycode.key4, Scancode.key4)) {
       model.activePage = 3;
+      consumed = true;
+    } else if (isKey(ev, Keycode.key5, Scancode.key5)) {
+      model.activePage = 4;
       consumed = true;
     } else {
       consumed = handlePageShortcutKey(ev, model);
@@ -224,6 +278,7 @@ private:
 
   App app;
   DemoView view;
+  TabControlWidgetViewController tabControlController;
   ModelTracker!DemoModel tracker;
   ModelTracker!HeaderTabsModel tabsTracker;
 }
