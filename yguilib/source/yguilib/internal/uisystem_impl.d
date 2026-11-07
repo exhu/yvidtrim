@@ -12,7 +12,8 @@ import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.events.internal.message_bus : MessageBus;
 import yguilib.events.internal.sdl_events : appEventFromSdlEvent;
 import yguilib.render : Renderer;
-import yguilib.widget : Widget, WidgetUpdateScope, WidgetViewController;
+import yguilib.widget : Widget, WidgetUpdateScope;
+import yguilib.widget.widget_view : WidgetViewController, WidgetView;
 import yguilib.widget.internal.focus_system : FocusSystem;
 import yguilib.widget.internal.input_system;
 import yguilib.widget.internal.layout_system : LayoutSystem;
@@ -125,6 +126,13 @@ class UiSystemImpl : UiSystem {
     auto name = c.getControllerName();
     assert(name in widgetControllers && (widgetControllers[name] !is null));
     widgetControllers[name] = null;
+  }
+
+  void registerWidgetView(WidgetView v) {
+    // TODO similar to registerWidgetViewController
+  }
+  void unregisterWidgetView(WidgetView v) {
+    // TODO
   }
 
 private:

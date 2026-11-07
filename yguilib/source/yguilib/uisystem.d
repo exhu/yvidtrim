@@ -1,7 +1,8 @@
 module yguilib.uisystem;
 import yguilib.controller : Controller;
 import yguilib.events : AppEvent;
-import yguilib.widget : Widget, WidgetViewController;
+import yguilib.widget : Widget;
+import yguilib.widget.widget_view : WidgetViewController, WidgetView;
 import yguilib.widget.system : WidgetSystem, WidgetSystemHost;
 import yguilib.window : Window;
 
@@ -10,8 +11,14 @@ interface ControllerStack {
   void pushController(Controller c);
   void pushModalController(Controller c);
 
+  // TODO change to unified shared implementation to register and find named instances
   void registerWidgetViewController(WidgetViewController c);
   void unregisterWidgetViewController(WidgetViewController c);
+  void registerWidgetView(WidgetView v);
+  void unregisterWidgetView(WidgetView v);
+  // TODO
+  // WidgetViewController getWidgetViewController(string name);
+  // WidgetView getWidgetView(string name);
 }
 
 interface FocusControl {

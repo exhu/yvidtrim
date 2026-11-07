@@ -568,7 +568,7 @@ private:
 // Unit tests verifying HoverButtonBuilder, View event renaming, and controller.
 unittest {
   import yguilib.controller : Controller;
-  import yguilib.widget : WidgetViewController;
+  import yguilib.widget.widget_view : WidgetViewController, WidgetView;
   import yguilib.widget.system : WidgetSystem;
   import yguilib.window : Window;
 
@@ -579,6 +579,8 @@ unittest {
     }
     override void registerWidgetViewController(WidgetViewController c) {}
     override void unregisterWidgetViewController(WidgetViewController c) {}
+    override void registerWidgetView(WidgetView v) {}
+    override void unregisterWidgetView(WidgetView v) {}
     override void popController() {}
     override void pushController(Controller c) {}
     override void pushModalController(Controller c) {}
