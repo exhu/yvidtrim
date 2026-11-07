@@ -37,7 +37,7 @@ public:
     tracker = ModelTracker!MainModel(otherTracker);
 
     rootWidget = WidgetBuilder(RectF(10, 10, 200, 200))
-      .view()
+      .view(null)
       .background(ColorF(0.5f, 0.5f, 0.0f, 1.0f))
       .build();
 

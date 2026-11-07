@@ -147,7 +147,7 @@ struct HoverButtonBuilder {
     const float initH = rect.height > 0.0f ? rect.height : 36.0f;
 
     auto rootBuilder = WidgetBuilder(parent, rect)
-      .view([
+      .view(null, [
         "mouseEnter": "hoverBtn.enter",
         "mouseLeave": "hoverBtn.leave",
         "mouseDown": "hoverBtn.down",

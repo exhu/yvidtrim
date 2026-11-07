@@ -7,13 +7,15 @@ import yguilib.widget.system : WidgetSystem, WidgetSystemHost;
 import yguilib.window : Window;
 import yguilib.object_registry : ObjectRegistry;
 
+interface UiRegistry {
+  @property ObjectRegistry!WidgetViewController widgetViewControllers();
+  @property ObjectRegistry!WidgetView widgetViews();
+}
+
 interface ControllerStack {
   void popController();
   void pushController(Controller c);
   void pushModalController(Controller c);
-
-  @property ObjectRegistry!WidgetViewController widgetViewControllers();
-  @property ObjectRegistry!WidgetView widgetViews();
 }
 
 interface FocusControl {
@@ -39,7 +41,7 @@ protected:
 
 /// Manages Controllers, Messaging, Windows, and WidgetSystems.
 interface UiSystem : ControllerStack, WidgetSystemHost, FocusControl,
-  WidgetSystemControl {
+  WidgetSystemControl, UiRegistry {
   @property Window mainWindow();
   void mainEventLoop();
 }

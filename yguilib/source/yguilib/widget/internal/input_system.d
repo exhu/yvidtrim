@@ -12,6 +12,8 @@ import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types;
 import yguilib.widget : Widget, ViewComponent, WidgetUpdateScope;
 import yguilib.widget.input_components : MouseEvent;
+import yguilib.widget.widget_view : WidgetView;
+import std.logger;
 
 enum maxMouseButtons = 8;
 
@@ -297,16 +299,24 @@ private:
   }
 
   bool applyViewRenaming(Widget viewWidget, ref AppEvent event) {
-    if (viewWidget.components.view is null)
+    ViewComponent view = viewWidget.components.view;
+    if (view is null)
       return false;
 
     const string currentName = event.view.eventName;
-    auto pNewName = currentName in viewWidget.components.view.renameEvents;
+    auto pNewName = currentName in view.renameEvents;
     if (pNewName !is null) {
       if ((*pNewName).length == 0)
         return true;
       event.view.eventName = *pNewName;
       event.view.viewWidget = viewWidget;
+      if (view.widgetViewName) {
+        if (WidgetView wv = host.widgetViews.getByName(view.widgetViewName)) {
+          wv.translateEventForViewWidget(event, viewWidget);
+        }
+        else
+          error("WidgetView not registered: %s", view.widgetViewName);
+      }
     }
     return false;
   }

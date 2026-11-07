@@ -2,14 +2,14 @@ module yguilib.widget.system;
 
 import yguilib.events : AppEvent;
 import yguilib.render : Renderer;
-import yguilib.uisystem : EventControl;
+import yguilib.uisystem : EventControl, UiRegistry;
 import yguilib.widget : Widget;
 import yguilib.widget.visible : VisibleWidget, VisibleWidgets;
 import yguilib.window : Window;
 
 /// Narrow host interface providing UI-system services needed by WidgetSystems.
 /// Exposes `sendAppEvent` via `EventControl`.
-interface WidgetSystemHost : EventControl {
+interface WidgetSystemHost : EventControl, UiRegistry {
 }
 
 /// Flags indicating which pipeline phases a WidgetSystem participates in.

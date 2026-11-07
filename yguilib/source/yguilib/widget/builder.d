@@ -11,6 +11,8 @@ import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.input_components : MouseEvent;
 import yguilib.widget.layout_components : AlignItems, Anchor, Dimension,
   FlexContainer, FlexDirection, Insets, JustifyContent, Size, SizingMode;
+import yguilib.uisystem : UiRegistry;
+import yguilib.widget.widget_view : WidgetView;
 
 /// Fluent builder for constructing and configuring widgets.
 struct WidgetBuilder {
@@ -293,11 +295,18 @@ struct WidgetBuilder {
   }
 
   /// Attaches a ViewComponent to mark a view root and optional event mappings.
-  ref WidgetBuilder view(string[string] events = null) return {
+  ref WidgetBuilder view(UiRegistry registry, string[string] events = null) return {
     if (widget.components.view is null) {
       widget.components.view = new ViewComponent();
     }
-    widget.components.view.renameEvents = events;
+    ViewComponent view = widget.components.view;
+    view.renameEvents = events;
+    if (string name = view.widgetViewName) {
+      if (WidgetView wv = registry.widgetViews.getByName(name)) {
+        wv.registerViewWidget(widget);
+        // TODO unregister on widget removal from a tree
+      }
+    }
     return this;
   }
 
@@ -456,7 +465,7 @@ unittest {
 
   // View component test
   auto viewWidget = WidgetBuilder(RectF(0, 0, 100, 100))
-    .view(["btn": "press"])
+    .view(null, ["btn": "press"])
     .build();
   assert(viewWidget.components.view !is null);
   assert(viewWidget.components.view.renameEvents["btn"] == "press");

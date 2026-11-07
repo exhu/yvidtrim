@@ -49,7 +49,7 @@ class ViewComponent : WidgetComponent {
   /// by name and widgets are autowired to it.
   // visual editor features:
   // TODO implement
-  string controllerName;
+  //string controllerName;
   // TODO optional (can be null) translator for events in renameEvents
   // and to update values from model
   string widgetViewName;

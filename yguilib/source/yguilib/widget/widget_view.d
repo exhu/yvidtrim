@@ -30,7 +30,7 @@ interface WidgetView {
   void unregisterViewWidget(Widget viewWidget);
   /// called by the system if the event name is in renameEvents
   /// viewWidget = Widget with ViewComponent
-  ref AppEvent translateEventForViewWidget(ref AppEvent sourceEvent, Widget viewWidget) scope return;
+  void translateEventForViewWidget(ref AppEvent sourceEvent, Widget viewWidget) scope return;
   /// populate widgets with data, this must be called by any controller in its updateView method.
   /// however Controller.updateView only called for the controller which handleEvent returned updateView result.
   /// If one of the controllers returns Result.update the system sends AppEvent.update to all controllers.
