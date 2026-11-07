@@ -12,12 +12,6 @@ interface ControllerStack {
   void pushController(Controller c);
   void pushModalController(Controller c);
 
-  // TODO replace the following methods with widgetViewControllers and wdigetViews properties usage instead.
-  void registerWidgetViewController(WidgetViewController c);
-  void unregisterWidgetViewController(WidgetViewController c);
-  void registerWidgetView(WidgetView v);
-  void unregisterWidgetView(WidgetView v);
-
   @property ObjectRegistry!WidgetViewController widgetViewControllers();
   @property ObjectRegistry!WidgetView widgetViews();
 }

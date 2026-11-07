@@ -12,6 +12,7 @@ import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.events.internal.message_bus : MessageBus;
 import yguilib.events.internal.sdl_events : appEventFromSdlEvent;
 import yguilib.render : Renderer;
+import yguilib.object_registry : ObjectRegistry;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.widget_view : WidgetViewController, WidgetView;
 import yguilib.widget.internal.focus_system : FocusSystem;
@@ -35,6 +36,8 @@ class UiSystemImpl : UiSystem {
     pipeline.registerSystem(new LayoutSystem());
     pipeline.registerSystem(new WidgetPainterSystem());
     pipeline.registerSystem(new DataSystem());
+    fWidgetViewControllers = new ObjectRegistry!WidgetViewController();
+    fWidgetViews = new ObjectRegistry!WidgetView();
   }
 
   /// safe to call from a thread
@@ -116,23 +119,13 @@ class UiSystemImpl : UiSystem {
     }
   }
 
-  override void registerWidgetViewController(WidgetViewController c) {
-    auto name = c.getControllerName();
-    assert(!(name in widgetControllers));
-    widgetControllers[c.getControllerName()] = c;
+  override @property
+  ObjectRegistry!WidgetViewController widgetViewControllers() {
+    return fWidgetViewControllers;
   }
 
-  override void unregisterWidgetViewController(WidgetViewController c) {
-    auto name = c.getControllerName();
-    assert(name in widgetControllers && (widgetControllers[name] !is null));
-    widgetControllers[name] = null;
-  }
-
-  void registerWidgetView(WidgetView v) {
-    // TODO similar to registerWidgetViewController
-  }
-  void unregisterWidgetView(WidgetView v) {
-    // TODO
+  override @property ObjectRegistry!WidgetView widgetViews() {
+    return fWidgetViews;
   }
 
 private:
@@ -366,8 +359,9 @@ private:
   ControllerStack controllers;
   MessageBus messageBus;
   Window fMainWindow;
-  WidgetViewController[string] widgetControllers;
   WidgetSystemPipeline pipeline;
+  ObjectRegistry!WidgetViewController fWidgetViewControllers;
+  ObjectRegistry!WidgetView fWidgetViews;
 } // -UiSystem
 
 ////// TESTS /////
@@ -981,4 +975,46 @@ unittest {
 
   ui.systemPipeline.updateAndRender(win);
   assert(customSys.totalCount == 15); // not incremented further
+}
+
+// Verifies widgetViewControllers and widgetViews registries on UiSystem.
+unittest {
+  import yguilib.widget.widget_view : WidgetViewBase;
+
+  class DummyController : WidgetViewController {
+    string name;
+    this(string name) {
+      this.name = name;
+    }
+    string getControllerName() {
+      return name;
+    }
+    void registerWidgetView(WidgetView v) {}
+    void unregisterWidgetView(WidgetView v) {}
+  }
+
+  class DummyView : WidgetViewBase {
+    override ref AppEvent translateEventForViewWidget(
+      ref AppEvent sourceEvent,
+      Widget viewWidget
+    ) scope return {
+      return sourceEvent;
+    }
+  }
+
+  UiSystem ui = new UiSystemImpl(null);
+  assert(ui.widgetViewControllers !is null);
+  assert(ui.widgetViews !is null);
+
+  auto ctrl = new DummyController("mainCtrl");
+  assert(ui.widgetViewControllers.register(ctrl.getControllerName(), ctrl));
+  assert(ui.widgetViewControllers.getByName("mainCtrl") is ctrl);
+  assert(ui.widgetViewControllers.unregister("mainCtrl", ctrl));
+  assert(ui.widgetViewControllers.getByName("mainCtrl") is null);
+
+  auto view = new DummyView();
+  assert(ui.widgetViews.register(view.getWidgetViewName(), view));
+  assert(ui.widgetViews.getByName("DummyView") is view);
+  assert(ui.widgetViews.unregister("DummyView", view));
+  assert(ui.widgetViews.getByName("DummyView") is null);
 }

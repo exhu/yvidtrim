@@ -1,4 +1,4 @@
-- finish TODO items in ControllerStack, widget_view.d:
+- finish TODO items in widget_view.d:
 - may be just use ViewComponent on root widget + WidgetView +
 WidgetViewController in demo and everywhere for consistency instead of manually
 created View and Controller?
