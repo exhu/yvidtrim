@@ -5,20 +5,21 @@ import yguilib.widget : Widget;
 import yguilib.widget.widget_view : WidgetViewController, WidgetView;
 import yguilib.widget.system : WidgetSystem, WidgetSystemHost;
 import yguilib.window : Window;
+import yguilib.object_registry : ObjectRegistry;
 
 interface ControllerStack {
   void popController();
   void pushController(Controller c);
   void pushModalController(Controller c);
 
-  // TODO change to unified shared implementation to register and find named instances
+  // TODO replace the following methods with widgetViewControllers and wdigetViews properties usage instead.
   void registerWidgetViewController(WidgetViewController c);
   void unregisterWidgetViewController(WidgetViewController c);
   void registerWidgetView(WidgetView v);
   void unregisterWidgetView(WidgetView v);
-  // TODO
-  // WidgetViewController getWidgetViewController(string name);
-  // WidgetView getWidgetView(string name);
+
+  @property ObjectRegistry!WidgetViewController widgetViewControllers();
+  @property ObjectRegistry!WidgetView widgetViews();
 }
 
 interface FocusControl {

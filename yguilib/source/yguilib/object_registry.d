@@ -1,6 +1,6 @@
 module yguilib.object_registry;
 
-final class ObjectRegistry(T : Object) {
+final class ObjectRegistry(T) if (is(T == class) || is(T == interface)) {
   /// may be null
   T getByName(string name) {
     if (auto p = name in objMap)
@@ -17,7 +17,7 @@ final class ObjectRegistry(T : Object) {
   }
 
   bool unregister(string name, T obj) {
-    if (name in objMap && objMap[name] is obj) {
+    if (name in objMap && cast(Object) objMap[name] is cast(Object) obj) {
       objMap.remove(name);
       return true;
     }
@@ -71,4 +71,28 @@ unittest {
   // Re-registering after unregister succeeds
   assert(registry.register("first", obj2));
   assert(registry.getByName("first") is obj2);
+
+  // Test with interface
+  interface IDummy {
+    int id();
+  }
+  static class Impl : IDummy {
+    int _id;
+    this(int id) {
+      _id = id;
+    }
+    int id() {
+      return _id;
+    }
+  }
+
+  auto ifaceRegistry = new ObjectRegistry!IDummy();
+  IDummy iface1 = new Impl(10);
+  IDummy iface2 = new Impl(20);
+
+  assert(ifaceRegistry.register("first", iface1));
+  assert(ifaceRegistry.getByName("first") is iface1);
+  assert(!ifaceRegistry.unregister("first", iface2));
+  assert(ifaceRegistry.unregister("first", iface1));
+  assert(ifaceRegistry.getByName("first") is null);
 }
