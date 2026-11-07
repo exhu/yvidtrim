@@ -994,11 +994,10 @@ unittest {
   }
 
   class DummyView : WidgetViewBase {
-    override ref AppEvent translateEventForViewWidget(
+    override void translateEventForViewWidget(
       ref AppEvent sourceEvent,
       Widget viewWidget
     ) scope return {
-      return sourceEvent;
     }
   }
 

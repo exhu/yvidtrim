@@ -680,12 +680,31 @@ private:
 
 // Unit tests for AnimatedHoverButtonComponent, Builder, and WidgetSystem
 unittest {
+  import yguilib.object_registry : ObjectRegistry;
   import yguilib.widget.system : WidgetSystemHost;
+  import yguilib.widget.widget_view : WidgetView, WidgetViewController;
 
   class DummyHost : WidgetSystemHost {
     AppEvent[] sentEvents;
+    ObjectRegistry!WidgetViewController dummyControllers;
+    ObjectRegistry!WidgetView dummyViews;
+
+    this() {
+      dummyControllers = new ObjectRegistry!WidgetViewController();
+      dummyViews = new ObjectRegistry!WidgetView();
+    }
+
     override void sendAppEvent(AppEvent ev) {
       sentEvents ~= ev;
+    }
+
+    override @property
+    ObjectRegistry!WidgetViewController widgetViewControllers() {
+      return dummyControllers;
+    }
+
+    override @property ObjectRegistry!WidgetView widgetViews() {
+      return dummyViews;
     }
   }
 

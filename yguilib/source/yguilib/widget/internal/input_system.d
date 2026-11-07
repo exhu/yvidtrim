@@ -12,7 +12,7 @@ import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types;
 import yguilib.widget : Widget, ViewComponent, WidgetUpdateScope;
 import yguilib.widget.input_components : MouseEvent;
-import yguilib.widget.widget_view : WidgetView;
+import yguilib.widget.widget_view : WidgetView, renameViewWidgetEvent;
 import std.logger;
 
 enum maxMouseButtons = 8;
@@ -298,6 +298,7 @@ private:
     host.sendAppEvent(event);
   }
 
+  /// returns true to skip
   bool applyViewRenaming(Widget viewWidget, ref AppEvent event) {
     ViewComponent view = viewWidget.components.view;
     if (view is null)
@@ -306,16 +307,17 @@ private:
     const string currentName = event.view.eventName;
     auto pNewName = currentName in view.renameEvents;
     if (pNewName !is null) {
+      // skip
       if ((*pNewName).length == 0)
         return true;
-      event.view.eventName = *pNewName;
-      event.view.viewWidget = viewWidget;
-      if (view.widgetViewName) {
+      if (view.widgetViewName.length != 0) {
         if (WidgetView wv = host.widgetViews.getByName(view.widgetViewName)) {
           wv.translateEventForViewWidget(event, viewWidget);
         }
         else
           error("WidgetView not registered: %s", view.widgetViewName);
+      } else {
+        renameViewWidgetEvent(event, *pNewName, viewWidget);
       }
     }
     return false;
@@ -380,10 +382,30 @@ RectF computeWidgetAbsRect(Widget w) {
 }
 
 version (unittest) {
+  import yguilib.object_registry : ObjectRegistry;
+  import yguilib.widget.widget_view : WidgetViewController;
+
   class TestUiSystem : WidgetSystemHost {
     AppEvent[] sentEvents;
+    ObjectRegistry!WidgetViewController dummyControllers;
+    ObjectRegistry!WidgetView dummyViews;
+
+    this() {
+      dummyControllers = new ObjectRegistry!WidgetViewController();
+      dummyViews = new ObjectRegistry!WidgetView();
+    }
+
     override void sendAppEvent(AppEvent ev) {
       sentEvents ~= ev;
+    }
+
+    override @property
+    ObjectRegistry!WidgetViewController widgetViewControllers() {
+      return dummyControllers;
+    }
+
+    override @property ObjectRegistry!WidgetView widgetViews() {
+      return dummyViews;
     }
   }
 }
