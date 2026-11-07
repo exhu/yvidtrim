@@ -59,10 +59,11 @@ final class DemoController : DefaultController {
 
   override HandleResult handleEvent(AppEvent ev) {
     if (ev.kind == AppEvent.Kind.view) {
-      if (handleViewEvent(ev)) {
+      bool consumeViewEvent = true;
+      if (handleViewEvent(ev, consumeViewEvent)) {
         HandleResult res;
         res.result = HandleResult.Result.updateView;
-        res.consume = true;
+        res.consume = consumeViewEvent;
         return res;
       }
     }
@@ -99,60 +100,69 @@ final class DemoController : DefaultController {
   }
 
 private:
-  bool handleViewEvent(in AppEvent ev) {
-    bool consumed = false;
+  bool handleViewEvent(in AppEvent ev, out bool consumeEvent) {
+    consumeEvent = true;
+    bool handled = false;
     auto model = tracker.edit();
     const size_t prevPage = model.activePage;
     const auto eventName = ev.view.eventName;
     if (eventName == "tab1Btn") {
       model.activePage = 0;
-      consumed = true;
+      handled = true;
     } else if (eventName == "tab2Btn") {
       model.activePage = 1;
-      consumed = true;
+      handled = true;
     } else if (eventName == "tab3Btn") {
       model.activePage = 2;
-      consumed = true;
+      handled = true;
     } else if (eventName == "tab4Btn") {
       model.activePage = 3;
-      consumed = true;
+      handled = true;
     } else if (eventName == "tab5Btn") {
       model.activePage = 4;
-      consumed = true;
+      handled = true;
     } else if (eventName == "btnCountAction") {
       model.buttonClickCount += 1;
-      consumed = true;
+      handled = true;
     } else if (eventName == "btnCountReset") {
       model.buttonClickCount = 0;
-      consumed = true;
+      handled = true;
     } else {
-      consumed = handlePage5ViewEvent(ev, model);
+      handled = handlePage5ViewEvent(ev, model, consumeEvent);
     }
     const size_t newPage = model.activePage;
     tracker.commit(model);
     if (newPage != prevPage) {
       syncActiveTab(newPage);
     }
-    return consumed;
+    return handled;
   }
 
-  bool handlePage5ViewEvent(in AppEvent ev, DemoModel model) {
+  bool handlePage5ViewEvent(
+    in AppEvent ev,
+    DemoModel model,
+    out bool consumeEvent
+  ) {
+    consumeEvent = true;
     const auto eventName = ev.view.eventName;
     const size_t idx = cast(size_t) ev.view.value[0];
     if (eventName == "pageTabSwitch") {
       model.page5SubTab = idx;
       model.page5LastEventName = eventName;
       model.page5LastEventIndex = idx;
+      consumeEvent = false;
       return true;
     } else if (eventName == "dynamicTabSwitch") {
       model.page5DynamicTab = idx;
       model.page5LastEventName = eventName;
       model.page5LastEventIndex = idx;
+      consumeEvent = false;
       return true;
     } else if (eventName == "verticalTabSwitch") {
       model.page5VerticalTab = idx;
       model.page5LastEventName = eventName;
       model.page5LastEventIndex = idx;
+      consumeEvent = false;
       return true;
     } else if (eventName == "page5AddTab") {
       auto p5 = view.getTabControlPage();
@@ -281,4 +291,33 @@ private:
   TabControlWidgetViewController tabControlController;
   ModelTracker!DemoModel tracker;
   ModelTracker!HeaderTabsModel tabsTracker;
+}
+
+unittest {
+  import yguilib.events.builder : ViewAppEventBuilder;
+  import yguilib.window : Window;
+
+  auto win = new Window(1280, 720, "test_demo_controller");
+  auto app = new App(win);
+  auto demoCtrl = new DemoController(app);
+
+  // Page 5 TabControl switch events must not be consumed by DemoController so
+  // TabControlWidgetViewController on the stack also receives them.
+  auto evSub = ViewAppEventBuilder("pageTabSwitch").value(2).build();
+  auto hrSub = demoCtrl.handleEvent(evSub);
+  assert(hrSub.result == HandleResult.Result.updateView);
+  assert(!hrSub.consume);
+  assert(demoCtrl.tracker.model.page5SubTab == 2);
+
+  auto evDyn = ViewAppEventBuilder("dynamicTabSwitch").value(1).build();
+  auto hrDyn = demoCtrl.handleEvent(evDyn);
+  assert(hrDyn.result == HandleResult.Result.updateView);
+  assert(!hrDyn.consume);
+  assert(demoCtrl.tracker.model.page5DynamicTab == 1);
+
+  auto evVert = ViewAppEventBuilder("verticalTabSwitch").value(3).build();
+  auto hrVert = demoCtrl.handleEvent(evVert);
+  assert(hrVert.result == HandleResult.Result.updateView);
+  assert(!hrVert.consume);
+  assert(demoCtrl.tracker.model.page5VerticalTab == 3);
 }

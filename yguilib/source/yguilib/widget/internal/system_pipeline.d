@@ -171,7 +171,7 @@ private:
     WidgetSystemContext ctx = makeContext(window);
     assert(ctx.root !is null);
     assert(ctx.renderer !is null);
-    if (fLastVisibleWidgets.length == 0) {
+    if (fLastVisibleWidgets.length == 0 || ctx.root.isTreeLayoutDirty()) {
       fLastVisibleWidgets = collector.collectVisible(
         ctx.root,
         ctx.renderer,
@@ -550,4 +550,39 @@ unittest {
   phaseLog = null;
   assert(!pipeline.updateAndRenderTree(win));
   assert(phaseLog == ["preLayout"]);
+
+  // Toggling a hidden WidgetArray container to visible = true populates its
+  // children during preLayout on the very first updateAndRenderTree pass.
+  import yguilib.widget.data_components : WidgetArrayComponent,
+    WidgetArrayProvider;
+  import yguilib.widget.internal.data_system : DataSystem;
+
+  final class SimpleArrayProvider : WidgetArrayProvider {
+    override void addWidget(Widget parent) {
+      auto item = new Widget(parent, RectF(0, 0, 40, 20));
+      item.components.background = new Background(ColorF(0, 1, 0, 1));
+    }
+
+    override void updateWidgetAt(Widget w, size_t index) {
+    }
+  }
+
+  pipeline.registerSystem(new DataSystem());
+  auto hiddenPage = new Widget(root, RectF(0, 60, 200, 100));
+  hiddenPage.setVisible(false);
+  auto arrBox = new Widget(hiddenPage, RectF(0, 0, 160, 30));
+  auto arrComp = new WidgetArrayComponent();
+  arrComp.provider = new SimpleArrayProvider();
+  arrComp.itemsCount = 3;
+  arrBox.components.widgetArray = arrComp;
+
+  // Render while hiddenPage is invisible: arrBox is not populated yet
+  assert(pipeline.updateAndRenderTree(win));
+  assert(arrBox.children.length == 0);
+
+  // Show hiddenPage: first pass must collect visible before preLayout so
+  // DataSystem populates arrBox.children immediately
+  hiddenPage.setVisible(true);
+  assert(pipeline.updateAndRenderTree(win));
+  assert(arrBox.children.length == 3);
 }

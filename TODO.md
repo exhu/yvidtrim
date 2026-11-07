@@ -1,12 +1,3 @@
-- Add a new page to guidemo to showcase and develop TabControl as primary task of this TODO item.
-TabControl is a Widget tree which represents a container for buttons (aka tabs) constructed dynamically based on the model similar to how current `tab_button.d` is
-implemented. It accepts a model and maintains a set of buttons synchronized with the model. It posts a custom view event (name provided by the user, e.g. "pageTabSwitch" with a custom payload with the index of the button whose mouseDown event is triggered), the integer is related to the button name in the array inside the model.
-TabControl tree managed by WidgetView (button update on model change) and WidgetViewController (reacts to events) in guidemo as tabcontrol.d module.
-The control is a set of buttons (see how currently `guidemo/tab_button.d` is used) put into a parent Widget with ViewComponent.
-Use WidgetViewBase and WidgetViewControllerBase as base classes from widget_view.d for new TabControlWidgetView and TabControlWidgetViewController final classes used together with ViewComponent of root TabControl Widget to connect tab model (see HeaderTabsModel from guidemo/model.d as example), rename button events and pass custom payload from buttons via WidgetView.translateEventforViewWidget put index of the tab as integer to ViewData.value[0]. Register TabControlWidgetView and TabControlWidgetViewController using UiRegistry interface of UiSystem in guidemo somewhere appropriate in root controller initialization of guidemo app (e.g. when the pages are constructed once in app lifetime).
-
-Make a builder struct to construct that TabControl tree (return Widget root) similar to tabContainer construction in `guidemo/view.d`.
-
 
 - Use TabControl in guidemo to replace current tab1btn, tab2btn etc
 in guidemo which are tab buttons used to switch current page in guidemo/controller.d . Use new event name "tabBtnClicked" instead
