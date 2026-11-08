@@ -15,16 +15,33 @@ TabControlWidget (with ViewComponent)
 [<][tab1][ta...][>]
 ```
 
-Scroll area seems to be a separate controller or component?
+Scroll area seems to be a separate components: scroll container moves child container.
+Child container needs to resize to be larger than scroll container, needs to know current
+position, layout size children produced by its WidgetArrayComponent.
+
 We don't know how many WidgetArrayComponent items to request before layout is complete.
 Maybe introduce a layout component that will notify if the space is available
 or lacks?
+
+Clipped list cells can be excluded from layout because of considered invisible,
+need to add a component or flag that the widget is included in visible list even
+if it is clipped (includes the whole tree into visible list).
 
 a scroll list may just append new widgets on container resize,
 but on shrink just hide unnecessary, then reuse already allocated on scrolling
 and on growing.
 
 with FlexContainer component it can produce horizontal or vertical lists.
+
+There may be two kind of scrollers: constructed widget hierarchy, dynamically
+constructed (as a window into large data set).
+
+Browsing large data set is way complicated, so let's implement tabs as a
+fixed hierarchy which is scrollable via just moving the container inside
+a clipping parent. However need to check if clipped widgets still included
+in layout process, if they are not then we need to resolve it.
+
+Dynamic lists are for another feature to implement.
 
 - registerViewWidget must be supported with unregister on widget removal from a tree.
 Rethink widget life time, may be it's constructor must not append to parent.
