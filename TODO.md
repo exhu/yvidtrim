@@ -45,6 +45,7 @@ Dynamic lists are for another feature to implement.
 
 - registerViewWidget must be supported with unregister on widget removal from a tree.
 Rethink widget life time, may be it's constructor must not append to parent.
+see `documentation/widget_lifetime_and_ownership_plan.md`
 
 - may be just use ViewComponent on root widget + WidgetView +
 WidgetViewController in demo and everywhere for consistency instead of manually
