@@ -56,6 +56,8 @@ abstract class WidgetSystem {
   enum int inputSystemPriority = 0;
   /// Priority constant for LayoutSystem.
   enum int layoutSystemPriority = 0;
+  /// Priority constant for ScrollSystem.
+  enum int scrollSystemPriority = 10;
   /// Priority constant for WidgetPainterSystem.
   enum int painterSystemPriority = 0;
   /// Default priority for user-defined systems when not specified.

@@ -74,7 +74,9 @@ struct WidgetComponents {
   Border border;
   CustomDraw customDraw;
 
+  import yguilib.widget.scroll_components : ScrollableArea;
   // action/logic
+  ScrollableArea scrollableArea;
   ViewComponent view;
   Focus focus;
   DefaultButton defaultButton;
@@ -296,6 +298,20 @@ final class Widget {
       return false;
     }
     visible = newVis;
+    update(WidgetUpdateScope.layout);
+    return true;
+  }
+
+  /// Sets scroll offset on ScrollableArea component. If unchanged or no
+  /// ScrollableArea component, returns false. If changed, marks layout-dirty.
+  bool setScrollOffset(PointF newOffset) {
+    if (components.scrollableArea is null) {
+      return false;
+    }
+    if (components.scrollableArea.offset == newOffset) {
+      return false;
+    }
+    components.scrollableArea.offset = newOffset;
     update(WidgetUpdateScope.layout);
     return true;
   }

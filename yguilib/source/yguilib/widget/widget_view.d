@@ -1,5 +1,6 @@
 module yguilib.widget.widget_view;
-import yguilib.widget : Widget;
+import yguilib.widget : Widget, ViewComponent;
+import yguilib.widget.system : WidgetSystemHost;
 import yguilib.events : AppEvent;
 import yguilib.controller : DefaultController;
 import yguilib.uisystem : UiSystem;
@@ -90,6 +91,63 @@ void renameViewWidgetEvent(ref AppEvent event, string newName, Widget viewWidget
   event.view.eventName = newName;
   event.view.viewWidget = viewWidget;
 }
+
+package(yguilib):
+
+/// Bubbles a view event through the widget hierarchy, renaming or suppressing
+/// it when passing through ViewComponents, and finally delivering it to host.
+void passViewEvent(WidgetSystemHost host, Widget w, AppEvent event) {
+  assert(host !is null);
+  if (w !is null && w.components.view !is null) {
+    if (applyViewRenaming(host, w, event)) {
+      return;
+    }
+  }
+
+  for (Widget pv = (w !is null ? w.parentView : null);
+    pv !is null;
+    pv = pv.parentView) {
+    if (applyViewRenaming(host, pv, event)) {
+      return;
+    }
+  }
+
+  host.sendAppEvent(event);
+}
+
+/// Returns true if the event should be suppressed (skipped).
+bool applyViewRenaming(
+  WidgetSystemHost host,
+  Widget viewWidget,
+  ref AppEvent event
+) {
+  assert(host !is null);
+  ViewComponent view = viewWidget.components.view;
+  if (view is null) {
+    return false;
+  }
+
+  const string currentName = event.view.eventName;
+  auto pNewName = currentName in view.renameEvents;
+  if (pNewName !is null) {
+    if ((*pNewName).length == 0) {
+      return true;
+    }
+    if (view.widgetViewName.length != 0) {
+      if (WidgetView wv = host.widgetViews.getByName(view.widgetViewName)) {
+        wv.translateEventForViewWidget(event, viewWidget);
+      } else {
+        import std.logger : error;
+        error("WidgetView not registered: %s", view.widgetViewName);
+      }
+    } else {
+      renameViewWidgetEvent(event, *pNewName, viewWidget);
+    }
+  }
+  return false;
+}
+
+public:
 
 abstract class WidgetViewBase : WidgetView {
 public:

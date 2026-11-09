@@ -21,6 +21,7 @@ import yguilib.widget.internal.layout_system : LayoutSystem;
 import yguilib.widget.internal.system_pipeline : WidgetSystemPipeline;
 import yguilib.widget.internal.widget_painter : WidgetPainterSystem;
 import yguilib.widget.internal.data_system: DataSystem;
+import yguilib.widget.internal.scroll_system : ScrollSystem;
 import yguilib.widget.system : WidgetSystem;
 import yguilib.window : Window;
 import yguilib.internal.uisystem_controller;
@@ -34,6 +35,7 @@ class UiSystemImpl : UiSystem {
     pipeline.registerSystem(new FocusSystem());
     pipeline.registerSystem(new InputSystem(this));
     pipeline.registerSystem(new LayoutSystem());
+    pipeline.registerSystem(new ScrollSystem(this));
     pipeline.registerSystem(new WidgetPainterSystem());
     pipeline.registerSystem(new DataSystem());
     fWidgetViewControllers = new ObjectRegistry!WidgetViewController();

@@ -1,12 +1,6 @@
-- implement ScrollableArea Widget component and a system as described in
-`documentation/scrollablearea-report.md` in a new module to change Widget
-behaviour enabling scrolling single child Widget inside clipped content
-rectangle. The first child widget size determines the scrollable content.  The
-component has `PointF offset` field which determines the offset of the child
-Widget. How to organize feedback, e.g. when the size of child widget is known
-after layout, so that optional scroll bars can be updated, add named events?
-
-- explore how to make tabs in guidemo with scrolling
+- make tabs in guidemo (top page selection) with scrolling using ScrollableArea component via
+a new controller and added left and right arrow buttons, scrolling jumps by tab button origins
+TODO: need to think how to identify the offset steps.
 Fast scrolling (without animation, just switching which tab button is the
 first visible may be implemented just by changing visibility of buttons (hide
 all until the current left-most).

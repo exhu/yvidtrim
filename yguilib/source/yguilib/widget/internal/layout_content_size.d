@@ -35,6 +35,14 @@ PointF calcPaddingAndBorder(
 PointF calcContentSize(Widget w, Renderer r) {
   PointF size = PointF(0.0f, 0.0f);
 
+  if (w.components.scrollableArea !is null) {
+    foreach (child; w.children) {
+      if (child.visible && child.components.anchor is null) {
+        return PointF(child.rect.width, child.rect.height);
+      }
+    }
+  }
+
   FlexContainer flexComp = w.components.flexContainer;
   if (flexComp !is null) {
     if (tryCalcFlexContentSize(w, flexComp, size)) {

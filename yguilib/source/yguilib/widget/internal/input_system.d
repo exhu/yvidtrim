@@ -12,7 +12,8 @@ import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types;
 import yguilib.widget : Widget, ViewComponent, WidgetUpdateScope;
 import yguilib.widget.input_components : MouseEvent;
-import yguilib.widget.widget_view : WidgetView, renameViewWidgetEvent;
+import yguilib.widget.widget_view : WidgetView, renameViewWidgetEvent,
+  passViewEvent;
 import std.logger;
 
 enum maxMouseButtons = 8;
@@ -279,48 +280,7 @@ private:
       .widget(w)
       .value(val)
       .build();
-    passEvent(w, ev);
-  }
-
-  void passEvent(Widget w, AppEvent event) {
-    if (w !is null && w.components.view !is null) {
-      if (applyViewRenaming(w, event))
-        return;
-    }
-
-    for (Widget pv = (w !is null ? w.parentView : null);
-         pv !is null;
-         pv = pv.parentView) {
-      if (applyViewRenaming(pv, event))
-        return;
-    }
-
-    host.sendAppEvent(event);
-  }
-
-  /// returns true to skip
-  bool applyViewRenaming(Widget viewWidget, ref AppEvent event) {
-    ViewComponent view = viewWidget.components.view;
-    if (view is null)
-      return false;
-
-    const string currentName = event.view.eventName;
-    auto pNewName = currentName in view.renameEvents;
-    if (pNewName !is null) {
-      // skip
-      if ((*pNewName).length == 0)
-        return true;
-      if (view.widgetViewName.length != 0) {
-        if (WidgetView wv = host.widgetViews.getByName(view.widgetViewName)) {
-          wv.translateEventForViewWidget(event, viewWidget);
-        }
-        else
-          error("WidgetView not registered: %s", view.widgetViewName);
-      } else {
-        renameViewWidgetEvent(event, *pNewName, viewWidget);
-      }
-    }
-    return false;
+    passViewEvent(host, w, ev);
   }
 
   HoverEntry[] hoveredWidgets;
@@ -418,7 +378,7 @@ unittest {
   auto rootNoView = new Widget(null, RectF(0, 0, 200, 200));
   auto childNoView = new Widget(rootNoView, RectF(0, 0, 50, 50));
   auto ev1 = ViewAppEventBuilder("rawClick", childNoView).value(1).build();
-  inputSys.passEvent(childNoView, ev1);
+  passViewEvent(testUi, childNoView, ev1);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "rawClick");
   assert(testUi.sentEvents[0].view.widget is childNoView);
@@ -430,7 +390,7 @@ unittest {
   rootView.components.view.renameEvents["btnClick"] = "playVideo";
   auto childBtn = new Widget(rootView, RectF(0, 0, 50, 50));
   auto ev2 = ViewAppEventBuilder("btnClick", childBtn).value(1).build();
-  inputSys.passEvent(childBtn, ev2);
+  passViewEvent(testUi, childBtn, ev2);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "playVideo");
   assert(testUi.sentEvents[0].view.widget is childBtn);
@@ -439,7 +399,7 @@ unittest {
   testUi.sentEvents = null;
   rootView.components.view.renameEvents["suppressMe"] = "";
   auto ev3 = ViewAppEventBuilder("suppressMe", childBtn).value(1).build();
-  inputSys.passEvent(childBtn, ev3);
+  passViewEvent(testUi, childBtn, ev3);
   assert(testUi.sentEvents.length == 0);
 }
 
@@ -458,7 +418,7 @@ unittest {
 
   auto nestedBtn = new Widget(innerView, RectF(0, 0, 50, 50));
   auto ev4 = ViewAppEventBuilder("click", nestedBtn).value(1).build();
-  inputSys.passEvent(nestedBtn, ev4);
+  passViewEvent(testUi, nestedBtn, ev4);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "orderUpdated");
   assert(testUi.sentEvents[0].view.viewWidget is outerView);
@@ -466,7 +426,7 @@ unittest {
   testUi.sentEvents = null;
   auto ev5 = ViewAppEventBuilder("unmappedInInner", nestedBtn).value(1).build();
   outerView.components.view.renameEvents["unmappedInInner"] = "handledByOuter";
-  inputSys.passEvent(nestedBtn, ev5);
+  passViewEvent(testUi, nestedBtn, ev5);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "handledByOuter");
 
@@ -475,7 +435,7 @@ unittest {
   selfView.components.view = new ViewComponent;
   selfView.components.view.renameEvents["panelClick"] = "openPanel";
   auto ev6 = ViewAppEventBuilder("panelClick", selfView).value(1).build();
-  inputSys.passEvent(selfView, ev6);
+  passViewEvent(testUi, selfView, ev6);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "openPanel");
 }
@@ -794,7 +754,7 @@ unittest {
   parentRoot.update(WidgetUpdateScope.parentView);
 
   auto childEv = ViewAppEventBuilder("childClick", childW).value(1).build();
-  inputSys.passEvent(childW, childEv);
+  passViewEvent(testUi, childW, childEv);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "renamedClick");
 }

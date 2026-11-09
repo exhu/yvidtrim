@@ -2,7 +2,7 @@ module yguilib.widget.builder;
 
 import std.typecons : Nullable;
 import yguilib.render.font : defaultFontPtSize;
-import yguilib.render.render_types : ColorF, RectF;
+import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.widget : ViewComponent, Widget, WidgetUpdateScope;
 import yguilib.widget.component : WidgetComponent;
 import yguilib.widget.data_components : WidgetArrayComponent,
@@ -11,6 +11,7 @@ import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.input_components : MouseEvent;
 import yguilib.widget.layout_components : AlignItems, Anchor, Dimension,
   FlexContainer, FlexDirection, Insets, JustifyContent, Size, SizingMode;
+import yguilib.widget.scroll_components : ScrollableArea;
 import yguilib.uisystem : UiRegistry;
 import yguilib.widget.widget_view : WidgetView;
 
@@ -354,6 +355,22 @@ struct WidgetBuilder {
   ref WidgetBuilder widgetArray(WidgetArrayComponent wa) return {
     widget.components.widgetArray = wa;
     return this;
+  }
+
+  /// Attaches a ScrollableArea component to the widget and enables child
+  /// clipping.
+  ref WidgetBuilder scrollableArea(ScrollableArea sa) return {
+    widget.clipChildren = true;
+    widget.components.scrollableArea = sa;
+    return this;
+  }
+
+  /// Attaches a ScrollableArea with given offset and optional event name.
+  ref WidgetBuilder scrollableArea(
+    PointF offset = PointF(0.0f, 0.0f),
+    string scrollChangedEvent = null
+  ) return {
+    return scrollableArea(new ScrollableArea(offset, scrollChangedEvent));
   }
 
   Widget build() {

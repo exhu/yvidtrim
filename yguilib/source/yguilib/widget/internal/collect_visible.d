@@ -53,7 +53,7 @@ private:
     const float absX = parentX + w.rect.x;
     const float absY = parentY + w.rect.y;
     const RectF absRect = RectF(absX, absY, w.rect.width, w.rect.height);
-    if (!Renderer.isOnScreen(absRect, vw, vh)) {
+    if (!ignoreClipChildren && !Renderer.isOnScreen(absRect, vw, vh)) {
       return;
     }
 
@@ -62,9 +62,16 @@ private:
     bool childHasClip = parentHasClip;
     RectF childClipRect = parentClipRect;
     if (!ignoreClipChildren && w.clipChildren) {
+      const RectF contentArea = w.getContentArea();
+      const RectF absContentRect = RectF(
+        absX + contentArea.x,
+        absY + contentArea.y,
+        contentArea.width,
+        contentArea.height
+      );
       childClipRect = parentHasClip
-        ? intersectRects(parentClipRect, absRect)
-        : absRect;
+        ? intersectRects(parentClipRect, absContentRect)
+        : absContentRect;
       childHasClip = true;
     }
 

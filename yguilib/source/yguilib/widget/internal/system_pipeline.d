@@ -585,4 +585,30 @@ unittest {
   hiddenPage.setVisible(true);
   assert(pipeline.updateAndRenderTree(win));
   assert(arrBox.children.length == 3);
+
+  // Test ScrollSystem in full pipeline with off-screen child
+  import yguilib.render.render_types : PointF;
+  import yguilib.widget.internal.scroll_system : ScrollSystem;
+  import yguilib.widget.scroll_components : ScrollableArea;
+
+  pipeline.registerSystem(new ScrollSystem(host));
+  auto scrollContainer = new Widget(root, RectF(0, 100, 100, 100));
+  auto scrollArea = new ScrollableArea(PointF(0, 0), "pipelineScrolled");
+  scrollContainer.components.scrollableArea = scrollArea;
+
+  // Child larger than viewport and overflowing window bounds
+  auto largeContent = new Widget(scrollContainer, RectF(0, 0, 400, 300));
+  largeContent.components.background = new Background(ColorF(0, 0, 1, 1));
+
+  assert(pipeline.updateAndRenderTree(win));
+  assert(scrollArea.viewportSize == PointF(100, 100));
+  assert(scrollArea.contentSize == PointF(400, 300));
+  assert(largeContent.rect.x == 0.0f);
+  assert(largeContent.rect.y == 0.0f);
+
+  // Scroll offset moves largeContent
+  scrollContainer.setScrollOffset(PointF(50, 80));
+  assert(pipeline.updateAndRenderTree(win));
+  assert(largeContent.rect.x == -50.0f);
+  assert(largeContent.rect.y == -80.0f);
 }

@@ -124,8 +124,9 @@ UiSystemController.updateView() ──► WidgetSystemPipeline.updateAndRender()
   ├─► 2. Layout Phase (if rootWidget.isTreeLayoutDirty()):
   │     ├─► VisibleWidgetsCollector collects unclipped visible widgets
   │     ├─► LayoutSystem resolves flexbox, axes, auto text size, anchors
+  │     ├─► ScrollSystem offsets & clamps child rect in ScrollableArea
   │     ├─► VisibleWidgetsCollector collects clipped visible widgets
-  │     └─► postLayoutSystems.postLayout(ctx)
+  │     └─► postLayoutSystems.postLayout(ctx) (ScrollSystem feedback)
   │
   ├─► 3. Render Phase (if rootWidget.isTreeDirty()):
   │     └─► WidgetPainterSystem draws backgrounds, borders, text, customDraw
