@@ -1,3 +1,11 @@
+- implement ScrollableArea Widget component and a system as described in
+`documentation/scrollablearea-report.md` in a new module to change Widget
+behaviour enabling scrolling single child Widget inside clipped content
+rectangle. The first child widget size determines the scrollable content.  The
+component has `PointF offset` field which determines the offset of the child
+Widget. How to organize feedback, e.g. when the size of child widget is known
+after layout, so that optional scroll bars can be updated, add named events?
+
 - explore how to make tabs in guidemo with scrolling
 Fast scrolling (without animation, just switching which tab button is the
 first visible may be implemented just by changing visibility of buttons (hide
@@ -48,7 +56,7 @@ Rethink widget life time, may be it's constructor must not append to parent.
 see `documentation/widget_lifetime_and_ownership_plan.md`:
 root marker for Window root widget? (to allow to exist with null parent);
 should removing from parent cause unsubscription and unregistring, or only dispose() method
-does that?
+does that? UiSystem.releaseWidget(w) instead of hooks and handlers in the Widget itself?
 
 - may be just use ViewComponent on root widget + WidgetView +
 WidgetViewController in demo and everywhere for consistency instead of manually
