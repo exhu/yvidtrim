@@ -12,10 +12,11 @@ import yguilib.widget.drawing_components : TextLabel;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
   JustifyContent;
 
-import guidemo.model : DemoModel, HeaderTabsModel;
+import guidemo.model : DemoModel;
 import guidemo.pages.textlabel_page : TextLabelPage;
-import guidemo.tabcontrol : TabControlWidgetViewController, registerTabControl;
-import guidemo.view : DemoView;
+import guidemo.tabcontrol : TabControlWidgetViewController, TabsModel,
+  registerTabControl;
+import guidemo.view : DemoView, createHeaderTabsModel, headerTabSwitchEvent;
 
 /// Controller handling keyboard shortcuts, animation ticks, and view updates.
 final class DemoController : DefaultController {
@@ -25,13 +26,16 @@ final class DemoController : DefaultController {
     this.app = app;
     tabControlController = registerTabControl(app.ui);
     tracker = ModelTracker!DemoModel(new DemoModel);
-    tabsTracker = ModelTracker!HeaderTabsModel(new HeaderTabsModel);
+    tabsTracker = ModelTracker!TabsModel(createHeaderTabsModel());
     view = new DemoView(tracker, tabsTracker, app.ui);
     app.ui.mainWindow().rootWidget = view.getRootWidget();
   }
 
   override bool updateView() {
     view.update();
+    if (tabControlController !is null) {
+      tabControlController.updateView();
+    }
     return true;
   }
 
@@ -106,20 +110,12 @@ private:
     auto model = tracker.edit();
     const size_t prevPage = model.activePage;
     const auto eventName = ev.view.eventName;
-    if (eventName == "tab1Btn") {
-      model.activePage = 0;
-      handled = true;
-    } else if (eventName == "tab2Btn") {
-      model.activePage = 1;
-      handled = true;
-    } else if (eventName == "tab3Btn") {
-      model.activePage = 2;
-      handled = true;
-    } else if (eventName == "tab4Btn") {
-      model.activePage = 3;
-      handled = true;
-    } else if (eventName == "tab5Btn") {
-      model.activePage = 4;
+    if (eventName == headerTabSwitchEvent) {
+      const size_t idx = cast(size_t) ev.view.value[0];
+      if (idx < 5) {
+        model.activePage = idx;
+      }
+      consumeEvent = false;
       handled = true;
     } else if (eventName == "btnCountAction") {
       model.buttonClickCount += 1;
@@ -293,16 +289,18 @@ private:
   }
 
   void syncActiveTab(size_t pageIdx) {
-    auto tabsModel = tabsTracker.edit();
-    tabsModel.activeTab = pageIdx;
-    tabsTracker.commit(tabsModel);
+    if (tabsTracker.model.activeTab != pageIdx) {
+      auto tabsModel = tabsTracker.edit();
+      tabsModel.activeTab = pageIdx;
+      tabsTracker.commit(tabsModel);
+    }
   }
 
   App app;
   DemoView view;
   TabControlWidgetViewController tabControlController;
   ModelTracker!DemoModel tracker;
-  ModelTracker!HeaderTabsModel tabsTracker;
+  ModelTracker!TabsModel tabsTracker;
 }
 
 unittest {
@@ -332,4 +330,12 @@ unittest {
   assert(hrVert.result == HandleResult.Result.updateView);
   assert(!hrVert.consume);
   assert(demoCtrl.tracker.model.page5VerticalTab == 3);
+
+  // Header TabControl switch event verification
+  auto evHeader = ViewAppEventBuilder(headerTabSwitchEvent).value(3).build();
+  auto hrHeader = demoCtrl.handleEvent(evHeader);
+  assert(hrHeader.result == HandleResult.Result.updateView);
+  assert(!hrHeader.consume);
+  assert(demoCtrl.tracker.model.activePage == 3);
+  assert(demoCtrl.tabsTracker.model.activeTab == 3);
 }

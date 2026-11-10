@@ -3,13 +3,13 @@
  */
 module guidemo.view;
 
-import guidemo.model : DemoModel, HeaderTabsModel;
+import guidemo.model : DemoModel, defaultHeaderTabNames;
 import guidemo.pages.button_page : ButtonPage;
 import guidemo.pages.button_system_page : ButtonSystemPage;
 import guidemo.pages.layout_painter_page : LayoutPainterPage;
 import guidemo.pages.tabcontrol_page : TabControlPage;
 import guidemo.pages.textlabel_page : TextLabelPage;
-import guidemo.tab_button : HeaderTabButtonsProvider;
+import guidemo.tabcontrol : TabControlBuilder, TabsModel;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiRegistry;
@@ -20,11 +20,19 @@ import yguilib.widget.layout_components : AlignItems, FlexDirection, Insets,
   JustifyContent, Size;
 import yguilib.widget.input_components : MouseEvent;
 
+/// Event name emitted by the header TabControl on tab switch.
+enum headerTabSwitchEvent = "headerTabSwitch";
+
+/// Factory creating a default TabsModel initialized with header tab names.
+TabsModel createHeaderTabsModel() {
+  return new TabsModel(defaultHeaderTabNames.dup, 0);
+}
+
 /// View building and updating all demo widget hierarchies.
 final class DemoView {
   this(ref ModelTracker!DemoModel modelTracker) {
-    auto defaultTabsTracker = ModelTracker!HeaderTabsModel(
-      new HeaderTabsModel()
+    auto defaultTabsTracker = ModelTracker!TabsModel(
+      createHeaderTabsModel()
     );
     this(modelTracker, defaultTabsTracker);
   }
@@ -32,18 +40,18 @@ final class DemoView {
   /// Constructs DemoView. `registry` is allowed to be null in headless tests.
   this(
     ref ModelTracker!DemoModel modelTracker,
-    ref ModelTracker!HeaderTabsModel tabsModelTracker,
+    ref ModelTracker!TabsModel tabsModelTracker,
     UiRegistry registry = null
   ) {
     tracker = ModelTracker!DemoModel(modelTracker);
-    tabsTracker = ModelTracker!HeaderTabsModel(tabsModelTracker);
+    tabsTracker = ModelTracker!TabsModel(tabsModelTracker);
 
     // Root background
     view = WidgetBuilder(RectF(0, 0, 1280, 720))
       .background(ColorF(0.08f, 0.09f, 0.11f, 1.0f))
       .build();
 
-    buildHeader();
+    buildHeader(registry);
 
     page1 = new LayoutPainterPage(view);
     page2 = new TextLabelPage(view);
@@ -59,12 +67,6 @@ final class DemoView {
   }
 
   void update() {
-    if (tabsTracker.update()) {
-      tabContainer.components.widgetArray.itemsCount =
-        tabsTracker.model.tabNames.length;
-      tabContainer.components.widgetArray.modelChanged = true;
-    }
-
     if (!tracker.update()) {
       return;
     }
@@ -76,6 +78,10 @@ final class DemoView {
 
   Widget getRootWidget() {
     return view;
+  }
+
+  Widget getHeaderTabControl() {
+    return tabControl;
   }
 
   ButtonPage getButtonPage() {
@@ -238,7 +244,7 @@ private:
     return formatPage1Status(m);
   }
 
-  void buildHeader() {
+  void buildHeader(UiRegistry registry) {
     auto header = WidgetBuilder(view, RectF(20, 12, 1240, 48))
       .roundBackground(ColorF(0.11f, 0.13f, 0.17f, 1.0f), 6.0f)
       .border(ColorF(0.22f, 0.25f, 0.32f, 1.0f), 1.0f)
@@ -260,18 +266,12 @@ private:
       )
       .build();
 
-    tabContainer = WidgetBuilder(header, RectF(495, 9, 730, 30))
-      .flex(
-        FlexDirection.row,
-        10.0f,
-        JustifyContent.start,
-        AlignItems.center
-      )
-      .widgetArray(
-        new HeaderTabButtonsProvider(tabsTracker.model),
-        tabsTracker.model.tabNames.length
-      )
-      .build();
+    TabControlBuilder b;
+    tabControl = b
+      .model(tabsTracker)
+      .event(headerTabSwitchEvent)
+      .gap(10.0f)
+      .build(header, RectF(495, 9, 730, 30), registry);
   }
 
   void buildStatusBar() {
@@ -290,9 +290,9 @@ private:
 
   Widget view;
   ModelTracker!DemoModel tracker;
-  ModelTracker!HeaderTabsModel tabsTracker;
+  ModelTracker!TabsModel tabsTracker;
 
-  Widget tabContainer;
+  Widget tabControl;
   Widget statusLabel;
 
   LayoutPainterPage page1;

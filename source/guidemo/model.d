@@ -43,6 +43,15 @@ final class DemoModel : VersionedModel {
   bool quitRequested = false;
 }
 
+/// Default tab captions for the main guidemo header TabControl.
+immutable string[] defaultHeaderTabNames = [
+  "[1] Layout & Paint",
+  "[2] TextLabel Demo",
+  "[3] Hover (Ctrl)",
+  "[4] Hover (System)",
+  "[5] TabControl",
+];
+
 /// Model holding header tab names and active tab index.
 final class HeaderTabsModel : VersionedModel {
   string[] tabNames = [

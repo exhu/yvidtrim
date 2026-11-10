@@ -1,5 +1,3 @@
-- in guidemo replace tabContainer with TabControl in guidemo to replace current tab1btn, tab2btn etc
-
 - Dynamic lists are for another feature to implement.
 
 - registerViewWidget must be supported with unregister on widget removal from a tree.
