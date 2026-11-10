@@ -1,10 +1,8 @@
-- make tabs in guidemo (top page selection) with scrolling using ScrollableArea component via
-a new controller and added left and right arrow buttons, scrolling jumps by tab button origins
-TODO: need to think how to identify the offset steps.
-Fast scrolling (without animation, just switching which tab button is the
-first visible may be implemented just by changing visibility of buttons (hide
-all until the current left-most).
-
+- make tabs in guidemo (`tabcontrol_page.d`) whose implementation in `tabcontrol.d`
+support scrolling using ScrollableArea component via a existing TabControlWidgetViewController controller.
+Add left and right arrow buttons which are hidden when there's nowhere to scroll left or right (e.g. when all tabs fit the viewport), display left or right button disabled/grayed when there's nowhere to scroll (already in left-most/right-most position), scrolling jumps by tab button origins, e.g. when scrolling left the viewport displays next left tab,
+when scrolling right -- next button to the right, when the viewport resized adjust scroll position to display the nearest tab's left edge at the left edge of the viewport (snap to left).
+Example scheme:
 ```
 TabControlWidget (with ViewComponent)
  - flex container
@@ -17,33 +15,9 @@ TabControlWidget (with ViewComponent)
 [<][tab1][ta...][>]
 ```
 
-Scroll area seems to be a separate components: scroll container moves child container.
-Child container needs to resize to be larger than scroll container, needs to know current
-position, layout size children produced by its WidgetArrayComponent.
+- in guidemo replace tabContainer with TabControl in guidemo to replace current tab1btn, tab2btn etc
 
-We don't know how many WidgetArrayComponent items to request before layout is complete.
-Maybe introduce a layout component that will notify if the space is available
-or lacks?
-
-Clipped list cells can be excluded from layout because of considered invisible,
-need to add a component or flag that the widget is included in visible list even
-if it is clipped (includes the whole tree into visible list).
-
-a scroll list may just append new widgets on container resize,
-but on shrink just hide unnecessary, then reuse already allocated on scrolling
-and on growing.
-
-with FlexContainer component it can produce horizontal or vertical lists.
-
-There may be two kind of scrollers: constructed widget hierarchy, dynamically
-constructed (as a window into large data set).
-
-Browsing large data set is way complicated, so let's implement tabs as a
-fixed hierarchy which is scrollable via just moving the container inside
-a clipping parent. However need to check if clipped widgets still included
-in layout process, if they are not then we need to resolve it.
-
-Dynamic lists are for another feature to implement.
+- Dynamic lists are for another feature to implement.
 
 - registerViewWidget must be supported with unregister on widget removal from a tree.
 Rethink widget life time, may be it's constructor must not append to parent.
@@ -56,7 +30,6 @@ does that? UiSystem.releaseWidget(w) instead of hooks and handlers in the Widget
 WidgetViewController in demo and everywhere for consistency instead of manually
 created View and Controller?
 
-- Use TabControl in guidemo to replace current tab1btn, tab2btn etc
 
 
 - Systems and components satisfy the case of parent and child widgets and
