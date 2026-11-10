@@ -1,10 +1,10 @@
 - make tabs in guidemo (`tabcontrol_page.d`) whose implementation in `tabcontrol.d`
-support scrolling using ScrollableArea component via a existing TabControlWidgetViewController controller.
-Add left and right arrow buttons which are hidden when there's nowhere to scroll left or right (e.g. when all tabs fit the viewport), display left or right button disabled/grayed when there's nowhere to scroll (already in left-most/right-most position), scrolling jumps by tab button origins, e.g. when scrolling left the viewport displays next left tab,
+support scrolling using ScrollableArea component via modifying existing TabControlWidgetViewController controller.
+Add left and right arrow buttons which are hidden when there's nowhere to scroll left or right (e.g. when all tabs fit the viewport), display left or right button disabled/grayed when there's nowhere to scroll (already in left-most/right-most position), scrolling is performed by pressing `<` and `>` button Widgets, when pressed it jumps viewport by tab button origins, e.g. when scrolling left the viewport displays next left tab,
 when scrolling right -- next button to the right, when the viewport resized adjust scroll position to display the nearest tab's left edge at the left edge of the viewport (snap to left).
 Example scheme:
 ```
-TabControlWidget (with ViewComponent)
+TabControl Widget (with ViewComponent)
  - flex container
   - left button
   - scrollable area (has children clipping on)
