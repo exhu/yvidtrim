@@ -35,7 +35,8 @@ final class DemoModel : VersionedModel {
   size_t page5SubTab = 0;
   size_t page5VerticalTab = 0;
   size_t page5DynamicTab = 0;
-  size_t page5DynamicTabCount = 3;
+  size_t page5DynamicTabCount = 6;
+  float page5ViewportWidth = 580.0f;
   string page5LastEventName = "none";
   size_t page5LastEventIndex = 0;
 

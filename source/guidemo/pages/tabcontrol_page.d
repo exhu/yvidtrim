@@ -30,7 +30,17 @@ final class TabControlPage {
       new TabsModel(["Overview", "Telemetry", "Settings"], 0)
     );
     dynamicTabsTracker = ModelTracker!TabsModel(
-      new TabsModel(["Clip 1", "Clip 2", "Clip 3"], 0)
+      new TabsModel(
+        [
+          "Clip 1",
+          "Clip 2",
+          "Clip 3",
+          "Clip 4",
+          "Clip 5",
+          "Clip 6",
+        ],
+        0
+      )
     );
     verticalTabsTracker = ModelTracker!TabsModel(
       new TabsModel(
@@ -66,10 +76,12 @@ final class TabControlPage {
 
     if (dynamicStatusLabel !is null) {
       const auto dm = dynamicTabsTracker.model;
+      const float vw = getDynamicViewportWidth();
       dynamicStatusLabel.setCaption(
         format(
-          "Model Tabs: %d / 5 | Active Index: %d (%s)",
+          "Model Tabs: %d / 10 | Width: %.0fpx | Active: %d (%s)",
           dm.tabNames.length,
+          vw,
           dm.activeTab,
           dm.activeTab < dm.tabNames.length
             ? dm.tabNames[dm.activeTab]
@@ -81,12 +93,12 @@ final class TabControlPage {
     updateVerticalInspector(m.page5VerticalTab);
   }
 
-  /// Appends a new tab to the dynamic TabsModel (up to 5 tabs).
+  /// Appends a new tab to the dynamic TabsModel (up to 10 tabs).
   size_t addDynamicTab() {
     import std.format : format;
 
     auto m = dynamicTabsTracker.edit();
-    if (m.tabNames.length < 5) {
+    if (m.tabNames.length < 10) {
       const size_t nextNum = m.tabNames.length + 1;
       m.tabNames ~= format("Clip %d", nextNum);
       m.activeTab = m.tabNames.length - 1;
@@ -110,13 +122,59 @@ final class TabControlPage {
     return count;
   }
 
-  /// Resets the dynamic TabsModel back to 3 tabs.
+  /// Resets the dynamic TabsModel back to 6 tabs.
   size_t resetDynamicTabs() {
     auto m = dynamicTabsTracker.edit();
-    m.tabNames = ["Clip 1", "Clip 2", "Clip 3"];
+    m.tabNames = [
+      "Clip 1",
+      "Clip 2",
+      "Clip 3",
+      "Clip 4",
+      "Clip 5",
+      "Clip 6",
+    ];
     m.activeTab = 0;
     dynamicTabsTracker.commit(m);
-    return 3;
+    return 6;
+  }
+
+  float narrowDynamicViewport() {
+    if (dynamicTabControl !is null) {
+      float curW = dynamicTabControl.rect.width;
+      if (curW > 300.0f) {
+        curW -= 70.0f;
+        if (curW < 300.0f) {
+          curW = 300.0f;
+        }
+        dynamicTabControl.rect.width = curW;
+        dynamicTabControl.update(WidgetUpdateScope.layout);
+      }
+      return curW;
+    }
+    return 580.0f;
+  }
+
+  float widenDynamicViewport() {
+    if (dynamicTabControl !is null) {
+      float curW = dynamicTabControl.rect.width;
+      if (curW < 580.0f) {
+        curW += 70.0f;
+        if (curW > 580.0f) {
+          curW = 580.0f;
+        }
+        dynamicTabControl.rect.width = curW;
+        dynamicTabControl.update(WidgetUpdateScope.layout);
+      }
+      return curW;
+    }
+    return 580.0f;
+  }
+
+  float getDynamicViewportWidth() const {
+    if (dynamicTabControl !is null) {
+      return dynamicTabControl.rect.width;
+    }
+    return 580.0f;
   }
 
   size_t getDynamicActiveTab() {
@@ -292,7 +350,7 @@ private:
       .build();
 
     TabControlBuilder b;
-    b.model(dynamicTabsTracker)
+    dynamicTabControl = b.model(dynamicTabsTracker)
       .event("dynamicTabSwitch")
       .buttonSize(108.0f, 30.0f)
       .gap(8.0f)
@@ -306,12 +364,17 @@ private:
     auto btnRow = WidgetBuilder(card, RectF(16, 108, 580, 42))
       .flex(
         FlexDirection.row,
-        12.0f,
+        10.0f,
         JustifyContent.start,
         AlignItems.center
       )
       .build();
 
+    buildTabCountButtons(btnRow);
+    buildViewportSizeButtons(btnRow);
+  }
+
+  static void buildTabCountButtons(Widget btnRow) {
     HoverAnimConfig addCfg;
     addCfg.hoverBg = ColorF(0.18f, 0.55f, 0.35f, 1.0f);
     addCfg.pressBg = ColorF(0.08f, 0.35f, 0.20f, 1.0f);
@@ -319,8 +382,8 @@ private:
     addCfg.actionEvent = "page5AddTab";
     makeMutationButton(
       btnRow,
-      "+ Add Tab",
-      130.0f,
+      "+ Add",
+      85.0f,
       ColorF(0.12f, 0.24f, 0.18f, 1.0f),
       addCfg
     );
@@ -332,8 +395,8 @@ private:
     remCfg.actionEvent = "page5RemoveTab";
     makeMutationButton(
       btnRow,
-      "- Remove Tab",
-      140.0f,
+      "- Rem",
+      85.0f,
       ColorF(0.26f, 0.12f, 0.14f, 1.0f),
       remCfg
     );
@@ -345,10 +408,38 @@ private:
     rstCfg.actionEvent = "page5ResetTabs";
     makeMutationButton(
       btnRow,
-      "Reset (3 Tabs)",
-      140.0f,
+      "Reset (6)",
+      100.0f,
       ColorF(0.18f, 0.20f, 0.25f, 1.0f),
       rstCfg
+    );
+  }
+
+  static void buildViewportSizeButtons(Widget btnRow) {
+    HoverAnimConfig narCfg;
+    narCfg.hoverBg = ColorF(0.55f, 0.40f, 0.18f, 1.0f);
+    narCfg.pressBg = ColorF(0.35f, 0.25f, 0.08f, 1.0f);
+    narCfg.hoverBorder = ColorF(0.85f, 0.65f, 0.35f, 1.0f);
+    narCfg.actionEvent = "page5NarrowViewport";
+    makeMutationButton(
+      btnRow,
+      "- Narrow",
+      115.0f,
+      ColorF(0.24f, 0.18f, 0.10f, 1.0f),
+      narCfg
+    );
+
+    HoverAnimConfig widCfg;
+    widCfg.hoverBg = ColorF(0.35f, 0.30f, 0.55f, 1.0f);
+    widCfg.pressBg = ColorF(0.20f, 0.15f, 0.35f, 1.0f);
+    widCfg.hoverBorder = ColorF(0.65f, 0.55f, 0.90f, 1.0f);
+    widCfg.actionEvent = "page5WidenViewport";
+    makeMutationButton(
+      btnRow,
+      "+ Widen",
+      115.0f,
+      ColorF(0.18f, 0.14f, 0.26f, 1.0f),
+      widCfg
     );
   }
 
@@ -377,7 +468,7 @@ private:
 
     dynamicStatusLabel = WidgetBuilder(infoBox, RectF(12, 10, 555, 22))
       .text(
-        "Model Tabs: 3 / 5 | Active Index: 0 (Clip 1)",
+        "Model Tabs: 6 / 10 | Width: 580px | Active: 0 (Clip 1)",
         ColorF(0.45f, 0.90f, 0.65f, 1.0f),
         13.0f
       )
@@ -385,9 +476,9 @@ private:
 
     WidgetBuilder(infoBox, RectF(12, 38, 555, 52))
       .text(
-        "- Adding a tab increments itemsCount and allocates/shows a button\n" ~
-          "- Removing a tab hides excess child widgets without deallocation\n" ~
-          "- TabControlWidgetView.update() syncs changes via ModelTracker",
+        "- Adding tabs beyond 5 displays < and > scroll arrow buttons\n" ~
+          "- Pressing < and > jumps scroll offset by tab button origins\n" ~
+          "- Resizing viewport (- Narrow / + Widen) snaps to nearest tab",
         ColorF(0.70f, 0.75f, 0.85f, 1.0f),
         12.0f
       )
@@ -509,6 +600,7 @@ private:
   Widget subPanel0;
   Widget subPanel1;
   Widget subPanel2;
+  Widget dynamicTabControl;
   Widget eventLogLabel;
   Widget dynamicStatusLabel;
   Widget verticalTitleLabel;

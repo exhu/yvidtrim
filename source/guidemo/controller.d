@@ -146,44 +146,56 @@ private:
     consumeEvent = true;
     const auto eventName = ev.view.eventName;
     const size_t idx = cast(size_t) ev.view.value[0];
+    if (eventName == "pageTabSwitch" ||
+        eventName == "dynamicTabSwitch" ||
+        eventName == "verticalTabSwitch") {
+      return handlePage5TabSwitch(eventName, idx, model, consumeEvent);
+    }
+    return handlePage5Mutation(eventName, model);
+  }
+
+  bool handlePage5TabSwitch(
+    string eventName,
+    size_t idx,
+    DemoModel model,
+    out bool consumeEvent
+  ) {
+    consumeEvent = false;
+    model.page5LastEventName = eventName;
+    model.page5LastEventIndex = idx;
     if (eventName == "pageTabSwitch") {
       model.page5SubTab = idx;
-      model.page5LastEventName = eventName;
-      model.page5LastEventIndex = idx;
-      consumeEvent = false;
       return true;
     } else if (eventName == "dynamicTabSwitch") {
       model.page5DynamicTab = idx;
-      model.page5LastEventName = eventName;
-      model.page5LastEventIndex = idx;
-      consumeEvent = false;
       return true;
     } else if (eventName == "verticalTabSwitch") {
       model.page5VerticalTab = idx;
-      model.page5LastEventName = eventName;
-      model.page5LastEventIndex = idx;
-      consumeEvent = false;
-      return true;
-    } else if (eventName == "page5AddTab") {
-      auto p5 = view.getTabControlPage();
-      model.page5DynamicTabCount = p5.addDynamicTab();
-      model.page5DynamicTab = p5.getDynamicActiveTab();
-      sendUpdate();
-      return true;
-    } else if (eventName == "page5RemoveTab") {
-      auto p5 = view.getTabControlPage();
-      model.page5DynamicTabCount = p5.removeDynamicTab();
-      model.page5DynamicTab = p5.getDynamicActiveTab();
-      sendUpdate();
-      return true;
-    } else if (eventName == "page5ResetTabs") {
-      auto p5 = view.getTabControlPage();
-      model.page5DynamicTabCount = p5.resetDynamicTabs();
-      model.page5DynamicTab = p5.getDynamicActiveTab();
-      sendUpdate();
       return true;
     }
     return false;
+  }
+
+  bool handlePage5Mutation(string eventName, DemoModel model) {
+    auto p5 = view.getTabControlPage();
+    if (eventName == "page5AddTab") {
+      model.page5DynamicTabCount = p5.addDynamicTab();
+      model.page5DynamicTab = p5.getDynamicActiveTab();
+    } else if (eventName == "page5RemoveTab") {
+      model.page5DynamicTabCount = p5.removeDynamicTab();
+      model.page5DynamicTab = p5.getDynamicActiveTab();
+    } else if (eventName == "page5ResetTabs") {
+      model.page5DynamicTabCount = p5.resetDynamicTabs();
+      model.page5DynamicTab = p5.getDynamicActiveTab();
+    } else if (eventName == "page5NarrowViewport") {
+      model.page5ViewportWidth = p5.narrowDynamicViewport();
+    } else if (eventName == "page5WidenViewport") {
+      model.page5ViewportWidth = p5.widenDynamicViewport();
+    } else {
+      return false;
+    }
+    sendUpdate();
+    return true;
   }
 
   bool handleKeyDownEvent(in AppEvent ev) {
