@@ -1,6 +1,27 @@
-- add dumpTree debug function for a Widget to dump widget tree in readable json
+- add dumpTree(bool withChildren = true) debug function for a Widget to dump widget tree in readable json
 format with all widget fields, component fiels, sizes and positions, children etc.
 It should dump everything in order to easily debug layout bugs.
+
+To implement dumpTree implement yguilib/serhelpers.d module which provides
+functions (templates) to serialize any struct and class instances into json format which
+is returned as a pretty formatted human-readable string ready to be dumped to the log file/stderr.
+It serializes data fields (use std.traits). Example output:
+```
+{"type": "Widget",
+  "fields":
+  {"rect" : {"type": "RectF",
+	  "fields": {
+	    "x": 3.5,
+	    ...},
+	"children": [
+	  {"type": "Widget",
+	    "fields": {
+		  ...}}],
+	"name": "TabControl"
+  }
+}
+
+```
 
 - add UiSystem.dumpInfo to dump controller stack, registered views,
 windows and windows' root widget name and ID.
