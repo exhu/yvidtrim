@@ -93,21 +93,24 @@ private:
 
 // Verifies collectVisible culling of off-screen parents and their children.
 unittest {
+  import yguilib.widget.test_fixture : WidgetFixture;
+
+  auto fix = new WidgetFixture();
   auto collector = new VisibleWidgetsCollector;
 
-  auto root = new Widget(1, null, RectF(0, 0, 640, 480));
-  auto onScreenChild = new Widget(2, root, RectF(10, 10, 100, 100));
-  auto hiddenChild = new Widget(3, root, RectF(120, 10, 50, 50));
+  auto root = fix.makeRoot(RectF(0, 0, 640, 480));
+  auto onScreenChild = fix.makeChild(root, RectF(10, 10, 100, 100));
+  auto hiddenChild = fix.makeChild(root, RectF(120, 10, 50, 50));
   hiddenChild.visible = false;
-  auto hiddenGrandChild = new Widget(4, hiddenChild, RectF(5, 5, 20, 20));
+  auto hiddenGrandChild = fix.makeChild(hiddenChild, RectF(5, 5, 20, 20));
 
   // Off-screen parent (x = 700 is outside 640 width)
-  auto offScreenParent = new Widget(5, root, RectF(700, 50, 100, 100));
+  auto offScreenParent = fix.makeChild(root, RectF(700, 50, 100, 100));
   // Child has rect (5, 5) relative to offScreenParent (absX = 705)
-  auto childOfOffScreen = new Widget(6, offScreenParent, RectF(5, 5, 50, 50));
+  auto childOfOffScreen = fix.makeChild(offScreenParent, RectF(5, 5, 50, 50));
 
   // Relative positioned child moving on-screen relative to an on-screen parent
-  auto nestedOnScreen = new Widget(7, onScreenChild, RectF(10, 10, 40, 40));
+  auto nestedOnScreen = fix.makeChild(onScreenChild, RectF(10, 10, 40, 40));
 
   auto collected = collector.collectVisible(root, 640.0f, 480.0f);
   assert(collected.length == 3);
@@ -121,20 +124,23 @@ unittest {
 
 // Verifies collectVisible clipChildren propagation.
 unittest {
+  import yguilib.widget.test_fixture : WidgetFixture;
+
+  auto fix = new WidgetFixture();
   auto collector = new VisibleWidgetsCollector;
 
-  auto root = new Widget(1, null, RectF(0, 0, 640, 480));
+  auto root = fix.makeRoot(RectF(0, 0, 640, 480));
   root.clipChildren = false;
 
-  auto parent = new Widget(2, root, RectF(50, 50, 200, 100));
+  auto parent = fix.makeChild(root, RectF(50, 50, 200, 100));
   parent.clipChildren = true;
 
-  auto child = new Widget(3, parent, RectF(10, 10, 300, 50));
+  auto child = fix.makeChild(parent, RectF(10, 10, 300, 50));
   child.clipChildren = false;
 
-  auto grandChild = new Widget(4, child, RectF(5, 5, 20, 20));
+  auto grandChild = fix.makeChild(child, RectF(5, 5, 20, 20));
 
-  auto sibling = new Widget(5, root, RectF(300, 50, 100, 100));
+  auto sibling = fix.makeChild(root, RectF(300, 50, 100, 100));
 
   auto collected = collector.collectVisible(root, 640.0f, 480.0f);
   assert(collected.length == 5);

@@ -56,6 +56,7 @@ yguilib_src = files(
   'source/yguilib/widget/package.d',
   'source/yguilib/widget/scroll_components.d',
   'source/yguilib/widget/system.d',
+  'source/yguilib/widget/test_fixture.d',
   'source/yguilib/widget/visible.d',
   'source/yguilib/widget/widget_view.d',
   'source/yguilib/window.d',
