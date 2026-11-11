@@ -1,3 +1,24 @@
+- add unqiue `uint Widet.uId` to each Widget which is set on allocation.
+ID counter is maintained in UiSystem instance.
+
+- make Widget.addChild method instead of implicitly adding to parent
+in constructor. A widget cannot be a child of multiple parents.
+If parent != null, then remove Widget from that parent before adding to
+another.
+
+- add Widget.name string field which can help debug widget tree (the name
+is not unique, there may be any amount of widgets sharing the same name in
+the tree).
+
+- add dumpTree debug function for a Widget to dump widget tree in readable json
+format with all widget fields, component fiels, sizes and positions, children etc.
+It should dump everything in order to easily debug layout bugs.
+
+- add UiSystem.dumpInfo to dump controller stack, registered views,
+windows and windows' root widget name and ID.
+
+- add skill to author gui based on tabControl changes
+
 - Dynamic lists are for another feature to implement.
 
 - registerViewWidget must be supported with unregister on widget removal from a tree.
