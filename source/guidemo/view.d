@@ -16,8 +16,8 @@ import yguilib.uisystem : UiRegistry;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
-import yguilib.widget.layout_components : AlignItems, FlexDirection, Insets,
-  JustifyContent, Size;
+import yguilib.widget.layout_components : AlignItems, FlexContainer,
+  FlexDirection, Insets, JustifyContent, Size, SizingMode;
 import yguilib.widget.input_components : MouseEvent;
 
 /// Event name emitted by the header TabControl on tab switch.
@@ -246,11 +246,20 @@ private:
 
   void buildHeader(UiRegistry registry) {
     auto header = WidgetBuilder(view, RectF(20, 12, 1240, 48))
+      .fixedSize(1240, 48)
+      .padding(0, 14)
+      .flexRow(12.0f, JustifyContent.start, AlignItems.center)
       .roundBackground(ColorF(0.11f, 0.13f, 0.17f, 1.0f), 6.0f)
       .border(ColorF(0.22f, 0.25f, 0.32f, 1.0f), 1.0f)
       .build();
 
-    WidgetBuilder(header, RectF(14, 5, 470, 20))
+    auto titleBox = WidgetBuilder(header, RectF())
+      .flexColumn(2.0f, JustifyContent.center, AlignItems.start)
+      .autoSize()
+      .build();
+
+    WidgetBuilder(titleBox, RectF())
+      .autoSize()
       .text(
         "yguilib GUI Feature Demo & Showcase (guidemo)",
         ColorF(1.0f, 1.0f, 1.0f, 1.0f),
@@ -258,7 +267,8 @@ private:
       )
       .build();
 
-    WidgetBuilder(header, RectF(14, 26, 470, 16))
+    WidgetBuilder(titleBox, RectF())
+      .autoSize()
       .text(
         "Verification for widget_painter.d, layout_system.d & " ~
           "input_components.d",
@@ -271,7 +281,8 @@ private:
       .model(tabsTracker)
       .event(headerTabSwitchEvent)
       .gap(10.0f)
-      .build(header, RectF(495, 9, 730, 30), registry);
+      .build(header, RectF(), registry);
+    tabControl.components.size = Size.fraction(1.0f, 0.0f);
   }
 
   void buildStatusBar() {
@@ -300,4 +311,36 @@ private:
   ButtonPage page3;
   ButtonSystemPage page4;
   TabControlPage page5;
+}
+
+// View header layout construction test
+unittest {
+  auto model = new DemoModel();
+  auto tracker = ModelTracker!DemoModel(model);
+  auto demoView = new DemoView(tracker);
+
+  auto root = demoView.getRootWidget();
+  assert(root !is null);
+  assert(root.children.length > 0);
+
+  auto header = root.children[0];
+  assert(header.components.size !is null);
+  assert(header.components.size.width.mode == SizingMode.fixed);
+  assert(header.components.size.width.value == 1240);
+  assert(header.components.size.height.mode == SizingMode.fixed);
+  assert(header.components.size.height.value == 48);
+  assert(header.components.flexContainer !is null);
+  assert(header.components.flexContainer.direction == FlexDirection.row);
+  assert(header.children.length == 2);
+
+  auto titleBox = header.children[0];
+  assert(titleBox.components.flexContainer !is null);
+  assert(titleBox.components.flexContainer.direction == FlexDirection.column);
+  assert(titleBox.children.length == 2);
+
+  auto tabCtrl = demoView.getHeaderTabControl();
+  assert(tabCtrl !is null);
+  assert(tabCtrl is header.children[1]);
+  assert(tabCtrl.components.size !is null);
+  assert(tabCtrl.components.size.width.mode == SizingMode.fraction);
 }
