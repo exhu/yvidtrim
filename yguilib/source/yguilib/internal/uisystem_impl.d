@@ -42,6 +42,10 @@ class UiSystemImpl : UiSystem {
     fWidgetViews = new ObjectRegistry!WidgetView();
   }
 
+  override uint nextWidgetId() {
+    return fNextWidgetId++;
+  }
+
   /// safe to call from a thread
   override void sendAppEvent(AppEvent ev) {
     messageBus.send(ev);
@@ -364,6 +368,7 @@ private:
   WidgetSystemPipeline pipeline;
   ObjectRegistry!WidgetViewController fWidgetViewControllers;
   ObjectRegistry!WidgetView fWidgetViews;
+  uint fNextWidgetId = 1;
 } // -UiSystem
 
 ////// TESTS /////
@@ -875,7 +880,7 @@ unittest {
   scope (exit) win.destroy();
 
   auto ui = new UiSystemImpl(win);
-  auto root = new Widget(null, RectF(0, 0, 320, 240));
+  auto root = new Widget(ui.nextWidgetId(), null, RectF(0, 0, 320, 240));
   root.components.background = new Background(ColorF(0.1f, 0.1f, 0.1f, 1.0f));
   win.rootWidget = root;
 
@@ -961,9 +966,9 @@ unittest {
   auto found = uiSys.findWidgetSystem!CounterSystem();
   assert(found is customSys);
 
-  auto root = new Widget(null, RectF(0, 0, 320, 240));
+  auto root = new Widget(ui.nextWidgetId(), null, RectF(0, 0, 320, 240));
   root.components.set(new CounterComponent(5));
-  auto child = new Widget(root, RectF(10, 10, 100, 50));
+  auto child = new Widget(ui.nextWidgetId(), root, RectF(10, 10, 100, 50));
   child.components.set(new CounterComponent(10));
   win.rootWidget = root;
 
@@ -1018,4 +1023,17 @@ unittest {
   assert(ui.widgetViews.getByName("DummyView") is view);
   assert(ui.widgetViews.unregister("DummyView", view));
   assert(ui.widgetViews.getByName("DummyView") is null);
+}
+
+// Verifies sequential nextWidgetId generation and independent counters.
+unittest {
+  auto ui1 = new UiSystemImpl(null);
+  assert(ui1.nextWidgetId() == 1);
+  assert(ui1.nextWidgetId() == 2);
+  assert(ui1.nextWidgetId() == 3);
+
+  auto ui2 = new UiSystemImpl(null);
+  assert(ui2.nextWidgetId() == 1);
+  assert(ui2.nextWidgetId() == 2);
+  assert(ui1.nextWidgetId() == 4);
 }

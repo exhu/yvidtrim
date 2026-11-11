@@ -5,6 +5,7 @@ module guidemo.tab_button;
 
 import guidemo.model : HeaderTabsModel;
 import yguilib.render.render_types : ColorF, RectF;
+import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.data_components : WidgetArrayProvider;
@@ -41,6 +42,7 @@ enum tabInactiveText = ColorF(0.80f, 0.85f, 0.95f, 1.0f);
  *   Configured tab button widget.
  */
 Widget createTabButton(
+  UiSystem ui,
   Widget parent,
   string label,
   string eventName,
@@ -56,7 +58,7 @@ Widget createTabButton(
     : tabInactiveBorder;
   const ColorF textCol = isActive ? tabActiveText : tabInactiveText;
 
-  return WidgetBuilder(parent, RectF(0, 0, width, height))
+  return WidgetBuilder(ui, parent, RectF(0, 0, width, height))
     .fixedSize(width, height)
     .padding(5, 8, 5, 8)
     .roundBackground(bgCol, defaultTabButtonRadius)
@@ -85,18 +87,21 @@ void updateTabButtonState(Widget btn, bool isActive) {
  * for a WidgetArrayComponent.
  */
 final class HeaderTabButtonsProvider : WidgetArrayProvider {
-  this(const(HeaderTabsModel) model) {
+  this(UiSystem ui, const(HeaderTabsModel) model) {
+    assert(ui !is null, "ui must not be null");
     assert(model !is null, "model must not be null");
+    this.ui = ui;
     this.model = model;
   }
 
   invariant {
     assert(model !is null);
+    assert(ui !is null);
   }
 
   override void addWidget(Widget parent) {
     assert(parent !is null, "parent must not be null");
-    createTabButton(parent, null, null);
+    createTabButton(ui, parent, null, null);
   }
 
   override void updateWidgetAt(Widget w, size_t index) {
@@ -112,14 +117,18 @@ final class HeaderTabButtonsProvider : WidgetArrayProvider {
   }
 
 private:
+  UiSystem ui;
   const(HeaderTabsModel) model;
 }
 
 unittest {
-  auto root = new Widget(null, RectF(0, 0, 800, 600));
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  auto ui = new UiSystemImpl(null);
+
+  auto root = new Widget(ui.nextWidgetId(), null, RectF(0, 0, 800, 600));
 
   // 1. Create active tab button
-  auto btnActive = createTabButton(root, "Active Tab", "tabActive", true);
+  auto btnActive = createTabButton(ui, root, "Active Tab", "tabActive", true);
   assert(btnActive !is null);
   assert(btnActive.rect.width == defaultTabButtonWidth);
   assert(btnActive.rect.height == defaultTabButtonHeight);
@@ -133,6 +142,7 @@ unittest {
 
   // 2. Create inactive tab button
   auto btnInactive = createTabButton(
+    ui,
     root,
     "Inactive Tab",
     "tabInactive",
@@ -156,11 +166,13 @@ unittest {
 }
 
 unittest {
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
   import yguilib.widget.layout_components : AlignItems, FlexDirection,
     JustifyContent, SizingMode;
 
-  auto root = new Widget(null, RectF(0, 0, 800, 600));
-  auto row = WidgetBuilder(root, RectF(0, 0, 500, 40))
+  auto ui = new UiSystemImpl(null);
+  auto root = new Widget(ui.nextWidgetId(), null, RectF(0, 0, 800, 600));
+  auto row = WidgetBuilder(ui, root, RectF(0, 0, 500, 40))
     .flex(
       FlexDirection.row,
       10.0f,
@@ -169,8 +181,8 @@ unittest {
     )
     .build();
 
-  auto b1 = createTabButton(row, "Tab 1", "t1", true);
-  auto b2 = createTabButton(row, "Tab 2", "t2", false);
+  auto b1 = createTabButton(ui, row, "Tab 1", "t1", true);
+  auto b2 = createTabButton(ui, row, "Tab 2", "t2", false);
 
   assert(row.children.length == 2);
   assert(row.children[0] is b1);
@@ -190,9 +202,12 @@ unittest {
 }
 
 unittest {
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+
+  auto ui = new UiSystemImpl(null);
   auto tabsModel = new HeaderTabsModel();
-  auto provider = new HeaderTabButtonsProvider(tabsModel);
-  auto container = new Widget(null, RectF(0, 0, 730, 30));
+  auto provider = new HeaderTabButtonsProvider(ui, tabsModel);
+  auto container = new Widget(ui.nextWidgetId(), null, RectF(0, 0, 730, 30));
 
   foreach (_; 0 .. tabsModel.tabNames.length) {
     provider.addWidget(container);

@@ -241,14 +241,14 @@ unittest {
   import yguilib.widget.internal.layout_system : LayoutSystem;
 
   auto ls = new LayoutSystem;
-  auto parent = new Widget(null, RectF(0, 0, 200, 100));
+  auto parent = new Widget(1, null, RectF(0, 0, 200, 100));
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.row;
   flex.gap = 10;
   parent.components.flexContainer = flex;
 
-  auto c1 = new Widget(parent, RectF(0, 0, 40, 20));
-  auto c2 = new Widget(parent, RectF(0, 0, 50, 30));
+  auto c1 = new Widget(2, parent, RectF(0, 0, 40, 20));
+  auto c2 = new Widget(3, parent, RectF(0, 0, 50, 30));
 
   // JustifyContent.start
   flex.justify = JustifyContent.start;
@@ -284,12 +284,12 @@ unittest {
   import yguilib.widget.internal.layout_system : LayoutSystem;
 
   auto ls = new LayoutSystem;
-  auto parent = new Widget(null, RectF(0, 0, 200, 100));
+  auto parent = new Widget(1, null, RectF(0, 0, 200, 100));
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.row;
   parent.components.flexContainer = flex;
 
-  auto c = new Widget(parent, RectF(0, 0, 40, 20));
+  auto c = new Widget(2, parent, RectF(0, 0, 40, 20));
 
   // AlignItems.start
   flex.alignItems = AlignItems.start;
@@ -320,14 +320,14 @@ unittest {
   import yguilib.widget.internal.layout_system : LayoutSystem;
 
   auto ls = new LayoutSystem;
-  auto parent = new Widget(null, RectF(0, 0, 100, 200));
+  auto parent = new Widget(1, null, RectF(0, 0, 100, 200));
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.column;
   flex.gap = 10;
   parent.components.flexContainer = flex;
 
-  auto c1 = new Widget(parent, RectF(0, 0, 30, 40));
-  auto c2 = new Widget(parent, RectF(0, 0, 50, 50));
+  auto c1 = new Widget(2, parent, RectF(0, 0, 30, 40));
+  auto c2 = new Widget(3, parent, RectF(0, 0, 50, 50));
 
   // JustifyContent.start, AlignItems.center
   flex.justify = JustifyContent.start;
@@ -353,26 +353,26 @@ unittest {
   import yguilib.widget.internal.layout_system : LayoutSystem;
 
   auto ls = new LayoutSystem;
-  auto parent = new Widget(null, RectF(0, 0, 320, 100));
+  auto parent = new Widget(1, null, RectF(0, 0, 320, 100));
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.row;
   flex.gap = 10;
   parent.components.flexContainer = flex;
 
   // Fixed child: 50
-  auto cFixed = new Widget(parent, RectF(0, 0, 50, 40));
+  auto cFixed = new Widget(2, parent, RectF(0, 0, 50, 40));
   auto szFixed = new Size;
   szFixed.width = Dimension(50, SizingMode.fixed);
   cFixed.components.size = szFixed;
 
   // Fraction child 1: weight 1
-  auto cFrac1 = new Widget(parent, RectF(0, 0, 0, 40));
+  auto cFrac1 = new Widget(3, parent, RectF(0, 0, 0, 40));
   auto szFrac1 = new Size;
   szFrac1.width = Dimension(1, SizingMode.fraction);
   cFrac1.components.size = szFrac1;
 
   // Fraction child 2: weight 2
-  auto cFrac2 = new Widget(parent, RectF(0, 0, 0, 40));
+  auto cFrac2 = new Widget(4, parent, RectF(0, 0, 0, 40));
   auto szFrac2 = new Size;
   szFrac2.width = Dimension(2, SizingMode.fraction);
   cFrac2.components.size = szFrac2;
@@ -396,16 +396,16 @@ unittest {
   import yguilib.widget.internal.layout_system : LayoutSystem;
 
   auto ls = new LayoutSystem;
-  auto parent = new Widget(null, RectF(0, 0, 200, 100));
+  auto parent = new Widget(1, null, RectF(0, 0, 200, 100));
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.row;
   flex.gap = 10;
   parent.components.flexContainer = flex;
 
-  auto c1 = new Widget(parent, RectF(0, 0, 40, 20));
-  auto cHidden = new Widget(parent, RectF(0, 0, 80, 20));
+  auto c1 = new Widget(2, parent, RectF(0, 0, 40, 20));
+  auto cHidden = new Widget(3, parent, RectF(0, 0, 80, 20));
   cHidden.visible = false;
-  auto c2 = new Widget(parent, RectF(0, 0, 50, 30));
+  auto c2 = new Widget(4, parent, RectF(0, 0, 50, 30));
 
   ls.handleFlexContainerComp(parent);
   assert(c1.rect.x == 0);
@@ -420,7 +420,7 @@ unittest {
   import yguilib.widget.internal.layout_system : LayoutSystem;
 
   auto ls = new LayoutSystem;
-  auto parent = new Widget(null, RectF(0, 0, 200, 100));
+  auto parent = new Widget(1, null, RectF(0, 0, 200, 100));
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.row;
   parent.components.flexContainer = flex;
@@ -436,7 +436,7 @@ unittest {
   // Inset left = 25 + 5 = 30, inset top = 10 + 5 = 15
   // Content width = 200 - (30 + 15 + 5) = 150
   // Content height = 100 - (15 + 20 + 5) = 60
-  auto c = new Widget(parent, RectF(0, 0, 50, 20));
+  auto c = new Widget(2, parent, RectF(0, 0, 50, 20));
   ls.handleFlexContainerComp(parent);
 
   assert(c.rect.x == 30);
@@ -453,18 +453,18 @@ unittest {
   import yguilib.widget.internal.layout_system : LayoutSystem;
 
   auto ls = new LayoutSystem;
-  auto parent = new Widget(null, RectF(0, 0, 200, 100));
+  auto parent = new Widget(1, null, RectF(0, 0, 200, 100));
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.row;
   flex.gap = 10;
   parent.components.flexContainer = flex;
 
-  auto c1 = new Widget(parent, RectF(0, 0, 40, 20));
+  auto c1 = new Widget(2, parent, RectF(0, 0, 40, 20));
   auto sz1 = new Size;
   sz1.margin = Insets(0, 15, 0, 5); // left=5, right=15
   c1.components.size = sz1;
 
-  auto c2 = new Widget(parent, RectF(0, 0, 50, 30));
+  auto c2 = new Widget(3, parent, RectF(0, 0, 50, 30));
   auto sz2 = new Size;
   sz2.margin = Insets(0, 20, 0, 10); // left=10, right=20
   c2.components.size = sz2;
@@ -484,12 +484,12 @@ unittest {
   import yguilib.widget.internal.layout_system : LayoutSystem;
 
   auto ls = new LayoutSystem;
-  auto parent = new Widget(null, RectF(0, 0, 200, 100));
+  auto parent = new Widget(1, null, RectF(0, 0, 200, 100));
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.row;
   parent.components.flexContainer = flex;
 
-  auto c = new Widget(parent, RectF(0, 0, 40, 20));
+  auto c = new Widget(2, parent, RectF(0, 0, 40, 20));
   auto sz = new Size;
   sz.margin = Insets(10, 0, 20, 0); // top=10, bottom=20
   c.components.size = sz;
@@ -527,19 +527,19 @@ unittest {
   import yguilib.widget.internal.layout_system : LayoutSystem;
 
   auto ls = new LayoutSystem;
-  auto parent = new Widget(null, RectF(0, 0, 320, 100));
+  auto parent = new Widget(1, null, RectF(0, 0, 320, 100));
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.row;
   flex.gap = 10;
   parent.components.flexContainer = flex;
 
-  auto cFixed = new Widget(parent, RectF(0, 0, 50, 40));
+  auto cFixed = new Widget(2, parent, RectF(0, 0, 50, 40));
   auto szFixed = new Size;
   szFixed.width = Dimension(50, SizingMode.fixed);
   szFixed.margin = Insets(0, 10, 0, 10); // outer width = 10 + 50 + 10 = 70
   cFixed.components.size = szFixed;
 
-  auto cFrac = new Widget(parent, RectF(0, 0, 0, 40));
+  auto cFrac = new Widget(3, parent, RectF(0, 0, 0, 40));
   auto szFrac = new Size;
   szFrac.width = Dimension(1, SizingMode.fraction);
   szFrac.margin = Insets(0, 5, 0, 5);
@@ -561,7 +561,7 @@ unittest {
   import yguilib.widget.internal.layout_system : LayoutSystem;
 
   auto ls = new LayoutSystem;
-  auto parent = new Widget(null, RectF(0, 0, 0, 0));
+  auto parent = new Widget(1, null, RectF(0, 0, 0, 0));
 
   auto parentSz = new Size;
   parentSz.width = Dimension(0, SizingMode.auto_);
@@ -573,12 +573,12 @@ unittest {
   flex.gap = 10;
   parent.components.flexContainer = flex;
 
-  auto c1 = new Widget(parent, RectF(0, 0, 40, 20));
+  auto c1 = new Widget(2, parent, RectF(0, 0, 40, 20));
   auto sz1 = new Size;
   sz1.margin = Insets(5, 10, 15, 20); // top=5, right=10, bottom=15, left=20
   c1.components.size = sz1;
 
-  auto c2 = new Widget(parent, RectF(0, 0, 50, 30));
+  auto c2 = new Widget(3, parent, RectF(0, 0, 50, 30));
   auto sz2 = new Size;
   sz2.margin = Insets(10, 5, 5, 15); // top=10, right=5, bottom=5, left=15
   c2.components.size = sz2;

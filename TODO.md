@@ -1,6 +1,3 @@
-- add unqiue `uint Widet.uId` to each Widget which is set on allocation.
-ID counter is maintained in UiSystem instance.
-
 - make Widget.addChild method instead of implicitly adding to parent
 in constructor. A widget cannot be a child of multiple parents.
 If parent != null, then remove Widget from that parent before adding to

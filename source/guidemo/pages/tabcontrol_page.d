@@ -11,7 +11,7 @@ import guidemo.model : DemoModel;
 import guidemo.tabcontrol : TabControlBuilder, TabControlStyle, TabsModel;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
-import yguilib.uisystem : UiRegistry;
+import yguilib.uisystem : UiRegistry, UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
@@ -21,10 +21,12 @@ import yguilib.widget.layout_components : AlignItems, FlexDirection,
 final class TabControlPage {
   /// Constructs TabControlPage. `registry` is allowed to be null in headless
   /// tests.
-  this(Widget parent, UiRegistry registry = null) {
+  this(UiSystem ui, Widget parent, UiRegistry registry = null) {
+    assert(ui !is null, "UiSystem must not be null");
     assert(parent !is null, "parent must not be null");
-    this.registry = registry;
-    root = new Widget(parent, RectF(0, 0, 1280, 720));
+    this.ui = ui;
+    this.registry = (registry !is null) ? registry : ui;
+    root = new Widget(ui.nextWidgetId(), parent, RectF(0, 0, 1280, 720));
 
     subTabsTracker = ModelTracker!TabsModel(
       new TabsModel(["Overview", "Telemetry", "Settings"], 0)
@@ -244,12 +246,13 @@ private:
 
   void buildSwitcherSection() {
     auto card = makeSectionCard(
+      ui,
       root,
       RectF(20, 68, 605, 280),
       "1. Interactive Sub-Panel Switcher (Event: \"pageTabSwitch\")"
     );
 
-    WidgetBuilder(card, RectF(16, 36, 570, 20))
+    WidgetBuilder(ui, card, RectF(16, 36, 570, 20))
       .text(
         "Clicking a tab translates mouseDown into \"pageTabSwitch\" with " ~
           "tab index in value[0].",
@@ -263,11 +266,11 @@ private:
       .event("pageTabSwitch")
       .buttonSize(160.0f, 30.0f)
       .gap(10.0f)
-      .build(card, RectF(16, 62, 570, 32), registry);
+      .build(ui, card, RectF(16, 62, 570, 32), registry);
 
     buildSubPanels(card);
 
-    eventLogLabel = WidgetBuilder(card, RectF(16, 246, 570, 22))
+    eventLogLabel = WidgetBuilder(ui, card, RectF(16, 246, 570, 22))
       .text(
         "Last Event: \"none\" | ViewData.value[0] = 0",
         ColorF(0.95f, 0.90f, 0.40f, 1.0f),
@@ -310,24 +313,24 @@ private:
     subPanel2.setVisible(false);
   }
 
-  static Widget makeSubPanelBox(
+  Widget makeSubPanelBox(
     Widget parent,
     ColorF bgCol,
     ColorF borderCol,
     string title,
     string bodyText
   ) {
-    auto box = WidgetBuilder(parent, RectF(16, 104, 573, 130))
+    auto box = WidgetBuilder(ui, parent, RectF(16, 104, 573, 130))
       .roundBackground(bgCol, 6.0f)
       .border(borderCol, 1.0f)
       .padding(10, 12)
       .build();
 
-    WidgetBuilder(box, RectF(14, 10, 540, 22))
+    WidgetBuilder(ui, box, RectF(14, 10, 540, 22))
       .text(title, ColorF(0.95f, 0.98f, 1.0f, 1.0f), 14.0f)
       .build();
 
-    WidgetBuilder(box, RectF(14, 38, 540, 78))
+    WidgetBuilder(ui, box, RectF(14, 38, 540, 78))
       .text(bodyText, ColorF(0.75f, 0.82f, 0.92f, 1.0f), 12.0f)
       .build();
 
@@ -336,12 +339,13 @@ private:
 
   void buildDynamicSection() {
     auto card = makeSectionCard(
+      ui,
       root,
       RectF(645, 68, 615, 280),
       "2. Dynamic TabsModel & WidgetArray Sync (Event: \"dynamicTabSwitch\")"
     );
 
-    WidgetBuilder(card, RectF(16, 36, 580, 20))
+    WidgetBuilder(ui, card, RectF(16, 36, 580, 20))
       .text(
         "Mutate TabsModel at runtime: DataSystem pools & reuses tab buttons.",
         ColorF(0.70f, 0.75f, 0.85f, 1.0f),
@@ -354,14 +358,14 @@ private:
       .event("dynamicTabSwitch")
       .buttonSize(108.0f, 30.0f)
       .gap(8.0f)
-      .build(card, RectF(16, 62, 580, 32), registry);
+      .build(ui, card, RectF(16, 62, 580, 32), registry);
 
     buildDynamicMutationButtons(card);
     buildDynamicInfoBox(card);
   }
 
   void buildDynamicMutationButtons(Widget card) {
-    auto btnRow = WidgetBuilder(card, RectF(16, 108, 580, 42))
+    auto btnRow = WidgetBuilder(ui, card, RectF(16, 108, 580, 42))
       .flex(
         FlexDirection.row,
         10.0f,
@@ -374,7 +378,7 @@ private:
     buildViewportSizeButtons(btnRow);
   }
 
-  static void buildTabCountButtons(Widget btnRow) {
+  void buildTabCountButtons(Widget btnRow) {
     HoverAnimConfig addCfg;
     addCfg.hoverBg = ColorF(0.18f, 0.55f, 0.35f, 1.0f);
     addCfg.pressBg = ColorF(0.08f, 0.35f, 0.20f, 1.0f);
@@ -415,7 +419,7 @@ private:
     );
   }
 
-  static void buildViewportSizeButtons(Widget btnRow) {
+  void buildViewportSizeButtons(Widget btnRow) {
     HoverAnimConfig narCfg;
     narCfg.hoverBg = ColorF(0.55f, 0.40f, 0.18f, 1.0f);
     narCfg.pressBg = ColorF(0.35f, 0.25f, 0.08f, 1.0f);
@@ -443,7 +447,7 @@ private:
     );
   }
 
-  static void makeMutationButton(
+  void makeMutationButton(
     Widget parent,
     string caption,
     float width,
@@ -456,17 +460,17 @@ private:
       .border(cfg.hoverBorder, 1.0f)
       .fixedSize(width, 34.0f)
       .anim(cfg)
-      .build(parent, RectF(0, 0, width, 34));
+      .build(ui, parent, RectF(0, 0, width, 34));
   }
 
   void buildDynamicInfoBox(Widget card) {
-    auto infoBox = WidgetBuilder(card, RectF(16, 162, 583, 102))
+    auto infoBox = WidgetBuilder(ui, card, RectF(16, 162, 583, 102))
       .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
       .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
       .padding(10, 12)
       .build();
 
-    dynamicStatusLabel = WidgetBuilder(infoBox, RectF(12, 10, 555, 22))
+    dynamicStatusLabel = WidgetBuilder(ui, infoBox, RectF(12, 10, 555, 22))
       .text(
         "Model Tabs: 6 / 10 | Width: 580px | Active: 0 (Clip 1)",
         ColorF(0.45f, 0.90f, 0.65f, 1.0f),
@@ -474,7 +478,7 @@ private:
       )
       .build();
 
-    WidgetBuilder(infoBox, RectF(12, 38, 555, 52))
+    WidgetBuilder(ui, infoBox, RectF(12, 38, 555, 52))
       .text(
         "- Adding tabs beyond 5 displays < and > scroll arrow buttons\n" ~
           "- Pressing < and > jumps scroll offset by tab button origins\n" ~
@@ -487,12 +491,13 @@ private:
 
   void buildVerticalSection() {
     auto card = makeSectionCard(
+      ui,
       root,
       RectF(20, 360, 605, 284),
       "3. Vertical TabControl & Custom Style (Event: \"verticalTabSwitch\")"
     );
 
-    WidgetBuilder(card, RectF(16, 36, 570, 20))
+    WidgetBuilder(ui, card, RectF(16, 36, 570, 20))
       .text(
         "FlexDirection.column TabControl with custom emerald active styling.",
         ColorF(0.70f, 0.75f, 0.85f, 1.0f),
@@ -513,19 +518,19 @@ private:
       .alignItems(AlignItems.start)
       .gap(8.0f)
       .style(emeraldStyle)
-      .build(card, RectF(16, 66, 165, 190), registry);
+      .build(ui, card, RectF(16, 66, 165, 190), registry);
 
     buildVerticalInspectorBox(card);
   }
 
   void buildVerticalInspectorBox(Widget card) {
-    auto inspector = WidgetBuilder(card, RectF(192, 66, 396, 196))
+    auto inspector = WidgetBuilder(ui, card, RectF(192, 66, 396, 196))
       .roundBackground(ColorF(0.09f, 0.12f, 0.15f, 1.0f), 6.0f)
       .border(ColorF(0.22f, 0.32f, 0.40f, 1.0f), 1.0f)
       .padding(12, 14)
       .build();
 
-    verticalTitleLabel = WidgetBuilder(inspector, RectF(14, 14, 368, 24))
+    verticalTitleLabel = WidgetBuilder(ui, inspector, RectF(14, 14, 368, 24))
       .text(
         "Track 0: Video Stream (H.264 / 60 FPS)",
         ColorF(0.45f, 0.95f, 0.70f, 1.0f),
@@ -533,7 +538,7 @@ private:
       )
       .build();
 
-    verticalDescLabel = WidgetBuilder(inspector, RectF(14, 48, 368, 90))
+    verticalDescLabel = WidgetBuilder(ui, inspector, RectF(14, 48, 368, 90))
       .text(
         "Resolution: 1920x1080 | Keyframe interval: 2.0s\n" ~
           "Smart cut re-encodes only boundary GOP segments.",
@@ -542,7 +547,7 @@ private:
       )
       .build();
 
-    verticalIndexLabel = WidgetBuilder(inspector, RectF(14, 156, 368, 22))
+    verticalIndexLabel = WidgetBuilder(ui, inspector, RectF(14, 156, 368, 22))
       .text(
         "Selected Vertical Tab Index (value[0]): 0",
         ColorF(0.95f, 0.90f, 0.40f, 1.0f),
@@ -553,18 +558,19 @@ private:
 
   void buildArchitectureSection() {
     auto card = makeSectionCard(
+      ui,
       root,
       RectF(645, 360, 615, 284),
       "4. TabControl WidgetView & WidgetViewController Architecture"
     );
 
-    auto archBox = WidgetBuilder(card, RectF(16, 40, 583, 224))
+    auto archBox = WidgetBuilder(ui, card, RectF(16, 40, 583, 224))
       .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
       .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
       .padding(12, 14)
       .build();
 
-    WidgetBuilder(archBox, RectF(14, 12, 555, 22))
+    WidgetBuilder(ui, archBox, RectF(14, 12, 555, 22))
       .text(
         "End-to-End Event & Model Synchronization Pipeline:",
         ColorF(0.45f, 0.80f, 1.0f, 1.0f),
@@ -572,7 +578,7 @@ private:
       )
       .build();
 
-    WidgetBuilder(archBox, RectF(14, 40, 555, 172))
+    WidgetBuilder(ui, archBox, RectF(14, 40, 555, 172))
       .text(
         "1. Registration: TabControlWidgetView & Controller are registered\n" ~
           "   once in UiSystem's UiRegistry at startup.\n" ~
@@ -590,6 +596,7 @@ private:
       .build();
   }
 
+  UiSystem ui;
   Widget root;
   UiRegistry registry;
 

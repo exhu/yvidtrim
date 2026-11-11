@@ -375,8 +375,8 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto rootNoView = new Widget(null, RectF(0, 0, 200, 200));
-  auto childNoView = new Widget(rootNoView, RectF(0, 0, 50, 50));
+  auto rootNoView = new Widget(1, null, RectF(0, 0, 200, 200));
+  auto childNoView = new Widget(2, rootNoView, RectF(0, 0, 50, 50));
   auto ev1 = ViewAppEventBuilder("rawClick", childNoView).value(1).build();
   passViewEvent(testUi, childNoView, ev1);
   assert(testUi.sentEvents.length == 1);
@@ -385,10 +385,10 @@ unittest {
   assert(testUi.sentEvents[0].view.viewWidget is null);
 
   testUi.sentEvents = null;
-  auto rootView = new Widget(null, RectF(0, 0, 200, 200));
+  auto rootView = new Widget(3, null, RectF(0, 0, 200, 200));
   rootView.components.view = new ViewComponent;
   rootView.components.view.renameEvents["btnClick"] = "playVideo";
-  auto childBtn = new Widget(rootView, RectF(0, 0, 50, 50));
+  auto childBtn = new Widget(4, rootView, RectF(0, 0, 50, 50));
   auto ev2 = ViewAppEventBuilder("btnClick", childBtn).value(1).build();
   passViewEvent(testUi, childBtn, ev2);
   assert(testUi.sentEvents.length == 1);
@@ -408,15 +408,15 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto outerView = new Widget(null, RectF(0, 0, 400, 400));
+  auto outerView = new Widget(1, null, RectF(0, 0, 400, 400));
   outerView.components.view = new ViewComponent;
   outerView.components.view.renameEvents["itemSelected"] = "orderUpdated";
 
-  auto innerView = new Widget(outerView, RectF(0, 0, 200, 200));
+  auto innerView = new Widget(2, outerView, RectF(0, 0, 200, 200));
   innerView.components.view = new ViewComponent;
   innerView.components.view.renameEvents["click"] = "itemSelected";
 
-  auto nestedBtn = new Widget(innerView, RectF(0, 0, 50, 50));
+  auto nestedBtn = new Widget(3, innerView, RectF(0, 0, 50, 50));
   auto ev4 = ViewAppEventBuilder("click", nestedBtn).value(1).build();
   passViewEvent(testUi, nestedBtn, ev4);
   assert(testUi.sentEvents.length == 1);
@@ -431,7 +431,7 @@ unittest {
   assert(testUi.sentEvents[0].view.eventName == "handledByOuter");
 
   testUi.sentEvents = null;
-  auto selfView = new Widget(null, RectF(0, 0, 100, 100));
+  auto selfView = new Widget(4, null, RectF(0, 0, 100, 100));
   selfView.components.view = new ViewComponent;
   selfView.components.view.renameEvents["panelClick"] = "openPanel";
   auto ev6 = ViewAppEventBuilder("panelClick", selfView).value(1).build();
@@ -445,7 +445,7 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto btnWidget = new Widget(null, RectF(10, 10, 100, 50));
+  auto btnWidget = new Widget(1, null, RectF(10, 10, 100, 50));
   btnWidget.inputEnabled = true;
   btnWidget.components.mouseEvent = new MouseEvent;
   btnWidget.components.mouseEvent.mouseDown = "btnDown";
@@ -494,7 +494,7 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto hoverWidget = new Widget(null, RectF(50, 50, 100, 100));
+  auto hoverWidget = new Widget(1, null, RectF(50, 50, 100, 100));
   hoverWidget.inputEnabled = true;
   hoverWidget.components.mouseEvent = new MouseEvent;
   hoverWidget.components.mouseEvent.mouseEnter = "hoverEnter";
@@ -548,14 +548,14 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto parentBox = new Widget(null, RectF(0, 0, 200, 200));
+  auto parentBox = new Widget(1, null, RectF(0, 0, 200, 200));
   parentBox.inputEnabled = true;
   parentBox.components.mouseEvent = new MouseEvent;
   parentBox.components.mouseEvent.mouseEnter = "parentEnter";
   parentBox.components.mouseEvent.mouseMove = "parentMove";
   parentBox.components.mouseEvent.mouseLeave = "parentLeave";
 
-  auto childBox = new Widget(parentBox, RectF(50, 50, 50, 50));
+  auto childBox = new Widget(2, parentBox, RectF(50, 50, 50, 50));
   childBox.inputEnabled = true;
   childBox.components.mouseEvent = new MouseEvent;
   childBox.components.mouseEvent.mouseEnter = "childEnter";
@@ -600,7 +600,7 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto clippedWidget = new Widget(null, RectF(0, 0, 100, 100));
+  auto clippedWidget = new Widget(1, null, RectF(0, 0, 100, 100));
   clippedWidget.inputEnabled = true;
   clippedWidget.components.mouseEvent = new MouseEvent;
   clippedWidget.components.mouseEvent.mouseEnter = "clipEnter";
@@ -623,13 +623,13 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto underBtn = new Widget(null, RectF(0, 0, 100, 50));
+  auto underBtn = new Widget(1, null, RectF(0, 0, 100, 50));
   underBtn.inputEnabled = true;
   underBtn.components.mouseEvent = new MouseEvent;
   underBtn.components.mouseEvent.mouseDown = "underDown";
   underBtn.components.mouseEvent.mouseUp = "underUp";
 
-  auto plainPanel = new Widget(null, RectF(0, 0, 100, 50));
+  auto plainPanel = new Widget(2, null, RectF(0, 0, 100, 50));
   plainPanel.inputEnabled = true; // no *Event components
 
   VisibleWidgets visPanelOverBtn = [
@@ -647,7 +647,7 @@ unittest {
   assert(testUi.sentEvents.length == 0);
 
   // T14: Disabled MouseEvent over enabled button consumes silently
-  auto disabledBtn = new Widget(null, RectF(0, 0, 100, 50));
+  auto disabledBtn = new Widget(3, null, RectF(0, 0, 100, 50));
   disabledBtn.inputEnabled = false;
   disabledBtn.components.mouseEvent = new MouseEvent;
   disabledBtn.components.mouseEvent.mouseDown = "disabledDown";
@@ -660,11 +660,11 @@ unittest {
   assert(testUi.sentEvents.length == 0);
 
   // T15: Transparent child label without components inside button
-  auto btnWithLabel = new Widget(null, RectF(0, 0, 100, 50));
+  auto btnWithLabel = new Widget(4, null, RectF(0, 0, 100, 50));
   btnWithLabel.inputEnabled = true;
   btnWithLabel.components.mouseEvent = new MouseEvent;
   btnWithLabel.components.mouseEvent.mouseDown = "labelParentDown";
-  auto childLabel = new Widget(btnWithLabel, RectF(10, 10, 30, 20));
+  auto childLabel = new Widget(5, btnWithLabel, RectF(10, 10, 30, 20));
   childLabel.inputEnabled = false;
   VisibleWidgets visLabelInBtn = [
     VisibleWidget(btnWithLabel, RectF(0, 0, 100, 50), false, RectF.init),
@@ -702,13 +702,13 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto btnA = new Widget(null, RectF(0, 0, 50, 50));
+  auto btnA = new Widget(1, null, RectF(0, 0, 50, 50));
   btnA.inputEnabled = true;
   btnA.components.mouseEvent = new MouseEvent;
   btnA.components.mouseEvent.mouseDown = "aDown";
   btnA.components.mouseEvent.mouseUp = "aUp";
 
-  auto btnB = new Widget(null, RectF(60, 0, 50, 50));
+  auto btnB = new Widget(2, null, RectF(60, 0, 50, 50));
   btnB.inputEnabled = true;
   btnB.components.mouseEvent = new MouseEvent;
   btnB.components.mouseEvent.mouseDown = "bDown";
@@ -747,8 +747,8 @@ unittest {
 
   // T20: View attached after child creation + update(parentView) works
   testUi.sentEvents = null;
-  auto parentRoot = new Widget(null, RectF(0, 0, 200, 200));
-  auto childW = new Widget(parentRoot, RectF(10, 10, 50, 50));
+  auto parentRoot = new Widget(1, null, RectF(0, 0, 200, 200));
+  auto childW = new Widget(2, parentRoot, RectF(10, 10, 50, 50));
   parentRoot.components.view = new ViewComponent;
   parentRoot.components.view.renameEvents["childClick"] = "renamedClick";
   parentRoot.update(WidgetUpdateScope.parentView);
@@ -766,7 +766,7 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto movingBtn = new Widget(null, RectF(0, 0, 100, 100));
+  auto movingBtn = new Widget(1, null, RectF(0, 0, 100, 100));
   movingBtn.inputEnabled = true;
   movingBtn.components.mouseEvent = new MouseEvent;
   movingBtn.components.mouseEvent.mouseEnter = "btnEnter";
@@ -795,7 +795,7 @@ unittest {
 
   // T24: Transparent overlay passes hover through to underlying widget
   testUi.sentEvents = null;
-  auto overlay = new Widget(null, RectF(0, 0, 100, 100));
+  auto overlay = new Widget(2, null, RectF(0, 0, 100, 100));
   overlay.inputEnabled = false; // transparent
   VisibleWidgets visOverlay = [
     VisibleWidget(movingBtn, RectF(0, 0, 100, 100), false, RectF.init),
@@ -807,7 +807,7 @@ unittest {
 
   // T25: KeyboardEvent-only widget over button passes clicks through
   testUi.sentEvents = null;
-  auto kbWidget = new Widget(null, RectF(0, 0, 100, 100));
+  auto kbWidget = new Widget(3, null, RectF(0, 0, 100, 100));
   kbWidget.inputEnabled = true;
   kbWidget.components.keyboardEvent = new KeyboardEvent;
   movingBtn.components.mouseEvent.mouseDown = "btnDown";
@@ -835,7 +835,7 @@ unittest {
 
   WidgetSystemContext ctx;
   ctx.host = testUi;
-  auto btn = new Widget(null, RectF(0, 0, 100, 100));
+  auto btn = new Widget(1, null, RectF(0, 0, 100, 100));
   btn.inputEnabled = true;
   ctx.visibleWidgets = [
     VisibleWidget(btn, RectF(0, 0, 100, 100), false, RectF.init)
@@ -859,13 +859,13 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto parentBox = new Widget(null, RectF(0, 0, 200, 200));
+  auto parentBox = new Widget(1, null, RectF(0, 0, 200, 200));
   parentBox.inputEnabled = true;
   parentBox.components.mouseEvent = new MouseEvent;
   parentBox.components.mouseEvent.mouseEnter = "parentEnter";
   parentBox.components.mouseEvent.mouseLeave = "parentLeave";
 
-  auto childBox = new Widget(parentBox, RectF(50, 50, 50, 50));
+  auto childBox = new Widget(2, parentBox, RectF(50, 50, 50, 50));
   childBox.inputEnabled = true;
   childBox.components.mouseEvent = new MouseEvent;
   childBox.components.mouseEvent.mouseEnter = "childEnter";

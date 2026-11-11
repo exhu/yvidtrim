@@ -10,9 +10,10 @@ import guidemo.pages.layout_painter_page : LayoutPainterPage;
 import guidemo.pages.tabcontrol_page : TabControlPage;
 import guidemo.pages.textlabel_page : TextLabelPage;
 import guidemo.tabcontrol : TabControlBuilder, TabsModel;
+import yguilib.internal.uisystem_impl : UiSystemImpl;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
-import yguilib.uisystem : UiRegistry;
+import yguilib.uisystem : UiRegistry, UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
@@ -30,37 +31,41 @@ TabsModel createHeaderTabsModel() {
 
 /// View building and updating all demo widget hierarchies.
 final class DemoView {
-  this(ref ModelTracker!DemoModel modelTracker) {
+  this(
+    ref ModelTracker!DemoModel modelTracker,
+    UiSystem ui = null
+  ) {
     auto defaultTabsTracker = ModelTracker!TabsModel(
       createHeaderTabsModel()
     );
-    this(modelTracker, defaultTabsTracker);
+    this(modelTracker, defaultTabsTracker, ui);
   }
 
-  /// Constructs DemoView. `registry` is allowed to be null in headless tests.
+  /// Constructs DemoView. `ui` is allowed to be null in headless tests.
   this(
     ref ModelTracker!DemoModel modelTracker,
     ref ModelTracker!TabsModel tabsModelTracker,
-    UiRegistry registry = null
+    UiSystem ui = null
   ) {
+    this.ui = (ui !is null) ? ui : new UiSystemImpl(null);
     tracker = ModelTracker!DemoModel(modelTracker);
     tabsTracker = ModelTracker!TabsModel(tabsModelTracker);
 
     // Root background
-    view = WidgetBuilder(RectF(0, 0, 1280, 720))
+    view = WidgetBuilder(this.ui, RectF(0, 0, 1280, 720))
       .background(ColorF(0.08f, 0.09f, 0.11f, 1.0f))
       .build();
 
-    buildHeader(registry);
+    buildHeader(this.ui);
 
-    page1 = new LayoutPainterPage(view);
-    page2 = new TextLabelPage(view);
+    page1 = new LayoutPainterPage(this.ui, view);
+    page2 = new TextLabelPage(this.ui, view);
     page2.setVisible(false);
-    page3 = new ButtonPage(view);
+    page3 = new ButtonPage(this.ui, view);
     page3.setVisible(false);
-    page4 = new ButtonSystemPage(view);
+    page4 = new ButtonSystemPage(this.ui, view);
     page4.setVisible(false);
-    page5 = new TabControlPage(view, registry);
+    page5 = new TabControlPage(this.ui, view, this.ui);
     page5.setVisible(false);
 
     buildStatusBar();
@@ -245,7 +250,7 @@ private:
   }
 
   void buildHeader(UiRegistry registry) {
-    auto header = WidgetBuilder(view, RectF(20, 12, 1240, 48))
+    auto header = WidgetBuilder(ui, view, RectF(20, 12, 1240, 48))
       .fixedSize(1240, 48)
       .padding(0, 14)
       .flexRow(12.0f, JustifyContent.start, AlignItems.center)
@@ -253,12 +258,12 @@ private:
       .border(ColorF(0.22f, 0.25f, 0.32f, 1.0f), 1.0f)
       .build();
 
-    auto titleBox = WidgetBuilder(header, RectF())
+    auto titleBox = WidgetBuilder(ui, header, RectF())
       .flexColumn(2.0f, JustifyContent.center, AlignItems.start)
       .autoSize()
       .build();
 
-    WidgetBuilder(titleBox, RectF())
+    WidgetBuilder(ui, titleBox, RectF())
       .autoSize()
       .text(
         "yguilib GUI Feature Demo & Showcase (guidemo)",
@@ -267,7 +272,7 @@ private:
       )
       .build();
 
-    WidgetBuilder(titleBox, RectF())
+    WidgetBuilder(ui, titleBox, RectF())
       .autoSize()
       .text(
         "Verification for widget_painter.d, layout_system.d & " ~
@@ -281,17 +286,17 @@ private:
       .model(tabsTracker)
       .event(headerTabSwitchEvent)
       .gap(10.0f)
-      .build(header, RectF(), registry);
+      .build(ui, header, RectF(), registry);
     tabControl.components.size = Size.fraction(1.0f, 0.0f);
   }
 
   void buildStatusBar() {
-    auto footer = WidgetBuilder(view, RectF(20, 656, 1240, 52))
+    auto footer = WidgetBuilder(ui, view, RectF(20, 656, 1240, 52))
       .roundBackground(ColorF(0.12f, 0.14f, 0.18f, 1.0f), 6.0f)
       .border(ColorF(0.25f, 0.30f, 0.40f, 1.0f), 1.0f)
       .build();
 
-    statusLabel = WidgetBuilder(footer, RectF(14, 16, 1210, 20))
+    statusLabel = WidgetBuilder(ui, footer, RectF(14, 16, 1210, 20))
       .text(
         formatStatusString(tracker.model),
         ColorF(0.95f, 0.95f, 0.40f, 1.0f)
@@ -299,6 +304,7 @@ private:
       .build();
   }
 
+  UiSystem ui;
   Widget view;
   ModelTracker!DemoModel tracker;
   ModelTracker!TabsModel tabsTracker;

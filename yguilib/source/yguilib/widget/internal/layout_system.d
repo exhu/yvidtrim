@@ -236,7 +236,7 @@ private:
 // Fixed sizing and null Size component handling
 unittest {
   auto ls = new LayoutSystem;
-  auto w = new Widget(null, RectF(10, 10, 50, 50));
+  auto w = new Widget(1, null, RectF(10, 10, 50, 50));
 
   // No Size component -> rect remains untouched
   ls.handleSizeComp(w);
@@ -257,7 +257,7 @@ unittest {
 // Auto sizing with padding and border
 unittest {
   auto ls = new LayoutSystem;
-  auto w = new Widget(null, RectF(0, 0, 0, 0));
+  auto w = new Widget(1, null, RectF(0, 0, 0, 0));
 
   auto sz = new Size;
   sz.width = Dimension(0, SizingMode.auto_);
@@ -285,7 +285,7 @@ unittest {
 // Min and max constraints and fraction initial sizing
 unittest {
   auto ls = new LayoutSystem;
-  auto w = new Widget(null, RectF(0, 0, 0, 0));
+  auto w = new Widget(1, null, RectF(0, 0, 0, 0));
 
   auto sz = new Size;
   sz.width = Dimension(20, SizingMode.fixed);
@@ -323,7 +323,7 @@ unittest {
 // FlexContainer children intrinsic size calculation (row, column, gaps)
 unittest {
   auto ls = new LayoutSystem;
-  auto parent = new Widget(null, RectF(0, 0, 0, 0));
+  auto parent = new Widget(1, null, RectF(0, 0, 0, 0));
 
   auto parentSz = new Size;
   parentSz.width = Dimension(0, SizingMode.auto_);
@@ -335,9 +335,9 @@ unittest {
   flex.gap = 10;
   parent.components.flexContainer = flex;
 
-  auto c1 = new Widget(parent, RectF(0, 0, 40, 25));
-  auto c2 = new Widget(parent, RectF(0, 0, 60, 35));
-  auto cHidden = new Widget(parent, RectF(0, 0, 100, 100));
+  auto c1 = new Widget(2, parent, RectF(0, 0, 40, 25));
+  auto c2 = new Widget(3, parent, RectF(0, 0, 60, 35));
+  auto cHidden = new Widget(4, parent, RectF(0, 0, 100, 100));
   cHidden.visible = false;
 
   // Row: width = 40 + 60 + 10 = 110, height = max(25, 35) = 35
@@ -355,15 +355,15 @@ unittest {
 // Non-flex container with children: bounding box
 unittest {
   auto ls = new LayoutSystem;
-  auto parent = new Widget(null, RectF(0, 0, 0, 0));
+  auto parent = new Widget(1, null, RectF(0, 0, 0, 0));
 
   auto sz = new Size;
   sz.width = Dimension(0, SizingMode.auto_);
   sz.height = Dimension(0, SizingMode.auto_);
   parent.components.size = sz;
 
-  auto c1 = new Widget(parent, RectF(10, 5, 40, 20)); // right=50, bottom=25
-  auto c2 = new Widget(parent, RectF(20, 15, 60, 30)); // right=80, bottom=45
+  auto c1 = new Widget(2, parent, RectF(10, 5, 40, 20)); // right=50, bottom=25
+  auto c2 = new Widget(3, parent, RectF(20, 15, 60, 30)); // right=80, bottom=45
 
   ls.handleSizeComp(parent);
   assert(parent.rect.width == 80);
@@ -389,7 +389,7 @@ unittest {
   auto ls = new LayoutSystem;
   auto collector = new VisibleWidgetsCollector;
 
-  auto labelWidget = new Widget(null, RectF(0, 0, 10, 10));
+  auto labelWidget = new Widget(1, null, RectF(0, 0, 10, 10));
   auto labelSz = new Size;
   labelSz.width = Dimension(0, SizingMode.auto_);
   labelSz.height = Dimension(0, SizingMode.auto_);
@@ -408,7 +408,7 @@ unittest {
   assert(labelWidget.rect.height == textDims.y + 4);
 
   // Test TextLabel with custom fontSize (24pt)
-  auto bigLabelWidget = new Widget(null, RectF(0, 0, 10, 10));
+  auto bigLabelWidget = new Widget(2, null, RectF(0, 0, 10, 10));
   auto bigLabelSz = new Size;
   bigLabelSz.width = Dimension(0, SizingMode.auto_);
   bigLabelSz.height = Dimension(0, SizingMode.auto_);
@@ -432,7 +432,7 @@ unittest {
 // Anchored widget inside flex container is out-of-flow
 unittest {
   auto ls = new LayoutSystem;
-  auto parent = new Widget(null, RectF(0, 0, 200, 100));
+  auto parent = new Widget(1, null, RectF(0, 0, 200, 100));
 
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.row;
@@ -440,11 +440,11 @@ unittest {
   parent.components.flexContainer = flex;
 
   // Regular flex children
-  auto c1 = new Widget(parent, RectF(0, 0, 40, 20));
-  auto c2 = new Widget(parent, RectF(0, 0, 50, 20));
+  auto c1 = new Widget(2, parent, RectF(0, 0, 40, 20));
+  auto c2 = new Widget(3, parent, RectF(0, 0, 50, 20));
 
   // Anchored child positioned at bottom-right
-  auto anchorChild = new Widget(parent, RectF(0, 0, 30, 30));
+  auto anchorChild = new Widget(4, parent, RectF(0, 0, 30, 30));
   auto a = new Anchor;
   a.right = 0.0f;
   a.bottom = 0.0f;
@@ -483,7 +483,7 @@ unittest {
   auto collector = new VisibleWidgetsCollector;
 
   // Single line TextLabel with newline when multiline is false
-  auto sWidget = new Widget(null, RectF(0, 0, 10, 10));
+  auto sWidget = new Widget(1, null, RectF(0, 0, 10, 10));
   auto sSize = new Size;
   sSize.width = Dimension(0, SizingMode.auto_);
   sSize.height = Dimension(0, SizingMode.auto_);
@@ -500,7 +500,7 @@ unittest {
   assert(sWidget.rect.height == expectedSingle.y);
 
   // Multiline TextLabel with explicit breaks
-  auto mWidget = new Widget(null, RectF(0, 0, 10, 10));
+  auto mWidget = new Widget(2, null, RectF(0, 0, 10, 10));
   auto mSize = new Size;
   mSize.width = Dimension(0, SizingMode.auto_);
   mSize.height = Dimension(0, SizingMode.auto_);
@@ -514,7 +514,7 @@ unittest {
   assert(mWidget.rect.height > expectedSingle.y);
 
   // Multiline TextLabel with fixed width and auto height (wrapping)
-  auto wrapWidget = new Widget(null, RectF(0, 0, 10, 10));
+  auto wrapWidget = new Widget(3, null, RectF(0, 0, 10, 10));
   auto wrapSize = new Size;
   float line1W = r.measureText("Word one word two").x;
   wrapSize.width = Dimension(line1W + 5.0f, SizingMode.fixed);
@@ -553,7 +553,7 @@ unittest {
   auto collector = new VisibleWidgetsCollector;
 
   // Single-line with Size.maxWidth and ellipsis
-  auto singleW = new Widget(null, RectF(0, 0, 10, 10));
+  auto singleW = new Widget(1, null, RectF(0, 0, 10, 10));
   auto singleSz = new Size;
   singleSz.width = Dimension(0, SizingMode.auto_);
   singleSz.height = Dimension(0, SizingMode.auto_);
@@ -572,7 +572,7 @@ unittest {
   assert(singleW.rect.width <= singleSz.maxWidth);
 
   // Multiline with Size.maxWidth and auto width/height
-  auto multiW = new Widget(null, RectF(0, 0, 10, 10));
+  auto multiW = new Widget(2, null, RectF(0, 0, 10, 10));
   auto multiSz = new Size;
   multiSz.width = Dimension(0, SizingMode.auto_);
   multiSz.height = Dimension(0, SizingMode.auto_);
@@ -593,7 +593,7 @@ unittest {
   assert(multiW.rect.height > singleH);
 
   // Flex column with stretch and multiline text child
-  auto colParent = new Widget(null, RectF(0, 0, twoWordsW + 10.0f, 300));
+  auto colParent = new Widget(3, null, RectF(0, 0, twoWordsW + 10.0f, 300));
   auto colSz = new Size;
   colSz.width = Dimension(twoWordsW + 10.0f, SizingMode.fixed);
   colSz.height = Dimension(300, SizingMode.fixed);
@@ -605,7 +605,7 @@ unittest {
   flex.gap = 5.0f;
   colParent.components.flexContainer = flex;
 
-  auto textChild = new Widget(colParent, RectF(0, 0, 10, 10));
+  auto textChild = new Widget(4, colParent, RectF(0, 0, 10, 10));
   auto textSz = new Size;
   textSz.width = Dimension(0, SizingMode.auto_);
   textSz.height = Dimension(0, SizingMode.auto_);
@@ -617,7 +617,7 @@ unittest {
   label.multiline = true;
   textChild.components.textLabel = label;
 
-  auto secondChild = new Widget(colParent, RectF(0, 0, 10, 20));
+  auto secondChild = new Widget(5, colParent, RectF(0, 0, 10, 20));
   auto secondSz = new Size;
   secondSz.width = Dimension(0, SizingMode.auto_);
   secondSz.height = Dimension(20, SizingMode.fixed);

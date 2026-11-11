@@ -8,6 +8,7 @@ import yguilib.events.keyboard : Keycode;
 import yguilib.model : ModelTracker, VersionedModel;
 import colors = yguilib.render.colors;
 import yguilib.render.render_types : ColorF, RectF;
+import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border;
@@ -33,15 +34,17 @@ final class MainModel : VersionedModel {
 
 final class MainView {
 public:
-  this(ref ModelTracker!MainModel otherTracker) {
+  this(UiSystem ui, ref ModelTracker!MainModel otherTracker) {
+    assert(ui !is null, "UiSystem must not be null");
+    this.ui = ui;
     tracker = ModelTracker!MainModel(otherTracker);
 
-    rootWidget = WidgetBuilder(RectF(10, 10, 200, 200))
+    rootWidget = WidgetBuilder(ui, RectF(10, 10, 200, 200))
       .view(null)
       .background(ColorF(0.5f, 0.5f, 0.0f, 1.0f))
       .build();
 
-    alphaWidget = WidgetBuilder(rootWidget, RectF(35, 45, 150, 190))
+    alphaWidget = WidgetBuilder(ui, rootWidget, RectF(35, 45, 150, 190))
       .background(ColorF(0.0f, 1.0f, 0.5f, 0.3f))
       .border(ColorF(0.0f, 0.0f, 0.5f, 1.0f), 2.0f, Border.Style.roundDashed)
       .text("Hello-0123456789", ColorF(0.0f, 0.0f, 1.0f, 1.0f))
@@ -49,20 +52,20 @@ public:
       .clipChildren(true)
       .build();
 
-    toggleWidget = WidgetBuilder(rootWidget, RectF(15, 15, 300, 90))
+    toggleWidget = WidgetBuilder(ui, rootWidget, RectF(15, 15, 300, 90))
       .background(ColorF(0.5f, 1.0f, 0.5f, 0.3f), Background.Style.round)
       .build();
 
     // --- layout testing ---
-    container = WidgetBuilder(rootWidget, RectF(35, 250, 400, 300))
+    container = WidgetBuilder(ui, rootWidget, RectF(35, 250, 400, 300))
       .background(colors.darkGray)
       .border(colors.brightWhite, 3.0f, Border.Style.dashed)
       .flexRow(8.0f, JustifyContent.start, tracker.model.alignItems)
-      .child(RectF(5, 8, 1, 1), (ref WidgetBuilder b) {
+      .child(ui, RectF(5, 8, 1, 1), (ref WidgetBuilder b) {
         b.background(colors.yellow)
           .fixedSize(100.0f, 40.0f);
       })
-      .child(RectF(15, 18, 1, 1), (ref WidgetBuilder b) {
+      .child(ui, RectF(15, 18, 1, 1), (ref WidgetBuilder b) {
         b.background(colors.brown)
           .margin(10.0f, 10.0f, 14.0f, 15.0f)
           .fixedSize(110.0f, 50.0f);
@@ -77,21 +80,21 @@ public:
   }
 
   void addRightTopAnchor() {
-    WidgetBuilder(rootWidget, RectF(0, 0, 30, 30))
+    WidgetBuilder(ui, rootWidget, RectF(0, 0, 30, 30))
       .background(colors.red)
       .anchor(new Anchor().withRight(0.0f).withTop(3.0f))
       .build();
   }
 
   void addLeftBottomAnchor() {
-    WidgetBuilder(rootWidget, RectF(0, 0, 30, 30))
+    WidgetBuilder(ui, rootWidget, RectF(0, 0, 30, 30))
       .background(colors.brightRed)
       .anchor(new Anchor().withLeft(3.0f).withBottom(7.0f))
       .build();
   }
 
   void addRightBottomAnchor() {
-    WidgetBuilder(rootWidget, RectF(0, 0, 30, 30))
+    WidgetBuilder(ui, rootWidget, RectF(0, 0, 30, 30))
       .background(colors.magenta)
       .anchor(new Anchor().withRight(5.0f).withBottom(2.0f))
       .build();
@@ -121,6 +124,7 @@ package(yvidtrim):
   Widget rootWidget;
 
 private:
+  UiSystem ui;
   ModelTracker!MainModel tracker;
   Widget toggleWidget;
   Widget alphaWidget;
@@ -133,7 +137,7 @@ final class MainController : DefaultController {
     assert(app !is null);
     super(app.ui);
     this.app = app;
-    view = new MainView(t);
+    view = new MainView(app.ui, t);
     app.ui.mainWindow().rootWidget = view.rootWidget;
   }
 

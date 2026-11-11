@@ -142,11 +142,11 @@ struct HoverButtonBuilder {
    *
    * Returns: The root Widget with attached View component.
    */
-  Widget build(Widget parent, RectF rect) {
+  Widget build(UiSystem ui, Widget parent, RectF rect) {
     const float initW = rect.width > 0.0f ? rect.width : 100.0f;
     const float initH = rect.height > 0.0f ? rect.height : 36.0f;
 
-    auto rootBuilder = WidgetBuilder(parent, rect)
+    auto rootBuilder = WidgetBuilder(ui, parent, rect)
       .view(null, [
         "mouseEnter": "hoverBtn.enter",
         "mouseLeave": "hoverBtn.leave",
@@ -162,7 +162,7 @@ struct HoverButtonBuilder {
       rootBuilder.anchor(customAnchor);
     }
 
-    rootBuilder.child(RectF(0, 0, initW, initH), (ref WidgetBuilder cb) {
+    rootBuilder.child(ui, RectF(0, 0, initW, initH), (ref WidgetBuilder cb) {
       cb.fixedSize(initW, initH)
         .padding(config.padding);
 
@@ -200,13 +200,14 @@ struct HoverButtonBuilder {
 
 /// Convenience helper to create a hover button using default configuration.
 Widget createHoverButton(
+  UiSystem ui,
   Widget parent,
   RectF rect,
   in HoverButtonConfig config = HoverButtonConfig()
 ) {
   HoverButtonBuilder b;
   b.config = config;
-  return b.build(parent, rect);
+  return b.build(ui, parent, rect);
 }
 
 /// Controller-side animation and interactive options.
@@ -599,6 +600,12 @@ unittest {
     }
     override @property Window mainWindow() { return null; }
     override void mainEventLoop() {}
+    override uint nextWidgetId() {
+      return fNextWidgetId++;
+    }
+
+  private:
+    uint fNextWidgetId = 1;
   }
 
   auto testUi = new TestUiSystem();
@@ -612,7 +619,7 @@ unittest {
     .radius(4.0f)
     .fixedSize(120.0f, 32.0f)
     .action("customAction")
-    .build(null, RectF(10, 10, 120, 32));
+    .build(testUi, null, RectF(10, 10, 120, 32));
 
   assert(btnRoot !is null);
   assert(btnRoot.components.view !is null);

@@ -10,6 +10,7 @@ import guidemo.hover_button_system : AnimatedHoverButtonBuilder,
   HoverAnimConfig, HoverButtonConfig;
 import guidemo.model : DemoModel;
 import yguilib.render.render_types : ColorF, RectF;
+import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.layout_components : AlignItems, FlexDirection, Insets,
@@ -18,9 +19,11 @@ import yguilib.widget.layout_components : AlignItems, FlexDirection, Insets,
 /// Page 4 widget container showcasing AnimatedHoverButtonSystem and
 /// AnimatedHoverButtonComponent.
 final class ButtonSystemPage {
-  this(Widget parent) {
+  this(UiSystem ui, Widget parent) {
+    assert(ui !is null, "UiSystem must not be null");
     assert(parent !is null, "parent must not be null");
-    root = new Widget(parent, RectF(0, 0, 1280, 720));
+    this.ui = ui;
+    root = new Widget(ui.nextWidgetId(), parent, RectF(0, 0, 1280, 720));
 
     buildFadingSection();
     buildGradientPlaySection();
@@ -51,12 +54,13 @@ final class ButtonSystemPage {
 private:
   void buildFadingSection() {
     auto card = makeSectionCard(
+      ui,
       root,
       RectF(20, 68, 605, 280),
       "1. System-Driven Smooth Color Fading (Hover & Press Transition)"
     );
 
-    WidgetBuilder(card, RectF(16, 36, 570, 36))
+    WidgetBuilder(ui, card, RectF(16, 36, 570, 36))
       .text(
         "AnimatedHoverButtonSystem updates button colors in preLayout phase. " ~
           "No manual button registration or wrapper View required.",
@@ -66,7 +70,7 @@ private:
       .build();
 
     // Row of fade buttons
-    auto btnRow = WidgetBuilder(card, RectF(16, 80, 570, 50))
+    auto btnRow = WidgetBuilder(ui, card, RectF(16, 80, 570, 50))
       .flex(
         FlexDirection.row,
         14.0f,
@@ -90,7 +94,7 @@ private:
       .radius(6.0f)
       .fixedSize(140.0f, 38.0f)
       .anim(cfg1)
-      .build(btnRow, RectF(0, 0, 140, 38));
+      .build(ui, btnRow, RectF(0, 0, 140, 38));
 
     // Button 2: Emerald Success
     HoverAnimConfig cfg2;
@@ -107,7 +111,7 @@ private:
       .radius(6.0f)
       .fixedSize(150.0f, 38.0f)
       .anim(cfg2)
-      .build(btnRow, RectF(0, 0, 150, 38));
+      .build(ui, btnRow, RectF(0, 0, 150, 38));
 
     // Button 3: Crimson Danger
     HoverAnimConfig cfg3;
@@ -124,16 +128,16 @@ private:
       .radius(6.0f)
       .fixedSize(140.0f, 38.0f)
       .anim(cfg3)
-      .build(btnRow, RectF(0, 0, 140, 38));
+      .build(ui, btnRow, RectF(0, 0, 140, 38));
 
     // Note card
-    auto noteBox = WidgetBuilder(card, RectF(16, 148, 570, 110))
+    auto noteBox = WidgetBuilder(ui, card, RectF(16, 148, 570, 110))
       .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
       .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
       .padding(10, 12)
       .build();
 
-    WidgetBuilder(noteBox, RectF(12, 10, 546, 20))
+    WidgetBuilder(ui, noteBox, RectF(12, 10, 546, 20))
       .text(
         "WidgetSystem Advantages:",
         ColorF(0.90f, 0.90f, 0.40f, 1.0f),
@@ -141,7 +145,7 @@ private:
       )
       .build();
 
-    WidgetBuilder(noteBox, RectF(12, 34, 546, 60))
+    WidgetBuilder(ui, noteBox, RectF(12, 34, 546, 60))
       .text(
         "- Single Widget node with AnimatedHoverButtonComponent attached\n" ~
         "- Traversed via ctx.visibleWidgets in preLayout and postLayout\n" ~
@@ -154,12 +158,13 @@ private:
 
   void buildGradientPlaySection() {
     auto card = makeSectionCard(
+      ui,
       root,
       RectF(645, 68, 615, 280),
       "2. System Dynamic Gradient Play & Shimmer Wave"
     );
 
-    WidgetBuilder(card, RectF(16, 36, 580, 36))
+    WidgetBuilder(ui, card, RectF(16, 36, 580, 36))
       .text(
         "Continuous shimmer wave calculated during preLayout phase " ~
           "using cursor normalized coordinates.",
@@ -168,7 +173,7 @@ private:
       )
       .build();
 
-    auto btnRow = WidgetBuilder(card, RectF(16, 80, 580, 50))
+    auto btnRow = WidgetBuilder(ui, card, RectF(16, 80, 580, 50))
       .flex(
         FlexDirection.row,
         14.0f,
@@ -193,7 +198,7 @@ private:
       .radius(6.0f)
       .fixedSize(140.0f, 38.0f)
       .anim(cfg1)
-      .build(btnRow, RectF(0, 0, 140, 38));
+      .build(ui, btnRow, RectF(0, 0, 140, 38));
 
     // Button 2: Gold Sunset Pulse
     HoverAnimConfig cfg2;
@@ -211,7 +216,7 @@ private:
       .radius(6.0f)
       .fixedSize(145.0f, 38.0f)
       .anim(cfg2)
-      .build(btnRow, RectF(0, 0, 145, 38));
+      .build(ui, btnRow, RectF(0, 0, 145, 38));
 
     // Button 3: Purple Aurora
     HoverAnimConfig cfg3;
@@ -229,16 +234,16 @@ private:
       .radius(6.0f)
       .fixedSize(145.0f, 38.0f)
       .anim(cfg3)
-      .build(btnRow, RectF(0, 0, 145, 38));
+      .build(ui, btnRow, RectF(0, 0, 145, 38));
 
     // Note card
-    auto noteBox = WidgetBuilder(card, RectF(16, 148, 580, 110))
+    auto noteBox = WidgetBuilder(ui, card, RectF(16, 148, 580, 110))
       .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
       .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
       .padding(10, 12)
       .build();
 
-    WidgetBuilder(noteBox, RectF(12, 10, 556, 20))
+    WidgetBuilder(ui, noteBox, RectF(12, 10, 556, 20))
       .text(
         "Gradient Wave Features:",
         ColorF(0.90f, 0.90f, 0.40f, 1.0f),
@@ -246,7 +251,7 @@ private:
       )
       .build();
 
-    WidgetBuilder(noteBox, RectF(12, 34, 556, 60))
+    WidgetBuilder(ui, noteBox, RectF(12, 34, 556, 60))
       .text(
         "- Continuous wave oscillation at 60 FPS while cursor is hovered\n" ~
         "- System queries cursorNormX/Y directly from hit test\n" ~
@@ -259,12 +264,13 @@ private:
 
   void buildActionCounterSection() {
     auto card = makeSectionCard(
+      ui,
       root,
       RectF(20, 360, 605, 280),
       "3. Interactive Action Button & Click Counter"
     );
 
-    WidgetBuilder(card, RectF(16, 36, 570, 36))
+    WidgetBuilder(ui, card, RectF(16, 36, 570, 36))
       .text(
         "Clicking the action button dispatches an event via ctx.host. " ~
           "DemoController intercepts the event and updates DemoModel.",
@@ -273,7 +279,7 @@ private:
       )
       .build();
 
-    auto actionRow = WidgetBuilder(card, RectF(16, 80, 570, 50))
+    auto actionRow = WidgetBuilder(ui, card, RectF(16, 80, 570, 50))
       .flex(
         FlexDirection.row,
         14.0f,
@@ -297,7 +303,7 @@ private:
       .radius(8.0f)
       .fixedSize(180.0f, 42.0f)
       .anim(cfg1)
-      .build(actionRow, RectF(0, 0, 180, 42));
+      .build(ui, actionRow, RectF(0, 0, 180, 42));
 
     // Reset action trigger
     HoverAnimConfig cfg2;
@@ -314,16 +320,16 @@ private:
       .radius(8.0f)
       .fixedSize(140.0f, 42.0f)
       .anim(cfg2)
-      .build(actionRow, RectF(0, 0, 140, 42));
+      .build(ui, actionRow, RectF(0, 0, 140, 42));
 
     // HUD Counter Display Box
-    auto hudBox = WidgetBuilder(card, RectF(16, 148, 570, 110))
+    auto hudBox = WidgetBuilder(ui, card, RectF(16, 148, 570, 110))
       .roundBackground(ColorF(0.09f, 0.12f, 0.16f, 1.0f), 6.0f)
       .border(ColorF(0.25f, 0.35f, 0.50f, 1.0f), 1.5f)
       .padding(12, 16)
       .build();
 
-    counterLabel = WidgetBuilder(hudBox, RectF(16, 14, 538, 28))
+    counterLabel = WidgetBuilder(ui, hudBox, RectF(16, 14, 538, 28))
       .text(
         "Button Action Invocations: 0 clicks",
         ColorF(0.40f, 0.95f, 0.60f, 1.0f),
@@ -331,7 +337,7 @@ private:
       )
       .build();
 
-    WidgetBuilder(hudBox, RectF(16, 50, 538, 44))
+    WidgetBuilder(ui, hudBox, RectF(16, 50, 538, 44))
       .text(
         "AnimatedHoverButtonSystem dispatches action events on button\n" ~
         "release, seamlessly modifying model state via DemoController.",
@@ -343,12 +349,13 @@ private:
 
   void buildArchitectureSection() {
     auto card = makeSectionCard(
+      ui,
       root,
       RectF(645, 360, 615, 280),
       "4. Architecture: WidgetSystem & WidgetComponent (ECS-Style)"
     );
 
-    WidgetBuilder(card, RectF(16, 36, 580, 50))
+    WidgetBuilder(ui, card, RectF(16, 36, 580, 50))
       .text(
         "A button instance is a single Widget with " ~
           "AnimatedHoverButtonComponent.\n" ~
@@ -360,7 +367,7 @@ private:
       .build();
 
     // Pill shaped buttons demonstration
-    auto pillRow = WidgetBuilder(card, RectF(16, 92, 580, 48))
+    auto pillRow = WidgetBuilder(ui, card, RectF(16, 92, 580, 48))
       .flex(
         FlexDirection.row,
         14.0f,
@@ -384,7 +391,7 @@ private:
       .radius(18.0f)
       .fixedSize(170.0f, 36.0f)
       .anim(pillCfg1)
-      .build(pillRow, RectF(0, 0, 170, 36));
+      .build(ui, pillRow, RectF(0, 0, 170, 36));
 
     // Pill Button 2 with gradient play
     HoverAnimConfig pillCfg2;
@@ -402,16 +409,16 @@ private:
       .radius(18.0f)
       .fixedSize(170.0f, 36.0f)
       .anim(pillCfg2)
-      .build(pillRow, RectF(0, 0, 170, 36));
+      .build(ui, pillRow, RectF(0, 0, 170, 36));
 
     // Explanatory code summary box
-    auto archBox = WidgetBuilder(card, RectF(16, 148, 580, 110))
+    auto archBox = WidgetBuilder(ui, card, RectF(16, 148, 580, 110))
       .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
       .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
       .padding(10, 12)
       .build();
 
-    WidgetBuilder(archBox, RectF(12, 8, 556, 18))
+    WidgetBuilder(ui, archBox, RectF(12, 8, 556, 18))
       .text(
         "WidgetSystem Pipeline Flow:",
         ColorF(0.95f, 0.80f, 0.30f, 1.0f),
@@ -419,7 +426,7 @@ private:
       )
       .build();
 
-    WidgetBuilder(archBox, RectF(12, 28, 556, 72))
+    WidgetBuilder(ui, archBox, RectF(12, 28, 556, 72))
       .text(
         "1. AppEvent -> AnimatedHoverButtonSystem.handleEvent\n" ~
         "2. preLayout: AnimatedHoverButtonSystem updates colors " ~
@@ -432,6 +439,7 @@ private:
       .build();
   }
 
+  UiSystem ui;
   Widget root;
   Widget counterLabel;
 }

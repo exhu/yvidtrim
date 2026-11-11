@@ -157,8 +157,12 @@ enum WidgetUpdateScope {
 }
 
 final class Widget {
+  @disable this();
+
   /// Constructs a widget. `parent` is allowed to be null for root widgets.
-  this(Widget parent, RectF rect) {
+  /// `uId` is unique and set on allocation.
+  this(uint uId, Widget parent, RectF rect) {
+    this.uId = uId;
     this.parent = parent;
     this.rect = rect;
     if (parent) {
@@ -329,6 +333,22 @@ final class Widget {
     return null;
   }
 
+  /// Checks if this or child Widget has the given `uId`.
+  /// Returns null if none.
+  inout(Widget) findByUId(uint idToSearch) inout {
+    if (uId == idToSearch) {
+      return this;
+    }
+    foreach (c; children) {
+      auto w = c.findByUId(idToSearch);
+      if (w !is null) {
+        return w;
+      }
+    }
+    return null;
+  }
+
+  const uint uId;
   Widget parent;
   RectF rect;
   /// it is not allowed to change available components after initialization
@@ -442,7 +462,7 @@ private:
 }
 
 unittest {
-  auto w = new Widget(null, RectF(10, 20, 100, 80));
+  auto w = new Widget(1, null, RectF(10, 20, 100, 80));
   assert(w.getContentArea() == RectF(0, 0, 100, 80));
 
   w.components.border = new Border(ColorF(1, 0, 0, 1));
@@ -462,8 +482,8 @@ unittest {
 }
 
 unittest {
-  auto root = new Widget(null, RectF(0, 0, 200, 200));
-  auto child = new Widget(root, RectF(0, 0, 100, 100));
+  auto root = new Widget(1, null, RectF(0, 0, 200, 200));
+  auto child = new Widget(2, root, RectF(0, 0, 100, 100));
 
   assert(root.dirty && root.layoutDirty);
   assert(child.dirty && child.layoutDirty);
@@ -549,12 +569,12 @@ unittest {
 unittest {
   import yguilib.widget.builder : WidgetBuilder;
 
-  auto root = WidgetBuilder(RectF(0, 0, 800, 600))
+  auto root = WidgetBuilder(1, RectF(0, 0, 800, 600))
     .flex(FlexDirection.row, 10.0f)
     .background(ColorF(0.1f, 0.1f, 0.1f, 1.0f))
     .build();
 
-  auto item = WidgetBuilder(root, RectF(0, 0, 100, 50))
+  auto item = WidgetBuilder(2, root, RectF(0, 0, 100, 50))
     .fixedSize(100.0f, 50.0f)
     .padding(4.0f, 8.0f)
     .margin(Insets(2.0f))
@@ -637,7 +657,7 @@ unittest {
     }
   }
 
-  auto w = new Widget(null, RectF(0, 0, 100, 100));
+  auto w = new Widget(1, null, RectF(0, 0, 100, 100));
 
   // Initial state: empty
   assert(!w.components.has!TooltipComponent());
@@ -680,4 +700,24 @@ unittest {
   assert(w.components.get!TooltipComponent() is null);
   assert(w.components.has!BadgeComponent());
   assert(w.components.get!BadgeComponent() is badge);
+}
+
+// Verifies Widget.uId uniqueness and findByUId lookup.
+unittest {
+  auto root = new Widget(10, null, RectF(0, 0, 200, 200));
+  auto child1 = new Widget(20, root, RectF(0, 0, 50, 50));
+  auto child2 = new Widget(30, root, RectF(50, 0, 50, 50));
+  auto grandChild = new Widget(40, child1, RectF(0, 0, 20, 20));
+
+  assert(root.uId == 10);
+  assert(child1.uId == 20);
+  assert(child2.uId == 30);
+  assert(grandChild.uId == 40);
+
+  assert(root.findByUId(10) is root);
+  assert(root.findByUId(20) is child1);
+  assert(root.findByUId(30) is child2);
+  assert(root.findByUId(40) is grandChild);
+  assert(root.findByUId(999) is null);
+  assert(child1.findByUId(30) is null);
 }

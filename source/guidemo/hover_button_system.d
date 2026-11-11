@@ -32,6 +32,7 @@ import std.math : PI, abs, sin;
 import yguilib.events : AppEvent;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, PointF, RectF;
+import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.component : WidgetComponent;
@@ -167,11 +168,11 @@ struct AnimatedHoverButtonBuilder {
     return this;
   }
 
-  Widget build(Widget parent, RectF rect) {
+  Widget build(UiSystem ui, Widget parent, RectF rect) {
     const float initW = rect.width > 0.0f ? rect.width : 100.0f;
     const float initH = rect.height > 0.0f ? rect.height : 36.0f;
 
-    auto b = WidgetBuilder(parent, rect);
+    auto b = WidgetBuilder(ui, parent, rect);
 
     if (customSize !is null) {
       b.size(customSize);
@@ -220,6 +221,7 @@ struct AnimatedHoverButtonBuilder {
 
 /// Convenience helper creating an animated hover button widget.
 Widget createAnimatedHoverButton(
+  UiSystem ui,
   Widget parent,
   RectF rect,
   in HoverButtonConfig config = HoverButtonConfig(),
@@ -228,7 +230,7 @@ Widget createAnimatedHoverButton(
   AnimatedHoverButtonBuilder b;
   b.config = config;
   b.animConfig = animConfig;
-  return b.build(parent, rect);
+  return b.build(ui, parent, rect);
 }
 
 /// Custom WidgetSystem processing widgets with AnimatedHoverButtonComponent.
@@ -709,6 +711,8 @@ unittest {
   }
 
   auto host = new DummyHost();
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  auto testUi = new UiSystemImpl(null);
 
   // Test 1: AnimatedHoverButtonBuilder single-widget tree structure
   AnimatedHoverButtonBuilder b;
@@ -719,7 +723,7 @@ unittest {
     .radius(4.0f)
     .fixedSize(120.0f, 32.0f)
     .action("customAction")
-    .build(null, RectF(10, 10, 120, 32));
+    .build(testUi, null, RectF(10, 10, 120, 32));
 
   assert(btn !is null);
   assert(btn.inputEnabled);
@@ -821,7 +825,7 @@ unittest {
     .text("Gradient Button")
     .anim(gradAnim)
     .fixedSize(120.0f, 32.0f)
-    .build(null, RectF(0, 0, 120, 32));
+    .build(testUi, null, RectF(0, 0, 120, 32));
 
   auto gradComp = gradBtn.components.get!AnimatedHoverButtonComponent();
   assert(gradComp !is null);

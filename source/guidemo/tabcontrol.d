@@ -87,19 +87,30 @@ struct TabControlStyle {
  * with a TabsModel.
  */
 final class TabButtonsProvider : WidgetArrayProvider {
-  this(const(TabsModel) model, in TabControlStyle style = TabControlStyle()) {
+  this(
+    UiSystem ui,
+    const(TabsModel) model,
+    in TabControlStyle style = TabControlStyle()
+  ) {
+    assert(ui !is null, "ui must not be null");
     assert(model !is null, "model must not be null");
+    this.ui = ui;
     this.model = model;
     this.style = style;
   }
 
   invariant {
     assert(model !is null);
+    assert(ui !is null);
   }
 
   override void addWidget(Widget parent) {
     assert(parent !is null, "parent must not be null");
-    WidgetBuilder(parent, RectF(0, 0, style.buttonWidth, style.buttonHeight))
+    WidgetBuilder(
+      ui,
+      parent,
+      RectF(0, 0, style.buttonWidth, style.buttonHeight)
+    )
       .fixedSize(style.buttonWidth, style.buttonHeight)
       .padding(5, 8, 5, 8)
       .roundBackground(style.inactiveBg, style.cornerRadius)
@@ -128,6 +139,7 @@ final class TabButtonsProvider : WidgetArrayProvider {
   }
 
 private:
+  UiSystem ui;
   const(TabsModel) model;
   TabControlStyle style;
 }
@@ -910,7 +922,15 @@ struct TabControlBuilder {
    *   registry = UiRegistry used to look up `TabControlWidgetView` (allowed to
    *     be null in isolated tests).
    */
-  Widget build(Widget parent, RectF rect, UiRegistry registry = null) {
+  Widget build(
+    UiSystem ui,
+    Widget parent,
+    RectF rect,
+    UiRegistry registry = null
+  ) {
+    if (registry is null) {
+      registry = ui;
+    }
     if (!hasModel) {
       tabsTracker = ModelTracker!TabsModel(new TabsModel());
       hasModel = true;
@@ -934,12 +954,12 @@ struct TabControlBuilder {
       ? btnStyle.buttonHeight
       : btnStyle.arrowButtonSize;
 
-    Widget root = WidgetBuilder(parent, rect)
+    Widget root = WidgetBuilder(ui, parent, rect)
       .flex(flexDir, btnStyle.arrowGap, JustifyContent.start, flexAlign)
       .view(registry, renameMap, tabControlWidgetViewName)
       .build();
 
-    auto leftBtn = WidgetBuilder(root, RectF(0, 0, arrowW, arrowH))
+    auto leftBtn = WidgetBuilder(ui, root, RectF(0, 0, arrowW, arrowH))
       .fixedSize(arrowW, arrowH)
       .padding(2, 4, 2, 4)
       .roundBackground(btnStyle.disabledBg, btnStyle.cornerRadius)
@@ -956,6 +976,7 @@ struct TabControlBuilder {
     leftBtn.visible = false;
 
     auto scrollViewport = WidgetBuilder(
+      ui,
       root,
       RectF(0, 0, rect.width, rect.height)
     )
@@ -976,15 +997,19 @@ struct TabControlBuilder {
         Dimension(btnStyle.buttonWidth, SizingMode.fixed);
     }
 
-    auto provider = new TabButtonsProvider(tabsTracker.model, btnStyle);
-    auto tabsContainer = WidgetBuilder(scrollViewport, RectF(0, 0, 1.0f, 1.0f))
+    auto provider = new TabButtonsProvider(ui, tabsTracker.model, btnStyle);
+    auto tabsContainer = WidgetBuilder(
+      ui,
+      scrollViewport,
+      RectF(0, 0, 1.0f, 1.0f)
+    )
       .autoSize()
       .minSize(1.0f, 1.0f)
       .flex(flexDir, flexGap, flexJustify, flexAlign)
       .widgetArray(provider, tabsTracker.model.tabNames.length)
       .build();
 
-    auto rightBtn = WidgetBuilder(root, RectF(0, 0, arrowW, arrowH))
+    auto rightBtn = WidgetBuilder(ui, root, RectF(0, 0, arrowW, arrowH))
       .fixedSize(arrowW, arrowH)
       .padding(2, 4, 2, 4)
       .roundBackground(btnStyle.disabledBg, btnStyle.cornerRadius)
@@ -1074,7 +1099,7 @@ unittest {
     .event("customTabSwitch")
     .buttonSize(120.0f, 28.0f)
     .gap(8.0f)
-    .build(null, RectF(0, 0, 400, 32), ui);
+    .build(ui, null, RectF(0, 0, 400, 32));
 
   assert(tabRoot !is null);
   assert(registeredView.isWidgetRegistered(tabRoot));

@@ -95,19 +95,19 @@ private:
 unittest {
   auto collector = new VisibleWidgetsCollector;
 
-  auto root = new Widget(null, RectF(0, 0, 640, 480));
-  auto onScreenChild = new Widget(root, RectF(10, 10, 100, 100));
-  auto hiddenChild = new Widget(root, RectF(120, 10, 50, 50));
+  auto root = new Widget(1, null, RectF(0, 0, 640, 480));
+  auto onScreenChild = new Widget(2, root, RectF(10, 10, 100, 100));
+  auto hiddenChild = new Widget(3, root, RectF(120, 10, 50, 50));
   hiddenChild.visible = false;
-  auto hiddenGrandChild = new Widget(hiddenChild, RectF(5, 5, 20, 20));
+  auto hiddenGrandChild = new Widget(4, hiddenChild, RectF(5, 5, 20, 20));
 
   // Off-screen parent (x = 700 is outside 640 width)
-  auto offScreenParent = new Widget(root, RectF(700, 50, 100, 100));
+  auto offScreenParent = new Widget(5, root, RectF(700, 50, 100, 100));
   // Child has rect (5, 5) relative to offScreenParent (absX = 705)
-  auto childOfOffScreen = new Widget(offScreenParent, RectF(5, 5, 50, 50));
+  auto childOfOffScreen = new Widget(6, offScreenParent, RectF(5, 5, 50, 50));
 
   // Relative positioned child moving on-screen relative to an on-screen parent
-  auto nestedOnScreen = new Widget(onScreenChild, RectF(10, 10, 40, 40));
+  auto nestedOnScreen = new Widget(7, onScreenChild, RectF(10, 10, 40, 40));
 
   auto collected = collector.collectVisible(root, 640.0f, 480.0f);
   assert(collected.length == 3);
@@ -123,18 +123,18 @@ unittest {
 unittest {
   auto collector = new VisibleWidgetsCollector;
 
-  auto root = new Widget(null, RectF(0, 0, 640, 480));
+  auto root = new Widget(1, null, RectF(0, 0, 640, 480));
   root.clipChildren = false;
 
-  auto parent = new Widget(root, RectF(50, 50, 200, 100));
+  auto parent = new Widget(2, root, RectF(50, 50, 200, 100));
   parent.clipChildren = true;
 
-  auto child = new Widget(parent, RectF(10, 10, 300, 50));
+  auto child = new Widget(3, parent, RectF(10, 10, 300, 50));
   child.clipChildren = false;
 
-  auto grandChild = new Widget(child, RectF(5, 5, 20, 20));
+  auto grandChild = new Widget(4, child, RectF(5, 5, 20, 20));
 
-  auto sibling = new Widget(root, RectF(300, 50, 100, 100));
+  auto sibling = new Widget(5, root, RectF(300, 50, 100, 100));
 
   auto collected = collector.collectVisible(root, 640.0f, 480.0f);
   assert(collected.length == 5);

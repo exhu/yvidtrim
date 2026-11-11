@@ -103,7 +103,7 @@ float getCrossOuterSize(const Widget w, bool isRow) {
 unittest {
   import yguilib.render.render_types : RectF;
 
-  auto w = new Widget(null, RectF(10, 20, 30, 40));
+  auto w = new Widget(1, null, RectF(10, 20, 30, 40));
 
   // Row
   assert(getMainSize(w, true) == 30);

@@ -524,9 +524,9 @@ unittest {
   pipeline.registerSystem(painterSys);
   pipeline.registerSystem(customSys);
 
-  auto root = new Widget(null, RectF(0, 0, 320, 240));
+  auto root = new Widget(1, null, RectF(0, 0, 320, 240));
   root.components.background = new Background(ColorF(0.1f, 0.1f, 0.1f, 1.0f));
-  auto child = new Widget(root, RectF(10, 10, 100, 50));
+  auto child = new Widget(2, root, RectF(10, 10, 100, 50));
   child.components.background = new Background(ColorF(1.0f, 0, 0, 1.0f));
   win.rootWidget = root;
 
@@ -558,8 +558,9 @@ unittest {
   import yguilib.widget.internal.data_system : DataSystem;
 
   final class SimpleArrayProvider : WidgetArrayProvider {
+    uint nextId = 100;
     override void addWidget(Widget parent) {
-      auto item = new Widget(parent, RectF(0, 0, 40, 20));
+      auto item = new Widget(nextId++, parent, RectF(0, 0, 40, 20));
       item.components.background = new Background(ColorF(0, 1, 0, 1));
     }
 
@@ -568,9 +569,9 @@ unittest {
   }
 
   pipeline.registerSystem(new DataSystem());
-  auto hiddenPage = new Widget(root, RectF(0, 60, 200, 100));
+  auto hiddenPage = new Widget(3, root, RectF(0, 60, 200, 100));
   hiddenPage.setVisible(false);
-  auto arrBox = new Widget(hiddenPage, RectF(0, 0, 160, 30));
+  auto arrBox = new Widget(4, hiddenPage, RectF(0, 0, 160, 30));
   auto arrComp = new WidgetArrayComponent();
   arrComp.provider = new SimpleArrayProvider();
   arrComp.itemsCount = 3;
@@ -592,12 +593,12 @@ unittest {
   import yguilib.widget.scroll_components : ScrollableArea;
 
   pipeline.registerSystem(new ScrollSystem(host));
-  auto scrollContainer = new Widget(root, RectF(0, 100, 100, 100));
+  auto scrollContainer = new Widget(5, root, RectF(0, 100, 100, 100));
   auto scrollArea = new ScrollableArea(PointF(0, 0), "pipelineScrolled");
   scrollContainer.components.scrollableArea = scrollArea;
 
   // Child larger than viewport and overflowing window bounds
-  auto largeContent = new Widget(scrollContainer, RectF(0, 0, 400, 300));
+  auto largeContent = new Widget(6, scrollContainer, RectF(0, 0, 400, 300));
   largeContent.components.background = new Background(ColorF(0, 0, 1, 1));
 
   assert(pipeline.updateAndRenderTree(win));

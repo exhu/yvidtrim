@@ -192,7 +192,7 @@ unittest {
   auto renderer = new Renderer(320, 240);
   scope(exit) renderer.destroy();
 
-  auto w = new Widget(null, RectF(10, 20, 100, 80));
+  auto w = new Widget(1, null, RectF(10, 20, 100, 80));
   w.components.background = new Background(ColorF(0.2f, 0.2f, 0.2f, 1.0f));
   w.components.border = new Border(ColorF(1.0f, 0.0f, 0.0f, 1.0f));
   w.components.border.width = 2.0f;
@@ -251,12 +251,12 @@ unittest {
   assert(renderer.getDefaultFont().size == defaultFontPtSize);
 
   // Test multiple widgets with different font sizes
-  auto root = new Widget(null, RectF(0, 0, 320, 240));
-  auto child1 = new Widget(root, RectF(0, 0, 100, 30));
+  auto root = new Widget(2, null, RectF(0, 0, 320, 240));
+  auto child1 = new Widget(3, root, RectF(0, 0, 100, 30));
   child1.components.textLabel = new TextLabel("Title", ColorF(1, 1, 1, 1));
   child1.components.textLabel.fontSize = 18.0f;
 
-  auto child2 = new Widget(root, RectF(0, 35, 100, 30));
+  auto child2 = new Widget(4, root, RectF(0, 35, 100, 30));
   child2.components.textLabel = new TextLabel("Subtitle", ColorF(1, 1, 1, 1));
   child2.components.textLabel.fontSize = 14.0f;
 
@@ -266,7 +266,7 @@ unittest {
   assert(!child2.dirty);
 
   // Test TextLabel with multiline and alignment rendering
-  auto multiW = new Widget(null, RectF(0, 0, 150, 80));
+  auto multiW = new Widget(5, null, RectF(0, 0, 150, 80));
   auto multiTl = new TextLabel("Hello\nWorld\nMultiline", ColorF(1, 1, 1, 1));
   multiTl.multiline = true;
   multiTl.alignment = TextLabel.Alignment.center;
@@ -276,7 +276,7 @@ unittest {
   assert(!multiW.dirty);
 
   // Test TextLabel with right alignment and overflowEllipsis
-  auto rightW = new Widget(null, RectF(0, 0, 50, 30));
+  auto rightW = new Widget(6, null, RectF(0, 0, 50, 30));
   auto rightTl = new TextLabel(
     "Long text that truncates with ellipsis",
     ColorF(1, 1, 1, 1)
