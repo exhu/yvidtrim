@@ -98,10 +98,14 @@ blocks) into smaller.
 
 ## Constructors
 Either allow a this() constructor without parameters, or only one
-constructor with parameters, do not make multiple constructors.
+constructor with parameters (and disable this()),
+do not make multiple constructors.
 
 Constructor parameters should not exceed three, and be used only
-if the struct or class instance cannot be initialized otherwise (e.g. const fields).
+if the struct or class instance cannot be initialized otherwise (e.g. const fields),
+or in rare cases where it's common knowledge/expectation, e.g. PointF, RectF,
+i.e. geometry/math structs like points, circles, vectors, quaternions, rectangles,
+triangles, RGBA colours...
 
 In general case fields should be initialzed to sane defaults, and set either via
 direct access, as properies, or methods.
