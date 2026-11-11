@@ -96,6 +96,16 @@ private void myPrivateFunction() {}
 Split long (>50 lines) or complex functions (which have different sematic
 blocks) into smaller.
 
+## Constructors
+Either allow a this() constructor without parameters, or only one
+constructor with parameters, do not make multiple constructors.
+
+Constructor parameters should not exceed three, and be used only
+if the struct or class instance cannot be initialized otherwise (e.g. const fields).
+
+In general case fields should be initialzed to sane defaults, and set either via
+direct access, as properies, or methods.
+
 ## Function parameters
 Put the main semantic paramter first, e.g. in drawText function put string type
 the first.
@@ -106,7 +116,8 @@ void drawText(string text, PointF position, ColorF color);
 void drawText(string text, PointF position, ColorF color, float fontSize);
 void drawText(string text, PointF position, ColorF color, float fontSize, Font font);
 ```
-Prefer default arguments to overloaded functions.
+Do not implement new overloaded functions, if not required to implement something similar to visitor pattern,
+or serialization/conversion.
 
 For more than five arguments consider adding a struct type passed as `in` or `ref`,
 which can be constructed with builder pattern, e.g.
