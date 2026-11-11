@@ -31,6 +31,7 @@ yvidtrim/
 │   │   ├── app.d          # Application wrapper running event loop
 │   │   ├── window.d       # Window, OpenGL context, display scaling
 │   │   ├── uisystem.d     # UiSystem, ControllerStack, EventControl interfaces
+│   │   ├── serhelpers.d   # Generic JSON reflection serialization helpers
 │   │   ├── model.d        # VersionedModel and ModelTracker state tracking
 │   │   ├── clibs/         # extern(C) D bindings for yguilib-clibs
 │   │   ├── controller/    # Controller interfaces and ControllerStack

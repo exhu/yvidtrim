@@ -85,6 +85,9 @@ Interactive keyboard controls:
 ## Profiling
 GALLIUM_HUD="fps,cpu+GPU-load" ./_build/yvidtrim
 
+## Logging
+SDL_LOGGING=app=trace ./_build/yvidtrim
+
 ## Features for 1.0
 Final project will implement the following:
 	* efficient keyboard control:

@@ -16,6 +16,8 @@ import yguilib.widget.layout_components : AlignItems, Anchor, FlexContainer,
   JustifyContent;
 import yguilib.window : Window;
 
+import std.logger;
+
 final class MainModel : VersionedModel {
   bool toggleVisible = true;
   float alphaValue = 0.3f;
@@ -86,6 +88,9 @@ public:
     addRightTopAnchor();
     addLeftBottomAnchor();
     addRightBottomAnchor();
+
+    infof("tree = %s", rootWidget.dumpTree());
+
   }
 
   void addRightTopAnchor() {

@@ -31,6 +31,7 @@ yguilib_src = files(
   'source/yguilib/render/internal/text_cache.d',
   'source/yguilib/render/package.d',
   'source/yguilib/render/render_types.d',
+  'source/yguilib/serhelpers.d',
   'source/yguilib/uisystem.d',
   'source/yguilib/widget/builder.d',
   'source/yguilib/widget/component.d',

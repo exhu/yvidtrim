@@ -7,6 +7,8 @@ import yguilib.widget.input_components;
 import yguilib.widget.data_components;
 import yguilib.render.font : defaultFontPtSize;
 import yguilib.widget.widget_view : WidgetViewController, WidgetView;
+import yguilib.serhelpers : SerIgnore, toJsonValue, serializeToJson;
+import std.json : JSONValue, JSONType;
 import std.typecons : Nullable;
 
 /// Widgets can have this component to mark a root view to rename events
@@ -91,8 +93,12 @@ struct WidgetComponents {
   void set(C : WidgetComponent)(C comp) {
     if (comp is null) {
       custom.remove(typeid(C));
+      customSerializers.remove(typeid(C));
     } else {
       custom[typeid(C)] = comp;
+      customSerializers[typeid(C)] = (const WidgetComponent c) {
+        return toJsonValue(cast(const C) c);
+      };
     }
   }
 
@@ -109,8 +115,25 @@ struct WidgetComponents {
     return (typeid(C) in custom) !is null;
   }
 
+  /// Appends user-defined custom components to serialized fields.
+  void onSerializeFields(ref JSONValue[string] fields) const {
+    JSONValue[string] customMap;
+    foreach (ti, comp; custom) {
+      if (comp !is null) {
+        if (auto serializer = ti in customSerializers) {
+          customMap[ti.toString()] = (*serializer)(comp);
+        } else {
+          customMap[ti.toString()] = toJsonValue(comp);
+        }
+      }
+    }
+    fields["custom"] = JSONValue(customMap);
+  }
+
 private:
-  WidgetComponent[TypeInfo_Class] custom;
+  @SerIgnore WidgetComponent[TypeInfo_Class] custom;
+  @SerIgnore JSONValue function(const WidgetComponent)[TypeInfo_Class]
+    customSerializers;
 }
 
 /// Specifies which aspect of a widget changed when calling `Widget.update`.
@@ -364,6 +387,56 @@ final class Widget {
     return true;
   }
 
+  /// Dumps the widget (and optionally its children) as a human-readable
+  /// pretty-formatted JSON string for debugging layout and widget state.
+  string dumpTree(bool withChildren = true) const {
+    import std.json : toJSON, JSONOptions;
+    const JSONValue jv = dumpToJsonValue(withChildren);
+    return toJSON(jv, true, JSONOptions.specialFloatLiterals);
+  }
+
+  /// Converts the widget to a JSONValue, including or excluding children.
+  JSONValue dumpToJsonValue(bool withChildren = true) const {
+    JSONValue[string] root;
+    root["type"] = JSONValue("Widget");
+
+    JSONValue[string] fields;
+    fields["uId"] = toJsonValue(uId);
+    fields["name"] = toJsonValue(name);
+    fields["rect"] = toJsonValue(rect);
+    fields["components"] = toJsonValue(components);
+    fields["handleInput"] = toJsonValue(handleInput);
+    fields["clipContents"] = toJsonValue(clipContents);
+    fields["clipChildren"] = toJsonValue(clipChildren);
+    fields["visible"] = toJsonValue(visible);
+    fields["inputEnabled"] = toJsonValue(inputEnabled);
+    fields["dirty"] = toJsonValue(dirty);
+    fields["layoutDirty"] = toJsonValue(layoutDirty);
+
+    if (fParent !is null) {
+      fields["parentUId"] = JSONValue(fParent.uId);
+    } else {
+      fields["parentUId"] = JSONValue(null);
+    }
+
+    if (fParentView !is null) {
+      fields["parentViewUId"] = JSONValue(fParentView.uId);
+    } else {
+      fields["parentViewUId"] = JSONValue(null);
+    }
+
+    if (withChildren) {
+      JSONValue[] childrenArr;
+      foreach (child; fChildren) {
+        childrenArr ~= child.dumpToJsonValue(true);
+      }
+      fields["children"] = JSONValue(childrenArr);
+    }
+
+    root["fields"] = JSONValue(fields);
+    return JSONValue(root);
+  }
+
   /// Checks if this or child Widget has the name.
   /// Returns null if none.
   Widget findByName(string nameToSearch) {
@@ -510,9 +583,9 @@ private:
     }
   }
 
-  Widget fParent;
-  Widget[] fChildren;
-  Widget fParentView;
+  @SerIgnore Widget fParent;
+  @SerIgnore Widget[] fChildren;
+  @SerIgnore Widget fParentView;
 }
 
 unittest {
@@ -827,4 +900,70 @@ unittest {
 
   // removeChild when not a child returns false
   assert(!p2.removeChild(c));
+}
+
+// Verifies Widget.dumpTree serialization.
+unittest {
+  import std.json : parseJSON;
+  import yguilib.widget.builder : WidgetBuilder;
+
+  final class TestExtraComponent : WidgetComponent {
+    string info;
+    int count;
+    this(string info, int count) {
+      this.info = info;
+      this.count = count;
+    }
+  }
+
+  auto root = WidgetBuilder(100)
+    .rect(RectF(0, 0, 800, 600))
+    .flex(FlexDirection.column, 5.0f)
+    .background(ColorF(0.1f, 0.2f, 0.3f, 1.0f))
+    .build();
+  root.name = "RootPanel";
+
+  auto child = WidgetBuilder(101)
+    .parent(root)
+    .rect(RectF(10, 10, 120, 40))
+    .fixedSize(120.0f, 40.0f)
+    .text("DumpButton")
+    .border(ColorF(1.0f, 1.0f, 1.0f, 1.0f), 2.0f)
+    .build();
+  child.name = "Button1";
+  child.components.set(new TestExtraComponent("extraData", 7));
+
+  // Dump without children
+  string rootOnlyJson = root.dumpTree(false);
+  auto parsedRootOnly = parseJSON(rootOnlyJson);
+  assert(parsedRootOnly["type"].str == "Widget");
+  assert(parsedRootOnly["fields"]["uId"].integer == 100);
+  assert(parsedRootOnly["fields"]["name"].str == "RootPanel");
+  assert("children" !in parsedRootOnly["fields"]);
+  auto rootComps = parsedRootOnly["fields"]["components"]["fields"];
+  assert(rootComps["flexContainer"]["type"].str == "FlexContainer");
+
+  // Dump with children
+  string fullTreeJson = root.dumpTree(true);
+  auto parsedFull = parseJSON(fullTreeJson);
+  assert(parsedFull["type"].str == "Widget");
+  assert(parsedFull["fields"]["uId"].integer == 100);
+  assert("children" in parsedFull["fields"]);
+  auto childrenArray = parsedFull["fields"]["children"].array;
+  assert(childrenArray.length == 1);
+
+  auto parsedChild = childrenArray[0];
+  assert(parsedChild["type"].str == "Widget");
+  assert(parsedChild["fields"]["uId"].integer == 101);
+  assert(parsedChild["fields"]["name"].str == "Button1");
+  assert(parsedChild["fields"]["parentUId"].integer == 100);
+  auto childComps = parsedChild["fields"]["components"]["fields"];
+  assert(childComps["textLabel"]["fields"]["caption"].str == "DumpButton");
+
+  // Check custom component serialized in child
+  auto customMap = childComps["custom"].object;
+  assert(TestExtraComponent.classinfo.name in customMap);
+  auto parsedExtra = customMap[TestExtraComponent.classinfo.name];
+  assert(parsedExtra["fields"]["info"].str == "extraData");
+  assert(parsedExtra["fields"]["count"].integer == 7);
 }

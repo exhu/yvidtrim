@@ -4,7 +4,7 @@ package(yguilib):
 
 import std.logger;
 import yguilib.clibs.sdl3;
-
+// SDL_LOGGING=app=trace
 class SdlLogger : Logger {
   this(LogLevel lv = LogLevel.info) @safe {
     super(lv);
