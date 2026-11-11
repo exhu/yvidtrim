@@ -51,7 +51,22 @@ class WidgetFixture {
 
   /// Creates a Widget with the given parent and rect.
   Widget makeWidget(Widget parent, RectF rect) {
-    return new Widget(nextId(), parent, rect);
+    auto w = new Widget(nextId());
+    w.rect = rect;
+    if (parent !is null) {
+      parent.addChild(w);
+    }
+    return w;
+  }
+
+  /// Creates a Widget with explicit ID, parent, and rect.
+  Widget makeWidgetWithId(uint uId, Widget parent, RectF rect) {
+    auto w = new Widget(uId);
+    w.rect = rect;
+    if (parent !is null) {
+      parent.addChild(w);
+    }
+    return w;
   }
 
   /// Creates a root or standalone Widget with no parent.
@@ -320,7 +335,7 @@ class WidgetFixture {
   }
 
   /// Returns true if `child` is an ancestor descendant of `ancestor`.
-  static bool isDescendantOf(const Widget child, const Widget ancestor) {
+  static bool isChildOf(const Widget child, const Widget ancestor) {
     if (child is null || ancestor is null) {
       return false;
     }
@@ -380,10 +395,10 @@ unittest {
   assert(WidgetFixture.findById(root, 6) is grandChild);
   assert(WidgetFixture.findById(root, 999) is null);
 
-  assert(WidgetFixture.isDescendantOf(grandChild, root));
-  assert(WidgetFixture.isDescendantOf(grandChild, child1));
-  assert(!WidgetFixture.isDescendantOf(child2, child1));
-  assert(!WidgetFixture.isDescendantOf(root, child1));
+  assert(WidgetFixture.isChildOf(grandChild, root));
+  assert(WidgetFixture.isChildOf(grandChild, child1));
+  assert(!WidgetFixture.isChildOf(child2, child1));
+  assert(!WidgetFixture.isChildOf(root, child1));
 
   // Component configuration helpers
   fix.withBackground(child1, ColorF(0.2f, 0.4f, 0.6f, 1.0f));

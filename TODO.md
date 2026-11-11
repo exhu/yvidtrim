@@ -1,14 +1,3 @@
-- in `yguilib/source/yguilib/widget/package.d` Widget class make addChild(Widget
-w) method instead of implicitly adding to parent in the constructor. A widget cannot
-be a child of multiple parents.  If parent != null, then remove Widget from that
-parent before adding to another. Keep only uId parameter to Widget constructor:
-```
-// old
-  this(uint uId, Widget parent, RectF rect)
-// new
-  this(uint uId);
-```
-
 - add Widget.name string field which can help debug widget tree (the name
 is not unique, there may be any amount of widgets sharing the same name in
 the tree).

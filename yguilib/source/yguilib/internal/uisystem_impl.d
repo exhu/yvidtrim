@@ -880,7 +880,8 @@ unittest {
   scope (exit) win.destroy();
 
   auto ui = new UiSystemImpl(win);
-  auto root = new Widget(ui.nextWidgetId(), null, RectF(0, 0, 320, 240));
+  auto root = new Widget(ui.nextWidgetId());
+  root.rect = RectF(0, 0, 320, 240);
   root.components.background = new Background(ColorF(0.1f, 0.1f, 0.1f, 1.0f));
   win.rootWidget = root;
 
@@ -966,10 +967,13 @@ unittest {
   auto found = uiSys.findWidgetSystem!CounterSystem();
   assert(found is customSys);
 
-  auto root = new Widget(ui.nextWidgetId(), null, RectF(0, 0, 320, 240));
+  auto root = new Widget(ui.nextWidgetId());
+  root.rect = RectF(0, 0, 320, 240);
   root.components.set(new CounterComponent(5));
-  auto child = new Widget(ui.nextWidgetId(), root, RectF(10, 10, 100, 50));
+  auto child = new Widget(ui.nextWidgetId());
+  child.rect = RectF(10, 10, 100, 50);
   child.components.set(new CounterComponent(10));
+  root.addChild(child);
   win.rootWidget = root;
 
   assert(customSys.totalCount == 0);

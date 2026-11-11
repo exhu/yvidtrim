@@ -98,8 +98,11 @@ private:
 unittest {
   import yguilib.render.render_types : RectF;
 
-  auto parent = new Widget(1, null, RectF(0, 0, 100, 100));
-  auto child = new Widget(2, parent, RectF(10, 10, 50, 50));
+  auto parent = new Widget(1);
+  parent.rect = RectF(0, 0, 100, 100);
+  auto child = new Widget(2);
+  child.rect = RectF(10, 10, 50, 50);
+  parent.addChild(child);
 
   // Test 1: Full fluent configuration starting from empty builder
   auto ev1 = ViewAppEventBuilder()

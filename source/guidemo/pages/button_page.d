@@ -21,7 +21,11 @@ final class ButtonPage {
   this(UiSystem ui, Widget parent) {
     assert(ui !is null, "UiSystem must not be null");
     this.ui = ui;
-    root = new Widget(ui.nextWidgetId(), parent, RectF(0, 0, 1280, 720));
+    root = new Widget(ui.nextWidgetId());
+    root.rect = RectF(0, 0, 1280, 720);
+    if (parent !is null) {
+      parent.addChild(root);
+    }
 
     buildFadingSection();
     buildGradientPlaySection();

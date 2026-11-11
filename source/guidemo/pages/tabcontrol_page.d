@@ -26,7 +26,9 @@ final class TabControlPage {
     assert(parent !is null, "parent must not be null");
     this.ui = ui;
     this.registry = (registry !is null) ? registry : ui;
-    root = new Widget(ui.nextWidgetId(), parent, RectF(0, 0, 1280, 720));
+    root = new Widget(ui.nextWidgetId());
+    root.rect = RectF(0, 0, 1280, 720);
+    parent.addChild(root);
 
     subTabsTracker = ModelTracker!TabsModel(
       new TabsModel(["Overview", "Telemetry", "Settings"], 0)

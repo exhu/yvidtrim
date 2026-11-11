@@ -97,9 +97,12 @@ void resolveVerticalAnchor(
 
 // Corner anchors positioning (top-right, bottom-left, bottom-right)
 unittest {
-  auto parent = new Widget(1, null, RectF(10, 10, 200, 100));
+  import yguilib.widget.test_fixture : WidgetFixture;
 
-  auto tr = new Widget(2, parent, RectF(0, 0, 30, 20));
+  auto fix = new WidgetFixture();
+  auto parent = fix.makeRoot(RectF(10, 10, 200, 100));
+
+  auto tr = fix.makeChild(parent, RectF(0, 0, 30, 20));
   auto aTR = new Anchor;
   aTR.right = 0.0f;
   aTR.top = 0.0f;
@@ -108,7 +111,7 @@ unittest {
   assert(tr.rect.x == 170); // 200 - 30
   assert(tr.rect.y == 0);
 
-  auto bl = new Widget(3, parent, RectF(0, 0, 30, 20));
+  auto bl = fix.makeChild(parent, RectF(0, 0, 30, 20));
   auto aBL = new Anchor;
   aBL.left = 0.0f;
   aBL.bottom = 0.0f;
@@ -117,7 +120,7 @@ unittest {
   assert(bl.rect.x == 0);
   assert(bl.rect.y == 80); // 100 - 20
 
-  auto br = new Widget(4, parent, RectF(0, 0, 30, 20));
+  auto br = fix.makeChild(parent, RectF(0, 0, 30, 20));
   auto aBR = new Anchor;
   aBR.right = 5.0f;
   aBR.bottom = 10.0f;
@@ -131,8 +134,10 @@ unittest {
 unittest {
   import yguilib.widget.drawing_components : Border;
   import yguilib.render.render_types : ColorF;
+  import yguilib.widget.test_fixture : WidgetFixture;
 
-  auto parent = new Widget(1, null, RectF(0, 0, 300, 200));
+  auto fix = new WidgetFixture();
+  auto parent = fix.makeRoot(RectF(0, 0, 300, 200));
   auto parentSz = new Size;
   parentSz.padding = Insets(10, 15, 10, 15);
   parent.components.size = parentSz;
@@ -143,7 +148,7 @@ unittest {
   // Content rect: startX = 20 (border 5 + pad 15), startY = 15 (5 + 10)
   // availW = 300 - 10 - 30 = 260, availH = 200 - 10 - 20 = 170
 
-  auto child = new Widget(2, parent, RectF(0, 0, 40, 30));
+  auto child = fix.makeChild(parent, RectF(0, 0, 40, 30));
   auto childSz = new Size;
   childSz.margin = Insets(2, 3, 4, 5);
   child.components.size = childSz;
@@ -162,9 +167,12 @@ unittest {
 
 // Dual anchors stretch auto mode and respect min/max constraints
 unittest {
-  auto parent = new Widget(1, null, RectF(0, 0, 200, 150));
+  import yguilib.widget.test_fixture : WidgetFixture;
 
-  auto child = new Widget(2, parent, RectF(0, 0, 0, 0));
+  auto fix = new WidgetFixture();
+  auto parent = fix.makeRoot(RectF(0, 0, 200, 150));
+
+  auto child = fix.makeChild(parent, RectF(0, 0, 0, 0));
   auto a = new Anchor;
   a.left = 10.0f;
   a.right = 20.0f;
@@ -191,9 +199,12 @@ unittest {
 
 // Dual anchors with fixed size: precedence rules (left and top win)
 unittest {
-  auto parent = new Widget(1, null, RectF(0, 0, 300, 200));
+  import yguilib.widget.test_fixture : WidgetFixture;
 
-  auto child = new Widget(2, parent, RectF(0, 0, 50, 40));
+  auto fix = new WidgetFixture();
+  auto parent = fix.makeRoot(RectF(0, 0, 300, 200));
+
+  auto child = fix.makeChild(parent, RectF(0, 0, 50, 40));
   auto sz = new Size;
   sz.width = Dimension(50, SizingMode.fixed);
   sz.height = Dimension(40, SizingMode.fixed);

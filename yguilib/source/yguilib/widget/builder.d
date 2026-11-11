@@ -20,11 +20,16 @@ struct WidgetBuilder {
   /// Constructs a widget builder with an explicit unique ID. Parent is allowed
   /// to be null.
   this(uint uId, Widget parent, RectF rect) {
-    widget = new Widget(uId, parent, rect);
+    widget = new Widget(uId);
+    widget.rect = rect;
+    if (parent !is null) {
+      parent.addChild(widget);
+    }
   }
 
   this(uint uId, RectF rect) {
-    widget = new Widget(uId, null, rect);
+    widget = new Widget(uId);
+    widget.rect = rect;
   }
 
   /// Constructs a widget builder obtaining a unique ID from `ui`.
@@ -507,7 +512,9 @@ unittest {
 
   // Factory container tests
   auto row = flexRow(5, root, RectF(0, 0, 200, 50), 6.0f, (Widget r) {
-    new Widget(6, r, RectF(0, 0, 50, 50));
+    auto w = new Widget(6);
+    w.rect = RectF(0, 0, 50, 50);
+    r.addChild(w);
   });
   assert(row.components.flexContainer.direction == FlexDirection.row);
   assert(row.components.flexContainer.gap == 6.0f);

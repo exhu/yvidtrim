@@ -72,7 +72,11 @@ version (unittest) {
 
     override void addWidget(Widget parent) {
       ++addWidgetCalls;
-      cast(void) new Widget(nextId++, parent, RectF(0, 0, 50, 20));
+      auto w = new Widget(nextId++);
+      w.rect = RectF(0, 0, 50, 20);
+      if (parent !is null) {
+        parent.addChild(w);
+      }
     }
 
     override void updateWidgetAt(Widget w, size_t index) {
@@ -104,13 +108,15 @@ unittest {
   ds.preLayout(ctx);
 
   // Widget without widgetArray component should be ignored
-  auto plainWidget = new Widget(1, null, RectF(0, 0, 100, 100));
+  auto plainWidget = new Widget(1);
+  plainWidget.rect = RectF(0, 0, 100, 100);
   ctx.visibleWidgets = [VisibleWidget(plainWidget, RectF(0, 0, 100, 100))];
   ds.preLayout(ctx);
   assert(plainWidget.children.length == 0);
 
   // Widget with widgetArray but null provider should safely do nothing
-  auto arrWidget = new Widget(2, null, RectF(0, 0, 100, 100));
+  auto arrWidget = new Widget(2);
+  arrWidget.rect = RectF(0, 0, 100, 100);
   arrWidget.components.widgetArray = new WidgetArrayComponent();
   arrWidget.components.widgetArray.itemsCount = 3;
   ctx.visibleWidgets = [VisibleWidget(arrWidget, RectF(0, 0, 100, 100))];
@@ -120,7 +126,8 @@ unittest {
 
 unittest {
   auto ds = new DataSystem();
-  auto container = new Widget(1, null, RectF(0, 0, 200, 200));
+  auto container = new Widget(1);
+  container.rect = RectF(0, 0, 200, 200);
   auto comp = new WidgetArrayComponent();
   auto provider = new MockWidgetArrayProvider();
   comp.provider = provider;
@@ -163,7 +170,8 @@ unittest {
 
 unittest {
   auto ds = new DataSystem();
-  auto container = new Widget(1, null, RectF(0, 0, 200, 200));
+  auto container = new Widget(1);
+  container.rect = RectF(0, 0, 200, 200);
   auto comp = new WidgetArrayComponent();
   auto provider = new MockWidgetArrayProvider();
   comp.provider = provider;
@@ -247,14 +255,16 @@ unittest {
 unittest {
   // Test multiple visible widgets processed in single preLayout pass
   auto ds = new DataSystem();
-  auto cont1 = new Widget(1, null, RectF(0, 0, 100, 100));
+  auto cont1 = new Widget(1);
+  cont1.rect = RectF(0, 0, 100, 100);
   auto comp1 = new WidgetArrayComponent();
   auto prov1 = new MockWidgetArrayProvider();
   comp1.provider = prov1;
   comp1.itemsCount = 2;
   cont1.components.widgetArray = comp1;
 
-  auto cont2 = new Widget(2, null, RectF(100, 0, 100, 100));
+  auto cont2 = new Widget(2);
+  cont2.rect = RectF(100, 0, 100, 100);
   auto comp2 = new WidgetArrayComponent();
   auto prov2 = new MockWidgetArrayProvider();
   comp2.provider = prov2;

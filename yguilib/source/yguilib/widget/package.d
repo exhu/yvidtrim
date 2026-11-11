@@ -159,17 +159,61 @@ enum WidgetUpdateScope {
 final class Widget {
   @disable this();
 
-  /// Constructs a widget. `parent` is allowed to be null for root widgets.
-  /// `uId` is unique and set on allocation.
-  this(uint uId, Widget parent, RectF rect) {
+  /// Constructs a widget with unique ID.
+  this(uint uId) {
     this.uId = uId;
-    this.parent = parent;
-    this.rect = rect;
-    if (parent) {
-      // TODO should ensure unique widgets or allow multiple references
-      parent.children ~= this;
-      fParentView = findParentView();
+  }
+
+  /// Adds `w` as a child of this widget.
+  /// If `w` already has a parent, removes `w` from that parent first.
+  void addChild(Widget w) {
+    assert(w !is null, "Child widget must not be null");
+    assert(w !is this, "Widget cannot be a child of itself");
+    assert(!isChildOf(w), "Cannot add an ancestor as a child");
+
+    if (w.fParent is this) {
+      return;
     }
+    if (w.fParent !is null) {
+      w.fParent.detachChild(w);
+    }
+    w.fParent = this;
+    fChildren ~= w;
+    w.updateParentViews();
+    markLayoutDirty();
+    w.markTreeDirty();
+  }
+
+  /// Removes `w` from this widget if it is a child.
+  bool removeChild(Widget w) {
+    import std.algorithm.mutation : remove;
+
+    if (w is null || w.fParent !is this) {
+      return false;
+    }
+    fChildren = fChildren.remove!(c => c is w);
+    w.fParent = null;
+    w.fParentView = null;
+    w.updateParentViews();
+    markLayoutDirty();
+    w.markTreeDirty();
+    return true;
+  }
+
+  /// Detaches `w` from this widget if it is a child.
+  void detachChild(Widget w) {
+    removeChild(w);
+  }
+
+  /// Returns true if this widget is a descendant of `ancestor`.
+  bool isChildOf(const Widget ancestor) const {
+    if (ancestor is null || fParent is null) {
+      return false;
+    }
+    if (fParent is ancestor) {
+      return true;
+    }
+    return fParent.isChildOf(ancestor);
   }
 
   /// Invalidates cached state and marks the widget for redraw and/or layout
@@ -349,17 +393,25 @@ final class Widget {
   }
 
   const uint uId;
-  Widget parent;
   RectF rect;
   /// it is not allowed to change available components after initialization
   WidgetComponents components;
   bool handleInput;
-  /// it is not allowed to change after initialization by the end user
-  Widget[] children;
   bool clipContents = true;
   bool clipChildren = false;
   bool visible = true;
   bool inputEnabled = false;
+
+  /// points to parent widget in hierarchy
+  @property inout(Widget) parent() inout {
+    return fParent;
+  }
+
+  /// list of child widgets
+  @property inout(Widget[]) children() inout {
+    return fChildren;
+  }
+
   /// points to nearest parent widget with View component
   @property inout(Widget) parentView() inout {
     return fParentView;
@@ -378,10 +430,10 @@ package(yguilib):
   }
 
   bool isParentFlexContainer() const {
-    if (parent is null)
+    if (fParent is null)
       return false;
 
-    return parent.components.flexContainer !is null;
+    return fParent.components.flexContainer !is null;
   }
 
   bool isFlexContainer() const {
@@ -396,7 +448,7 @@ package(yguilib):
     if (dirty) {
       return true;
     }
-    foreach (child; children) {
+    foreach (child; fChildren) {
       if (child.isTreeDirty()) {
         return true;
       }
@@ -412,7 +464,7 @@ package(yguilib):
     if (layoutDirty) {
       return true;
     }
-    foreach (child; children) {
+    foreach (child; fChildren) {
       if (child.isTreeLayoutDirty()) {
         return true;
       }
@@ -421,11 +473,11 @@ package(yguilib):
   }
 
   Widget findParentView() {
-    if (parent is null)
+    if (fParent is null)
       return null;
-    if (parent.components.view !is null)
-      return parent;
-    return parent.findParentView();
+    if (fParent.components.view !is null)
+      return fParent;
+    return fParent.findParentView();
   }
 
   bool dirty = true;
@@ -435,7 +487,7 @@ private:
   /// Recomputes cached parentView for this widget and all its descendants.
   void updateParentViews() {
     fParentView = findParentView();
-    foreach (child; children) {
+    foreach (child; fChildren) {
       child.updateParentViews();
     }
   }
@@ -444,8 +496,8 @@ private:
   void markLayoutDirty() {
     layoutDirty = true;
     dirty = true;
-    if (parent !is null && !parent.layoutDirty) {
-      parent.markLayoutDirty();
+    if (fParent !is null && !fParent.layoutDirty) {
+      fParent.markLayoutDirty();
     }
   }
 
@@ -453,16 +505,19 @@ private:
   void markTreeDirty() {
     dirty = true;
     layoutDirty = true;
-    foreach (child; children) {
+    foreach (child; fChildren) {
       child.markTreeDirty();
     }
   }
 
+  Widget fParent;
+  Widget[] fChildren;
   Widget fParentView;
 }
 
 unittest {
-  auto w = new Widget(1, null, RectF(10, 20, 100, 80));
+  auto w = new Widget(1);
+  w.rect = RectF(10, 20, 100, 80);
   assert(w.getContentArea() == RectF(0, 0, 100, 80));
 
   w.components.border = new Border(ColorF(1, 0, 0, 1));
@@ -482,8 +537,11 @@ unittest {
 }
 
 unittest {
-  auto root = new Widget(1, null, RectF(0, 0, 200, 200));
-  auto child = new Widget(2, root, RectF(0, 0, 100, 100));
+  auto root = new Widget(1);
+  root.rect = RectF(0, 0, 200, 200);
+  auto child = new Widget(2);
+  child.rect = RectF(0, 0, 100, 100);
+  root.addChild(child);
 
   assert(root.dirty && root.layoutDirty);
   assert(child.dirty && child.layoutDirty);
@@ -657,7 +715,8 @@ unittest {
     }
   }
 
-  auto w = new Widget(1, null, RectF(0, 0, 100, 100));
+  auto w = new Widget(1);
+  w.rect = RectF(0, 0, 100, 100);
 
   // Initial state: empty
   assert(!w.components.has!TooltipComponent());
@@ -704,10 +763,17 @@ unittest {
 
 // Verifies Widget.uId uniqueness and findByUId lookup.
 unittest {
-  auto root = new Widget(10, null, RectF(0, 0, 200, 200));
-  auto child1 = new Widget(20, root, RectF(0, 0, 50, 50));
-  auto child2 = new Widget(30, root, RectF(50, 0, 50, 50));
-  auto grandChild = new Widget(40, child1, RectF(0, 0, 20, 20));
+  auto root = new Widget(10);
+  root.rect = RectF(0, 0, 200, 200);
+  auto child1 = new Widget(20);
+  child1.rect = RectF(0, 0, 50, 50);
+  root.addChild(child1);
+  auto child2 = new Widget(30);
+  child2.rect = RectF(50, 0, 50, 50);
+  root.addChild(child2);
+  auto grandChild = new Widget(40);
+  grandChild.rect = RectF(0, 0, 20, 20);
+  child1.addChild(grandChild);
 
   assert(root.uId == 10);
   assert(child1.uId == 20);
@@ -720,4 +786,42 @@ unittest {
   assert(root.findByUId(40) is grandChild);
   assert(root.findByUId(999) is null);
   assert(child1.findByUId(30) is null);
+}
+
+// Verifies addChild, reparenting, removeChild, and single-parent ownership.
+unittest {
+  auto p1 = new Widget(1);
+  auto p2 = new Widget(2);
+  auto c = new Widget(3);
+
+  assert(c.parent is null);
+  assert(p1.children.length == 0);
+  assert(p2.children.length == 0);
+
+  // Add child to p1
+  p1.addChild(c);
+  assert(c.parent is p1);
+  assert(p1.children.length == 1);
+  assert(p1.children[0] is c);
+  assert(p2.children.length == 0);
+
+  // Re-adding to same parent is a no-op
+  p1.addChild(c);
+  assert(p1.children.length == 1);
+  assert(c.parent is p1);
+
+  // Adding to p2 automatically removes from p1 (single parent ownership)
+  p2.addChild(c);
+  assert(c.parent is p2);
+  assert(p1.children.length == 0);
+  assert(p2.children.length == 1);
+  assert(p2.children[0] is c);
+
+  // removeChild detaches c
+  assert(p2.removeChild(c));
+  assert(c.parent is null);
+  assert(p2.children.length == 0);
+
+  // removeChild when not a child returns false
+  assert(!p2.removeChild(c));
 }

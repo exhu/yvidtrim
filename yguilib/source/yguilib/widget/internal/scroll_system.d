@@ -184,11 +184,14 @@ unittest {
     scrollSys.phases == (SystemPhase.layout | SystemPhase.postLayout)
   );
 
-  auto parent = new Widget(1, null, RectF(0, 0, 100, 100));
+  auto parent = new Widget(1);
+  parent.rect = RectF(0, 0, 100, 100);
   auto sa = new ScrollableArea(PointF(10, 20), "onScroll");
   parent.components.scrollableArea = sa;
 
-  auto child = new Widget(2, parent, RectF(0, 0, 250, 150));
+  auto child = new Widget(2);
+  child.rect = RectF(0, 0, 250, 150);
+  parent.addChild(child);
 
   VisibleWidget[] unclipped = [
     VisibleWidget(parent, RectF(0, 0, 100, 100)),

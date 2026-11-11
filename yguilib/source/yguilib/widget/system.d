@@ -219,9 +219,12 @@ unittest {
     }
   }
 
-  auto w1 = new Widget(1, null, RectF(1, 0, 10, 10));
-  auto w2 = new Widget(2, null, RectF(2, 0, 10, 10));
-  auto w3 = new Widget(3, null, RectF(3, 0, 10, 10));
+  auto w1 = new Widget(1);
+  w1.rect = RectF(1, 0, 10, 10);
+  auto w2 = new Widget(2);
+  w2.rect = RectF(2, 0, 10, 10);
+  auto w3 = new Widget(3);
+  w3.rect = RectF(3, 0, 10, 10);
   VisibleWidget[] list = [
     VisibleWidget(w1, RectF(1, 0, 10, 10), false, RectF.init),
     VisibleWidget(w2, RectF(2, 0, 10, 10), false, RectF.init),
@@ -266,9 +269,11 @@ unittest {
     }
   }
 
-  auto a = new Widget(1, null, RectF(0, 0, 10, 10));
+  auto a = new Widget(1);
+  a.rect = RectF(0, 0, 10, 10);
   a.name = "A";
-  auto b = new Widget(2, null, RectF(0, 0, 10, 10));
+  auto b = new Widget(2);
+  b.rect = RectF(0, 0, 10, 10);
   b.name = "B";
   VisibleWidget[] list = [
     VisibleWidget(a, RectF(0, 0, 10, 10), false, RectF.init),

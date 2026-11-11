@@ -125,7 +125,8 @@ unittest {
   import yguilib.internal.uisystem_impl : UiSystemImpl;
   auto ui = new UiSystemImpl(null);
 
-  auto root = new Widget(ui.nextWidgetId(), null, RectF(0, 0, 800, 600));
+  auto root = new Widget(ui.nextWidgetId());
+  root.rect = RectF(0, 0, 800, 600);
 
   // 1. Create active tab button
   auto btnActive = createTabButton(ui, root, "Active Tab", "tabActive", true);
@@ -171,7 +172,8 @@ unittest {
     JustifyContent, SizingMode;
 
   auto ui = new UiSystemImpl(null);
-  auto root = new Widget(ui.nextWidgetId(), null, RectF(0, 0, 800, 600));
+  auto root = new Widget(ui.nextWidgetId());
+  root.rect = RectF(0, 0, 800, 600);
   auto row = WidgetBuilder(ui, root, RectF(0, 0, 500, 40))
     .flex(
       FlexDirection.row,
@@ -207,7 +209,8 @@ unittest {
   auto ui = new UiSystemImpl(null);
   auto tabsModel = new HeaderTabsModel();
   auto provider = new HeaderTabButtonsProvider(ui, tabsModel);
-  auto container = new Widget(ui.nextWidgetId(), null, RectF(0, 0, 730, 30));
+  auto container = new Widget(ui.nextWidgetId());
+  container.rect = RectF(0, 0, 730, 30);
 
   foreach (_; 0 .. tabsModel.tabNames.length) {
     provider.addWidget(container);
