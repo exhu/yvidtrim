@@ -17,30 +17,25 @@ import yguilib.widget.widget_view : WidgetView;
 
 /// Fluent builder for constructing and configuring widgets.
 struct WidgetBuilder {
-  /// Constructs a widget builder with an explicit unique ID. Parent is allowed
-  /// to be null.
-  this(uint uId, Widget parent, RectF rect) {
+  @disable this();
+
+  /// Constructs a widget builder with an explicit unique ID.
+  this(uint uId) {
     widget = new Widget(uId);
-    widget.rect = rect;
-    if (parent !is null) {
-      parent.addChild(widget);
+  }
+
+  /// Attaches the widget to `parentWidget` if non-null.
+  ref WidgetBuilder parent(Widget parentWidget) return {
+    if (parentWidget !is null) {
+      parentWidget.addChild(widget);
     }
+    return this;
   }
 
-  this(uint uId, RectF rect) {
-    widget = new Widget(uId);
-    widget.rect = rect;
-  }
-
-  /// Constructs a widget builder obtaining a unique ID from `ui`.
-  this(UiSystem ui, Widget parent, RectF rect) {
-    assert(ui !is null, "UiSystem must not be null");
-    this(ui.nextWidgetId(), parent, rect);
-  }
-
-  this(UiSystem ui, RectF rect) {
-    assert(ui !is null, "UiSystem must not be null");
-    this(ui.nextWidgetId(), null, rect);
+  /// Sets the initial rectangle of the widget.
+  ref WidgetBuilder rect(RectF r) return {
+    widget.rect = r;
+    return this;
   }
 
   ref WidgetBuilder name(string widgetName) return {
@@ -66,11 +61,11 @@ struct WidgetBuilder {
   }
 
   ref WidgetBuilder padding(float vertical, float horizontal) return {
-    return padding(Insets(vertical, horizontal));
+    return padding(Insets.vh(vertical, horizontal));
   }
 
   ref WidgetBuilder padding(float all) return {
-    return padding(Insets(all));
+    return padding(Insets.all(all));
   }
 
   ref WidgetBuilder margin(Insets insets) return {
@@ -91,11 +86,11 @@ struct WidgetBuilder {
   }
 
   ref WidgetBuilder margin(float vertical, float horizontal) return {
-    return margin(Insets(vertical, horizontal));
+    return margin(Insets.vh(vertical, horizontal));
   }
 
   ref WidgetBuilder margin(float all) return {
-    return margin(Insets(all));
+    return margin(Insets.all(all));
   }
 
   ref WidgetBuilder size(Size sz) return {
@@ -218,7 +213,9 @@ struct WidgetBuilder {
     JustifyContent justify = JustifyContent.start,
     AlignItems align_ = AlignItems.stretch
   ) return {
-    widget.components.flexContainer = new FlexContainer(dir, gap)
+    widget.components.flexContainer = new FlexContainer()
+      .withDirection(dir)
+      .withGap(gap)
       .withJustify(justify)
       .withAlign(align_);
     return this;
@@ -251,7 +248,12 @@ struct WidgetBuilder {
     Nullable!float right = Nullable!float.init,
     Nullable!float bottom = Nullable!float.init
   ) return {
-    widget.components.anchor = new Anchor(left, top, right, bottom);
+    auto a = new Anchor();
+    a.left = left;
+    a.top = top;
+    a.right = right;
+    a.bottom = bottom;
+    widget.components.anchor = a;
     return this;
   }
 
@@ -340,23 +342,14 @@ struct WidgetBuilder {
 
   /// Appends and configures a child widget within a scoped delegate.
   ref WidgetBuilder child(
-    uint childUId,
-    RectF rect,
+    uint childId,
     scope void delegate(ref WidgetBuilder) config
   ) return {
-    auto b = WidgetBuilder(childUId, widget, rect);
-    config(b);
+    auto b = WidgetBuilder(childId).parent(widget);
+    if (config !is null) {
+      config(b);
+    }
     return this;
-  }
-
-  /// Appends and configures a child widget obtaining a unique ID from `ui`.
-  ref WidgetBuilder child(
-    UiSystem ui,
-    RectF rect,
-    scope void delegate(ref WidgetBuilder) config
-  ) return {
-    assert(ui !is null, "UiSystem must not be null");
-    return child(ui.nextWidgetId(), rect, config);
   }
 
   /// Attaches a custom user-defined WidgetComponent of type C to the widget.
@@ -398,7 +391,9 @@ struct WidgetBuilder {
     PointF offset = PointF(0.0f, 0.0f),
     string scrollChangedEvent = null
   ) return {
-    return scrollableArea(new ScrollableArea(offset, scrollChangedEvent));
+    return scrollableArea(new ScrollableArea()
+      .withOffset(offset)
+      .withScrollChangedEvent(scrollChangedEvent));
   }
 
   Widget build() {
@@ -419,7 +414,9 @@ Widget flexRow(
   JustifyContent justify = JustifyContent.start,
   AlignItems align_ = AlignItems.stretch
 ) {
-  return WidgetBuilder(uId, parent, rect)
+  return WidgetBuilder(uId)
+    .parent(parent)
+    .rect(rect)
     .flex(FlexDirection.row, gap, justify, align_)
     .build();
 }
@@ -448,7 +445,9 @@ Widget flexColumn(
   JustifyContent justify = JustifyContent.start,
   AlignItems align_ = AlignItems.stretch
 ) {
-  return WidgetBuilder(uId, parent, rect)
+  return WidgetBuilder(uId)
+    .parent(parent)
+    .rect(rect)
     .flex(FlexDirection.column, gap, justify, align_)
     .build();
 }
@@ -469,19 +468,22 @@ Widget flexColumn(
 }
 
 unittest {
-  auto root = WidgetBuilder(1, RectF(0, 0, 800, 600))
+  auto root = WidgetBuilder(1)
+    .rect(RectF(0, 0, 800, 600))
     .flexRow(12.0f, JustifyContent.center, AlignItems.center)
     .roundBackground(ColorF(0.1f, 0.12f, 0.15f, 1.0f), 8.0f)
     .border(ColorF(0.3f, 0.35f, 0.4f, 1.0f), 1.0f)
-    .child(2, RectF(0, 0, 100, 40), (ref WidgetBuilder b) {
-      b.fixedSize(100.0f, 40.0f)
+    .child(2, (ref WidgetBuilder b) {
+      b.rect(RectF(0, 0, 100, 40))
+        .fixedSize(100.0f, 40.0f)
         .padding(4.0f, 8.0f)
         .margin(2.0f, 4.0f)
         .text("Child 1", ColorF(1, 1, 1, 1))
         .onMouseDown("child1Click");
     })
-    .child(3, RectF(0, 0, 120, 40), (ref WidgetBuilder b) {
-      b.autoSize()
+    .child(3, (ref WidgetBuilder b) {
+      b.rect(RectF(0, 0, 120, 40))
+        .autoSize()
         .minSize(50.0f, 20.0f)
         .maxSize(200.0f, 100.0f)
         .text("Child 2", ColorF(1, 1, 1, 1));
@@ -501,7 +503,9 @@ unittest {
   // Component setter overloads test
   auto customBorder = Border.dashed(ColorF(1, 0, 0, 1), 2.0f, 4.0f, 2.0f);
   auto customText = new TextLabel("Custom").withMultiline(true);
-  auto item = WidgetBuilder(4, root, RectF(0, 0, 50, 50))
+  auto item = WidgetBuilder(4)
+    .parent(root)
+    .rect(RectF(0, 0, 50, 50))
     .border(customBorder)
     .text(customText)
     .padding(2.0f, 3.0f, 4.0f, 5.0f)
@@ -525,7 +529,8 @@ unittest {
   assert(col.components.flexContainer.gap == 8.0f);
 
   // View component test
-  auto viewWidget = WidgetBuilder(8, RectF(0, 0, 100, 100))
+  auto viewWidget = WidgetBuilder(8)
+    .rect(RectF(0, 0, 100, 100))
     .view(null, ["btn": "press"])
     .build();
   assert(viewWidget.components.view !is null);
@@ -539,7 +544,8 @@ unittest {
     }
   }
   auto extra = new ExtraDataComponent(42);
-  auto customWidget = WidgetBuilder(9, RectF(0, 0, 50, 50))
+  auto customWidget = WidgetBuilder(9)
+    .rect(RectF(0, 0, 50, 50))
     .component(extra)
     .build();
   assert(customWidget.components.has!ExtraDataComponent());
@@ -552,7 +558,8 @@ unittest {
     override void updateWidgetAt(Widget w, size_t index) {}
   }
   auto arrProvider = new DummyArrayProvider();
-  auto arrWidget = WidgetBuilder(10, RectF(0, 0, 100, 30))
+  auto arrWidget = WidgetBuilder(10)
+    .rect(RectF(0, 0, 100, 30))
     .widgetArray(arrProvider, 4)
     .build();
   assert(arrWidget.components.widgetArray !is null);

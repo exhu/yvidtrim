@@ -126,7 +126,7 @@ private:
         if (w.components.mouseEvent.mouseDown.length > 0) {
           const float lx = p.x - vw.absRect.x;
           const float ly = p.y - vw.absRect.y;
-          auto val = MouseEvent.AppEventViewValue(lx, ly, btn, true);
+          auto val = MouseEvent.AppEventViewValue.pack(lx, ly, btn, true);
           sendMouseEvent(w, w.components.mouseEvent.mouseDown, val);
         }
         return;
@@ -167,7 +167,7 @@ private:
 
     const float lx = p.x - targetRect.x;
     const float ly = p.y - targetRect.y;
-    auto val = MouseEvent.AppEventViewValue(lx, ly, btn, inside);
+    auto val = MouseEvent.AppEventViewValue.pack(lx, ly, btn, inside);
     sendMouseEvent(target, target.components.mouseEvent.mouseUp, val);
   }
 
@@ -235,7 +235,7 @@ private:
             entry.widget.components.mouseEvent.mouseLeave.length > 0) {
           const float lx = p.x - entry.absRect.x;
           const float ly = p.y - entry.absRect.y;
-          auto val = MouseEvent.AppEventViewValue(lx, ly, 0, false);
+          auto val = MouseEvent.AppEventViewValue.pack(lx, ly, 0, false);
           sendMouseEvent(
             entry.widget, entry.widget.components.mouseEvent.mouseLeave, val
           );
@@ -252,7 +252,7 @@ private:
       const wasHovered = containsWidget(hoveredWidgets, entry.widget);
       const float lx = p.x - entry.absRect.x;
       const float ly = p.y - entry.absRect.y;
-      auto val = MouseEvent.AppEventViewValue(lx, ly, 0, true);
+      auto val = MouseEvent.AppEventViewValue.pack(lx, ly, 0, true);
 
       if (!wasHovered &&
           entry.widget.components.mouseEvent.mouseEnter.length > 0) {
@@ -380,7 +380,10 @@ unittest {
 
   auto rootNoView = fix.makeRoot(RectF(0, 0, 200, 200));
   auto childNoView = fix.makeChild(rootNoView, RectF(0, 0, 50, 50));
-  auto ev1 = ViewAppEventBuilder("rawClick", childNoView).value(1).build();
+  auto ev1 = ViewAppEventBuilder("rawClick")
+    .widget(childNoView)
+    .value(1)
+    .build();
   passViewEvent(testUi, childNoView, ev1);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "rawClick");
@@ -392,7 +395,10 @@ unittest {
   rootView.components.view = new ViewComponent;
   rootView.components.view.renameEvents["btnClick"] = "playVideo";
   auto childBtn = fix.makeChild(rootView, RectF(0, 0, 50, 50));
-  auto ev2 = ViewAppEventBuilder("btnClick", childBtn).value(1).build();
+  auto ev2 = ViewAppEventBuilder("btnClick")
+    .widget(childBtn)
+    .value(1)
+    .build();
   passViewEvent(testUi, childBtn, ev2);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "playVideo");
@@ -401,7 +407,10 @@ unittest {
 
   testUi.sentEvents = null;
   rootView.components.view.renameEvents["suppressMe"] = "";
-  auto ev3 = ViewAppEventBuilder("suppressMe", childBtn).value(1).build();
+  auto ev3 = ViewAppEventBuilder("suppressMe")
+    .widget(childBtn)
+    .value(1)
+    .build();
   passViewEvent(testUi, childBtn, ev3);
   assert(testUi.sentEvents.length == 0);
 }
@@ -423,14 +432,20 @@ unittest {
   innerView.components.view.renameEvents["click"] = "itemSelected";
 
   auto nestedBtn = fix.makeChild(innerView, RectF(0, 0, 50, 50));
-  auto ev4 = ViewAppEventBuilder("click", nestedBtn).value(1).build();
+  auto ev4 = ViewAppEventBuilder("click")
+    .widget(nestedBtn)
+    .value(1)
+    .build();
   passViewEvent(testUi, nestedBtn, ev4);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "orderUpdated");
   assert(testUi.sentEvents[0].view.viewWidget is outerView);
 
   testUi.sentEvents = null;
-  auto ev5 = ViewAppEventBuilder("unmappedInInner", nestedBtn).value(1).build();
+  auto ev5 = ViewAppEventBuilder("unmappedInInner")
+    .widget(nestedBtn)
+    .value(1)
+    .build();
   outerView.components.view.renameEvents["unmappedInInner"] = "handledByOuter";
   passViewEvent(testUi, nestedBtn, ev5);
   assert(testUi.sentEvents.length == 1);
@@ -440,7 +455,10 @@ unittest {
   auto selfView = fix.makeRoot(RectF(0, 0, 100, 100));
   selfView.components.view = new ViewComponent;
   selfView.components.view.renameEvents["panelClick"] = "openPanel";
-  auto ev6 = ViewAppEventBuilder("panelClick", selfView).value(1).build();
+  auto ev6 = ViewAppEventBuilder("panelClick")
+    .widget(selfView)
+    .value(1)
+    .build();
   passViewEvent(testUi, selfView, ev6);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "openPanel");
@@ -464,28 +482,32 @@ unittest {
     VisibleWidget(btnWidget, RectF(10, 10, 100, 50), false, RectF.init)
   ];
 
-  auto downEv = AppEvent(
+  auto downEv = AppEvent.mouseEvent(
     AppEvent.Kind.mouseButtonDown,
     AppEvent.MouseData(1, 20.0f, 30.0f, 0, 0, 0, 1, true, 1)
   );
   inputSys.handleEventAndUpdateView(downEv, visBtn);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "btnDown");
-  auto downVal = MouseEvent.AppEventViewValue(testUi.sentEvents[0].view.value);
+  auto downVal = MouseEvent.AppEventViewValue.fromRaw(
+    testUi.sentEvents[0].view.value
+  );
   assert(downVal.buttons == 1);
   assert(downVal.localX == 10.0f);
   assert(downVal.localY == 20.0f);
   assert(downVal.inside);
 
   testUi.sentEvents = null;
-  auto upEv = AppEvent(
+  auto upEv = AppEvent.mouseEvent(
     AppEvent.Kind.mouseButtonUp,
     AppEvent.MouseData(1, 25.0f, 35.0f, 0, 0, 0, 1, false, 1)
   );
   inputSys.handleEventAndUpdateView(upEv, visBtn);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "btnUp");
-  auto upVal = MouseEvent.AppEventViewValue(testUi.sentEvents[0].view.value);
+  auto upVal = MouseEvent.AppEventViewValue.fromRaw(
+    testUi.sentEvents[0].view.value
+  );
   assert(upVal.buttons == 1);
   assert(upVal.localX == 15.0f);
   assert(upVal.localY == 25.0f);
@@ -517,7 +539,7 @@ unittest {
     VisibleWidget(hoverWidget, RectF(50, 50, 100, 100), false, RectF.init)
   ];
 
-  auto motionIn = AppEvent(
+  auto motionIn = AppEvent.mouseEvent(
     AppEvent.Kind.mouseMotion,
     AppEvent.MouseData(1, 60.0f, 70.0f, 0, 0, 0, 0, false, 0)
   );
@@ -525,12 +547,14 @@ unittest {
   assert(testUi.sentEvents.length == 2);
   assert(testUi.sentEvents[0].view.eventName == "hoverEnter");
   assert(testUi.sentEvents[1].view.eventName == "hoverMove");
-  auto enterVal = MouseEvent.AppEventViewValue(testUi.sentEvents[0].view.value);
+  auto enterVal = MouseEvent.AppEventViewValue.fromRaw(
+    testUi.sentEvents[0].view.value
+  );
   assert(enterVal.localX == 10.0f);
   assert(enterVal.localY == 20.0f);
 
   testUi.sentEvents = null;
-  auto motionInside = AppEvent(
+  auto motionInside = AppEvent.mouseEvent(
     AppEvent.Kind.mouseMotion,
     AppEvent.MouseData(1, 80.0f, 90.0f, 0, 0, 0, 0, false, 0)
   );
@@ -539,7 +563,7 @@ unittest {
   assert(testUi.sentEvents[0].view.eventName == "hoverMove");
 
   testUi.sentEvents = null;
-  auto motionOut = AppEvent(
+  auto motionOut = AppEvent.mouseEvent(
     AppEvent.Kind.mouseMotion,
     AppEvent.MouseData(1, 200.0f, 200.0f, 0, 0, 0, 0, false, 0)
   );
@@ -582,7 +606,7 @@ unittest {
     VisibleWidget(childBox, RectF(50, 50, 50, 50), false, RectF.init)
   ];
 
-  auto motionParent = AppEvent(
+  auto motionParent = AppEvent.mouseEvent(
     AppEvent.Kind.mouseMotion,
     AppEvent.MouseData(1, 20.0f, 20.0f, 0, 0, 0, 0, false, 0)
   );
@@ -591,7 +615,7 @@ unittest {
   assert(testUi.sentEvents[0].view.eventName == "parentEnter");
 
   testUi.sentEvents = null;
-  auto motionChild = AppEvent(
+  auto motionChild = AppEvent.mouseEvent(
     AppEvent.Kind.mouseMotion,
     AppEvent.MouseData(1, 60.0f, 60.0f, 0, 0, 0, 0, false, 0)
   );
@@ -602,7 +626,7 @@ unittest {
   assert(testUi.sentEvents[2].view.eventName == "parentMove");
 
   testUi.sentEvents = null;
-  auto motionOut = AppEvent(
+  auto motionOut = AppEvent.mouseEvent(
     AppEvent.Kind.mouseMotion,
     AppEvent.MouseData(1, 400.0f, 400.0f, 0, 0, 0, 0, false, 0)
   );
@@ -628,7 +652,7 @@ unittest {
       clippedWidget, RectF(0, 0, 100, 100), true, RectF(0, 0, 50, 50)
     )
   ];
-  auto motionOutsideClip = AppEvent(
+  auto motionOutsideClip = AppEvent.mouseEvent(
     AppEvent.Kind.mouseMotion,
     AppEvent.MouseData(1, 80.0f, 80.0f, 0, 0, 0, 0, false, 0)
   );
@@ -658,7 +682,7 @@ unittest {
     VisibleWidget(plainPanel, RectF(0, 0, 100, 50), false, RectF.init)
   ];
 
-  auto downEv = AppEvent(
+  auto downEv = AppEvent.mouseEvent(
     AppEvent.Kind.mouseButtonDown,
     AppEvent.MouseData(1, 20.0f, 20.0f, 0, 0, 0, 1, true, 1)
   );
@@ -706,14 +730,16 @@ unittest {
   assert(testUi.sentEvents[0].view.eventName == "underDown");
 
   testUi.sentEvents = null;
-  auto upOutside = AppEvent(
+  auto upOutside = AppEvent.mouseEvent(
     AppEvent.Kind.mouseButtonUp,
     AppEvent.MouseData(1, 300.0f, 300.0f, 0, 0, 0, 1, false, 1)
   );
   inputSys.handleEventAndUpdateView(upOutside, visUnderOnly);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "underUp");
-  auto upVal = MouseEvent.AppEventViewValue(testUi.sentEvents[0].view.value);
+  auto upVal = MouseEvent.AppEventViewValue.fromRaw(
+    testUi.sentEvents[0].view.value
+  );
   assert(!upVal.inside);
   assert(upVal.localX == 300.0f);
 }
@@ -744,7 +770,7 @@ unittest {
   ];
 
   // T17: Up without prior down produces nothing
-  auto upEvA = AppEvent(
+  auto upEvA = AppEvent.mouseEvent(
     AppEvent.Kind.mouseButtonUp,
     AppEvent.MouseData(1, 10.0f, 10.0f, 0, 0, 0, 1, false, 1)
   );
@@ -752,7 +778,7 @@ unittest {
   assert(testUi.sentEvents.length == 0);
 
   // T18: Down on A, up over B routes up to A
-  auto downEvA = AppEvent(
+  auto downEvA = AppEvent.mouseEvent(
     AppEvent.Kind.mouseButtonDown,
     AppEvent.MouseData(1, 10.0f, 10.0f, 0, 0, 0, 1, true, 1)
   );
@@ -761,7 +787,7 @@ unittest {
   assert(testUi.sentEvents[0].view.eventName == "aDown");
 
   testUi.sentEvents = null;
-  auto upEvOverB = AppEvent(
+  auto upEvOverB = AppEvent.mouseEvent(
     AppEvent.Kind.mouseButtonUp,
     AppEvent.MouseData(1, 70.0f, 10.0f, 0, 0, 0, 1, false, 1)
   );
@@ -778,7 +804,10 @@ unittest {
   parentRoot.components.view.renameEvents["childClick"] = "renamedClick";
   parentRoot.update(WidgetUpdateScope.parentView);
 
-  auto childEv = ViewAppEventBuilder("childClick", childW).value(1).build();
+  auto childEv = ViewAppEventBuilder("childClick")
+    .widget(childW)
+    .value(1)
+    .build();
   passViewEvent(testUi, childW, childEv);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "renamedClick");
@@ -803,7 +832,7 @@ unittest {
     VisibleWidget(movingBtn, RectF(0, 0, 100, 100), false, RectF.init)
   ];
 
-  auto motion = AppEvent(
+  auto motion = AppEvent.mouseEvent(
     AppEvent.Kind.mouseMotion,
     AppEvent.MouseData(1, 50.0f, 50.0f, 0, 0, 0, 0, false, 0)
   );
@@ -843,7 +872,7 @@ unittest {
     VisibleWidget(movingBtn, RectF(0, 0, 100, 100), false, RectF.init),
     VisibleWidget(kbWidget, RectF(0, 0, 100, 100), false, RectF.init)
   ];
-  auto downEv = AppEvent(
+  auto downEv = AppEvent.mouseEvent(
     AppEvent.Kind.mouseButtonDown,
     AppEvent.MouseData(1, 50.0f, 50.0f, 0, 0, 0, 1, true, 1)
   );
@@ -871,7 +900,7 @@ unittest {
     VisibleWidget(btn, RectF(0, 0, 100, 100), false, RectF.init)
   ];
 
-  auto motion = AppEvent(
+  auto motion = AppEvent.mouseEvent(
     AppEvent.Kind.mouseMotion,
     AppEvent.MouseData(0, 50.0f, 50.0f, 0, 0, 0, 0, false, 0)
   );
@@ -909,7 +938,7 @@ unittest {
     VisibleWidget(childBox, RectF(50, 50, 50, 50), false, RectF.init)
   ];
 
-  auto motionIn = AppEvent(
+  auto motionIn = AppEvent.mouseEvent(
     AppEvent.Kind.mouseMotion,
     AppEvent.MouseData(1, 60.0f, 70.0f, 0, 0, 0, 0, false, 0)
   );
@@ -919,7 +948,7 @@ unittest {
   assert(testUi.sentEvents[1].view.eventName == "parentEnter");
 
   testUi.sentEvents = null;
-  auto winLeave = AppEvent(
+  auto winLeave = AppEvent.windowEvent(
     AppEvent.Kind.windowMouseLeave,
     AppEvent.WindowData(1)
   );
@@ -927,7 +956,7 @@ unittest {
   assert(testUi.sentEvents.length == 2);
   assert(testUi.sentEvents[0].view.eventName == "childLeave");
   assert(testUi.sentEvents[1].view.eventName == "parentLeave");
-  auto childLeaveVal = MouseEvent.AppEventViewValue(
+  auto childLeaveVal = MouseEvent.AppEventViewValue.fromRaw(
     testUi.sentEvents[0].view.value
   );
   assert(!childLeaveVal.inside);
@@ -940,7 +969,7 @@ unittest {
   assert(testUi.sentEvents.length == 0);
 
   // windowMouseEnter does not re-hover at stale position before mouseMotion
-  auto winEnter = AppEvent(
+  auto winEnter = AppEvent.windowEvent(
     AppEvent.Kind.windowMouseEnter,
     AppEvent.WindowData(1)
   );

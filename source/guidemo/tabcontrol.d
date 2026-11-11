@@ -49,12 +49,9 @@ final class TabsModel : VersionedModel {
   string[] tabNames;
   size_t activeTab = 0;
 
-  this() {
-  }
-
   /// Constructs TabsModel with initial tab captions (`names` allowed to be
   /// null/empty) and active index.
-  this(string[] names, size_t initialActiveTab = 0) {
+  this(string[] names = null, size_t initialActiveTab = 0) {
     this.tabNames = names.dup;
     this.activeTab = initialActiveTab;
   }
@@ -106,11 +103,9 @@ final class TabButtonsProvider : WidgetArrayProvider {
 
   override void addWidget(Widget parent) {
     assert(parent !is null, "parent must not be null");
-    WidgetBuilder(
-      ui,
-      parent,
-      RectF(0, 0, style.buttonWidth, style.buttonHeight)
-    )
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(parent)
+      .rect(RectF(0, 0, style.buttonWidth, style.buttonHeight))
       .fixedSize(style.buttonWidth, style.buttonHeight)
       .padding(5, 8, 5, 8)
       .roundBackground(style.inactiveBg, style.cornerRadius)
@@ -158,22 +153,8 @@ final class TabControlEntry {
   PointF lastViewportSize = PointF(0.0f, 0.0f);
   bool viewDirty = false;
 
-  this(
-    ref ModelTracker!TabsModel tracker,
-    Widget leftBtn,
-    Widget scrollViewport,
-    Widget tabsContainer,
-    Widget rightBtn,
-    in TabControlStyle style = TabControlStyle(),
-    FlexDirection direction = FlexDirection.row
-  ) {
-    this.tracker = ModelTracker!TabsModel(tracker);
-    this.leftBtn = leftBtn;
-    this.scrollViewport = scrollViewport;
-    this.tabsContainer = tabsContainer;
-    this.rightBtn = rightBtn;
-    this.style = style;
-    this.direction = direction;
+  this(ref ModelTracker!TabsModel tracker) {
+    this.tracker = ModelTracker!TabsModel.from(tracker);
   }
 }
 
@@ -202,15 +183,14 @@ final class TabControlWidgetView : WidgetViewBase {
     if (!isWidgetRegistered(viewWidget)) {
       registerViewWidget(viewWidget);
     }
-    tabEntries[viewWidget] = new TabControlEntry(
-      tracker,
-      leftBtn,
-      scrollViewport,
-      tabsContainer,
-      rightBtn,
-      style,
-      direction
-    );
+    auto entry = new TabControlEntry(tracker);
+    entry.leftBtn = leftBtn;
+    entry.scrollViewport = scrollViewport;
+    entry.tabsContainer = tabsContainer;
+    entry.rightBtn = rightBtn;
+    entry.style = style;
+    entry.direction = direction;
+    tabEntries[viewWidget] = entry;
     if (
       tabsContainer !is null && tabsContainer.components.widgetArray !is null
     ) {
@@ -274,7 +254,7 @@ final class TabControlWidgetView : WidgetViewBase {
         );
       }
     } else {
-      pEntry.tracker = ModelTracker!TabsModel(tracker);
+      pEntry.tracker = ModelTracker!TabsModel.from(tracker);
       if (pEntry.tabsContainer !is null &&
           pEntry.tabsContainer.components.widgetArray !is null) {
         pEntry.tabsContainer.components.widgetArray.itemsCount =
@@ -844,7 +824,8 @@ final class TabControlWidgetViewController : WidgetViewControllerBase {
               return HandleResult(HandleResult.Result.updateView, true);
             }
             if (eventName == tabScrollChangedEvent) {
-              auto val = ScrollableArea.AppEventViewValue(ev.view.value);
+              auto val =
+                ScrollableArea.AppEventViewValue.fromRaw(ev.view.value);
               tcv.handleScrollChanged(ev.view.viewWidget, val);
               return HandleResult(HandleResult.Result.updateView, true);
             }
@@ -872,7 +853,7 @@ struct TabControlBuilder {
   }
 
   ref TabControlBuilder model(ref ModelTracker!TabsModel tracker) return {
-    tabsTracker = ModelTracker!TabsModel(tracker);
+    tabsTracker = ModelTracker!TabsModel.from(tracker);
     hasModel = true;
     return this;
   }
@@ -954,12 +935,16 @@ struct TabControlBuilder {
       ? btnStyle.buttonHeight
       : btnStyle.arrowButtonSize;
 
-    Widget root = WidgetBuilder(ui, parent, rect)
+    Widget root = WidgetBuilder(ui.nextWidgetId())
+      .parent(parent)
+      .rect(rect)
       .flex(flexDir, btnStyle.arrowGap, JustifyContent.start, flexAlign)
       .view(registry, renameMap, tabControlWidgetViewName)
       .build();
 
-    auto leftBtn = WidgetBuilder(ui, root, RectF(0, 0, arrowW, arrowH))
+    auto leftBtn = WidgetBuilder(ui.nextWidgetId())
+      .parent(root)
+      .rect(RectF(0, 0, arrowW, arrowH))
       .fixedSize(arrowW, arrowH)
       .padding(2, 4, 2, 4)
       .roundBackground(btnStyle.disabledBg, btnStyle.cornerRadius)
@@ -975,11 +960,9 @@ struct TabControlBuilder {
     leftBtn.inputEnabled = false;
     leftBtn.visible = false;
 
-    auto scrollViewport = WidgetBuilder(
-      ui,
-      root,
-      RectF(0, 0, rect.width, rect.height)
-    )
+    auto scrollViewport = WidgetBuilder(ui.nextWidgetId())
+      .parent(root)
+      .rect(RectF(0, 0, rect.width, rect.height))
       .size(
         isRow
           ? Size.fraction(1.0f, 0.0f)
@@ -998,18 +981,18 @@ struct TabControlBuilder {
     }
 
     auto provider = new TabButtonsProvider(ui, tabsTracker.model, btnStyle);
-    auto tabsContainer = WidgetBuilder(
-      ui,
-      scrollViewport,
-      RectF(0, 0, 1.0f, 1.0f)
-    )
+    auto tabsContainer = WidgetBuilder(ui.nextWidgetId())
+      .parent(scrollViewport)
+      .rect(RectF(0, 0, 1.0f, 1.0f))
       .autoSize()
       .minSize(1.0f, 1.0f)
       .flex(flexDir, flexGap, flexJustify, flexAlign)
       .widgetArray(provider, tabsTracker.model.tabNames.length)
       .build();
 
-    auto rightBtn = WidgetBuilder(ui, root, RectF(0, 0, arrowW, arrowH))
+    auto rightBtn = WidgetBuilder(ui.nextWidgetId())
+      .parent(root)
+      .rect(RectF(0, 0, arrowW, arrowH))
       .fixedSize(arrowW, arrowH)
       .padding(2, 4, 2, 4)
       .roundBackground(btnStyle.disabledBg, btnStyle.cornerRadius)
@@ -1162,10 +1145,12 @@ unittest {
   tabsContainer.children[2].rect = RectF(256, 0, 120, 28);
 
   // 1. Verify fitting state: content 376 <= 400 -> buttons remain hidden
-  auto fitVal = ScrollableArea.AppEventViewValue(
-    PointF(376, 28),
-    PointF(400, 28),
-    PointF(0, 0)
+  auto fitVal = ScrollableArea.AppEventViewValue.fromRaw(
+    ScrollableArea.AppEventViewValue.pack(
+      PointF(376, 28),
+      PointF(400, 28),
+      PointF(0, 0)
+    )
   );
   registeredView.handleScrollChanged(tabRoot, fitVal);
   assert(!leftBtn.visible);
@@ -1202,10 +1187,12 @@ unittest {
   assert(tabsContainer.children[2].components.background.color == tabActiveBg);
 
   // 3. Overflow state: tabs exceed container (e.g. content 500 > viewport 336)
-  auto overflowVal = ScrollableArea.AppEventViewValue(
-    PointF(500, 28),
-    PointF(336, 28),
-    PointF(0, 0)
+  auto overflowVal = ScrollableArea.AppEventViewValue.fromRaw(
+    ScrollableArea.AppEventViewValue.pack(
+      PointF(500, 28),
+      PointF(336, 28),
+      PointF(0, 0)
+    )
   );
   registeredView.handleScrollChanged(tabRoot, overflowVal);
   assert(leftBtn.visible);
@@ -1256,7 +1243,7 @@ unittest {
   // Manually set offset to 70 (not aligned with any tab)
   sa.offset = PointF(70.0f, 0.0f);
   // Simulate resize: viewport changes from 336 to 280
-  auto resizeVal = ScrollableArea.AppEventViewValue(
+  auto resizeVal = ScrollableArea.AppEventViewValue.pack(
     PointF(500, 28),
     PointF(280, 28),
     PointF(70, 0)

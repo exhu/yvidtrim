@@ -40,9 +40,11 @@ struct ModelTracker(T : VersionedModel) {
     assert(m !is null);
     this.m = m;
   }
-  this(ref ModelTracker!T other) {
-    this.m = other.m;
+
+  static ModelTracker!T from(ref ModelTracker!T other) {
+    return ModelTracker!T(other.m);
   }
+
   private T m;
 
   @property const(T) model() {

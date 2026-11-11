@@ -62,7 +62,9 @@ private:
       "1. System-Driven Smooth Color Fading (Hover & Press Transition)"
     );
 
-    WidgetBuilder(ui, card, RectF(16, 36, 570, 36))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 36, 570, 36))
       .text(
         "AnimatedHoverButtonSystem updates button colors in preLayout phase. " ~
           "No manual button registration or wrapper View required.",
@@ -72,7 +74,9 @@ private:
       .build();
 
     // Row of fade buttons
-    auto btnRow = WidgetBuilder(ui, card, RectF(16, 80, 570, 50))
+    auto btnRow = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 80, 570, 50))
       .flex(
         FlexDirection.row,
         14.0f,
@@ -133,13 +137,17 @@ private:
       .build(ui, btnRow, RectF(0, 0, 140, 38));
 
     // Note card
-    auto noteBox = WidgetBuilder(ui, card, RectF(16, 148, 570, 110))
+    auto noteBox = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 148, 570, 110))
       .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
       .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
       .padding(10, 12)
       .build();
 
-    WidgetBuilder(ui, noteBox, RectF(12, 10, 546, 20))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(noteBox)
+      .rect(RectF(12, 10, 546, 20))
       .text(
         "WidgetSystem Advantages:",
         ColorF(0.90f, 0.90f, 0.40f, 1.0f),
@@ -147,7 +155,9 @@ private:
       )
       .build();
 
-    WidgetBuilder(ui, noteBox, RectF(12, 34, 546, 60))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(noteBox)
+      .rect(RectF(12, 34, 546, 60))
       .text(
         "- Single Widget node with AnimatedHoverButtonComponent attached\n" ~
         "- Traversed via ctx.visibleWidgets in preLayout and postLayout\n" ~
@@ -166,7 +176,9 @@ private:
       "2. System Dynamic Gradient Play & Shimmer Wave"
     );
 
-    WidgetBuilder(ui, card, RectF(16, 36, 580, 36))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 36, 580, 36))
       .text(
         "Continuous shimmer wave calculated during preLayout phase " ~
           "using cursor normalized coordinates.",
@@ -175,7 +187,9 @@ private:
       )
       .build();
 
-    auto btnRow = WidgetBuilder(ui, card, RectF(16, 80, 580, 50))
+    auto btnRow = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 80, 580, 50))
       .flex(
         FlexDirection.row,
         14.0f,
@@ -239,13 +253,17 @@ private:
       .build(ui, btnRow, RectF(0, 0, 145, 38));
 
     // Note card
-    auto noteBox = WidgetBuilder(ui, card, RectF(16, 148, 580, 110))
+    auto noteBox = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 148, 580, 110))
       .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
       .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
       .padding(10, 12)
       .build();
 
-    WidgetBuilder(ui, noteBox, RectF(12, 10, 556, 20))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(noteBox)
+      .rect(RectF(12, 10, 556, 20))
       .text(
         "Gradient Wave Features:",
         ColorF(0.90f, 0.90f, 0.40f, 1.0f),
@@ -253,7 +271,9 @@ private:
       )
       .build();
 
-    WidgetBuilder(ui, noteBox, RectF(12, 34, 556, 60))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(noteBox)
+      .rect(RectF(12, 34, 556, 60))
       .text(
         "- Continuous wave oscillation at 60 FPS while cursor is hovered\n" ~
         "- System queries cursorNormX/Y directly from hit test\n" ~
@@ -272,7 +292,9 @@ private:
       "3. Interactive Action Button & Click Counter"
     );
 
-    WidgetBuilder(ui, card, RectF(16, 36, 570, 36))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 36, 570, 36))
       .text(
         "Clicking the action button dispatches an event via ctx.host. " ~
           "DemoController intercepts the event and updates DemoModel.",
@@ -281,7 +303,9 @@ private:
       )
       .build();
 
-    auto actionRow = WidgetBuilder(ui, card, RectF(16, 80, 570, 50))
+    auto actionRow = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 80, 570, 50))
       .flex(
         FlexDirection.row,
         14.0f,
@@ -325,13 +349,17 @@ private:
       .build(ui, actionRow, RectF(0, 0, 140, 42));
 
     // HUD Counter Display Box
-    auto hudBox = WidgetBuilder(ui, card, RectF(16, 148, 570, 110))
+    auto hudBox = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 148, 570, 110))
       .roundBackground(ColorF(0.09f, 0.12f, 0.16f, 1.0f), 6.0f)
       .border(ColorF(0.25f, 0.35f, 0.50f, 1.0f), 1.5f)
       .padding(12, 16)
       .build();
 
-    counterLabel = WidgetBuilder(ui, hudBox, RectF(16, 14, 538, 28))
+    counterLabel = WidgetBuilder(ui.nextWidgetId())
+      .parent(hudBox)
+      .rect(RectF(16, 14, 538, 28))
       .text(
         "Button Action Invocations: 0 clicks",
         ColorF(0.40f, 0.95f, 0.60f, 1.0f),
@@ -339,7 +367,9 @@ private:
       )
       .build();
 
-    WidgetBuilder(ui, hudBox, RectF(16, 50, 538, 44))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(hudBox)
+      .rect(RectF(16, 50, 538, 44))
       .text(
         "AnimatedHoverButtonSystem dispatches action events on button\n" ~
         "release, seamlessly modifying model state via DemoController.",
@@ -357,7 +387,9 @@ private:
       "4. Architecture: WidgetSystem & WidgetComponent (ECS-Style)"
     );
 
-    WidgetBuilder(ui, card, RectF(16, 36, 580, 50))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 36, 580, 50))
       .text(
         "A button instance is a single Widget with " ~
           "AnimatedHoverButtonComponent.\n" ~
@@ -369,7 +401,9 @@ private:
       .build();
 
     // Pill shaped buttons demonstration
-    auto pillRow = WidgetBuilder(ui, card, RectF(16, 92, 580, 48))
+    auto pillRow = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 92, 580, 48))
       .flex(
         FlexDirection.row,
         14.0f,
@@ -414,13 +448,17 @@ private:
       .build(ui, pillRow, RectF(0, 0, 170, 36));
 
     // Explanatory code summary box
-    auto archBox = WidgetBuilder(ui, card, RectF(16, 148, 580, 110))
+    auto archBox = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 148, 580, 110))
       .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
       .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
       .padding(10, 12)
       .build();
 
-    WidgetBuilder(ui, archBox, RectF(12, 8, 556, 18))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(archBox)
+      .rect(RectF(12, 8, 556, 18))
       .text(
         "WidgetSystem Pipeline Flow:",
         ColorF(0.95f, 0.80f, 0.30f, 1.0f),
@@ -428,7 +466,9 @@ private:
       )
       .build();
 
-    WidgetBuilder(ui, archBox, RectF(12, 28, 556, 72))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(archBox)
+      .rect(RectF(12, 28, 556, 72))
       .text(
         "1. AppEvent -> AnimatedHoverButtonSystem.handleEvent\n" ~
         "2. preLayout: AnimatedHoverButtonSystem updates colors " ~

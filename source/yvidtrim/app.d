@@ -37,14 +37,17 @@ public:
   this(UiSystem ui, ref ModelTracker!MainModel otherTracker) {
     assert(ui !is null, "UiSystem must not be null");
     this.ui = ui;
-    tracker = ModelTracker!MainModel(otherTracker);
+    tracker = ModelTracker!MainModel.from(otherTracker);
 
-    rootWidget = WidgetBuilder(ui, RectF(10, 10, 200, 200))
+    rootWidget = WidgetBuilder(ui.nextWidgetId())
+      .rect(RectF(10, 10, 200, 200))
       .view(null)
       .background(ColorF(0.5f, 0.5f, 0.0f, 1.0f))
       .build();
 
-    alphaWidget = WidgetBuilder(ui, rootWidget, RectF(35, 45, 150, 190))
+    alphaWidget = WidgetBuilder(ui.nextWidgetId())
+      .parent(rootWidget)
+      .rect(RectF(35, 45, 150, 190))
       .background(ColorF(0.0f, 1.0f, 0.5f, 0.3f))
       .border(ColorF(0.0f, 0.0f, 0.5f, 1.0f), 2.0f, Border.Style.roundDashed)
       .text("Hello-0123456789", ColorF(0.0f, 0.0f, 1.0f, 1.0f))
@@ -52,21 +55,27 @@ public:
       .clipChildren(true)
       .build();
 
-    toggleWidget = WidgetBuilder(ui, rootWidget, RectF(15, 15, 300, 90))
+    toggleWidget = WidgetBuilder(ui.nextWidgetId())
+      .parent(rootWidget)
+      .rect(RectF(15, 15, 300, 90))
       .background(ColorF(0.5f, 1.0f, 0.5f, 0.3f), Background.Style.round)
       .build();
 
     // --- layout testing ---
-    container = WidgetBuilder(ui, rootWidget, RectF(35, 250, 400, 300))
+    container = WidgetBuilder(ui.nextWidgetId())
+      .parent(rootWidget)
+      .rect(RectF(35, 250, 400, 300))
       .background(colors.darkGray)
       .border(colors.brightWhite, 3.0f, Border.Style.dashed)
       .flexRow(8.0f, JustifyContent.start, tracker.model.alignItems)
-      .child(ui, RectF(5, 8, 1, 1), (ref WidgetBuilder b) {
-        b.background(colors.yellow)
+      .child(ui.nextWidgetId(), (ref WidgetBuilder b) {
+        b.rect(RectF(5, 8, 1, 1))
+          .background(colors.yellow)
           .fixedSize(100.0f, 40.0f);
       })
-      .child(ui, RectF(15, 18, 1, 1), (ref WidgetBuilder b) {
-        b.background(colors.brown)
+      .child(ui.nextWidgetId(), (ref WidgetBuilder b) {
+        b.rect(RectF(15, 18, 1, 1))
+          .background(colors.brown)
           .margin(10.0f, 10.0f, 14.0f, 15.0f)
           .fixedSize(110.0f, 50.0f);
       })
@@ -80,21 +89,27 @@ public:
   }
 
   void addRightTopAnchor() {
-    WidgetBuilder(ui, rootWidget, RectF(0, 0, 30, 30))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(rootWidget)
+      .rect(RectF(0, 0, 30, 30))
       .background(colors.red)
       .anchor(new Anchor().withRight(0.0f).withTop(3.0f))
       .build();
   }
 
   void addLeftBottomAnchor() {
-    WidgetBuilder(ui, rootWidget, RectF(0, 0, 30, 30))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(rootWidget)
+      .rect(RectF(0, 0, 30, 30))
       .background(colors.brightRed)
       .anchor(new Anchor().withLeft(3.0f).withBottom(7.0f))
       .build();
   }
 
   void addRightBottomAnchor() {
-    WidgetBuilder(ui, rootWidget, RectF(0, 0, 30, 30))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(rootWidget)
+      .rect(RectF(0, 0, 30, 30))
       .background(colors.magenta)
       .anchor(new Anchor().withRight(5.0f).withBottom(2.0f))
       .build();

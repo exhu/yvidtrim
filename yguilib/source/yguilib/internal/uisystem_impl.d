@@ -402,9 +402,9 @@ unittest {
 
   auto worker = new Thread({
     Thread.sleep(msecs(20));
-    ui.sendAppEvent(AppEvent(AppEvent.UserData(101)));
-    ui.sendAppEvent(AppEvent(AppEvent.UserData(102)));
-    ui.sendAppEvent(AppEvent(AppEvent.UserData(999)));
+    ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(101)));
+    ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(102)));
+    ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(999)));
   });
   worker.start();
 
@@ -451,7 +451,7 @@ unittest {
   auto uiTick = new UiSystemImpl(window);
   auto tickCtrl = new TickController(uiTick);
   uiTick.pushController(tickCtrl);
-  uiTick.sendAppEvent(AppEvent(AppEvent.UserData(1)));
+  uiTick.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(1)));
 
   uiTick.mainEventLoop();
   assert(tickCtrl.ticks >= 2);
@@ -498,12 +498,12 @@ unittest {
   ui.pushController(ctrl);
 
   ui.sendAppEvent(
-    AppEvent(
+    AppEvent.windowEvent(
       AppEvent.Kind.windowResized,
       AppEvent.WindowData(0, 640, 480)
     )
   );
-  ui.sendAppEvent(AppEvent(AppEvent.UserData(999)));
+  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(999)));
 
   ui.mainEventLoop();
 
@@ -547,11 +547,11 @@ unittest {
   auto ctrl = new ExposeTestController();
   ui.pushController(ctrl);
 
-  ui.sendAppEvent(AppEvent(
+  ui.sendAppEvent(AppEvent.windowEvent(
     AppEvent.Kind.windowExposed,
     AppEvent.WindowData(0, 320, 240)
   ));
-  ui.sendAppEvent(AppEvent(AppEvent.UserData(999)));
+  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(999)));
 
   ui.mainEventLoop();
 
@@ -612,8 +612,8 @@ unittest {
   ui.pushController(cOldest);
   ui.pushController(cNewest);
 
-  ui.sendAppEvent(AppEvent(AppEvent.UserData(42)));
-  ui.sendAppEvent(AppEvent(AppEvent.UserData(999)));
+  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(42)));
+  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(999)));
 
   ui.mainEventLoop();
 
@@ -658,8 +658,8 @@ unittest {
   ui.pushController(cOldest);
   ui.pushController(cNewest);
 
-  ui.sendAppEvent(AppEvent(AppEvent.UserData(42)));
-  ui.sendAppEvent(AppEvent(AppEvent.UserData(999)));
+  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(42)));
+  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(999)));
 
   ui.mainEventLoop();
 
@@ -706,8 +706,8 @@ unittest {
   ui.pushController(cOldest);
   ui.pushController(cNewest);
 
-  ui.sendAppEvent(AppEvent(AppEvent.UserData(42)));
-  ui.sendAppEvent(AppEvent(AppEvent.UserData(999)));
+  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(42)));
+  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(999)));
 
   ui.mainEventLoop();
 
@@ -760,7 +760,7 @@ unittest {
   ui.pushController(cOldest);
   ui.pushController(cNewest);
 
-  ui.sendAppEvent(AppEvent(AppEvent.UserData(42)));
+  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(42)));
 
   ui.mainEventLoop();
 
@@ -802,7 +802,7 @@ unittest {
   ui.pushController(cOldest);
   ui.pushController(cNewest);
 
-  ui.sendAppEvent(AppEvent(AppEvent.UserData(1)));
+  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(1)));
   ui.mainEventLoop();
 
   assert(log == ["newest:handleEvent"]);
@@ -837,7 +837,7 @@ unittest {
   ui.pushController(cOldest);
   ui.pushController(cNewest);
 
-  ui.sendAppEvent(AppEvent(AppEvent.UserData(1)));
+  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(1)));
 
   int timeoutMs = -1;
   // Step 1: Unconsumed event visited both controllers.
@@ -851,7 +851,7 @@ unittest {
   // was not visited.
   cNewest.myTimeout = -1;
   cNewest.shouldConsume = true;
-  ui.sendAppEvent(AppEvent(AppEvent.UserData(2)));
+  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(2)));
   cont = ui.runEventLoopStep(cNewest, timeoutMs);
   assert(cont);
   assert(timeoutMs == 20);
@@ -861,7 +861,7 @@ unittest {
   // All controllers visited and none requested timeout => reset to -1.
   cNewest.shouldConsume = false;
   cOldest.myTimeout = -1;
-  ui.sendAppEvent(AppEvent(AppEvent.UserData(3)));
+  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(3)));
   cont = ui.runEventLoopStep(cNewest, timeoutMs);
   assert(cont);
   assert(timeoutMs == -1);

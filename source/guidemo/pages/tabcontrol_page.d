@@ -254,7 +254,9 @@ private:
       "1. Interactive Sub-Panel Switcher (Event: \"pageTabSwitch\")"
     );
 
-    WidgetBuilder(ui, card, RectF(16, 36, 570, 20))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 36, 570, 20))
       .text(
         "Clicking a tab translates mouseDown into \"pageTabSwitch\" with " ~
           "tab index in value[0].",
@@ -272,7 +274,9 @@ private:
 
     buildSubPanels(card);
 
-    eventLogLabel = WidgetBuilder(ui, card, RectF(16, 246, 570, 22))
+    eventLogLabel = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 246, 570, 22))
       .text(
         "Last Event: \"none\" | ViewData.value[0] = 0",
         ColorF(0.95f, 0.90f, 0.40f, 1.0f),
@@ -322,17 +326,23 @@ private:
     string title,
     string bodyText
   ) {
-    auto box = WidgetBuilder(ui, parent, RectF(16, 104, 573, 130))
+    auto box = WidgetBuilder(ui.nextWidgetId())
+      .parent(parent)
+      .rect(RectF(16, 104, 573, 130))
       .roundBackground(bgCol, 6.0f)
       .border(borderCol, 1.0f)
       .padding(10, 12)
       .build();
 
-    WidgetBuilder(ui, box, RectF(14, 10, 540, 22))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(box)
+      .rect(RectF(14, 10, 540, 22))
       .text(title, ColorF(0.95f, 0.98f, 1.0f, 1.0f), 14.0f)
       .build();
 
-    WidgetBuilder(ui, box, RectF(14, 38, 540, 78))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(box)
+      .rect(RectF(14, 38, 540, 78))
       .text(bodyText, ColorF(0.75f, 0.82f, 0.92f, 1.0f), 12.0f)
       .build();
 
@@ -347,7 +357,9 @@ private:
       "2. Dynamic TabsModel & WidgetArray Sync (Event: \"dynamicTabSwitch\")"
     );
 
-    WidgetBuilder(ui, card, RectF(16, 36, 580, 20))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 36, 580, 20))
       .text(
         "Mutate TabsModel at runtime: DataSystem pools & reuses tab buttons.",
         ColorF(0.70f, 0.75f, 0.85f, 1.0f),
@@ -367,7 +379,9 @@ private:
   }
 
   void buildDynamicMutationButtons(Widget card) {
-    auto btnRow = WidgetBuilder(ui, card, RectF(16, 108, 580, 42))
+    auto btnRow = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 108, 580, 42))
       .flex(
         FlexDirection.row,
         10.0f,
@@ -466,13 +480,17 @@ private:
   }
 
   void buildDynamicInfoBox(Widget card) {
-    auto infoBox = WidgetBuilder(ui, card, RectF(16, 162, 583, 102))
+    auto infoBox = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 162, 583, 102))
       .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
       .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
       .padding(10, 12)
       .build();
 
-    dynamicStatusLabel = WidgetBuilder(ui, infoBox, RectF(12, 10, 555, 22))
+    dynamicStatusLabel = WidgetBuilder(ui.nextWidgetId())
+      .parent(infoBox)
+      .rect(RectF(12, 10, 555, 22))
       .text(
         "Model Tabs: 6 / 10 | Width: 580px | Active: 0 (Clip 1)",
         ColorF(0.45f, 0.90f, 0.65f, 1.0f),
@@ -480,7 +498,9 @@ private:
       )
       .build();
 
-    WidgetBuilder(ui, infoBox, RectF(12, 38, 555, 52))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(infoBox)
+      .rect(RectF(12, 38, 555, 52))
       .text(
         "- Adding tabs beyond 5 displays < and > scroll arrow buttons\n" ~
           "- Pressing < and > jumps scroll offset by tab button origins\n" ~
@@ -499,7 +519,9 @@ private:
       "3. Vertical TabControl & Custom Style (Event: \"verticalTabSwitch\")"
     );
 
-    WidgetBuilder(ui, card, RectF(16, 36, 570, 20))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 36, 570, 20))
       .text(
         "FlexDirection.column TabControl with custom emerald active styling.",
         ColorF(0.70f, 0.75f, 0.85f, 1.0f),
@@ -526,13 +548,17 @@ private:
   }
 
   void buildVerticalInspectorBox(Widget card) {
-    auto inspector = WidgetBuilder(ui, card, RectF(192, 66, 396, 196))
+    auto inspector = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(192, 66, 396, 196))
       .roundBackground(ColorF(0.09f, 0.12f, 0.15f, 1.0f), 6.0f)
       .border(ColorF(0.22f, 0.32f, 0.40f, 1.0f), 1.0f)
       .padding(12, 14)
       .build();
 
-    verticalTitleLabel = WidgetBuilder(ui, inspector, RectF(14, 14, 368, 24))
+    verticalTitleLabel = WidgetBuilder(ui.nextWidgetId())
+      .parent(inspector)
+      .rect(RectF(14, 14, 368, 24))
       .text(
         "Track 0: Video Stream (H.264 / 60 FPS)",
         ColorF(0.45f, 0.95f, 0.70f, 1.0f),
@@ -540,7 +566,9 @@ private:
       )
       .build();
 
-    verticalDescLabel = WidgetBuilder(ui, inspector, RectF(14, 48, 368, 90))
+    verticalDescLabel = WidgetBuilder(ui.nextWidgetId())
+      .parent(inspector)
+      .rect(RectF(14, 48, 368, 90))
       .text(
         "Resolution: 1920x1080 | Keyframe interval: 2.0s\n" ~
           "Smart cut re-encodes only boundary GOP segments.",
@@ -549,7 +577,9 @@ private:
       )
       .build();
 
-    verticalIndexLabel = WidgetBuilder(ui, inspector, RectF(14, 156, 368, 22))
+    verticalIndexLabel = WidgetBuilder(ui.nextWidgetId())
+      .parent(inspector)
+      .rect(RectF(14, 156, 368, 22))
       .text(
         "Selected Vertical Tab Index (value[0]): 0",
         ColorF(0.95f, 0.90f, 0.40f, 1.0f),
@@ -566,13 +596,17 @@ private:
       "4. TabControl WidgetView & WidgetViewController Architecture"
     );
 
-    auto archBox = WidgetBuilder(ui, card, RectF(16, 40, 583, 224))
+    auto archBox = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(16, 40, 583, 224))
       .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
       .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
       .padding(12, 14)
       .build();
 
-    WidgetBuilder(ui, archBox, RectF(14, 12, 555, 22))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(archBox)
+      .rect(RectF(14, 12, 555, 22))
       .text(
         "End-to-End Event & Model Synchronization Pipeline:",
         ColorF(0.45f, 0.80f, 1.0f, 1.0f),
@@ -580,7 +614,9 @@ private:
       )
       .build();
 
-    WidgetBuilder(ui, archBox, RectF(14, 40, 555, 172))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(archBox)
+      .rect(RectF(14, 40, 555, 172))
       .text(
         "1. Registration: TabControlWidgetView & Controller are registered\n" ~
           "   once in UiSystem's UiRegistry at startup.\n" ~

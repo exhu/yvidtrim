@@ -115,7 +115,9 @@ private:
   }
 
   void buildSingleLineAlignment(Widget card) {
-    WidgetBuilder(ui, card, RectF(12, 34, 581, 16))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(12, 34, 581, 16))
       .text(
         "Single-line alignment within fixed-width boxes:",
         ColorF(0.70f, 0.75f, 0.85f, 1.0f)
@@ -129,7 +131,9 @@ private:
       TextLabel.Alignment alignment,
       ColorF borderCol
     ) {
-      return WidgetBuilder(ui, card, rect)
+      return WidgetBuilder(ui.nextWidgetId())
+        .parent(card)
+        .rect(rect)
         .fixedSize(rect.width, rect.height)
         .padding(Insets(6, 10, 6, 10))
         .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
@@ -162,14 +166,18 @@ private:
   }
 
   void buildMultilineAlignment(Widget card) {
-    WidgetBuilder(ui, card, RectF(12, 110, 581, 16))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(12, 110, 581, 16))
       .text(
         "Multiline alignment (each line aligned individually):",
         ColorF(0.70f, 0.75f, 0.85f, 1.0f)
       )
       .build();
 
-    auto multiCenterBox = WidgetBuilder(ui, card, RectF(12, 130, 285, 138))
+    auto multiCenterBox = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(12, 130, 285, 138))
       .fixedSize(285, 138)
       .padding(Insets(8, 12, 8, 12))
       .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
@@ -181,7 +189,9 @@ private:
       ).withMultiline(true).withAlignment(TextLabel.Alignment.center))
       .build();
 
-    auto multiRightBox = WidgetBuilder(ui, card, RectF(307, 130, 286, 138))
+    auto multiRightBox = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(307, 130, 286, 138))
       .fixedSize(286, 138)
       .padding(Insets(8, 12, 8, 12))
       .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
@@ -207,14 +217,18 @@ private:
   }
 
   void buildSingleLineEllipsis(Widget card) {
-    WidgetBuilder(ui, card, RectF(12, 34, 591, 16))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(12, 34, 591, 16))
       .text(
         "Single-line overflow (overflowEllipsis = true vs false):",
         ColorF(0.70f, 0.75f, 0.85f, 1.0f)
       )
       .build();
 
-    auto boxEllipsis = WidgetBuilder(ui, card, RectF(12, 54, 288, 48))
+    auto boxEllipsis = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(12, 54, 288, 48))
       .fixedSize(288, 48)
       .padding(Insets(6, 10, 6, 10))
       .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
@@ -225,7 +239,9 @@ private:
       ).withMultiline(false).withEllipsis(true))
       .build();
 
-    auto boxNoEllipsis = WidgetBuilder(ui, card, RectF(308, 54, 295, 48))
+    auto boxNoEllipsis = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(308, 54, 295, 48))
       .fixedSize(295, 48)
       .padding(Insets(6, 10, 6, 10))
       .clipContents(true)
@@ -240,14 +256,18 @@ private:
   }
 
   void buildMultilineEllipsis(Widget card) {
-    WidgetBuilder(ui, card, RectF(12, 110, 591, 16))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(12, 110, 591, 16))
       .text(
         "Multiline vertical overflow (last visible line truncated with '...'):",
         ColorF(0.70f, 0.75f, 0.85f, 1.0f)
       )
       .build();
 
-    auto multiVertEllipsis = WidgetBuilder(ui, card, RectF(12, 130, 288, 138))
+    auto multiVertEllipsis = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(12, 130, 288, 138))
       .fixedSize(288, 138)
       .padding(Insets(8, 12, 8, 12))
       .clipContents(true)
@@ -264,11 +284,9 @@ private:
       ).withMultiline(true).withEllipsis(true))
       .build();
 
-    auto multiVertNoEllipsis = WidgetBuilder(
-      ui,
-      card,
-      RectF(308, 130, 295, 138)
-    )
+    auto multiVertNoEllipsis = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(308, 130, 295, 138))
       .fixedSize(295, 138)
       .padding(Insets(8, 12, 8, 12))
       .clipContents(true)
@@ -299,14 +317,18 @@ private:
   }
 
   void buildWrappingBoxes(Widget card) {
-    WidgetBuilder(ui, card, RectF(12, 34, 581, 16))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(12, 34, 581, 16))
       .text(
         "Automatic word wrapping & explicit newlines [multiline = true]:",
         ColorF(0.70f, 0.75f, 0.85f, 1.0f)
       )
       .build();
 
-    auto wrapBox = WidgetBuilder(ui, card, RectF(12, 54, 285, 120))
+    auto wrapBox = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(12, 54, 285, 120))
       .fixedSize(285, 120)
       .padding(Insets(8, 12, 8, 12))
       .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
@@ -318,7 +340,9 @@ private:
       ).withMultiline(true))
       .build();
 
-    auto newlinesBox = WidgetBuilder(ui, card, RectF(307, 54, 286, 120))
+    auto newlinesBox = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(307, 54, 286, 120))
       .fixedSize(286, 120)
       .padding(Insets(8, 12, 8, 12))
       .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
@@ -334,14 +358,18 @@ private:
   }
 
   void buildSanitizedComparison(Widget card) {
-    WidgetBuilder(ui, card, RectF(12, 180, 581, 16))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(12, 180, 581, 16))
       .text(
         "Multiline disabled comparison [multiline = false]:",
         ColorF(0.70f, 0.75f, 0.85f, 1.0f)
       )
       .build();
 
-    auto sanitizedBox = WidgetBuilder(ui, card, RectF(12, 200, 581, 74))
+    auto sanitizedBox = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(12, 200, 581, 74))
       .fixedSize(581, 74)
       .padding(Insets(8, 12, 8, 12))
       .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
@@ -365,7 +393,9 @@ private:
       "4. Interactive TextLabel Playground (Keys: [M] [E] [L] [T])"
     );
 
-    interactiveStatusWidget = WidgetBuilder(ui, card, RectF(12, 34, 591, 30))
+    interactiveStatusWidget = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(12, 34, 591, 30))
       .fixedSize(591, 30)
       .padding(Insets(4, 10, 4, 10))
       .roundBackground(ColorF(0.14f, 0.17f, 0.23f, 1.0f), 4.0f)
@@ -376,7 +406,9 @@ private:
       )
       .build();
 
-    interactiveLabelWidget = WidgetBuilder(ui, card, RectF(12, 70, 591, 148))
+    interactiveLabelWidget = WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(12, 70, 591, 148))
       .fixedSize(591, 148)
       .padding(Insets(10, 14, 10, 14))
       .clipContents(true)
@@ -400,7 +432,9 @@ private:
   }
 
   void buildPlaygroundHint(Widget card) {
-    WidgetBuilder(ui, card, RectF(12, 226, 591, 52))
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(card)
+      .rect(RectF(12, 226, 591, 52))
       .fixedSize(591, 52)
       .padding(Insets(6, 10, 6, 10))
       .roundBackground(ColorF(0.11f, 0.13f, 0.17f, 1.0f), 4.0f)

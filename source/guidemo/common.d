@@ -16,12 +16,16 @@ Widget makeSectionCard(
   RectF rect,
   string title
 ) {
-  auto card = WidgetBuilder(ui, parent, rect)
+  auto card = WidgetBuilder(ui.nextWidgetId())
+    .parent(parent)
+    .rect(rect)
     .roundBackground(ColorF(0.13f, 0.15f, 0.18f, 1.0f), 8.0f)
     .border(ColorF(0.25f, 0.28f, 0.35f, 1.0f), 1.0f)
     .build();
 
-  WidgetBuilder(ui, card, RectF(12, 10, rect.width - 24, 20))
+  WidgetBuilder(ui.nextWidgetId())
+    .parent(card)
+    .rect(RectF(12, 10, rect.width - 24, 20))
     .text(title, ColorF(0.95f, 0.95f, 0.95f, 1.0f))
     .build();
 

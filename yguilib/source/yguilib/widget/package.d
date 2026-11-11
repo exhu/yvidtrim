@@ -627,15 +627,18 @@ unittest {
 unittest {
   import yguilib.widget.builder : WidgetBuilder;
 
-  auto root = WidgetBuilder(1, RectF(0, 0, 800, 600))
+  auto root = WidgetBuilder(1)
+    .rect(RectF(0, 0, 800, 600))
     .flex(FlexDirection.row, 10.0f)
     .background(ColorF(0.1f, 0.1f, 0.1f, 1.0f))
     .build();
 
-  auto item = WidgetBuilder(2, root, RectF(0, 0, 100, 50))
+  auto item = WidgetBuilder(2)
+    .parent(root)
+    .rect(RectF(0, 0, 100, 50))
     .fixedSize(100.0f, 50.0f)
     .padding(4.0f, 8.0f)
-    .margin(Insets(2.0f))
+    .margin(Insets.all(2.0f))
     .roundBackground(ColorF(0.2f, 0.4f, 0.8f, 1.0f), 6.0f)
     .border(ColorF(1.0f, 1.0f, 1.0f, 1.0f), 1.5f)
     .text("Button")

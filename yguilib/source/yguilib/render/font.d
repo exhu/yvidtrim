@@ -8,6 +8,19 @@ package(yguilib) enum float defaultFontPtSize = 11.0f;
 package(yguilib) enum ulong invalidFontId = 0;
 
 final class Font {
+  private this(
+    yguilib_sdl3_ttf_Font* handle,
+    float ptSize,
+    float scale
+  ) {
+    assert(handle !is null);
+    assert(ptSize > 0.0f, "ptSize must be positive");
+    this.handle = handle;
+    this.logicalPtSize = ptSize;
+    this.currentScale = scale > 0.0f ? scale : 1.0f;
+    this.id_ = ++nextFontId;
+  }
+
   /**
    * Loads a font from memory data.
    *
@@ -16,25 +29,27 @@ final class Font {
    * detail used to rasterize glyphs at native display resolution.
    *
    * Params:
-   * fontData TTF binary data in memory.
-   * ptSize Unscaled logical point size in user space.
-   * scale Rendering scaling factor (defaults to 1.0f).
+   *   fontData = TTF binary data in memory.
+   *   ptSize = Unscaled logical point size in user space.
+   *   scale = Rendering scaling factor (defaults to 1.0f).
    */
-  this(const(void)[] fontData, float ptSize, float scale = 1.0f) {
+  static Font fromMemory(
+    const(void)[] fontData,
+    float ptSize,
+    float scale = 1.0f
+  ) {
     assert(fontData.length > 0, "fontData must not be empty");
     assert(ptSize > 0.0f, "ptSize must be positive");
     float effectiveScale = scale > 0.0f ? scale : 1.0f;
-    handle = yguilib_sdl3_ttf_open_font_from_mem(
+    auto h = yguilib_sdl3_ttf_open_font_from_mem(
       fontData.ptr,
       fontData.length,
       ptSize * effectiveScale
     );
-    if (!handle) {
+    if (!h) {
       throw new Exception("Failed to load font from memory");
     }
-    this.logicalPtSize = ptSize;
-    this.currentScale = effectiveScale;
-    this.id_ = ++nextFontId;
+    return new Font(h, ptSize, effectiveScale);
   }
 
   /**
@@ -44,25 +59,28 @@ final class Font {
    * Scaling (`scale = displayScaling * unitsScaling`) is an internal renderer
    * detail used to rasterize glyphs at native display resolution.
    *
-   * @param filePath Path to the TTF font file.
-   * @param ptSize Unscaled logical point size in user space.
-   * @param scale Rendering scaling factor (defaults to 1.0f).
+   * Params:
+   *   filePath = Path to the TTF font file.
+   *   ptSize = Unscaled logical point size in user space.
+   *   scale = Rendering scaling factor (defaults to 1.0f).
    */
-  this(string filePath, float ptSize, float scale = 1.0f) {
+  static Font fromFile(
+    string filePath,
+    float ptSize,
+    float scale = 1.0f
+  ) {
     assert(filePath.length > 0, "filePath must not be empty");
     assert(ptSize > 0.0f, "ptSize must be positive");
     float effectiveScale = scale > 0.0f ? scale : 1.0f;
     import std.string : toStringz;
-    handle = yguilib_sdl3_ttf_open_font(
+    auto h = yguilib_sdl3_ttf_open_font(
       filePath.toStringz(),
       ptSize * effectiveScale
     );
-    if (!handle) {
+    if (!h) {
       throw new Exception("Failed to load font from file: " ~ filePath);
     }
-    this.logicalPtSize = ptSize;
-    this.currentScale = effectiveScale;
-    this.id_ = ++nextFontId;
+    return new Font(h, ptSize, effectiveScale);
   }
 
   ~this() {
@@ -171,11 +189,11 @@ unittest {
   yguilib_sdl3_init();
   scope(exit) yguilib_sdl3_quit();
 
-  Font f1 = new Font(cast(const(void)[])defaultTtfFontData, 12.0f);
+  Font f1 = Font.fromMemory(cast(const(void)[])defaultTtfFontData, 12.0f);
   scope(exit) f1.destroy();
   assert(f1.id != invalidFontId);
 
-  Font f2 = new Font(cast(const(void)[])defaultTtfFontData, 14.0f);
+  Font f2 = Font.fromMemory(cast(const(void)[])defaultTtfFontData, 14.0f);
   scope(exit) f2.destroy();
   assert(f2.id != invalidFontId);
   assert(f1.id != f2.id);

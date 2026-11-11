@@ -48,20 +48,12 @@ struct Insets {
   float bottom = 0;
   float left = 0;
 
-  this(float all) {
-    top = right = bottom = left = all;
+  static Insets all(float val) {
+    return Insets(val, val, val, val);
   }
 
-  this(float vertical, float horizontal) {
-    top = bottom = vertical;
-    left = right = horizontal;
-  }
-
-  this(float top, float right, float bottom, float left) {
-    this.top = top;
-    this.right = right;
-    this.bottom = bottom;
-    this.left = left;
+  static Insets vh(float vertical, float horizontal) {
+    return Insets(vertical, horizontal, vertical, horizontal);
   }
 }
 
@@ -108,9 +100,14 @@ enum AlignItems {
 class FlexContainer : WidgetComponent {
   this() {}
 
-  this(FlexDirection direction, float gap = 0) {
+  FlexContainer withDirection(FlexDirection direction) {
     this.direction = direction;
+    return this;
+  }
+
+  FlexContainer withGap(float gap) {
     this.gap = gap;
+    return this;
   }
 
   FlexContainer withJustify(JustifyContent justify) {
@@ -124,11 +121,15 @@ class FlexContainer : WidgetComponent {
   }
 
   static FlexContainer row(float gap = 0) {
-    return new FlexContainer(FlexDirection.row, gap);
+    return new FlexContainer()
+      .withDirection(FlexDirection.row)
+      .withGap(gap);
   }
 
   static FlexContainer column(float gap = 0) {
-    return new FlexContainer(FlexDirection.column, gap);
+    return new FlexContainer()
+      .withDirection(FlexDirection.column)
+      .withGap(gap);
   }
 
   // -- Phase 2: Direction & Spacing --
@@ -154,15 +155,6 @@ class FlexContainer : WidgetComponent {
 /// layout should carry this component.
 class Size : WidgetComponent {
   this() {}
-
-  this(Insets padding) {
-    this.padding = padding;
-  }
-
-  this(Dimension width, Dimension height) {
-    this.width = width;
-    this.height = height;
-  }
 
   Size withPadding(Insets insets) {
     this.padding = insets;
@@ -251,18 +243,6 @@ class Size : WidgetComponent {
 class Anchor : WidgetComponent {
   this() {}
 
-  this(
-    Nullable!float left,
-    Nullable!float top = Nullable!float.init,
-    Nullable!float right = Nullable!float.init,
-    Nullable!float bottom = Nullable!float.init
-  ) {
-    this.left = left;
-    this.top = top;
-    this.right = right;
-    this.bottom = bottom;
-  }
-
   Anchor withRight(float right) {
     import std.typecons : nullable;
     this.right = nullable(right);
@@ -299,13 +279,17 @@ class Anchor : WidgetComponent {
 
 unittest {
   // Insets constructors
-  const Insets i1 = Insets(8.0f);
+  const Insets i1 = Insets.all(8.0f);
   assert(i1.top == 8.0f && i1.right == 8.0f && i1.bottom == 8.0f &&
     i1.left == 8.0f);
 
-  const Insets i2 = Insets(6.0f, 12.0f);
+  const Insets i2 = Insets.vh(6.0f, 12.0f);
   assert(i2.top == 6.0f && i2.bottom == 6.0f);
   assert(i2.left == 12.0f && i2.right == 12.0f);
+
+  const Insets i3 = Insets(5.0f, 10.0f, 15.0f, 20.0f);
+  assert(i3.top == 5.0f && i3.right == 10.0f && i3.bottom == 15.0f &&
+    i3.left == 20.0f);
 
   // FlexContainer builder
   auto fc = FlexContainer.row(8.0f)
@@ -318,8 +302,8 @@ unittest {
 
   // Size builder & factories
   auto szFixed = Size.fixed(100.0f, 50.0f)
-    .withPadding(Insets(4.0f))
-    .withMargin(Insets(2.0f))
+    .withPadding(Insets.all(4.0f))
+    .withMargin(Insets.all(2.0f))
     .withMinSize(80.0f)
     .withMaxSize(200.0f);
   assert(szFixed.width.mode == SizingMode.fixed);
@@ -336,8 +320,9 @@ unittest {
   assert(szFrac.width.mode == SizingMode.fraction);
 
   // Anchor builder
-  import std.typecons : nullable;
-  auto anch = new Anchor(nullable(5.0f), nullable(10.0f))
+  auto anch = new Anchor()
+    .withLeft(5.0f)
+    .withTop(10.0f)
     .withRight(15.0f)
     .withBottom(20.0f);
   assert(!anch.left.isNull && anch.left.get == 5.0f);

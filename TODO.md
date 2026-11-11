@@ -1,9 +1,3 @@
-- yguilib/source/yguilib/widget/builder.d WidgetBuilder class to have only one
-minimal constructor this(uint uId). Find other classes that have multiple
-constructors and refactor to minimize (see the rule about constructors in
-codestyle.md) (propose variants, e.g. PointF, RectF are ok to have two and four
-arguments).
-
 - add dumpTree debug function for a Widget to dump widget tree in readable json
 format with all widget fields, component fiels, sizes and positions, children etc.
 It should dump everything in order to easily debug layout bugs.

@@ -353,14 +353,8 @@ struct AppEvent {
         payload.view.releaseData(payload.view);
   }
 
-  /// Constructs events without data (appQuit, update, windowRedraw).
+  /// Constructs events with kind discriminator.
   this(Kind kind) {
-    assert(
-      kind == Kind.appQuit ||
-      kind == Kind.update ||
-      kind == Kind.windowRedraw ||
-      kind == Kind.updateUiLayer
-    );
     this.kind = kind;
   }
 
@@ -371,7 +365,7 @@ struct AppEvent {
   }
 
   /// Constructs window events with WindowData payload.
-  this(Kind kind, WindowData data) {
+  static AppEvent windowEvent(Kind kind, WindowData data) {
     assert(
       kind == Kind.windowClose ||
       kind == Kind.windowDisplayScaleChanged ||
@@ -381,50 +375,56 @@ struct AppEvent {
       kind == Kind.windowRedraw ||
       kind == Kind.windowResized
     );
-    this.kind = kind;
-    payload.window = data;
+    auto ev = AppEvent(kind);
+    ev.payload.window = data;
+    return ev;
   }
 
   /// Constructs mouse events with MouseData payload.
-  this(Kind kind, MouseData data) {
+  static AppEvent mouseEvent(Kind kind, MouseData data) {
     assert(
       kind == Kind.mouseMotion ||
       kind == Kind.mouseButtonDown ||
       kind == Kind.mouseButtonUp
     );
-    this.kind = kind;
-    payload.mouse = data;
+    auto ev = AppEvent(kind);
+    ev.payload.mouse = data;
+    return ev;
   }
 
   /// Constructs mouse wheel events with WheelData payload.
-  this(Kind kind, WheelData data) {
-    assert(kind == Kind.mouseWheel);
-    this.kind = kind;
-    payload.wheel = data;
+  static AppEvent wheelEvent(WheelData data) {
+    auto ev = AppEvent(Kind.mouseWheel);
+    ev.payload.wheel = data;
+    return ev;
   }
 
   /// Constructs keyboard events with KeyData payload.
-  this(Kind kind, KeyData data) {
+  static AppEvent keyEvent(Kind kind, KeyData data) {
     assert(kind == Kind.keyDown || kind == Kind.keyUp);
-    this.kind = kind;
-    payload.keyData = data;
+    auto ev = AppEvent(kind);
+    ev.payload.keyData = data;
+    return ev;
   }
 
   /// Constructs text events with TextData payload.
-  this(Kind kind, TextData data) {
+  static AppEvent textEvent(Kind kind, TextData data) {
     assert(kind == Kind.textEditing || kind == Kind.textInput);
-    this.kind = kind;
-    payload.textData = data;
+    auto ev = AppEvent(kind);
+    ev.payload.textData = data;
+    return ev;
   }
 
-  this(UserData data) {
-    this.kind = Kind.user;
-    payload.user = data;
+  static AppEvent userEvent(UserData data) {
+    auto ev = AppEvent(Kind.user);
+    ev.payload.user = data;
+    return ev;
   }
 
-  this(ViewData data) {
-    this.kind = Kind.view;
-    payload.view = data;
+  static AppEvent viewEvent(ViewData data) {
+    auto ev = AppEvent(Kind.view);
+    ev.payload.view = data;
+    return ev;
   }
 
 private:
@@ -443,7 +443,7 @@ private:
 }
 
 unittest {
-  AppEvent ev = AppEvent(
+  AppEvent ev = AppEvent.windowEvent(
     AppEvent.Kind.windowDisplayScaleChanged,
     AppEvent.WindowData(1, 640, 480, 2.0f)
   );
@@ -453,7 +453,7 @@ unittest {
   assert(ev.window.width == 640);
   assert(ev.window.height == 480);
 
-  AppEvent mouseEv = AppEvent(
+  AppEvent mouseEv = AppEvent.mouseEvent(
     AppEvent.Kind.mouseMotion,
     AppEvent.MouseData(1, 150.5f, 250.0f, 0x01, -2.5f, 3.5f, 1, true, 2)
   );
@@ -468,8 +468,7 @@ unittest {
   assert(mouseEv.mouse.down);
   assert(mouseEv.mouse.clicks == 2);
 
-  AppEvent wheelEv = AppEvent(
-    AppEvent.Kind.mouseWheel,
+  AppEvent wheelEv = AppEvent.wheelEvent(
     AppEvent.WheelData(1, 0.0f, 1.5f, 100.0f, 200.0f, 1, 0, 1)
   );
   assert(wheelEv.kind == AppEvent.Kind.mouseWheel);
@@ -482,7 +481,7 @@ unittest {
   assert(wheelEv.wheel.integerX == 0);
   assert(wheelEv.wheel.integerY == 1);
 
-  AppEvent keyEv = AppEvent(
+  AppEvent keyEv = AppEvent.keyEvent(
     AppEvent.Kind.keyDown,
     AppEvent.KeyData(1, Keycode.return_, Scancode.return_, 0x0001, true)
   );
@@ -493,7 +492,7 @@ unittest {
   assert(keyEv.keyData.mod == 1);
   assert(keyEv.keyData.repeat);
 
-  AppEvent textEv = AppEvent(
+  AppEvent textEv = AppEvent.textEvent(
     AppEvent.Kind.textInput,
     AppEvent.TextData(1, "hello")
   );
@@ -501,7 +500,7 @@ unittest {
   assert(textEv.textData.windowId == 1);
   assert(textEv.textData.text == "hello");
 
-  AppEvent editEv = AppEvent(
+  AppEvent editEv = AppEvent.textEvent(
     AppEvent.Kind.textEditing,
     AppEvent.TextData(1, "comp", 2, 1)
   );
@@ -511,7 +510,7 @@ unittest {
   assert(editEv.textData.editStart == 2);
   assert(editEv.textData.editLength == 1);
 
-  AppEvent userEv = AppEvent(AppEvent.UserData(42));
+  AppEvent userEv = AppEvent.userEvent(AppEvent.UserData(42));
   assert(userEv.kind == AppEvent.Kind.user);
   assert(userEv.user.eventId == 42);
   assert(userEv.user.data is null);
@@ -522,7 +521,7 @@ unittest {
   AppEvent updateEv = AppEvent(AppEvent.Kind.update);
   assert(updateEv.kind == AppEvent.Kind.update);
 
-  AppEvent enterEv = AppEvent(
+  AppEvent enterEv = AppEvent.windowEvent(
     AppEvent.Kind.windowMouseEnter,
     AppEvent.WindowData(7)
   );
@@ -531,7 +530,7 @@ unittest {
   assert(!enterEv.isWindowRedrawEvent());
   assert(enterEv.window.windowId == 7);
 
-  AppEvent leaveEv = AppEvent(
+  AppEvent leaveEv = AppEvent.windowEvent(
     AppEvent.Kind.windowMouseLeave,
     AppEvent.WindowData(7)
   );

@@ -58,7 +58,9 @@ Widget createTabButton(
     : tabInactiveBorder;
   const ColorF textCol = isActive ? tabActiveText : tabInactiveText;
 
-  return WidgetBuilder(ui, parent, RectF(0, 0, width, height))
+  return WidgetBuilder(ui.nextWidgetId())
+    .parent(parent)
+    .rect(RectF(0, 0, width, height))
     .fixedSize(width, height)
     .padding(5, 8, 5, 8)
     .roundBackground(bgCol, defaultTabButtonRadius)
@@ -174,7 +176,9 @@ unittest {
   auto ui = new UiSystemImpl(null);
   auto root = new Widget(ui.nextWidgetId());
   root.rect = RectF(0, 0, 800, 600);
-  auto row = WidgetBuilder(ui, root, RectF(0, 0, 500, 40))
+  auto row = WidgetBuilder(ui.nextWidgetId())
+    .parent(root)
+    .rect(RectF(0, 0, 500, 40))
     .flex(
       FlexDirection.row,
       10.0f,

@@ -1,26 +1,28 @@
 module yguilib.render.font_manager;
 
-package(yguilib):
-
 import std.math.traits : isFinite;
 import yguilib.assets : defaultTtfFontData;
 import yguilib.render.font : Font, defaultFontPtSize;
 
-private enum FontSourceType {
+private:
+
+enum FontSourceType {
   memory,
   file,
 }
 
-private struct FontSource {
+struct FontSource {
   FontSourceType type;
   const(void)[] memoryData;
   string filePath;
 }
 
-private struct FontKey {
+struct FontKey {
   string faceName;
   int sizeMilli;
 }
+
+package(yguilib):
 
 /**
  * Manages font typefaces and caches `Font` instances per point size.
@@ -34,9 +36,6 @@ private struct FontKey {
  * directly and shared across all sizes without duplication.
  */
 final class FontManager {
-  private FontSource[string] registry;
-  private Font[FontKey] cache;
-
   ~this() {
     destroy();
   }
@@ -156,9 +155,9 @@ final class FontManager {
 
     Font font;
     if (source.type == FontSourceType.memory) {
-      font = new Font(source.memoryData, sanitizedSize, totalScale);
+      font = Font.fromMemory(source.memoryData, sanitizedSize, totalScale);
     } else {
-      font = new Font(source.filePath, sanitizedSize, totalScale);
+      font = Font.fromFile(source.filePath, sanitizedSize, totalScale);
     }
 
     cache[key] = font;
@@ -180,6 +179,10 @@ final class FontManager {
       }
     }
   }
+
+private:
+  FontSource[string] registry;
+  Font[FontKey] cache;
 }
 
 unittest {

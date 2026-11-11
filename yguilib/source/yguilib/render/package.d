@@ -579,7 +579,7 @@ final class Renderer {
    * @return A newly allocated Font instance.
    */
   Font createFont(const(void)[] fontData, float ptSize) {
-    return new Font(fontData, ptSize, getTotalScaling());
+    return Font.fromMemory(fontData, ptSize, getTotalScaling());
   }
 
   /**
@@ -594,7 +594,7 @@ final class Renderer {
    * @return A newly allocated Font instance.
    */
   Font createFont(string filePath, float ptSize) {
-    return new Font(filePath, ptSize, getTotalScaling());
+    return Font.fromFile(filePath, ptSize, getTotalScaling());
   }
 
   void setDefaultFont(Font font) {
@@ -955,7 +955,7 @@ unittest {
   assert(renderer.getDefaultScaling() == 2.0f);
   assert(renderer.getUnitsScaling() == 1.0f);
 
-  AppEvent evMotion = AppEvent(
+  AppEvent evMotion = AppEvent.mouseEvent(
     AppEvent.Kind.mouseMotion,
     AppEvent.MouseData(win.id, 100.0f, 50.0f)
   );
@@ -1000,7 +1000,7 @@ unittest {
   renderer.setUnitsScaling(1.0f);
   renderer.setDisplayScaling(1.0f);
 
-  Font customFont = new Font(
+  Font customFont = Font.fromMemory(
     cast(const(void)[])defaultTtfFontData,
     16.0f
   );

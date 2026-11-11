@@ -271,8 +271,7 @@ unittest {
   sz.padding = Insets(5, 10, 15, 20); // top=5, right=10, bottom=15, left=20
   w.components.size = sz;
 
-  auto border = new Border(ColorF(1, 0, 0, 1), Border.Style.rect);
-  border.width = 3.0f;
+  auto border = Border.rect(ColorF(1, 0, 0, 1), 3.0f);
   w.components.border = border;
 
   // Horizontal: padding (20+10) + border (3*2) = 36

@@ -141,8 +141,7 @@ unittest {
   auto parentSz = new Size;
   parentSz.padding = Insets(10, 15, 10, 15);
   parent.components.size = parentSz;
-  auto border = new Border(ColorF(1, 0, 0, 1), Border.Style.rect);
-  border.width = 5.0f;
+  auto border = Border.rect(ColorF(1, 0, 0, 1), 5.0f);
   parent.components.border = border;
 
   // Content rect: startX = 20 (border 5 + pad 15), startY = 15 (5 + 10)

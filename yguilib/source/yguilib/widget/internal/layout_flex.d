@@ -440,8 +440,7 @@ unittest {
   sz.padding = Insets(10, 15, 20, 25); // top=10, right=15, bottom=20, left=25
   parent.components.size = sz;
 
-  auto border = new Border(ColorF(1, 0, 0, 1), Border.Style.rect);
-  border.width = 5.0f;
+  auto border = Border.rect(ColorF(1, 0, 0, 1), 5.0f);
   parent.components.border = border;
 
   // Inset left = 25 + 5 = 30, inset top = 10 + 5 = 15

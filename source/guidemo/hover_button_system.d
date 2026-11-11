@@ -125,7 +125,7 @@ struct AnimatedHoverButtonBuilder {
     float vertical,
     float horizontal
   ) return {
-    config.padding = Insets(vertical, horizontal);
+    config.padding = Insets.vh(vertical, horizontal);
     return this;
   }
 
@@ -172,7 +172,9 @@ struct AnimatedHoverButtonBuilder {
     const float initW = rect.width > 0.0f ? rect.width : 100.0f;
     const float initH = rect.height > 0.0f ? rect.height : 36.0f;
 
-    auto b = WidgetBuilder(ui, parent, rect);
+    auto b = WidgetBuilder(ui.nextWidgetId())
+      .parent(parent)
+      .rect(rect);
 
     if (customSize !is null) {
       b.size(customSize);

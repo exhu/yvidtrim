@@ -31,16 +31,6 @@ TabsModel createHeaderTabsModel() {
 
 /// View building and updating all demo widget hierarchies.
 final class DemoView {
-  this(
-    ref ModelTracker!DemoModel modelTracker,
-    UiSystem ui = null
-  ) {
-    auto defaultTabsTracker = ModelTracker!TabsModel(
-      createHeaderTabsModel()
-    );
-    this(modelTracker, defaultTabsTracker, ui);
-  }
-
   /// Constructs DemoView. `ui` is allowed to be null in headless tests.
   this(
     ref ModelTracker!DemoModel modelTracker,
@@ -48,11 +38,12 @@ final class DemoView {
     UiSystem ui = null
   ) {
     this.ui = (ui !is null) ? ui : new UiSystemImpl(null);
-    tracker = ModelTracker!DemoModel(modelTracker);
-    tabsTracker = ModelTracker!TabsModel(tabsModelTracker);
+    tracker = ModelTracker!DemoModel.from(modelTracker);
+    tabsTracker = ModelTracker!TabsModel.from(tabsModelTracker);
 
     // Root background
-    view = WidgetBuilder(this.ui, RectF(0, 0, 1280, 720))
+    view = WidgetBuilder(this.ui.nextWidgetId())
+      .rect(RectF(0, 0, 1280, 720))
       .background(ColorF(0.08f, 0.09f, 0.11f, 1.0f))
       .build();
 
@@ -250,7 +241,9 @@ private:
   }
 
   void buildHeader(UiRegistry registry) {
-    auto header = WidgetBuilder(ui, view, RectF(20, 12, 1240, 48))
+    auto header = WidgetBuilder(ui.nextWidgetId())
+      .parent(view)
+      .rect(RectF(20, 12, 1240, 48))
       .fixedSize(1240, 48)
       .padding(0, 14)
       .flexRow(12.0f, JustifyContent.start, AlignItems.center)
@@ -258,12 +251,16 @@ private:
       .border(ColorF(0.22f, 0.25f, 0.32f, 1.0f), 1.0f)
       .build();
 
-    auto titleBox = WidgetBuilder(ui, header, RectF())
+    auto titleBox = WidgetBuilder(ui.nextWidgetId())
+      .parent(header)
+      .rect(RectF())
       .flexColumn(2.0f, JustifyContent.center, AlignItems.start)
       .autoSize()
       .build();
 
-    WidgetBuilder(ui, titleBox, RectF())
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(titleBox)
+      .rect(RectF())
       .autoSize()
       .text(
         "yguilib GUI Feature Demo & Showcase (guidemo)",
@@ -272,7 +269,9 @@ private:
       )
       .build();
 
-    WidgetBuilder(ui, titleBox, RectF())
+    WidgetBuilder(ui.nextWidgetId())
+      .parent(titleBox)
+      .rect(RectF())
       .autoSize()
       .text(
         "Verification for widget_painter.d, layout_system.d & " ~
@@ -291,12 +290,16 @@ private:
   }
 
   void buildStatusBar() {
-    auto footer = WidgetBuilder(ui, view, RectF(20, 656, 1240, 52))
+    auto footer = WidgetBuilder(ui.nextWidgetId())
+      .parent(view)
+      .rect(RectF(20, 656, 1240, 52))
       .roundBackground(ColorF(0.12f, 0.14f, 0.18f, 1.0f), 6.0f)
       .border(ColorF(0.25f, 0.30f, 0.40f, 1.0f), 1.0f)
       .build();
 
-    statusLabel = WidgetBuilder(ui, footer, RectF(14, 16, 1210, 20))
+    statusLabel = WidgetBuilder(ui.nextWidgetId())
+      .parent(footer)
+      .rect(RectF(14, 16, 1210, 20))
       .text(
         formatStatusString(tracker.model),
         ColorF(0.95f, 0.95f, 0.40f, 1.0f)
@@ -323,7 +326,9 @@ private:
 unittest {
   auto model = new DemoModel();
   auto tracker = ModelTracker!DemoModel(model);
-  auto demoView = new DemoView(tracker);
+  auto tabsModel = createHeaderTabsModel();
+  auto tabsTracker = ModelTracker!TabsModel(tabsModel);
+  auto demoView = new DemoView(tracker, tabsTracker);
 
   auto root = demoView.getRootWidget();
   assert(root !is null);

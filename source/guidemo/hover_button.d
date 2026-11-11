@@ -103,7 +103,7 @@ struct HoverButtonBuilder {
   }
 
   ref HoverButtonBuilder padding(float vertical, float horizontal) return {
-    config.padding = Insets(vertical, horizontal);
+    config.padding = Insets.vh(vertical, horizontal);
     return this;
   }
 
@@ -146,7 +146,9 @@ struct HoverButtonBuilder {
     const float initW = rect.width > 0.0f ? rect.width : 100.0f;
     const float initH = rect.height > 0.0f ? rect.height : 36.0f;
 
-    auto rootBuilder = WidgetBuilder(ui, parent, rect)
+    auto rootBuilder = WidgetBuilder(ui.nextWidgetId())
+      .parent(parent)
+      .rect(rect)
       .view(null, [
         "mouseEnter": "hoverBtn.enter",
         "mouseLeave": "hoverBtn.leave",
@@ -162,8 +164,9 @@ struct HoverButtonBuilder {
       rootBuilder.anchor(customAnchor);
     }
 
-    rootBuilder.child(ui, RectF(0, 0, initW, initH), (ref WidgetBuilder cb) {
-      cb.fixedSize(initW, initH)
+    rootBuilder.child(ui.nextWidgetId(), (ref WidgetBuilder cb) {
+      cb.rect(RectF(0, 0, initW, initH))
+        .fixedSize(initW, initH)
         .padding(config.padding);
 
       if (config.cornerRadius > 0.0f) {
@@ -371,7 +374,7 @@ private:
   }
 
   void updateCursorNorm(ref ButtonEntry entry, in AppEvent ev) {
-    auto val = MouseEvent.AppEventViewValue(ev.view.value);
+    auto val = MouseEvent.AppEventViewValue.fromRaw(ev.view.value);
     if (entry.visualWidget !is null &&
         entry.visualWidget.rect.width > 0.0f &&
         entry.visualWidget.rect.height > 0.0f) {
@@ -711,7 +714,7 @@ unittest {
   assert(gradController.entries[0].animPhase > 0.0f);
 
   // Test mouseMove with cursor coordinate calculation
-  auto moveVal = MouseEvent.AppEventViewValue(50.0f, 15.0f);
+  auto moveVal = MouseEvent.AppEventViewValue.pack(50.0f, 15.0f);
   auto moveEv = ViewAppEventBuilder("hoverBtn.move")
     .widget(child)
     .viewWidget(btnRoot)

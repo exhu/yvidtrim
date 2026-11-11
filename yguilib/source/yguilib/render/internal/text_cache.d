@@ -205,7 +205,7 @@ unittest {
   win.create();
   scope(exit) win.destroy();
 
-  Font fontA = new Font(cast(const(void)[])defaultTtfFontData, 12.0f);
+  Font fontA = Font.fromMemory(cast(const(void)[])defaultTtfFontData, 12.0f);
   scope(exit) fontA.destroy();
 
   auto tc = new TextCache(8);
@@ -235,7 +235,7 @@ unittest {
   assert(tc.contains(fontA, "item8"));
 
   // Destroying fontA and allocating fontB produces distinct font IDs
-  Font fontB = new Font(cast(const(void)[])defaultTtfFontData, 12.0f);
+  Font fontB = Font.fromMemory(cast(const(void)[])defaultTtfFontData, 12.0f);
   scope(exit) fontB.destroy();
   assert(fontB.id != fontA.id);
   assert(!tc.contains(fontB, "item0"));

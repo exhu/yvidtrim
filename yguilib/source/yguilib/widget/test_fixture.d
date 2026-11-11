@@ -25,12 +25,13 @@ class WidgetFixture {
     fNextId = startId;
   }
 
-  /// Constructs a fixture bound to an existing UiSystem.
-  this(UiSystem ui) {
+  /// Binds the fixture to an existing UiSystem.
+  WidgetFixture withUi(UiSystem ui) {
     fUi = ui;
     if (ui !is null) {
       fNextId = ui.nextWidgetId();
     }
+    return this;
   }
 
   /// Returns the next unique widget ID.
@@ -111,12 +112,12 @@ class WidgetFixture {
     Widget parent,
     RectF rect = RectF(0, 0, 100, 100)
   ) {
-    return WidgetBuilder(nextId(), parent, rect);
+    return WidgetBuilder(nextId()).parent(parent).rect(rect);
   }
 
   /// Creates a WidgetBuilder for a root or standalone widget.
   WidgetBuilder builder(RectF rect = RectF(0, 0, 100, 100)) {
-    return WidgetBuilder(nextId(), null, rect);
+    return WidgetBuilder(nextId()).rect(rect);
   }
 
   /// Attaches a background component to widget and returns the widget.
@@ -166,7 +167,7 @@ class WidgetFixture {
     if (w.components.size is null) {
       w.components.size = new Size();
     }
-    w.components.size.padding = Insets(all);
+    w.components.size.padding = Insets.all(all);
     return w;
   }
 
@@ -176,7 +177,7 @@ class WidgetFixture {
     if (w.components.size is null) {
       w.components.size = new Size();
     }
-    w.components.size.padding = Insets(vertical, horizontal);
+    w.components.size.padding = Insets.vh(vertical, horizontal);
     return w;
   }
 
@@ -202,7 +203,7 @@ class WidgetFixture {
     if (w.components.size is null) {
       w.components.size = new Size();
     }
-    w.components.size.margin = Insets(all);
+    w.components.size.margin = Insets.all(all);
     return w;
   }
 
@@ -212,7 +213,7 @@ class WidgetFixture {
     if (w.components.size is null) {
       w.components.size = new Size();
     }
-    w.components.size.margin = Insets(vertical, horizontal);
+    w.components.size.margin = Insets.vh(vertical, horizontal);
     return w;
   }
 
@@ -240,9 +241,9 @@ class WidgetFixture {
     AlignItems align_ = AlignItems.stretch
   ) {
     assert(w !is null);
-    auto fc = new FlexContainer(FlexDirection.row, gap);
-    fc.justify = justify;
-    fc.alignItems = align_;
+    auto fc = FlexContainer.row(gap)
+      .withJustify(justify)
+      .withAlign(align_);
     w.components.flexContainer = fc;
     return w;
   }
@@ -255,9 +256,9 @@ class WidgetFixture {
     AlignItems align_ = AlignItems.stretch
   ) {
     assert(w !is null);
-    auto fc = new FlexContainer(FlexDirection.column, gap);
-    fc.justify = justify;
-    fc.alignItems = align_;
+    auto fc = FlexContainer.column(gap)
+      .withJustify(justify)
+      .withAlign(align_);
     w.components.flexContainer = fc;
     return w;
   }
@@ -449,7 +450,7 @@ unittest {
   assert(built.uId == 7);
 
   // UiSystem binding test
-  auto uiFix = new WidgetFixture(fix.ui);
+  auto uiFix = new WidgetFixture().withUi(fix.ui);
   assert(uiFix.ui !is null);
   auto uiWidget = uiFix.makeWidget(RectF(0, 0, 10, 10));
   assert(uiWidget !is null);

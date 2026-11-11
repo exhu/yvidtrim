@@ -607,7 +607,9 @@ unittest {
   auto scrollContainer = new Widget(5);
   scrollContainer.rect = RectF(0, 100, 100, 100);
   root.addChild(scrollContainer);
-  auto scrollArea = new ScrollableArea(PointF(0, 0), "pipelineScrolled");
+  auto scrollArea = new ScrollableArea()
+    .withOffset(PointF(0, 0))
+    .withScrollChangedEvent("pipelineScrolled");
   scrollContainer.components.scrollableArea = scrollArea;
 
   // Child larger than viewport and overflowing window bounds

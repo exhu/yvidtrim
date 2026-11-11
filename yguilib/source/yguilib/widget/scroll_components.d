@@ -22,15 +22,25 @@ final class ScrollableArea : WidgetComponent {
 
     alias raw this;
 
-    this(in ulong[AppEvent.ViewData.valueSize] raw) {
-      this.raw = raw;
+    static AppEventViewValue fromRaw(
+      in ulong[AppEvent.ViewData.valueSize] raw
+    ) {
+      AppEventViewValue val;
+      val.raw = raw;
+      return val;
     }
 
-    this(PointF contentSize, PointF viewportSize, PointF offset) {
-      this.raw = 0;
-      this.contentSize = contentSize;
-      this.viewportSize = viewportSize;
-      this.offset = offset;
+    static AppEventViewValue pack(
+      PointF contentSize,
+      PointF viewportSize,
+      PointF offset
+    ) {
+      AppEventViewValue val;
+      val.raw = 0;
+      val.contentSize = contentSize;
+      val.viewportSize = viewportSize;
+      val.offset = offset;
+      return val;
     }
   }
 
@@ -40,11 +50,6 @@ final class ScrollableArea : WidgetComponent {
   );
 
   this() {}
-
-  this(PointF offset, string scrollChangedEvent = null) {
-    this.offset = offset;
-    this.scrollChangedEvent = scrollChangedEvent;
-  }
 
   ScrollableArea withOffset(PointF newOffset) {
     this.offset = newOffset;
@@ -96,7 +101,9 @@ package(yguilib):
 }
 
 unittest {
-  auto sa = new ScrollableArea(PointF(10, 20), "scrollChange");
+  auto sa = new ScrollableArea()
+    .withOffset(PointF(10, 20))
+    .withScrollChangedEvent("scrollChange");
   assert(sa.offset == PointF(10, 20));
   assert(sa.scrollChangedEvent == "scrollChange");
   assert(sa.clampOffset);
@@ -105,7 +112,7 @@ unittest {
   assert(sa.offset == PointF(30, 40));
   assert(!sa.clampOffset);
 
-  ScrollableArea.AppEventViewValue val = ScrollableArea.AppEventViewValue(
+  ScrollableArea.AppEventViewValue val = ScrollableArea.AppEventViewValue.pack(
     PointF(500, 300),
     PointF(200, 150),
     PointF(30, 40)
@@ -115,7 +122,7 @@ unittest {
   assert(val.offset == PointF(30, 40));
 
   ScrollableArea.AppEventViewValue unpacked =
-    ScrollableArea.AppEventViewValue(val.raw);
+    ScrollableArea.AppEventViewValue.fromRaw(val.raw);
   assert(unpacked.contentSize == PointF(500, 300));
   assert(unpacked.viewportSize == PointF(200, 150));
   assert(unpacked.offset == PointF(30, 40));

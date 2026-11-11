@@ -47,17 +47,28 @@ final class MouseEvent : WidgetComponent {
     alias raw this;
 
     /// Constructs from raw array payload.
-    this(in ulong[AppEvent.ViewData.valueSize] raw) {
-      this.raw = raw;
+    static AppEventViewValue fromRaw(
+      in ulong[AppEvent.ViewData.valueSize] raw
+    ) {
+      AppEventViewValue val;
+      val.raw = raw;
+      return val;
     }
 
     /// Constructs from cursor coordinates, button index, and inside flag.
-    this(float localX, float localY, ubyte buttons = 0, bool inside = true) {
-      this.raw = 0;
-      this.buttons = buttons;
-      this.inside = inside;
-      this.localX = localX;
-      this.localY = localY;
+    static AppEventViewValue pack(
+      float localX,
+      float localY,
+      ubyte buttons = 0,
+      bool inside = true
+    ) {
+      AppEventViewValue val;
+      val.raw = 0;
+      val.buttons = buttons;
+      val.inside = inside;
+      val.localX = localX;
+      val.localY = localY;
+      return val;
     }
   }
 

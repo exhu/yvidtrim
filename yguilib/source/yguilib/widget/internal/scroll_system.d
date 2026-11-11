@@ -120,7 +120,7 @@ private:
     sa.fLastEmittedOffset = sa.offset;
 
     if (changed && sa.scrollChangedEvent.length > 0 && activeHost !is null) {
-      auto val = ScrollableArea.AppEventViewValue(
+      auto val = ScrollableArea.AppEventViewValue.pack(
         sa.fContentSize,
         sa.fViewportSize,
         sa.offset
@@ -186,7 +186,9 @@ unittest {
 
   auto parent = new Widget(1);
   parent.rect = RectF(0, 0, 100, 100);
-  auto sa = new ScrollableArea(PointF(10, 20), "onScroll");
+  auto sa = new ScrollableArea()
+    .withOffset(PointF(10, 20))
+    .withScrollChangedEvent("onScroll");
   parent.components.scrollableArea = sa;
 
   auto child = new Widget(2);
@@ -217,7 +219,7 @@ unittest {
   assert(host.sentEvents.length == 1);
   assert(host.sentEvents[0].view.eventName == "onScroll");
   assert(host.sentEvents[0].view.widget is parent);
-  auto unpacked = ScrollableArea.AppEventViewValue(
+  auto unpacked = ScrollableArea.AppEventViewValue.fromRaw(
     host.sentEvents[0].view.value
   );
   assert(unpacked.contentSize == PointF(250, 150));
@@ -238,7 +240,9 @@ unittest {
 
   scrollSys.postLayout(ctx);
   assert(host.sentEvents.length == 1);
-  unpacked = ScrollableArea.AppEventViewValue(host.sentEvents[0].view.value);
+  unpacked = ScrollableArea.AppEventViewValue.fromRaw(
+    host.sentEvents[0].view.value
+  );
   assert(unpacked.offset == PointF(150, 50));
 
   // Test negative offset clamped to 0

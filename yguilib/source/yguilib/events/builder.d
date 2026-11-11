@@ -10,16 +10,6 @@ struct ViewAppEventBuilder {
     viewData.eventName = eventName;
   }
 
-  /// Constructs a builder with an event name and originating widget.
-  ///
-  /// Params:
-  ///   eventName = Logical name of the view event.
-  ///   widget = Originating widget (allowed to be null).
-  this(string eventName, Widget widget) {
-    viewData.eventName = eventName;
-    viewData.widget = widget;
-  }
-
   /// Sets the event name.
   ref ViewAppEventBuilder eventName(string name) return {
     viewData.eventName = name;
@@ -88,7 +78,7 @@ struct ViewAppEventBuilder {
 
   /// Builds and returns the configured AppEvent.
   AppEvent build() {
-    return AppEvent(viewData);
+    return AppEvent.viewEvent(viewData);
   }
 
 private:
@@ -132,8 +122,8 @@ unittest {
   assert(ev2.view.viewWidget is null);
   assert(ev2.view.value[0] == 1);
 
-  // Test 3: Parameterized constructor (eventName and widget)
-  auto ev3 = ViewAppEventBuilder("itemSelected", child).build();
+  // Test 3: Parameterized constructor with chained widget
+  auto ev3 = ViewAppEventBuilder("itemSelected").widget(child).build();
   assert(ev3.kind == AppEvent.Kind.view);
   assert(ev3.view.eventName == "itemSelected");
   assert(ev3.view.widget is child);
