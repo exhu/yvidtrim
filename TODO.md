@@ -10,6 +10,10 @@ another.
 is not unique, there may be any amount of widgets sharing the same name in
 the tree).
 
+- add a coding style rule to create only one constructor per class, no overloading,
+and fix WidgetBuilder class to have only one minimal constructor. Find other
+classes that have multiple constructors and refactor to minimize.
+
 - add dumpTree debug function for a Widget to dump widget tree in readable json
 format with all widget fields, component fiels, sizes and positions, children etc.
 It should dump everything in order to easily debug layout bugs.
