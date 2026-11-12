@@ -145,6 +145,10 @@ UiSystemController.updateView() ──► WidgetSystemPipeline.updateAndRender()
 - ECS-Style Widgets: `Widget` is an entity with geometry (`RectF`), hierarchy,
   and a `WidgetComponents` bag (`Background`, `Border`, `Size`, `FlexContainer`,
   `MouseEvent`, custom components via `components.set!C(...)`).
+- Widget Lifecycle & Release: Disposing a widget hierarchy must be done via
+  `UiSystem.releaseWidget(w)`, which traverses bottom-up, unregisters views,
+  notifies controllers via `onWidgetReleased`, purges input/pipeline caches,
+  and calls `w.release()` to detach and clear components.
 - Invalidation Scopes: Fine-grained `WidgetUpdateScope` flags (`visuals`,
   `content`, `layout`, `parentView`, `all`) prevent redundant layout passes.
 - Embedded Assets: Fonts and shaders live under `assets/<package_name>/` and

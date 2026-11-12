@@ -93,6 +93,47 @@ class UiSystemImpl : UiSystem {
     // TODO
   }
 
+  override void releaseWidget(Widget w) {
+    if (w is null || w.released) {
+      return;
+    }
+
+    // 1. Snapshot children and recursively release them bottom-up
+    Widget[] childrenSnapshot = w.children.dup;
+    foreach (child; childrenSnapshot) {
+      releaseWidget(child);
+    }
+
+    // 2. Clean up references to w in Window, registries, controllers,
+    // and pipeline
+    if (fMainWindow !is null && fMainWindow.rootWidget is w) {
+      fMainWindow.rootWidget = null;
+    }
+
+    foreach (view; fWidgetViews) {
+      if (view !is null) {
+        view.unregisterViewWidget(w);
+      }
+    }
+
+    foreach (ctrl; fWidgetViewControllers) {
+      if (ctrl !is null) {
+        ctrl.unregisterViewWidget(w);
+      }
+    }
+
+    foreach (ctrl; controllers.getAll()) {
+      if (ctrl !is null) {
+        ctrl.onWidgetReleased(w);
+      }
+    }
+
+    pipeline.notifyWidgetReleased(w);
+
+    // 3. Clear w's own fields and mark released
+    w.release();
+  }
+
   override void mainEventLoop() {
     yguilib_sdl3_init();
     scope(exit) yguilib_sdl3_quit();
@@ -1002,6 +1043,7 @@ unittest {
     }
     void registerWidgetView(WidgetView v) {}
     void unregisterWidgetView(WidgetView v) {}
+    void unregisterViewWidget(Widget viewWidget) {}
   }
 
   class DummyView : WidgetViewBase {
@@ -1040,4 +1082,46 @@ unittest {
   assert(ui2.nextWidgetId() == 1);
   assert(ui2.nextWidgetId() == 2);
   assert(ui1.nextWidgetId() == 4);
+}
+
+// Verifies releaseWidget unregistering from views, controllers, window, and
+// pipeline.
+unittest {
+  import yguilib.render.render_types : RectF;
+  import yguilib.widget.widget_view : WidgetViewBase;
+
+  class TestView : WidgetViewBase {
+    override void translateEventForViewWidget(
+      ref AppEvent sourceEvent,
+      Widget viewWidget
+    ) scope return {
+    }
+  }
+
+  auto win = new Window(100, 100, "test_release_widget");
+  auto ui = new UiSystemImpl(win);
+
+  auto view = new TestView();
+  ui.widgetViews.register("TestView", view);
+
+  auto root = new Widget(ui.nextWidgetId());
+  auto child = new Widget(ui.nextWidgetId());
+  root.addChild(child);
+  win.rootWidget = root;
+
+  view.registerViewWidget(root);
+  view.registerViewWidget(child);
+  assert(view.isWidgetRegistered(root));
+  assert(view.isWidgetRegistered(child));
+  assert(win.rootWidget is root);
+
+  // Releasing root should release child first, then root, and clear
+  // window.rootWidget
+  ui.releaseWidget(root);
+
+  assert(root.released);
+  assert(child.released);
+  assert(win.rootWidget is null);
+  assert(!view.isWidgetRegistered(root));
+  assert(!view.isWidgetRegistered(child));
 }

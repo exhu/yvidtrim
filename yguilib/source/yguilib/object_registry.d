@@ -23,6 +23,15 @@ final class ObjectRegistry(T) if (is(T == class) || is(T == interface)) {
     }
     return false;
   }
+
+  int opApply(scope int delegate(T) dg) {
+    foreach (obj; objMap.byValue) {
+      if (int res = dg(obj)) {
+        return res;
+      }
+    }
+    return 0;
+  }
 private:
   T[string] objMap;
 }
@@ -95,4 +104,17 @@ unittest {
   assert(!ifaceRegistry.unregister("first", iface2));
   assert(ifaceRegistry.unregister("first", iface1));
   assert(ifaceRegistry.getByName("first") is null);
+
+  // Test opApply iteration
+  auto iterRegistry = new ObjectRegistry!Dummy();
+  iterRegistry.register("a", new Dummy(100));
+  iterRegistry.register("b", new Dummy(200));
+  int sum = 0;
+  int count = 0;
+  foreach (item; iterRegistry) {
+    sum += item.id;
+    count++;
+  }
+  assert(count == 2);
+  assert(sum == 300);
 }

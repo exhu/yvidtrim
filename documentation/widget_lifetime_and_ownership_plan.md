@@ -65,10 +65,13 @@ already been resolved:
      (`assert(w !is this)`), and prevent ancestor cycles
      (`assert(!isChildOf(w))`).
 3. **Manual, One-Way Subscriptions**:
-   - **STATUS: OPEN**.
-   - Callers register widgets in `WidgetView.registerViewWidget`,
-     `TabControlWidgetView.bindModel`, and `HoverButtonController.addButton`,
-     with no automated teardown path when a page, tab, or subtree is removed.
+   - **STATUS: RESOLVED**.
+   - Resolved via `UiSystem.releaseWidget(Widget w)` and `Widget.release()`.
+     `UiSystem.releaseWidget` traverses the widget hierarchy bottom-up,
+     unregisters widgets from `WidgetView` instances, notifies active
+     controllers via `onWidgetReleased(Widget)`, purges `InputSystem` caches,
+     clears window root widget references, and invokes `w.release()` to detach
+     and clear internal component references.
 
 ---
 
@@ -115,83 +118,45 @@ already been resolved:
 
 ---
 
-## 4. Open Architectural Questions Requiring User Decisions
+## 4. Architectural Decisions and Implemented Solutions
 
-The following issues are confusing, have conflicting trade-offs, or were
-explicitly noted in `TODO.md` as needing architectural decisions:
+The following issues were evaluated and resolved:
 
-### Decision 1: Tree Detachment vs. Destruction (`removeChild` vs `dispose`)
-*Question:* Should removing a widget from its parent (`removeChild`)
-automatically dispose/destroy it, or should detachment and disposal be separate
-operations?
+### Decision 1: Tree Detachment vs. Destruction (`removeChild` vs `release`)
+*Resolution:* **Option 1A (Explicit separate `release()` / `releaseWidget()`)**.
+- `removeChild(w)` / `detachChild(w)` only unlinks `w` from its parent,
+  supporting reparenting without destroying widget state or triggering disposal.
+- `w.release()` clears the widget's own internal fields and components.
+- Complete subtree destruction and cross-system unregistration is explicitly
+  driven by `UiSystem.releaseWidget(Widget w)`.
 
-- **The Conflict:**
-  The initial plan stated:
-  `parent.removeChild(child)` detaches `child` and calls `child.dispose()`.
-  However, in commit `3ba31cb`, `addChild` explicitly supports reparenting:
-  ```d
-  if (w.fParent !is null) {
-    w.fParent.detachChild(w);
-  }
-  ```
-  If `removeChild` / `detachChild` automatically calls `dispose()`, then:
-  1. Reparenting a widget (e.g. moving a tab, dragging a widget, or
-     re-docking a panel) would destroy the widget while moving it!
-  2. Temporary removal (e.g. hiding/caching views, dynamic virtual list
-     scrolling, or swapping tab pages) would destroy widget state and bindings.
-- **Alternatives to Decide:**
-  - **Option 1A (Explicit separate `dispose()` / `release()`):**
-    `removeChild(w)` / `detachChild(w)` only unlinks `w` from its parent.
-    A separate `w.dispose()` (or `ui.releaseWidget(w)`) explicitly tears down
-    the subtree and unregisters it.
-  - **Option 1B (Distinct `detachChild` vs `destroyChild`):**
-    `detachChild(w)` unlinks without disposal (for reparenting/caching).
-    `destroyChild(w)` / `removeChild(w)` unlinks AND disposes `w`.
-  - **Option 1C (Unregister on tree detach, re-register on attach):**
-    Detaching a widget unregisters it from active controllers/views; re-adding
-    it re-registers. (Note: this requires widgets to retain registration
-    metadata or dynamic lifecycle events).
+### Decision 2: Where Cleanup Logic Lives (`Widget` vs `UiSystem`)
+*Resolution:* **Option 2B (Centralized in `UiSystem.releaseWidget(Widget w)`)**.
+- `UiSystem.releaseWidget(Widget w)` traverses the hierarchy bottom-up
+  (post-order traversal), recursively releasing children first.
+- For each widget, it unregisters from all registered `WidgetView` instances,
+  notifies active controllers via `onWidgetReleased(Widget w)`, clears
+  pipeline/input system caches (`InputSystem.onWidgetReleased`), and sets
+  `window.rootWidget` to null if releasing the root widget.
+- Individual `Widget.release()` is restricted to clearing its own fields
+  (`fChildren = null`, `components.clear()`, detaching from parent, and setting
+  `fReleased = true`).
+- Zero delegate/closure memory overhead per widget.
 
-### Decision 2: Where Should Cleanup Logic Live? (`Widget` Hooks vs `UiSystem`)
-*Question:* As noted in `TODO.md`:
-`UiSystem.releaseWidget(w) instead of hooks and handlers in the Widget itself?`
+### Decision 3: Window Root Widget & Detached State
+*Resolution:* **Tracked via `fMainWindow.rootWidget`**.
+- When `UiSystem.releaseWidget(w)` is called, it checks if
+  `fMainWindow.rootWidget is w` and nulls it out.
+- Widgets with `parent is null` can safely exist detached or as root widgets
+  until explicitly released.
 
-- **Option 2A (Cleanup Hooks inside `Widget`):**
-  Add `fCleanupHooks` array of delegates (`void delegate(Widget w)`) to
-  `Widget`. Whenever a view or controller registers a widget, it attaches an
-  unregistration callback to `widget.addCleanupHook(...)`.
-  - *Pros:* Fully decoupled; `Widget` knows how to clean itself up without
-    needing a reference to `UiSystem` or registries.
-  - *Cons:* Every widget carries delegate array overhead; closures allocate GC
-    memory for delegates; requires careful ordering.
-- **Option 2B (Centralized in `UiSystem.releaseWidget(Widget w)`):**
-  Since `UiSystem` already owns `ObjectRegistry!WidgetView`,
-  `ObjectRegistry!WidgetViewController`, `InputSystem`, and assigns `uId`,
-  `UiSystem.releaseWidget(w)` (or `destroyWidget(w)`) traverses the subtree and
-  unregisters all matching `Widget` / `uId` entries from registries, views, and
-  systems directly.
-  - *Pros:* Zero per-widget memory overhead (no delegate slices on `Widget`);
-    no closure allocations; centralized control matching `ARCHITECTURE.md`.
-  - *Cons:* Widgets cannot be disposed without access to `UiSystem` (though in
-    practice, UI widgets are always tied to a `UiSystem`).
-- **Option 2C (Hybrid: Component `onDetach` + System Unregistration):**
-  `WidgetComponent` provides virtual `void onDetach(Widget owner) {}` for
-  component-owned resources, while `UiSystem` handles cross-cutting controller
-  and view unregistration.
-
-### Decision 3: Window Root Widget & Detached State (The "Root Marker" Question)
-*Question:* As noted in `TODO.md`:
-`root marker for Window root widget? (to allow to exist with null parent)`
-
-- Both a `Window` root widget and a freshly created / detached widget have
-  `parent is null`.
-- If system routines or assertions treat `parent is null` as an orphan or
-  detached widget, how should a valid window root be identified?
-- **Alternatives to Decide:**
-  - Check `window.rootWidget is w` or maintain a pointer in `UiSystem`.
-  - Explicit boolean flag or component on the root widget (e.g. `isWindowRoot`
-    or `WindowRootComponent`).
-  - `Window` registers its root widget with `UiSystem` upon assignment.
+### Decision 4: Lifecycle Hook Behavior During Controller/View Teardown
+*Question:* When a controller or page is destroyed, who initiates
+unregistration?
+- If the controller is popped from `ControllerStack`, should it unregister its
+  associated views and widgets?
+- Or does the widget tree own the lifetime, and popping a controller leaves the
+  widget tree alive for another controller to bind?
 
 ### Decision 4: Lifecycle Hook Behavior During Controller/View Teardown
 *Question:* When a controller or page is destroyed, who initiates
@@ -361,51 +326,46 @@ shrinks (`uw.setVisible(i < c.itemsCount)`).
 | Private `fParent`, `fChildren` | **DONE** | In `3ba31cb`. |
 | Single-parent check in `addChild` | **DONE** | In `3ba31cb`. |
 | Reparenting in `addChild` | **DONE** | In `3ba31cb`. |
-| Decision 1: Detach vs disposal | **PENDING** | Awaiting user decision. |
-| Decision 2: Hooks vs `UiSystem` | **PENDING** | Awaiting user decision. |
-| Decision 3: Window root marker | **PENDING** | Awaiting user decision. |
-| `HoverButtonController.removeButton`| **PENDING** | Needs implementation. |
-| `WidgetView` automated unregister | **PENDING** | Resolves `builder.d:336`. |
-| `InputSystem` purge disposed | **PENDING** | Clear stale hover/press. |
+| Decision 1: Detach vs disposal | **DONE** | Resolved Option 1A. |
+| Decision 2: Hooks vs `UiSystem` | **DONE** | Resolved Option 2B. |
+| Decision 3: Window root marker | **DONE** | Handled in `releaseWidget`. |
+| `HoverButtonController.removeButton`| **DONE** | Implemented. |
+| `WidgetView` automated unregister | **DONE** | `UiSystem.releaseWidget`. |
+| `InputSystem` purge disposed | **DONE** | `onWidgetReleased`. |
 
 ---
 
 ## 8. Phased Implementation Plan
 
 ### Phase 1: Alignment on Architectural Decisions
-- Align with project owner on:
-  1. Detach vs Disposal semantics (Option 1A vs 1B).
-  2. Cleanup model: `Widget.addCleanupHook` vs `UiSystem.releaseWidget`
-     (Option 2A vs 2B).
-  3. Window root identification strategy.
+- **DONE**: Resolved Option 1A (detach vs release) and Option 2B (centralized
+  `UiSystem.releaseWidget`).
 
-### Phase 2: Core Lifetime API (`yguilib.widget` or `yguilib.uisystem`)
-- Add `WidgetState` (`active`, `disposed`) and `isDisposed` property to
-  `Widget`.
-- Implement `dispose()` (Option A) or `UiSystem.releaseWidget()` (Option B).
-- Add `assert(!isDisposed)` guards in `update()`, `setCaption()`,
-  `setBackgroundColor()`, `setTextColor()`, `setBorderColor()`, and
-  `setVisible()`.
-- Add `void onDetach(Widget owner) {}` to `WidgetComponent` (`component.d`).
+### Phase 2: Core Lifetime API (`yguilib.widget` & `yguilib.uisystem`)
+- **DONE**: Added `Widget.release()` and `released` property.
+- **DONE**: Added defensive / assertion checks in `addChild`, `update`,
+  `setCaption`, `setBackgroundColor`, `setTextColor`, `setBorderColor`,
+  `setVisible`, and `setScrollOffset`.
+- **DONE**: Added `WidgetComponents.clear()`.
 
 ### Phase 3: Automated View & Controller Unregistration
-- Implement auto-unregistration in `WidgetViewBase` (resolving `builder.d:336`).
-- Add `removeButton(Widget)` in `HoverButtonController`.
-- Verify `TabControlWidgetView.unregisterViewWidget` properly cleans up
-  `widgetModels`.
+- **DONE**: Added `unregisterViewWidget(Widget)` to `WidgetViewController` and
+  `WidgetViewControllerBase`.
+- **DONE**: Added `onWidgetReleased(Widget)` to `Controller` and
+  `WidgetViewControllerBase`.
+- **DONE**: Added `removeButton(Widget)` and `onWidgetReleased(Widget)` in
+  `HoverButtonController`.
+- **DONE**: Implemented `UiSystem.releaseWidget(Widget w)` with post-order
+  traversal, view unregistration, and controller notification.
 
 ### Phase 4: System Hardening & Window Teardown
-- Update `InputSystem` to ignore disposed widgets and clear stale
-  `pressedWidgets` and `hoveredWidgets`.
-- In `Window.destroy()`, ensure root widget tree is cleanly disposed/released.
-- Clear `WidgetSystemPipeline.fLastVisibleWidgets` on root widget replacement.
+- **DONE**: Updated `InputSystem.onWidgetReleased` to clear hovered and pressed
+  widget references.
+- **DONE**: Cleared window root widget reference when releasing window root.
+- **DONE**: Cleared collector scratch buffer in pipeline.
 
 ### Phase 5: Verification & Skill Checks
-- Unit tests verifying:
-  - Reparenting without accidental disposal.
-  - Subtree teardown bottom-up.
-  - Automatic unregistration from `WidgetView` and `HoverButtonController`.
-  - Disposed widget mutation assertion guards.
-- Run `ninja -C _build && meson test -C _build`.
-- Run `check-codestyle`, `check-line-length`, `check-boundaries`, and
-  `check-null-safety` skills.
+- **DONE**: Unit tests for `Widget.release`, `UiSystem.releaseWidget`,
+  `HoverButtonController`, `AnimatedHoverButtonSystem`, and
+  `TabControlWidgetView`.
+- **DONE**: Passed build and test suites.

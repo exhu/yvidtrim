@@ -300,6 +300,20 @@ final class HoverButtonController : DefaultController {
     }
   }
 
+  void removeButton(Widget button) {
+    if (button is null) {
+      return;
+    }
+    import std.algorithm.mutation : remove;
+    entries = entries.remove!(
+      e => e.viewWidget is button || e.visualWidget is button
+    );
+  }
+
+  override void onWidgetReleased(Widget w) {
+    removeButton(w);
+  }
+
   override HandleResult handleEvent(AppEvent ev) {
     if (ev.kind == AppEvent.Kind.view) {
       ptrdiff_t idx = findEntryIndex(ev.view.viewWidget);
@@ -606,6 +620,11 @@ unittest {
     override uint nextWidgetId() {
       return fNextWidgetId++;
     }
+    override void releaseWidget(Widget w) {
+      if (w !is null) {
+        w.release();
+      }
+    }
 
   private:
     uint fNextWidgetId = 1;
@@ -723,6 +742,10 @@ unittest {
   auto moveRes = gradController.handleEvent(moveEv);
   assert(moveRes.result == HandleResult.Result.updateView);
   assert(moveRes.timeoutMs == 16);
+
+  // Test onWidgetReleased removes button from controller
+  gradController.onWidgetReleased(btnRoot);
+  assert(gradController.entries.length == 0);
 }
 
 version (unittest) {

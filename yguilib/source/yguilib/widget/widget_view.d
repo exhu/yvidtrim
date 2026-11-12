@@ -22,12 +22,7 @@ interface WidgetViewController {
   string getControllerName();
   void registerWidgetView(WidgetView v);
   void unregisterWidgetView(WidgetView v);
-}
-
-private string objectName(string fullName) {
-    import std.string : lastIndexOf;
-    const dotIdx = fullName.lastIndexOf('.');
-    return dotIdx >= 0 ? fullName[dotIdx + 1 .. $] : fullName;
+  void unregisterViewWidget(Widget viewWidget);
 }
 
 abstract class WidgetViewControllerBase : DefaultController, WidgetViewController {
@@ -41,6 +36,18 @@ abstract class WidgetViewControllerBase : DefaultController, WidgetViewControlle
   override void unregisterWidgetView(WidgetView view) {
     import std.algorithm.mutation : remove;
     views = views.remove!(a => a is view);
+  }
+
+  override void unregisterViewWidget(Widget viewWidget) {
+    foreach (v; views) {
+      if (v !is null) {
+        v.unregisterViewWidget(viewWidget);
+      }
+    }
+  }
+
+  override void onWidgetReleased(Widget w) {
+    unregisterViewWidget(w);
   }
 
   override string getControllerName() {
@@ -178,6 +185,14 @@ public:
 
 protected:
   Widget[] viewWidgets;
+}
+
+private:
+
+string objectName(string fullName) {
+  import std.string : lastIndexOf;
+  const dotIdx = fullName.lastIndexOf('.');
+  return dotIdx >= 0 ? fullName[dotIdx + 1 .. $] : fullName;
 }
 
 unittest {

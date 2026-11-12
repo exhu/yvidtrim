@@ -1,25 +1,3 @@
-- registerViewWidget must be supported with unregister on widget removal from a tree.
-See `documentation/widget_lifetime_and_ownership_plan.md`, check if the following paragraphs
-cover expected decisions, or there's still something missing, or confusing left.
-
-Widget: add `release()` method that removes Widget from the parent and set's a
-flag inside Widget, and add a property `bool released()` to check if Widget is
-still valid. Widget marked as released can no longer be reused. `release()` must
-also call `release` on children widgets (and clear the fChildren array and its components
-that may have references to widgets to remove references).
-
-Widget.addChild(w) should fail for both `this` and `w` if any of them is `released`.
-
-Add doc comment to release() method and property to note the Widget lifetime
-management, the correct way to release a Widget is via UiSystem (see below).
-
-UiSystem: add method `releaseWidget(Widget w)`. That method calls
-Widget.release() and removes references to that Widget from caches and
-registries known to UiSystem, and sets fields that reference it to null, e.g. if
-the widget is the root widget of the Window, set it's widget field to null, also
-to call unregisterViewWidget for view in the registry and registered
-controllers.
-
 - add UiSystem.dumpInfo to dump controller stack, registered views,
 windows and windows' root widget name and ID.
 

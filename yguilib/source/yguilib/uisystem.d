@@ -45,4 +45,5 @@ interface UiSystem : ControllerStack, WidgetSystemHost, FocusControl,
   @property Window mainWindow();
   void mainEventLoop();
   uint nextWidgetId();
+  void releaseWidget(Widget w);
 }

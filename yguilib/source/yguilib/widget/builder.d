@@ -333,7 +333,6 @@ struct WidgetBuilder {
       if (string name = view.widgetViewName) {
         if (WidgetView wv = registry.widgetViews.getByName(name)) {
           wv.registerViewWidget(widget);
-          // TODO unregister on widget removal from a tree
         }
       }
     }

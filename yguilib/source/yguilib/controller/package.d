@@ -50,6 +50,9 @@ interface Controller {
   @property void isModal(bool value);
 
   void sendAppEvent(AppEvent ev);
+
+  /// Called when a widget is released so controllers can clean up references.
+  void onWidgetReleased(Widget w);
 }
 
 class DefaultController : Controller {
@@ -96,6 +99,9 @@ class DefaultController : Controller {
   }
   @property override void isModal(bool value) {
     isModal_ = value;
+  }
+
+  override void onWidgetReleased(Widget w) {
   }
 
   override void sendAppEvent(AppEvent ev) {

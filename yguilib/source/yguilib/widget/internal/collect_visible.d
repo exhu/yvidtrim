@@ -36,6 +36,11 @@ final class VisibleWidgetsCollector {
     return visibleBuf[];
   }
 
+  /// Clears internal buffers when widgets are released.
+  void clearBuffer() {
+    visibleBuf.clear();
+  }
+
 private:
   void collectVisiblePrivate(
     Widget w,

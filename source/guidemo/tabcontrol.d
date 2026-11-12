@@ -1259,6 +1259,13 @@ unittest {
 
   // Tab 0 is at 0 (dist 70), Tab 1 is at 128 (dist 58). Nearest is 128!
   assert(sa.offset.x == 128.0f);
+
+  // 7. Verify releaseWidget unregisters tabRoot from view and releases tree
+  ui.releaseWidget(tabRoot);
+  assert(!registeredView.isWidgetRegistered(tabRoot));
+  assert(registeredView.getLeftButton(tabRoot) is null);
+  assert(tabRoot.released);
+  assert(tabsContainer.released);
 }
 
 version (unittest) {

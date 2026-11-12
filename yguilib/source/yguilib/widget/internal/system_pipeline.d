@@ -91,6 +91,22 @@ final class WidgetSystemPipeline {
     }
   }
 
+  /// Notifies all registered systems that a widget is released, and purges
+  /// cached visible widget references.
+  void notifyWidgetReleased(Widget w) {
+    if (w is null) {
+      return;
+    }
+    import std.algorithm.mutation : remove;
+    fLastVisibleWidgets = fLastVisibleWidgets.remove!(
+      vw => vw.widget is w
+    );
+    collector.clearBuffer();
+    foreach (s; systems) {
+      s.onWidgetReleased(w);
+    }
+  }
+
   /// Returns the cached clipped visible widgets from the last layout pass.
   @property VisibleWidgets lastVisibleWidgets() {
     return fLastVisibleWidgets;

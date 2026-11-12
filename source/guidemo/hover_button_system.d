@@ -285,6 +285,23 @@ final class AnimatedHoverButtonSystem : WidgetSystem {
     cleanInvisibleButtons();
   }
 
+  override void onWidgetReleased(Widget w) {
+    if (w is null) {
+      return;
+    }
+    for (ptrdiff_t i = cast(ptrdiff_t) activeButtons.length - 1; i >= 0; --i) {
+      if (activeButtons[i] is w) {
+        removeActiveButtonAt(i);
+      }
+    }
+    if (hoveredWidget is w) {
+      hoveredWidget = null;
+    }
+    if (pressedWidget is w) {
+      pressedWidget = null;
+    }
+  }
+
   bool isAnyAnimating() const nothrow @safe {
     return activeButtons.length > 0;
   }
@@ -849,6 +866,10 @@ unittest {
   sys.preLayout(ctx);
   assert(gradComp.hoverProgress > 0.0f);
   assert(gradComp.animPhase > 0.0f);
+
+  // Test onWidgetReleased
+  sys.onWidgetReleased(gradBtn);
+  assert(!sys.isAnyAnimating());
 }
 
 version (unittest) {

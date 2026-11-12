@@ -62,6 +62,20 @@ final class InputSystem : WidgetSystem {
     refreshHover(ctx.visibleWidgets);
   }
 
+  override void onWidgetReleased(Widget w) {
+    if (w is null) {
+      return;
+    }
+    import std.algorithm.mutation : remove;
+    hoveredWidgets = hoveredWidgets.remove!(e => e.widget is w);
+    hoverScratch = hoverScratch.remove!(e => e.widget is w);
+    foreach (ref pw; pressedWidgets) {
+      if (pw is w) {
+        pw = null;
+      }
+    }
+  }
+
   /// Handles incoming input events.
   /// Returns true if the view needs updating (e.g. when focus changes).
   bool handleEventAndUpdateView(in AppEvent event, VisibleWidgets widgets) {

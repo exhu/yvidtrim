@@ -130,6 +130,26 @@ struct WidgetComponents {
     fields["custom"] = JSONValue(customMap);
   }
 
+  /// Clears all built-in and custom component references.
+  void clear() {
+    flexContainer = null;
+    size = null;
+    anchor = null;
+    background = null;
+    textLabel = null;
+    border = null;
+    customDraw = null;
+    scrollableArea = null;
+    view = null;
+    focus = null;
+    defaultButton = null;
+    keyboardEvent = null;
+    mouseEvent = null;
+    widgetArray = null;
+    custom.clear();
+    customSerializers.clear();
+  }
+
 private:
   @SerIgnore WidgetComponent[TypeInfo_Class] custom;
   @SerIgnore JSONValue function(const WidgetComponent)[TypeInfo_Class]
@@ -190,7 +210,12 @@ final class Widget {
   /// Adds `w` as a child of this widget.
   /// If `w` already has a parent, removes `w` from that parent first.
   void addChild(Widget w) {
+    assert(!fReleased, "Cannot add child to a released widget");
     assert(w !is null, "Child widget must not be null");
+    assert(!w.released, "Cannot add a released widget as child");
+    if (fReleased || w is null || w.fReleased) {
+      return;
+    }
     assert(w !is this, "Widget cannot be a child of itself");
     assert(!isChildOf(w), "Cannot add an ancestor as a child");
 
@@ -242,6 +267,9 @@ final class Widget {
   /// Invalidates cached state and marks the widget for redraw and/or layout
   /// according to `scope_`.
   void update(WidgetUpdateScope scope_ = WidgetUpdateScope.all) {
+    if (fReleased) {
+      return;
+    }
     final switch (scope_) {
     case WidgetUpdateScope.parentView:
       updateParentViews();
@@ -308,7 +336,7 @@ final class Widget {
   /// If changed, updates caption and marks content-dirty (which triggers
   /// layout recalculation only when auto-sized).
   bool setCaption(string newCaption) {
-    if (components.textLabel is null) {
+    if (fReleased || components.textLabel is null) {
       return false;
     }
     if (components.textLabel.caption == newCaption) {
@@ -323,7 +351,7 @@ final class Widget {
   /// If changed, updates color and marks only visual-dirty (dirty = true),
   /// avoiding layout recalculation on parent flex containers.
   bool setBackgroundColor(ColorF newColor) {
-    if (components.background is null) {
+    if (fReleased || components.background is null) {
       return false;
     }
     if (components.background.color == newColor) {
@@ -337,7 +365,7 @@ final class Widget {
   /// Sets text color. If unchanged, returns false.
   /// If changed, updates color and marks only visual-dirty (dirty = true).
   bool setTextColor(ColorF newColor) {
-    if (components.textLabel is null) {
+    if (fReleased || components.textLabel is null) {
       return false;
     }
     if (components.textLabel.color == newColor) {
@@ -351,7 +379,7 @@ final class Widget {
   /// Sets border color. If unchanged, returns false.
   /// If changed, updates color and marks only visual-dirty (dirty = true).
   bool setBorderColor(ColorF newColor) {
-    if (components.border is null) {
+    if (fReleased || components.border is null) {
       return false;
     }
     if (components.border.color == newColor) {
@@ -365,7 +393,7 @@ final class Widget {
   /// Sets widget visibility. If unchanged, returns false.
   /// If changed, updates visibility and marks layout-dirty.
   bool setVisible(bool newVis) {
-    if (visible == newVis) {
+    if (fReleased || visible == newVis) {
       return false;
     }
     visible = newVis;
@@ -376,7 +404,7 @@ final class Widget {
   /// Sets scroll offset on ScrollableArea component. If unchanged or no
   /// ScrollableArea component, returns false. If changed, marks layout-dirty.
   bool setScrollOffset(PointF newOffset) {
-    if (components.scrollableArea is null) {
+    if (fReleased || components.scrollableArea is null) {
       return false;
     }
     if (components.scrollableArea.offset == newOffset) {
@@ -412,6 +440,7 @@ final class Widget {
     fields["inputEnabled"] = toJsonValue(inputEnabled);
     fields["dirty"] = toJsonValue(dirty);
     fields["layoutDirty"] = toJsonValue(layoutDirty);
+    fields["released"] = toJsonValue(fReleased);
 
     if (fParent !is null) {
       fields["parentUId"] = JSONValue(fParent.uId);
@@ -489,6 +518,37 @@ final class Widget {
   @property inout(Widget) parentView() inout {
     return fParentView;
   }
+
+  /// Releases this widget, detaching it from its parent, clearing child and
+  /// component references, and marking it as released.
+  ///
+  /// Note: A released widget can no longer be reused or added to a parent.
+  /// This method is non-recursive and clears only this widget's own fields.
+  /// In an application, the proper way to release a widget hierarchy is via
+  /// `UiSystem.releaseWidget(w)`, which releases child widgets bottom-up and
+  /// purges the widget from `UiSystem` caches, registries, views, controllers,
+  /// and window references.
+  void release() {
+    if (fReleased) {
+      return;
+    }
+    if (fParent !is null) {
+      fParent.removeChild(this);
+    }
+    fReleased = true;
+    fChildren = null;
+    fParentView = null;
+    components.clear();
+  }
+
+  /// Returns true if this widget has been released and is no longer valid.
+  ///
+  /// Note: The proper way to release a widget hierarchy in an application is
+  /// via `UiSystem.releaseWidget(w)`.
+  @property bool released() const nothrow @safe {
+    return fReleased;
+  }
+
   /// non-unique name to show in serialized form and to find in the tree.
   string name;
 
@@ -586,6 +646,7 @@ private:
   @SerIgnore Widget fParent;
   @SerIgnore Widget[] fChildren;
   @SerIgnore Widget fParentView;
+  bool fReleased = false;
 }
 
 unittest {
@@ -966,4 +1027,70 @@ unittest {
   auto parsedExtra = customMap[TestExtraComponent.classinfo.name];
   assert(parsedExtra["fields"]["info"].str == "extraData");
   assert(parsedExtra["fields"]["count"].integer == 7);
+  assert(parsedChild["fields"]["released"].boolean == false);
+}
+
+// Verifies Widget.release and released property.
+unittest {
+  import core.exception : AssertError;
+
+  auto parent = new Widget(1);
+  auto child1 = new Widget(2);
+  auto child2 = new Widget(3);
+  parent.addChild(child1);
+  parent.addChild(child2);
+
+  assert(!parent.released);
+  assert(!child1.released);
+  assert(!child2.released);
+  assert(parent.children.length == 2);
+  assert(child1.parent is parent);
+
+  child1.components.background = new Background(ColorF(1, 0, 0, 1));
+  assert(child1.components.background !is null);
+
+  // release child1 (clears child1's own fields, detaches from parent)
+  child1.release();
+  assert(child1.released);
+  assert(child1.parent is null);
+  assert(child1.children.length == 0);
+  assert(child1.components.background is null);
+  assert(parent.children.length == 1);
+  assert(parent.children[0] is child2);
+
+  // Calling release again is safe no-op
+  child1.release();
+  assert(child1.released);
+
+  // Mutators on released widget are no-ops
+  assert(!child1.setCaption("New Caption"));
+  assert(!child1.setBackgroundColor(ColorF(0, 1, 0, 1)));
+  assert(!child1.setTextColor(ColorF(0, 1, 0, 1)));
+  assert(!child1.setBorderColor(ColorF(0, 1, 0, 1)));
+  assert(!child1.setVisible(true));
+  assert(!child1.setScrollOffset(PointF(10, 10)));
+  child1.dirty = false;
+  child1.update();
+  assert(!child1.dirty);
+
+  // addChild with released widget fails assert
+  bool caughtAssert1 = false;
+  try {
+    parent.addChild(child1);
+  } catch (AssertError) {
+    caughtAssert1 = true;
+  }
+  assert(caughtAssert1);
+
+  // addChild on released parent fails assert
+  parent.release();
+  assert(parent.released);
+  auto child3 = new Widget(4);
+  bool caughtAssert2 = false;
+  try {
+    parent.addChild(child3);
+  } catch (AssertError) {
+    caughtAssert2 = true;
+  }
+  assert(caughtAssert2);
 }

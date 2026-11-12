@@ -95,6 +95,9 @@ abstract class WidgetSystem {
   /// can clean up entries keyed by `window` or `window.id`.
   void onWindowClosed(Window window) {}
 
+  /// Called when a widget is released so systems can purge cached references.
+  void onWidgetReleased(Widget w) {}
+
   /// Phase 1: Handle incoming AppEvent.
   SystemEventResult handleEvent(
     in AppEvent event,
