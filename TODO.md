@@ -1,3 +1,25 @@
+- registerViewWidget must be supported with unregister on widget removal from a tree.
+See `documentation/widget_lifetime_and_ownership_plan.md`, check if the following paragraphs
+cover expected decisions, or there's still something missing, or confusing left.
+
+Widget: add `release()` method that removes Widget from the parent and set's a
+flag inside Widget, and add a property `bool released()` to check if Widget is
+still valid. Widget marked as released can no longer be reused. `release()` must
+also call `release` on children widgets (and clear the fChildren array and its components
+that may have references to widgets to remove references).
+
+Widget.addChild(w) should fail for both `this` and `w` if any of them is `released`.
+
+Add doc comment to release() method and property to note the Widget lifetime
+management, the correct way to release a Widget is via UiSystem (see below).
+
+UiSystem: add method `releaseWidget(Widget w)`. That method calls
+Widget.release() and removes references to that Widget from caches and
+registries known to UiSystem, and sets fields that reference it to null, e.g. if
+the widget is the root widget of the Window, set it's widget field to null, also
+to call unregisterViewWidget for view in the registry and registered
+controllers.
+
 - add UiSystem.dumpInfo to dump controller stack, registered views,
 windows and windows' root widget name and ID.
 
@@ -5,12 +27,6 @@ windows and windows' root widget name and ID.
 
 - Dynamic lists are for another feature to implement.
 
-- registerViewWidget must be supported with unregister on widget removal from a tree.
-Rethink widget life time, may be it's constructor must not append to parent.
-see `documentation/widget_lifetime_and_ownership_plan.md`:
-root marker for Window root widget? (to allow to exist with null parent);
-should removing from parent cause unsubscription and unregistring, or only dispose() method
-does that? UiSystem.releaseWidget(w) instead of hooks and handlers in the Widget itself?
 
 - may be just use ViewComponent on root widget + WidgetView +
 WidgetViewController in demo and everywhere for consistency instead of manually
