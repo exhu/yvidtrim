@@ -1,5 +1,14 @@
-- use Widget.name in yguidemo with meaningful widget names, so that dumped
-widget tree is readable
+- make dumpSimpleTree more concise, e.g.:
+```
+{"name": "DemoRoot",
+ "visible": true,
+ "handleInput" : false,
+ "children" : [{"name": "tabControl",
+ "components": ["size", "background"],
+ ...}]
+ ...
+}
+```
 
 - review yguidemo, widget builder, is it easy to write by hand?
 

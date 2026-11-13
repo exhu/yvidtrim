@@ -130,6 +130,28 @@ struct WidgetComponents {
     fields["custom"] = JSONValue(customMap);
   }
 
+  /// Returns names of all non-null built-in and custom components.
+  string[] nonNullComponentNames() const {
+    import std.traits : FieldNameTuple, hasUDA;
+    string[] names;
+    enum fieldNames = FieldNameTuple!WidgetComponents;
+    static foreach (i; 0 .. fieldNames.length) {
+      static if (!hasUDA!(
+            __traits(getMember, WidgetComponents, fieldNames[i]),
+            SerIgnore)) {
+        if (this.tupleof[i] !is null) {
+          names ~= fieldNames[i];
+        }
+      }
+    }
+    foreach (ti, comp; custom) {
+      if (comp !is null) {
+        names ~= ti.toString();
+      }
+    }
+    return names;
+  }
+
   /// Clears all built-in and custom component references.
   void clear() {
     flexContainer = null;
@@ -458,6 +480,40 @@ final class Widget {
       JSONValue[] childrenArr;
       foreach (child; fChildren) {
         childrenArr ~= child.dumpToJsonValue(true);
+      }
+      fields["children"] = JSONValue(childrenArr);
+    }
+
+    root["fields"] = JSONValue(fields);
+    return JSONValue(root);
+  }
+
+  /// Dumps essential widget info (and optionally its children) as a
+  /// human-readable pretty-formatted JSON string.
+  string dumpSimpleTree(bool withChildren = true) const {
+    import std.json : toJSON, JSONOptions;
+    const JSONValue jv = dumpSimpleToJsonValue(withChildren);
+    return toJSON(jv, true, JSONOptions.specialFloatLiterals);
+  }
+
+  /// Converts essential widget fields to a JSONValue.
+  JSONValue dumpSimpleToJsonValue(bool withChildren = true) const {
+    JSONValue[string] root;
+    root["type"] = JSONValue("Widget");
+
+    JSONValue[string] fields;
+    fields["uId"] = toJsonValue(uId);
+    fields["name"] = toJsonValue(name);
+    fields["rect"] = toJsonValue(rect);
+    fields["visible"] = toJsonValue(visible);
+    fields["handleInput"] = toJsonValue(handleInput);
+    fields["inputEnabled"] = toJsonValue(inputEnabled);
+    fields["components"] = toJsonValue(components.nonNullComponentNames());
+
+    if (withChildren) {
+      JSONValue[] childrenArr;
+      foreach (child; fChildren) {
+        childrenArr ~= child.dumpSimpleToJsonValue(true);
       }
       fields["children"] = JSONValue(childrenArr);
     }
@@ -1028,6 +1084,88 @@ unittest {
   assert(parsedExtra["fields"]["info"].str == "extraData");
   assert(parsedExtra["fields"]["count"].integer == 7);
   assert(parsedChild["fields"]["released"].boolean == false);
+}
+
+// Verifies Widget.dumpSimpleTree serialization.
+unittest {
+  import std.algorithm : canFind;
+  import std.json : JSONType, parseJSON;
+  import yguilib.widget.builder : WidgetBuilder;
+
+  final class SimpleTestExtraComponent : WidgetComponent {
+    int value = 42;
+  }
+
+  auto root = WidgetBuilder(200)
+    .rect(RectF(0, 0, 640, 480))
+    .flex(FlexDirection.row, 4.0f)
+    .background(ColorF(0.2f, 0.3f, 0.4f, 1.0f))
+    .build();
+  root.name = "SimpleRoot";
+  root.visible = false;
+  root.handleInput = true;
+  root.inputEnabled = true;
+
+  auto child = WidgetBuilder(201)
+    .parent(root)
+    .rect(RectF(5, 5, 100, 30))
+    .text("ClickMe")
+    .build();
+  child.name = "SimpleChild";
+  child.components.set(new SimpleTestExtraComponent());
+
+  // Dump without children
+  string rootOnlyJson = root.dumpSimpleTree(false);
+  auto parsedRootOnly = parseJSON(rootOnlyJson);
+  assert(parsedRootOnly["type"].str == "Widget");
+  auto rf = parsedRootOnly["fields"];
+  assert(rf["uId"].integer == 200);
+  assert(rf["name"].str == "SimpleRoot");
+  assert(rf["rect"]["fields"]["width"].floating == 640.0);
+  assert(rf["visible"].boolean == false);
+  assert(rf["handleInput"].boolean == true);
+  assert(rf["inputEnabled"].boolean == true);
+  assert("children" !in rf);
+  assert("clipContents" !in rf);
+  assert("clipChildren" !in rf);
+  assert("dirty" !in rf);
+  assert("layoutDirty" !in rf);
+  assert("released" !in rf);
+  assert("parentUId" !in rf);
+  assert("parentViewUId" !in rf);
+
+  assert(rf["components"].type == JSONType.array);
+  string[] rootCompNames;
+  foreach (elem; rf["components"].array) {
+    assert(elem.type == JSONType.string);
+    rootCompNames ~= elem.str;
+  }
+  assert(rootCompNames.length == 2);
+  assert(rootCompNames.canFind("flexContainer"));
+  assert(rootCompNames.canFind("background"));
+
+  // Dump with children
+  string fullJson = root.dumpSimpleTree(true);
+  auto parsedFull = parseJSON(fullJson);
+  auto childrenArr = parsedFull["fields"]["children"].array;
+  assert(childrenArr.length == 1);
+
+  auto cf = childrenArr[0]["fields"];
+  assert(cf["uId"].integer == 201);
+  assert(cf["name"].str == "SimpleChild");
+  assert(cf["visible"].boolean == true);
+  assert(cf["handleInput"].boolean == false);
+  assert(cf["inputEnabled"].boolean == false);
+  assert("parentUId" !in cf);
+
+  string[] childCompNames;
+  foreach (elem; cf["components"].array) {
+    assert(elem.type == JSONType.string);
+    childCompNames ~= elem.str;
+  }
+  assert(childCompNames.length == 2);
+  assert(childCompNames.canFind("textLabel"));
+  assert(childCompNames.canFind(SimpleTestExtraComponent.classinfo.name));
 }
 
 // Verifies Widget.release and released property.

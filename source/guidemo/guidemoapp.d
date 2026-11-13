@@ -70,5 +70,6 @@ void main() {
   import std.logger : infof;
   infof("ui = %s", app.ui.dumpInfo());
   infof("root = %s", window.rootWidget.dumpTree());
+  infof("root simple = %s", window.rootWidget.dumpSimpleTree());
   app.run(demoController);
 }
