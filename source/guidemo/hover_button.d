@@ -174,7 +174,7 @@ struct HoverButtonBuilder {
       rootBuilder.anchor(customAnchor);
     }
 
-    rootBuilder.child(ui.nextWidgetId(), (ref WidgetBuilder cb) {
+    rootBuilder.child(ui, (ref WidgetBuilder cb) {
       cb.name(rootName ~ "Label")
         .rect(RectF(0, 0, initW, initH))
         .fixedSize(initW, initH)

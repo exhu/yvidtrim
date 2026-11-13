@@ -70,12 +70,12 @@ public:
       .background(colors.darkGray)
       .border(colors.brightWhite, 3.0f, Border.Style.dashed)
       .flexRow(8.0f, JustifyContent.start, tracker.model.alignItems)
-      .child(ui.nextWidgetId(), (ref WidgetBuilder b) {
+      .child(ui, (ref WidgetBuilder b) {
         b.rect(RectF(5, 8, 1, 1))
           .background(colors.yellow)
           .fixedSize(100.0f, 40.0f);
       })
-      .child(ui.nextWidgetId(), (ref WidgetBuilder b) {
+      .child(ui, (ref WidgetBuilder b) {
         b.rect(RectF(15, 18, 1, 1))
           .background(colors.brown)
           .margin(10.0f, 10.0f, 14.0f, 15.0f)

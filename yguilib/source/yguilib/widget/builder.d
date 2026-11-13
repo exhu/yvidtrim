@@ -341,10 +341,10 @@ struct WidgetBuilder {
 
   /// Appends and configures a child widget within a scoped delegate.
   ref WidgetBuilder child(
-    uint childId,
+    UiSystem ui,
     scope void delegate(ref WidgetBuilder) config
   ) return {
-    auto b = WidgetBuilder(childId).parent(widget);
+    auto b = WidgetBuilder.make(ui).parent(widget);
     if (config !is null) {
       config(b);
     }
@@ -405,6 +405,18 @@ package(yguilib):
   this(uint uId) {
     widget = new Widget(uId);
   }
+
+  ref WidgetBuilder child(
+    uint childId,
+    scope void delegate(ref WidgetBuilder) config
+  ) return {
+    auto b = WidgetBuilder(childId).parent(widget);
+    if (config !is null) {
+      config(b);
+    }
+    return this;
+  }
+
 
 private:
   Widget widget;
