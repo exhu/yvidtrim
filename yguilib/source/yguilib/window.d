@@ -14,7 +14,7 @@ class Window {
     this.height = height;
     this.pixelWidth = width;
     this.pixelHeight = height;
-    this.title = title;
+    this.fTitle = title;
   }
 
   float getDefaultScaling() const {
@@ -76,6 +76,10 @@ class Window {
 
   /// The view widget must have a non-null View component.
   Widget rootWidget;
+
+  @property string title() const {
+    return fTitle;
+  }
 package(yguilib):
   void swapBuffers() {
     if (handle !is null) {
@@ -89,9 +93,9 @@ package(yguilib):
     }
     import std.string : toStringz;
 
-    handle = yguilib_sdl3_create_window(title.toStringz, width, height);
+    handle = yguilib_sdl3_create_window(fTitle.toStringz, width, height);
     if (handle is null) {
-      throw new Exception("Failed to create SDL window: " ~ title);
+      throw new Exception("Failed to create SDL window: " ~ fTitle);
     }
     id = yguilib_sdl3_get_window_id(handle);
     glContext = yguilib_sdl3_gl_create_context(handle);
@@ -271,7 +275,7 @@ private:
   int pixelWidth;
   int pixelHeight;
   float customUnitsScaling = 1.0f;
-  string title;
+  string fTitle;
 
   yguilib_sdl3_Window* handle;
   yguilib_sdl3_GLContext* glContext;

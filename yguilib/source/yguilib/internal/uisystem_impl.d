@@ -175,6 +175,63 @@ class UiSystemImpl : UiSystem {
     return fWidgetViews;
   }
 
+  override string dumpInfo() {
+    import std.json : JSONValue;
+    import yguilib.serhelpers : serializeToJson, shortTypeName;
+
+    JSONValue[string] root;
+    root["type"] = JSONValue("UiSystem");
+
+    JSONValue[string] fields;
+
+    // Controller stack
+    JSONValue[] controllerList;
+    foreach (ctrl; controllers) {
+      JSONValue[string] ctrlJson;
+      ctrlJson["type"] = JSONValue(shortTypeName(ctrl));
+      ctrlJson["isModal"] = JSONValue(ctrl.isModal);
+      controllerList ~= JSONValue(ctrlJson);
+    }
+    fields["controllers"] = JSONValue(controllerList);
+
+    // Registered views
+    JSONValue[string] viewsJson;
+    foreach (name, view; fWidgetViews) {
+      viewsJson[name] = JSONValue(shortTypeName(view));
+    }
+    fields["widgetViews"] = JSONValue(viewsJson);
+
+    // Registered view controllers
+    JSONValue[string] viewControllersJson;
+    foreach (name, ctrl; fWidgetViewControllers) {
+      viewControllersJson[name] = JSONValue(shortTypeName(ctrl));
+    }
+    fields["widgetViewControllers"] = JSONValue(viewControllersJson);
+
+    // Window
+    if (fMainWindow !is null) {
+      JSONValue[string] winJson;
+      winJson["title"] = JSONValue(fMainWindow.title);
+      winJson["width"] = JSONValue(fMainWindow.width);
+      winJson["height"] = JSONValue(fMainWindow.height);
+
+      if (fMainWindow.rootWidget !is null) {
+        JSONValue[string] rootWidgetJson;
+        rootWidgetJson["name"] = JSONValue(fMainWindow.rootWidget.name);
+        rootWidgetJson["uId"] = JSONValue(fMainWindow.rootWidget.uId);
+        winJson["rootWidget"] = JSONValue(rootWidgetJson);
+      } else {
+        winJson["rootWidget"] = JSONValue(null);
+      }
+      fields["window"] = JSONValue(winJson);
+    } else {
+      fields["window"] = JSONValue(null);
+    }
+
+    root["fields"] = JSONValue(fields);
+    return serializeToJson(JSONValue(root));
+  }
+
 private:
   int pollSdlEvent(int timeoutMs) {
     yguilib_sdl3_Event sdlEv;
@@ -1124,4 +1181,82 @@ unittest {
   assert(win.rootWidget is null);
   assert(!view.isWidgetRegistered(root));
   assert(!view.isWidgetRegistered(child));
+}
+
+// Verifies dumpInfo returns expected structure with controllers, views,
+// view controllers, and window with root widget info.
+unittest {
+  import std.json : parseJSON;
+  import yguilib.controller : DefaultController;
+  import yguilib.widget.widget_view : WidgetViewBase, WidgetViewControllerBase;
+
+  class DumpTestView : WidgetViewBase {
+    override void translateEventForViewWidget(
+      ref AppEvent sourceEvent,
+      Widget viewWidget
+    ) scope return {
+    }
+  }
+
+  class DumpTestViewController : WidgetViewControllerBase {
+    this(UiSystem ui) {
+      super(ui);
+    }
+    override string getControllerName() {
+      return "DumpTestViewController";
+    }
+  }
+
+  auto win = new Window(800, 600, "dump_test_window");
+  auto ui = new UiSystemImpl(win);
+
+  auto root = new Widget(ui.nextWidgetId());
+  root.name = "testRoot";
+  win.rootWidget = root;
+
+  auto ctrl = new DefaultController(ui);
+  ui.pushController(ctrl);
+
+  auto view = new DumpTestView();
+  ui.widgetViews.register("testView", view);
+
+  auto viewCtrl = new DumpTestViewController(ui);
+  ui.widgetViewControllers.register("testViewCtrl", viewCtrl);
+
+  string jsonStr = ui.dumpInfo();
+  auto doc = parseJSON(jsonStr);
+
+  assert(doc["type"].str == "UiSystem");
+  auto fields = doc["fields"];
+
+  // Controllers: check DefaultController is in the stack
+  assert(fields["controllers"].array.length >= 1);
+  bool foundCtrl = false;
+  foreach (c; fields["controllers"].array) {
+    if (c["type"].str == "DefaultController") {
+      foundCtrl = true;
+      assert(c["isModal"].boolean == false);
+    }
+  }
+  assert(foundCtrl);
+
+  // Widget views
+  assert("testView" in fields["widgetViews"].object);
+  assert(fields["widgetViews"]["testView"].str == "DumpTestView");
+
+  // Widget view controllers
+  assert("testViewCtrl" in fields["widgetViewControllers"].object);
+  assert(fields["widgetViewControllers"]["testViewCtrl"].str
+    == "DumpTestViewController");
+
+  // Window & rootWidget
+  auto winJson = fields["window"];
+  assert(winJson["title"].str == "dump_test_window");
+  assert(winJson["width"].integer == 800);
+  assert(winJson["height"].integer == 600);
+  assert(winJson["rootWidget"]["name"].str == "testRoot");
+  assert(winJson["rootWidget"]["uId"].integer == root.uId);
+  // Ensure full widget tree fields are not included
+  assert("children" !in winJson["rootWidget"].object);
+  assert("components" !in winJson["rootWidget"].object);
 }

@@ -32,6 +32,15 @@ final class ObjectRegistry(T) if (is(T == class) || is(T == interface)) {
     }
     return 0;
   }
+
+  int opApply(scope int delegate(string, T) dg) {
+    foreach (name, obj; objMap) {
+      if (int res = dg(name, obj)) {
+        return res;
+      }
+    }
+    return 0;
+  }
 private:
   T[string] objMap;
 }

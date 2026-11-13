@@ -625,6 +625,9 @@ unittest {
         w.release();
       }
     }
+    override string dumpInfo() {
+      return "";
+    }
 
   private:
     uint fNextWidgetId = 1;

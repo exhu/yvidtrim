@@ -76,6 +76,23 @@ string serializeToJson(T)(auto ref const T value, bool pretty = true) {
   return toJSON(jv, false, JSONOptions.specialFloatLiterals);
 }
 
+/// Returns the unqualified type name for an object or interface instance at
+/// runtime, or of a value's static type.
+string shortTypeName(T)(T item) {
+  static if (is(T == class) || is(T == interface)) {
+    if (item is null) {
+      return "null";
+    }
+    auto obj = cast(Object) item;
+    string fullName = (obj !is null) ? typeid(obj).name : typeid(item).name;
+  } else {
+    string fullName = T.stringof;
+  }
+  import std.string : lastIndexOf;
+  const dotIdx = fullName.lastIndexOf('.');
+  return dotIdx >= 0 ? fullName[dotIdx + 1 .. $] : fullName;
+}
+
 private:
 
 /// Helper to serialize struct or class fields.
@@ -182,4 +199,18 @@ unittest {
   assert(jv["fields"]["infVal"].str == "infinity");
   assert(jv["fields"]["negInfVal"].str == "-infinity");
   assert(jv["fields"]["nanVal"].str == "NaN");
+}
+
+unittest {
+  interface ITestItem {}
+  class TestDerived : ITestItem {}
+
+  ITestItem item = new TestDerived();
+  assert(shortTypeName(item) == "TestDerived");
+
+  ITestItem nullItem = null;
+  assert(shortTypeName(nullItem) == "null");
+
+  int val = 42;
+  assert(shortTypeName(val) == "int");
 }

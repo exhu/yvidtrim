@@ -1,6 +1,3 @@
-- add UiSystem.dumpInfo to dump controller stack, registered views,
-windows and windows' root widget name and ID.
-
 - add skill to author gui based on tabControl changes
 
 - Dynamic lists are for another feature to implement.
