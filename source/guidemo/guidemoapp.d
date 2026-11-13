@@ -67,5 +67,7 @@ void main() {
   app.ui.pushController(hoverButtonController);
   app.ui.pushController(demoController.getTabControlController());
   app.ui.registerWidgetSystem(new AnimatedHoverButtonSystem());
+  import std.logger : infof;
+  infof("ui = %s", app.ui.dumpInfo());
   app.run(demoController);
 }

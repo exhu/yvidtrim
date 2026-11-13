@@ -77,7 +77,8 @@ string serializeToJson(T)(auto ref const T value, bool pretty = true) {
 }
 
 /// Returns the unqualified type name for an object or interface instance at
-/// runtime, or of a value's static type.
+/// runtime, or of a value's static type. Template arguments are dropped
+/// (e.g. `Box!int` becomes `Box`).
 string shortTypeName(T)(T item) {
   static if (is(T == class) || is(T == interface)) {
     if (item is null) {

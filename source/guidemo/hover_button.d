@@ -626,7 +626,7 @@ unittest {
       }
     }
     override string dumpInfo() {
-      return "";
+      return "{}";
     }
 
   private:

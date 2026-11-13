@@ -1,0 +1,31 @@
+**`UiSystem.dumpInfo()` has no doc comment**
+   ([uisystem.d](file://yguilib/source/yguilib/uisystem.d#L49)).
+   It reads GUI state without locking. Under the project's threading rule,
+   it may only be called on the main thread, but nothing in the code says
+   so. Add a `///` comment that covers:
+   - the output format (JSON, the `{type, fields}` schema)
+   - main-thread only
+   - that it is meant for debugging
+
+- remove `ControllerStack.opApply(size_t, Controller)` -- has no callers and no
+     test.
+
+**Two ways to iterate the controller stack.** `ControllerStack`
+   already exposes `getAll()`, and `releaseWidget` still uses
+   `controllers.getAll()`. Pick one style: switch `releaseWidget` to
+   `foreach (ctrl; controllers)`
+
+**The mock stub returns `""`**
+   ([hover_button.d](file://source/guidemo/hover_button.d#L628-L630)).
+   An empty string is not valid JSON. Returning `"{}"` keeps the contract
+   valid for any caller that parses the result. More generally, every new
+   method on `UiSystem` must be added to each hand-written mock. If this
+   keeps happening, consider a shared test base class, such as one in
+   `widget/test_fixture.d`.
+
+**`shortTypeName` drops template arguments.** I checked this with
+   ldc2: `Box!Foo` and `Box!int` both print as `Box`. This is fine for
+   debug output. A short note in the doc comment would make the behaviour
+   clear.
+
+add UiSystem.dumpInfo call to guidemo, after the ui is constructed.

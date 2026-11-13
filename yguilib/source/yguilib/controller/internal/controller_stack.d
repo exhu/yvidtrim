@@ -70,15 +70,6 @@ struct ControllerStack {
     return 0;
   }
 
-  int opApply(scope int delegate(size_t, Controller) dg) {
-    foreach (i, c; stack) {
-      if (int res = dg(i, c)) {
-        return res;
-      }
-    }
-    return 0;
-  }
-
 private:
   Controller[] stack;
 }

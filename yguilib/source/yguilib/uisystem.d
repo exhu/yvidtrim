@@ -46,5 +46,10 @@ interface UiSystem : ControllerStack, WidgetSystemHost, FocusControl,
   void mainEventLoop();
   uint nextWidgetId();
   void releaseWidget(Widget w);
+
+  /// Returns a JSON string with debugging info (controller stack, registered
+  /// views and view controllers, main window and root widget name/uId) in the
+  /// `{type, fields}` schema. Main-thread only; reads UI state without
+  /// locking.
   string dumpInfo();
 }

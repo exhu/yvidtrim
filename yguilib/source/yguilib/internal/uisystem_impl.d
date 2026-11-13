@@ -122,7 +122,7 @@ class UiSystemImpl : UiSystem {
       }
     }
 
-    foreach (ctrl; controllers.getAll()) {
+    foreach (ctrl; controllers) {
       if (ctrl !is null) {
         ctrl.onWidgetReleased(w);
       }
