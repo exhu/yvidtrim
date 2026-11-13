@@ -1,15 +1,3 @@
-- make dumpSimpleTree more concise, e.g.:
-```
-{"name": "DemoRoot",
- "visible": true,
- "handleInput" : false,
- "children" : [{"name": "tabControl",
- "components": ["size", "background"],
- ...}]
- ...
-}
-```
-
 - review yguidemo, widget builder, is it easy to write by hand?
 
 - may be just use ViewComponent on root widget + WidgetView +

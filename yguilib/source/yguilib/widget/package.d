@@ -7,7 +7,8 @@ import yguilib.widget.input_components;
 import yguilib.widget.data_components;
 import yguilib.render.font : defaultFontPtSize;
 import yguilib.widget.widget_view : WidgetViewController, WidgetView;
-import yguilib.serhelpers : SerIgnore, toJsonValue, serializeToJson;
+import yguilib.serhelpers : SerIgnore, shortTypeName, toJsonValue,
+  serializeToJson;
 import std.json : JSONValue, JSONType;
 import std.typecons : Nullable;
 
@@ -146,7 +147,7 @@ struct WidgetComponents {
     }
     foreach (ti, comp; custom) {
       if (comp !is null) {
-        names ~= ti.toString();
+        names ~= shortTypeName(comp);
       }
     }
     return names;
@@ -489,28 +490,31 @@ final class Widget {
   }
 
   /// Dumps essential widget info (and optionally its children) as a
-  /// human-readable pretty-formatted JSON string.
+  /// concise, human-readable JSON string.
   string dumpSimpleTree(bool withChildren = true) const {
-    import std.json : toJSON, JSONOptions;
-    const JSONValue jv = dumpSimpleToJsonValue(withChildren);
-    return toJSON(jv, true, JSONOptions.specialFloatLiterals);
+    import std.array : Appender;
+    Appender!string app;
+    appendSimpleJson(app, 0, withChildren);
+    return app.data;
   }
 
-  /// Converts essential widget fields to a JSONValue.
+  /// Converts essential widget fields to a flat JSONValue.
   JSONValue dumpSimpleToJsonValue(bool withChildren = true) const {
-    JSONValue[string] root;
-    root["type"] = JSONValue("Widget");
-
     JSONValue[string] fields;
-    fields["uId"] = toJsonValue(uId);
     fields["name"] = toJsonValue(name);
-    fields["rect"] = toJsonValue(rect);
+    fields["uId"] = toJsonValue(uId);
+    const float[4] rectArr = [rect.x, rect.y, rect.width, rect.height];
+    fields["rect"] = toJsonValue(rectArr[]);
     fields["visible"] = toJsonValue(visible);
     fields["handleInput"] = toJsonValue(handleInput);
     fields["inputEnabled"] = toJsonValue(inputEnabled);
-    fields["components"] = toJsonValue(components.nonNullComponentNames());
 
-    if (withChildren) {
+    const compNames = components.nonNullComponentNames();
+    if (compNames.length > 0) {
+      fields["components"] = toJsonValue(compNames);
+    }
+
+    if (withChildren && fChildren.length > 0) {
       JSONValue[] childrenArr;
       foreach (child; fChildren) {
         childrenArr ~= child.dumpSimpleToJsonValue(true);
@@ -518,8 +522,7 @@ final class Widget {
       fields["children"] = JSONValue(childrenArr);
     }
 
-    root["fields"] = JSONValue(fields);
-    return JSONValue(root);
+    return JSONValue(fields);
   }
 
   /// Checks if this or child Widget has the name.
@@ -698,6 +701,75 @@ private:
       child.markTreeDirty();
     }
   }
+
+  /// Appends concise, deterministically ordered JSON for this widget.
+  void appendSimpleJson(
+    ref Appender!string app,
+    size_t indent,
+    bool withChildren
+  ) const {
+    import std.array : replicate;
+    import std.format : formattedWrite;
+    import std.json : JSONOptions, toJSON;
+
+    const string pad = " ".replicate(indent + 1);
+    const jName = JSONValue(name);
+    const rectVals = [
+      toJsonValue(rect.x),
+      toJsonValue(rect.y),
+      toJsonValue(rect.width),
+      toJsonValue(rect.height),
+    ];
+
+    app.formattedWrite(
+      "{\"name\": %s,\n%s\"uId\": %s,\n%s\"rect\": %s,\n" ~
+      "%s\"visible\": %s,\n%s\"handleInput\": %s,\n%s\"inputEnabled\": %s",
+      toJSON(jName),
+      pad, uId,
+      pad, formatSimpleArray(rectVals),
+      pad, visible,
+      pad, handleInput,
+      pad, inputEnabled
+    );
+
+    const compNames = components.nonNullComponentNames();
+    if (compNames.length > 0) {
+      JSONValue[] compVals;
+      foreach (c; compNames) {
+        compVals ~= JSONValue(c);
+      }
+      app.formattedWrite(",\n%s\"components\": %s",
+        pad, formatSimpleArray(compVals));
+    }
+
+    if (withChildren && fChildren.length > 0) {
+      app.formattedWrite(",\n%s\"children\": [\n", pad);
+      const string childPad = " ".replicate(indent + 3);
+      foreach (i, child; fChildren) {
+        app.formattedWrite("%s", childPad);
+        child.appendSimpleJson(app, indent + 3, true);
+        if (i + 1 < fChildren.length) {
+          app.put(",\n");
+        }
+      }
+      app.formattedWrite("\n%s]", pad);
+    }
+    app.put("}");
+  }
+
+  static string formatSimpleArray(const JSONValue[] items) {
+    import std.array : join;
+    import std.json : JSONOptions, toJSON;
+
+    string[] parts;
+    parts.reserve(items.length);
+    foreach (item; items) {
+      parts ~= toJSON(item, false, JSONOptions.specialFloatLiterals);
+    }
+    return "[" ~ parts.join(", ") ~ "]";
+  }
+
+  import std.array : Appender;
 
   @SerIgnore Widget fParent;
   @SerIgnore Widget[] fChildren;
@@ -1090,6 +1162,7 @@ unittest {
 unittest {
   import std.algorithm : canFind;
   import std.json : JSONType, parseJSON;
+  import std.string : indexOf;
   import yguilib.widget.builder : WidgetBuilder;
 
   final class SimpleTestExtraComponent : WidgetComponent {
@@ -1114,14 +1187,23 @@ unittest {
   child.name = "SimpleChild";
   child.components.set(new SimpleTestExtraComponent());
 
+  auto emptyChild = new Widget(202);
+  emptyChild.name = "EmptyChild";
+  root.addChild(emptyChild);
+
   // Dump without children
   string rootOnlyJson = root.dumpSimpleTree(false);
-  auto parsedRootOnly = parseJSON(rootOnlyJson);
-  assert(parsedRootOnly["type"].str == "Widget");
-  auto rf = parsedRootOnly["fields"];
+  auto rf = parseJSON(rootOnlyJson);
+  assert("type" !in rf);
+  assert("fields" !in rf);
   assert(rf["uId"].integer == 200);
   assert(rf["name"].str == "SimpleRoot");
-  assert(rf["rect"]["fields"]["width"].floating == 640.0);
+  assert(rf["rect"].type == JSONType.array);
+  assert(rf["rect"].array.length == 4);
+  assert(rf["rect"].array[0].floating == 0.0);
+  assert(rf["rect"].array[1].floating == 0.0);
+  assert(rf["rect"].array[2].floating == 640.0);
+  assert(rf["rect"].array[3].floating == 480.0);
   assert(rf["visible"].boolean == false);
   assert(rf["handleInput"].boolean == true);
   assert(rf["inputEnabled"].boolean == true);
@@ -1146,17 +1228,25 @@ unittest {
 
   // Dump with children
   string fullJson = root.dumpSimpleTree(true);
-  auto parsedFull = parseJSON(fullJson);
-  auto childrenArr = parsedFull["fields"]["children"].array;
-  assert(childrenArr.length == 1);
+  assert(fullJson.indexOf("\"name\"") < fullJson.indexOf("\"children\""));
+  const rectStart = fullJson.indexOf("\"rect\": [");
+  assert(rectStart >= 0);
+  const rectEnd = fullJson.indexOf("]", rectStart);
+  assert(rectEnd > rectStart);
+  assert(fullJson[rectStart .. rectEnd].indexOf("\n") < 0);
 
-  auto cf = childrenArr[0]["fields"];
+  auto parsedFull = parseJSON(fullJson);
+  auto childrenArr = parsedFull["children"].array;
+  assert(childrenArr.length == 2);
+
+  auto cf = childrenArr[0];
   assert(cf["uId"].integer == 201);
   assert(cf["name"].str == "SimpleChild");
   assert(cf["visible"].boolean == true);
   assert(cf["handleInput"].boolean == false);
   assert(cf["inputEnabled"].boolean == false);
   assert("parentUId" !in cf);
+  assert("children" !in cf);
 
   string[] childCompNames;
   foreach (elem; cf["components"].array) {
@@ -1165,7 +1255,13 @@ unittest {
   }
   assert(childCompNames.length == 2);
   assert(childCompNames.canFind("textLabel"));
-  assert(childCompNames.canFind(SimpleTestExtraComponent.classinfo.name));
+  assert(childCompNames.canFind("SimpleTestExtraComponent"));
+
+  // Empty widget omits components and children
+  auto ef = childrenArr[1];
+  assert(ef["name"].str == "EmptyChild");
+  assert("components" !in ef);
+  assert("children" !in ef);
 }
 
 // Verifies Widget.release and released property.
