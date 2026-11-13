@@ -7,8 +7,6 @@ created View and Controller?
 
 - Dynamic lists are for another feature to implement.
 
-- add skill to author gui based on tabControl changes
-
 
 - Systems and components satisfy the case of parent and child widgets and
 multitude of instances, while WidgetController may be more appropriate when
