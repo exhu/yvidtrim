@@ -57,3 +57,10 @@ Adhere to `.editorconfig` and `codestyle.md`:
 ## Markdown documentation
 Use ascii for diagrams in `.md` files, e.g. for plans.
 Keep line length 80 characters max whenever possible.
+
+## Logs
+std.logger is used with log being redirected to SDL, so to see logs when
+running guidemo, yvidtrim need to set `SDL_LOGGING` env var, e.g.
+```
+SDL_LOGGING=app=trace ./_build/yvidtrim
+```
