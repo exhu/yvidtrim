@@ -256,7 +256,7 @@ private:
       "subTabCard"
     );
 
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("subTabDescLabel")
       .rect(RectF(16, 36, 570, 20))
@@ -278,7 +278,7 @@ private:
 
     buildSubPanels(card);
 
-    eventLogLabel = WidgetBuilder(ui.nextWidgetId())
+    eventLogLabel = WidgetBuilder.make(ui)
       .parent(card)
       .name("subTabEventLogLabel")
       .rect(RectF(16, 246, 570, 22))
@@ -335,7 +335,7 @@ private:
     string title,
     string bodyText
   ) {
-    auto box = WidgetBuilder(ui.nextWidgetId())
+    auto box = WidgetBuilder.make(ui)
       .parent(parent)
       .name(panelName)
       .rect(RectF(16, 104, 573, 130))
@@ -344,14 +344,14 @@ private:
       .padding(10, 12)
       .build();
 
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(box)
       .name(panelName ~ "Title")
       .rect(RectF(14, 10, 540, 22))
       .text(title, ColorF(0.95f, 0.98f, 1.0f, 1.0f), 14.0f)
       .build();
 
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(box)
       .name(panelName ~ "Body")
       .rect(RectF(14, 38, 540, 78))
@@ -370,7 +370,7 @@ private:
       "dynamicTabCard"
     );
 
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("dynamicTabDescLabel")
       .rect(RectF(16, 36, 580, 20))
@@ -395,7 +395,7 @@ private:
   }
 
   void buildDynamicMutationButtons(Widget card) {
-    auto btnRow = WidgetBuilder(ui.nextWidgetId())
+    auto btnRow = WidgetBuilder.make(ui)
       .parent(card)
       .name("dynamicMutationBtnRow")
       .rect(RectF(16, 108, 580, 42))
@@ -504,7 +504,7 @@ private:
   }
 
   void buildDynamicInfoBox(Widget card) {
-    auto infoBox = WidgetBuilder(ui.nextWidgetId())
+    auto infoBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("dynamicInfoBox")
       .rect(RectF(16, 162, 583, 102))
@@ -513,7 +513,7 @@ private:
       .padding(10, 12)
       .build();
 
-    dynamicStatusLabel = WidgetBuilder(ui.nextWidgetId())
+    dynamicStatusLabel = WidgetBuilder.make(ui)
       .parent(infoBox)
       .name("dynamicStatusLabel")
       .rect(RectF(12, 10, 555, 22))
@@ -524,7 +524,7 @@ private:
       )
       .build();
 
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(infoBox)
       .name("dynamicInfoBody")
       .rect(RectF(12, 38, 555, 52))
@@ -547,7 +547,7 @@ private:
       "verticalTabCard"
     );
 
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("verticalTabDescLabel")
       .rect(RectF(16, 36, 570, 20))
@@ -578,7 +578,7 @@ private:
   }
 
   void buildVerticalInspectorBox(Widget card) {
-    auto inspector = WidgetBuilder(ui.nextWidgetId())
+    auto inspector = WidgetBuilder.make(ui)
       .parent(card)
       .name("verticalInspectorBox")
       .rect(RectF(192, 66, 396, 196))
@@ -587,7 +587,7 @@ private:
       .padding(12, 14)
       .build();
 
-    verticalTitleLabel = WidgetBuilder(ui.nextWidgetId())
+    verticalTitleLabel = WidgetBuilder.make(ui)
       .parent(inspector)
       .name("verticalTitleLabel")
       .rect(RectF(14, 14, 368, 24))
@@ -598,7 +598,7 @@ private:
       )
       .build();
 
-    verticalDescLabel = WidgetBuilder(ui.nextWidgetId())
+    verticalDescLabel = WidgetBuilder.make(ui)
       .parent(inspector)
       .name("verticalDescLabel")
       .rect(RectF(14, 48, 368, 90))
@@ -610,7 +610,7 @@ private:
       )
       .build();
 
-    verticalIndexLabel = WidgetBuilder(ui.nextWidgetId())
+    verticalIndexLabel = WidgetBuilder.make(ui)
       .parent(inspector)
       .name("verticalIndexLabel")
       .rect(RectF(14, 156, 368, 22))
@@ -631,7 +631,7 @@ private:
       "tabArchCard"
     );
 
-    auto archBox = WidgetBuilder(ui.nextWidgetId())
+    auto archBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("tabArchBox")
       .rect(RectF(16, 40, 583, 224))
@@ -640,7 +640,7 @@ private:
       .padding(12, 14)
       .build();
 
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(archBox)
       .name("tabArchTitle")
       .rect(RectF(14, 12, 555, 22))
@@ -651,7 +651,7 @@ private:
       )
       .build();
 
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(archBox)
       .name("tabArchBody")
       .rect(RectF(14, 40, 555, 172))

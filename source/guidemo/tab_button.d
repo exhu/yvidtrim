@@ -60,7 +60,7 @@ Widget createTabButton(
   const ColorF textCol = isActive ? tabActiveText : tabInactiveText;
   const string btnName = (name.length > 0) ? name : "tabButton";
 
-  return WidgetBuilder(ui.nextWidgetId())
+  return WidgetBuilder.make(ui)
     .parent(parent)
     .name(btnName)
     .rect(RectF(0, 0, width, height))
@@ -180,7 +180,7 @@ unittest {
   auto ui = new UiSystemImpl(null);
   auto root = new Widget(ui.nextWidgetId());
   root.rect = RectF(0, 0, 800, 600);
-  auto row = WidgetBuilder(ui.nextWidgetId())
+  auto row = WidgetBuilder.make(ui)
     .parent(root)
     .rect(RectF(0, 0, 500, 40))
     .flex(

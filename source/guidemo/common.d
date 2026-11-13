@@ -18,7 +18,7 @@ Widget makeSectionCard(
   string name = null
 ) {
   const string cardName = (name.length > 0) ? name : "sectionCard";
-  auto card = WidgetBuilder(ui.nextWidgetId())
+  auto card = WidgetBuilder.make(ui)
     .parent(parent)
     .name(cardName)
     .rect(rect)
@@ -26,7 +26,7 @@ Widget makeSectionCard(
     .border(ColorF(0.25f, 0.28f, 0.35f, 1.0f), 1.0f)
     .build();
 
-  WidgetBuilder(ui.nextWidgetId())
+  WidgetBuilder.make(ui)
     .parent(card)
     .name(cardName ~ "Title")
     .rect(RectF(12, 10, rect.width - 24, 20))

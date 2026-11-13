@@ -19,9 +19,9 @@ import yguilib.widget.widget_view : WidgetView;
 struct WidgetBuilder {
   @disable this();
 
-  /// Constructs a widget builder with an explicit unique ID.
-  this(uint uId) {
-    widget = new Widget(uId);
+  /// Default method to create WidgetBuilder
+  static WidgetBuilder make(UiSystem ui) {
+    return WidgetBuilder(ui.nextWidgetId());
   }
 
   /// Attaches the widget to `parentWidget` if non-null.
@@ -398,6 +398,12 @@ struct WidgetBuilder {
   Widget build() {
     widget.update(WidgetUpdateScope.parentView);
     return widget;
+  }
+
+package(yguilib):
+  /// Constructs a widget builder with an explicit unique ID.
+  this(uint uId) {
+    widget = new Widget(uId);
   }
 
 private:

@@ -117,7 +117,7 @@ private:
   }
 
   void buildSingleLineAlignment(Widget card) {
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("singleLineAlignLabel")
       .rect(RectF(12, 34, 581, 16))
@@ -135,7 +135,7 @@ private:
       TextLabel.Alignment alignment,
       ColorF borderCol
     ) {
-      return WidgetBuilder(ui.nextWidgetId())
+      return WidgetBuilder.make(ui)
         .parent(card)
         .name(boxName)
         .rect(rect)
@@ -174,7 +174,7 @@ private:
   }
 
   void buildMultilineAlignment(Widget card) {
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("multilineAlignLabel")
       .rect(RectF(12, 110, 581, 16))
@@ -184,7 +184,7 @@ private:
       )
       .build();
 
-    auto multiCenterBox = WidgetBuilder(ui.nextWidgetId())
+    auto multiCenterBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("multiCenterBox")
       .rect(RectF(12, 130, 285, 138))
@@ -199,7 +199,7 @@ private:
       ).withMultiline(true).withAlignment(TextLabel.Alignment.center))
       .build();
 
-    auto multiRightBox = WidgetBuilder(ui.nextWidgetId())
+    auto multiRightBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("multiRightBox")
       .rect(RectF(307, 130, 286, 138))
@@ -229,7 +229,7 @@ private:
   }
 
   void buildSingleLineEllipsis(Widget card) {
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("singleLineEllipsisLabel")
       .rect(RectF(12, 34, 591, 16))
@@ -239,7 +239,7 @@ private:
       )
       .build();
 
-    auto boxEllipsis = WidgetBuilder(ui.nextWidgetId())
+    auto boxEllipsis = WidgetBuilder.make(ui)
       .parent(card)
       .name("boxEllipsis")
       .rect(RectF(12, 54, 288, 48))
@@ -253,7 +253,7 @@ private:
       ).withMultiline(false).withEllipsis(true))
       .build();
 
-    auto boxNoEllipsis = WidgetBuilder(ui.nextWidgetId())
+    auto boxNoEllipsis = WidgetBuilder.make(ui)
       .parent(card)
       .name("boxNoEllipsis")
       .rect(RectF(308, 54, 295, 48))
@@ -271,7 +271,7 @@ private:
   }
 
   void buildMultilineEllipsis(Widget card) {
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("multilineEllipsisLabel")
       .rect(RectF(12, 110, 591, 16))
@@ -281,7 +281,7 @@ private:
       )
       .build();
 
-    auto multiVertEllipsis = WidgetBuilder(ui.nextWidgetId())
+    auto multiVertEllipsis = WidgetBuilder.make(ui)
       .parent(card)
       .name("multiVertEllipsis")
       .rect(RectF(12, 130, 288, 138))
@@ -301,7 +301,7 @@ private:
       ).withMultiline(true).withEllipsis(true))
       .build();
 
-    auto multiVertNoEllipsis = WidgetBuilder(ui.nextWidgetId())
+    auto multiVertNoEllipsis = WidgetBuilder.make(ui)
       .parent(card)
       .name("multiVertNoEllipsis")
       .rect(RectF(308, 130, 295, 138))
@@ -336,7 +336,7 @@ private:
   }
 
   void buildWrappingBoxes(Widget card) {
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("wrappingLabel")
       .rect(RectF(12, 34, 581, 16))
@@ -346,7 +346,7 @@ private:
       )
       .build();
 
-    auto wrapBox = WidgetBuilder(ui.nextWidgetId())
+    auto wrapBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("wrapBox")
       .rect(RectF(12, 54, 285, 120))
@@ -361,7 +361,7 @@ private:
       ).withMultiline(true))
       .build();
 
-    auto newlinesBox = WidgetBuilder(ui.nextWidgetId())
+    auto newlinesBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("newlinesBox")
       .rect(RectF(307, 54, 286, 120))
@@ -380,7 +380,7 @@ private:
   }
 
   void buildSanitizedComparison(Widget card) {
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("sanitizedLabel")
       .rect(RectF(12, 180, 581, 16))
@@ -390,7 +390,7 @@ private:
       )
       .build();
 
-    auto sanitizedBox = WidgetBuilder(ui.nextWidgetId())
+    auto sanitizedBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("sanitizedBox")
       .rect(RectF(12, 200, 581, 74))
@@ -418,7 +418,7 @@ private:
       "labelPlaygroundCard"
     );
 
-    interactiveStatusWidget = WidgetBuilder(ui.nextWidgetId())
+    interactiveStatusWidget = WidgetBuilder.make(ui)
       .parent(card)
       .name("interactiveStatusLabel")
       .rect(RectF(12, 34, 591, 30))
@@ -432,7 +432,7 @@ private:
       )
       .build();
 
-    interactiveLabelWidget = WidgetBuilder(ui.nextWidgetId())
+    interactiveLabelWidget = WidgetBuilder.make(ui)
       .parent(card)
       .name("interactiveTextLabel")
       .rect(RectF(12, 70, 591, 148))
@@ -459,7 +459,7 @@ private:
   }
 
   void buildPlaygroundHint(Widget card) {
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("interactiveHintLabel")
       .rect(RectF(12, 226, 591, 52))

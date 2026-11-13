@@ -103,7 +103,7 @@ final class TabButtonsProvider : WidgetArrayProvider {
 
   override void addWidget(Widget parent) {
     assert(parent !is null, "parent must not be null");
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(parent)
       .name("tabButton")
       .rect(RectF(0, 0, style.buttonWidth, style.buttonHeight))
@@ -948,7 +948,7 @@ struct TabControlBuilder {
       ? widgetName
       : "tabControl";
 
-    Widget root = WidgetBuilder(ui.nextWidgetId())
+    Widget root = WidgetBuilder.make(ui)
       .parent(parent)
       .name(rootName)
       .rect(rect)
@@ -956,7 +956,7 @@ struct TabControlBuilder {
       .view(registry, renameMap, tabControlWidgetViewName)
       .build();
 
-    auto leftBtn = WidgetBuilder(ui.nextWidgetId())
+    auto leftBtn = WidgetBuilder.make(ui)
       .parent(root)
       .name(rootName ~ "LeftBtn")
       .rect(RectF(0, 0, arrowW, arrowH))
@@ -975,7 +975,7 @@ struct TabControlBuilder {
     leftBtn.inputEnabled = false;
     leftBtn.visible = false;
 
-    auto scrollViewport = WidgetBuilder(ui.nextWidgetId())
+    auto scrollViewport = WidgetBuilder.make(ui)
       .parent(root)
       .name(rootName ~ "Viewport")
       .rect(RectF(0, 0, rect.width, rect.height))
@@ -997,7 +997,7 @@ struct TabControlBuilder {
     }
 
     auto provider = new TabButtonsProvider(ui, tabsTracker.model, btnStyle);
-    auto tabsContainer = WidgetBuilder(ui.nextWidgetId())
+    auto tabsContainer = WidgetBuilder.make(ui)
       .parent(scrollViewport)
       .name(rootName ~ "Tabs")
       .rect(RectF(0, 0, 1.0f, 1.0f))
@@ -1007,7 +1007,7 @@ struct TabControlBuilder {
       .widgetArray(provider, tabsTracker.model.tabNames.length)
       .build();
 
-    auto rightBtn = WidgetBuilder(ui.nextWidgetId())
+    auto rightBtn = WidgetBuilder.make(ui)
       .parent(root)
       .name(rootName ~ "RightBtn")
       .rect(RectF(0, 0, arrowW, arrowH))

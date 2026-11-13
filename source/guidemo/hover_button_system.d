@@ -181,7 +181,7 @@ struct AnimatedHoverButtonBuilder {
       ? widgetName
       : "animatedHoverButton";
 
-    auto b = WidgetBuilder(ui.nextWidgetId())
+    auto b = WidgetBuilder.make(ui)
       .parent(parent)
       .name(btnName)
       .rect(rect);

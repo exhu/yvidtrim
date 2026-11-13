@@ -155,7 +155,7 @@ struct HoverButtonBuilder {
       ? widgetName
       : "hoverButton";
 
-    auto rootBuilder = WidgetBuilder(ui.nextWidgetId())
+    auto rootBuilder = WidgetBuilder.make(ui)
       .parent(parent)
       .name(rootName)
       .rect(rect)

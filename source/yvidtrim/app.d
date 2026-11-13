@@ -41,13 +41,13 @@ public:
     this.ui = ui;
     tracker = ModelTracker!MainModel.from(otherTracker);
 
-    rootWidget = WidgetBuilder(ui.nextWidgetId())
+    rootWidget = WidgetBuilder.make(ui)
       .rect(RectF(10, 10, 200, 200))
       .view(null)
       .background(ColorF(0.5f, 0.5f, 0.0f, 1.0f))
       .build();
 
-    alphaWidget = WidgetBuilder(ui.nextWidgetId())
+    alphaWidget = WidgetBuilder.make(ui)
       .parent(rootWidget)
       .rect(RectF(35, 45, 150, 190))
       .background(ColorF(0.0f, 1.0f, 0.5f, 0.3f))
@@ -57,14 +57,14 @@ public:
       .clipChildren(true)
       .build();
 
-    toggleWidget = WidgetBuilder(ui.nextWidgetId())
+    toggleWidget = WidgetBuilder.make(ui)
       .parent(rootWidget)
       .rect(RectF(15, 15, 300, 90))
       .background(ColorF(0.5f, 1.0f, 0.5f, 0.3f), Background.Style.round)
       .build();
 
     // --- layout testing ---
-    container = WidgetBuilder(ui.nextWidgetId())
+    container = WidgetBuilder.make(ui)
       .parent(rootWidget)
       .rect(RectF(35, 250, 400, 300))
       .background(colors.darkGray)
@@ -94,7 +94,7 @@ public:
   }
 
   void addRightTopAnchor() {
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(rootWidget)
       .rect(RectF(0, 0, 30, 30))
       .background(colors.red)
@@ -103,7 +103,7 @@ public:
   }
 
   void addLeftBottomAnchor() {
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(rootWidget)
       .rect(RectF(0, 0, 30, 30))
       .background(colors.brightRed)
@@ -112,7 +112,7 @@ public:
   }
 
   void addRightBottomAnchor() {
-    WidgetBuilder(ui.nextWidgetId())
+    WidgetBuilder.make(ui)
       .parent(rootWidget)
       .rect(RectF(0, 0, 30, 30))
       .background(colors.magenta)
