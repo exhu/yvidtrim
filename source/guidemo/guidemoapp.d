@@ -69,5 +69,6 @@ void main() {
   app.ui.registerWidgetSystem(new AnimatedHoverButtonSystem());
   import std.logger : infof;
   infof("ui = %s", app.ui.dumpInfo());
+  infof("root = %s", window.rootWidget.dumpTree());
   app.run(demoController);
 }

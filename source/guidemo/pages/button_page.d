@@ -22,6 +22,7 @@ final class ButtonPage {
     assert(ui !is null, "UiSystem must not be null");
     this.ui = ui;
     root = new Widget(ui.nextWidgetId());
+    root.name = "buttonPage";
     root.rect = RectF(0, 0, 1280, 720);
     if (parent !is null) {
       parent.addChild(root);
@@ -69,11 +70,13 @@ private:
       ui,
       root,
       RectF(20, 68, 605, 280),
-      "1. Smooth Color Fading Buttons (Hover & Press Transition)"
+      "1. Smooth Color Fading Buttons (Hover & Press Transition)",
+      "buttonFadingCard"
     );
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("fadingDescLabel")
       .rect(RectF(16, 36, 570, 36))
       .text(
         "Hovering transitions background color smoothly via lerp. " ~
@@ -86,6 +89,7 @@ private:
     // Row of fade buttons
     auto btnRow = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("fadeBtnRow")
       .rect(RectF(16, 80, 570, 50))
       .flex(
         FlexDirection.row,
@@ -98,6 +102,7 @@ private:
     // Button 1: Slate Neutral
     HoverButtonBuilder b1;
     auto btn1 = b1
+      .name("fadeSlateBtn")
       .text("Slate Button")
       .bg(ColorF(0.18f, 0.20f, 0.25f, 1.0f))
       .border(ColorF(0.30f, 0.35f, 0.45f, 1.0f), 1.0f)
@@ -119,6 +124,7 @@ private:
     // Button 2: Emerald Success
     HoverButtonBuilder b2;
     auto btn2 = b2
+      .name("fadeEmeraldBtn")
       .text("Emerald Confirm")
       .bg(ColorF(0.12f, 0.24f, 0.18f, 1.0f))
       .border(ColorF(0.20f, 0.45f, 0.30f, 1.0f), 1.0f)
@@ -140,6 +146,7 @@ private:
     // Button 3: Crimson Danger
     HoverButtonBuilder b3;
     auto btn3 = b3
+      .name("fadeCrimsonBtn")
       .text("Crimson Delete")
       .bg(ColorF(0.26f, 0.12f, 0.14f, 1.0f))
       .border(ColorF(0.48f, 0.20f, 0.24f, 1.0f), 1.0f)
@@ -161,6 +168,7 @@ private:
     // Note card
     auto noteBox = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("fadingNoteBox")
       .rect(RectF(16, 148, 570, 110))
       .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
       .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
@@ -169,6 +177,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(noteBox)
+      .name("fadingNoteTitle")
       .rect(RectF(12, 10, 546, 20))
       .text(
         "Fading Features:",
@@ -179,6 +188,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(noteBox)
+      .name("fadingNoteBody")
       .rect(RectF(12, 34, 546, 60))
       .text(
         "- Independent color lerping for background and border\n" ~
@@ -195,11 +205,13 @@ private:
       ui,
       root,
       RectF(645, 68, 615, 280),
-      "2. Dynamic Gradient Play & Shimmer Wave"
+      "2. Dynamic Gradient Play & Shimmer Wave",
+      "buttonGradientCard"
     );
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("gradientDescLabel")
       .rect(RectF(16, 36, 580, 36))
       .text(
         "Hovering triggers dynamic gradient play with wave oscillation " ~
@@ -211,6 +223,7 @@ private:
 
     auto btnRow = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("gradientBtnRow")
       .rect(RectF(16, 80, 580, 50))
       .flex(
         FlexDirection.row,
@@ -223,6 +236,7 @@ private:
     // Button 1: Neon Cyan Wave
     HoverButtonBuilder b1;
     auto btn1 = b1
+      .name("gradCyanBtn")
       .text("Cyan Wave")
       .bg(ColorF(0.10f, 0.20f, 0.28f, 1.0f))
       .border(ColorF(0.20f, 0.45f, 0.65f, 1.0f), 1.0f)
@@ -245,6 +259,7 @@ private:
     // Button 2: Gold Sunset Pulse
     HoverButtonBuilder b2;
     auto btn2 = b2
+      .name("gradSunsetBtn")
       .text("Sunset Glow")
       .bg(ColorF(0.26f, 0.20f, 0.10f, 1.0f))
       .border(ColorF(0.50f, 0.38f, 0.18f, 1.0f), 1.0f)
@@ -267,6 +282,7 @@ private:
     // Button 3: Purple Aurora
     HoverButtonBuilder b3;
     auto btn3 = b3
+      .name("gradAuroraBtn")
       .text("Purple Aurora")
       .bg(ColorF(0.22f, 0.12f, 0.28f, 1.0f))
       .border(ColorF(0.42f, 0.22f, 0.55f, 1.0f), 1.0f)
@@ -289,6 +305,7 @@ private:
     // Note card
     auto noteBox = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("gradientNoteBox")
       .rect(RectF(16, 148, 580, 110))
       .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
       .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
@@ -297,6 +314,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(noteBox)
+      .name("gradientNoteTitle")
       .rect(RectF(12, 10, 556, 20))
       .text(
         "Gradient Play Features:",
@@ -307,6 +325,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(noteBox)
+      .name("gradientNoteBody")
       .rect(RectF(12, 34, 556, 60))
       .text(
         "- Continuous wave oscillation at 60 FPS while cursor is hovered\n" ~
@@ -323,11 +342,13 @@ private:
       ui,
       root,
       RectF(20, 360, 605, 280),
-      "3. Interactive Action Button & Click Counter"
+      "3. Interactive Action Button & Click Counter",
+      "buttonCounterCard"
     );
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("counterDescLabel")
       .rect(RectF(16, 36, 570, 36))
       .text(
         "Clicking the action button dispatches an event via uiSystem. " ~
@@ -339,6 +360,7 @@ private:
 
     auto actionRow = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("actionBtnRow")
       .rect(RectF(16, 80, 570, 50))
       .flex(
         FlexDirection.row,
@@ -351,6 +373,7 @@ private:
     // Primary action trigger
     HoverButtonBuilder b1;
     auto btn1 = b1
+      .name("incrementBtn")
       .text("+ Click Increment")
       .bg(ColorF(0.15f, 0.30f, 0.55f, 1.0f))
       .border(ColorF(0.30f, 0.55f, 0.95f, 1.0f), 1.5f)
@@ -372,6 +395,7 @@ private:
     // Reset action trigger
     HoverButtonBuilder b2;
     auto btn2 = b2
+      .name("resetCounterBtn")
       .text("Reset Counter")
       .bg(ColorF(0.20f, 0.22f, 0.26f, 1.0f))
       .border(ColorF(0.35f, 0.38f, 0.45f, 1.0f), 1.0f)
@@ -393,6 +417,7 @@ private:
     // HUD Counter Display Box
     auto hudBox = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("counterHudBox")
       .rect(RectF(16, 148, 570, 110))
       .roundBackground(ColorF(0.09f, 0.12f, 0.16f, 1.0f), 6.0f)
       .border(ColorF(0.25f, 0.35f, 0.50f, 1.0f), 1.5f)
@@ -401,6 +426,7 @@ private:
 
     counterLabel = WidgetBuilder(ui.nextWidgetId())
       .parent(hudBox)
+      .name("counterLabel")
       .rect(RectF(16, 14, 538, 28))
       .text(
         "Button Action Invocations: 0 clicks",
@@ -411,6 +437,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(hudBox)
+      .name("counterHintLabel")
       .rect(RectF(16, 50, 538, 44))
       .text(
         "Each button press-release sequence triggers an AppEvent.Kind.view\n" ~
@@ -426,11 +453,13 @@ private:
       ui,
       root,
       RectF(645, 360, 615, 280),
-      "4. Architecture: View & MouseEvent Encapsulation"
+      "4. Architecture: View & MouseEvent Encapsulation",
+      "buttonArchCard"
     );
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("buttonArchDescLabel")
       .rect(RectF(16, 36, 580, 50))
       .text(
         "A button instance consists of an empty root Widget with View\n" ~
@@ -444,6 +473,7 @@ private:
     // Pill shaped buttons demonstration
     auto pillRow = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("pillBtnRow")
       .rect(RectF(16, 92, 580, 48))
       .flex(
         FlexDirection.row,
@@ -456,6 +486,7 @@ private:
     // Pill Button 1
     HoverButtonBuilder p1;
     auto pill1 = p1
+      .name("pillFadeBtn")
       .text("Pill Button (r=18)")
       .bg(ColorF(0.22f, 0.16f, 0.32f, 1.0f))
       .border(ColorF(0.45f, 0.32f, 0.65f, 1.0f), 1.5f)
@@ -477,6 +508,7 @@ private:
     // Pill Button 2 with gradient play
     HoverButtonBuilder p2;
     auto pill2 = p2
+      .name("pillWaveBtn")
       .text("Pill Wave (r=18)")
       .bg(ColorF(0.14f, 0.26f, 0.24f, 1.0f))
       .border(ColorF(0.28f, 0.55f, 0.50f, 1.0f), 1.5f)
@@ -499,6 +531,7 @@ private:
     // Explanatory code summary box
     auto archBox = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("buttonArchBox")
       .rect(RectF(16, 148, 580, 110))
       .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
       .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
@@ -507,6 +540,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(archBox)
+      .name("buttonArchTitle")
       .rect(RectF(12, 8, 556, 18))
       .text(
         "Event Bubbling Chain:",
@@ -517,6 +551,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(archBox)
+      .name("buttonArchBody")
       .rect(RectF(12, 28, 556, 72))
       .text(
         "1. Child widget MouseEvent captures: mouseEnter/leave/down/up\n" ~

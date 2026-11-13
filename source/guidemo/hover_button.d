@@ -80,6 +80,12 @@ struct HoverButtonBuilder {
   HoverButtonConfig config;
   Size customSize = null;
   Anchor customAnchor = null;
+  string widgetName = null;
+
+  ref HoverButtonBuilder name(string buttonName) return {
+    widgetName = buttonName;
+    return this;
+  }
 
   ref HoverButtonBuilder text(string caption) return {
     config.text = caption;
@@ -145,9 +151,13 @@ struct HoverButtonBuilder {
   Widget build(UiSystem ui, Widget parent, RectF rect) {
     const float initW = rect.width > 0.0f ? rect.width : 100.0f;
     const float initH = rect.height > 0.0f ? rect.height : 36.0f;
+    const string rootName = (widgetName.length > 0)
+      ? widgetName
+      : "hoverButton";
 
     auto rootBuilder = WidgetBuilder(ui.nextWidgetId())
       .parent(parent)
+      .name(rootName)
       .rect(rect)
       .view(null, [
         "mouseEnter": "hoverBtn.enter",
@@ -165,7 +175,8 @@ struct HoverButtonBuilder {
     }
 
     rootBuilder.child(ui.nextWidgetId(), (ref WidgetBuilder cb) {
-      cb.rect(RectF(0, 0, initW, initH))
+      cb.name(rootName ~ "Label")
+        .rect(RectF(0, 0, initW, initH))
         .fixedSize(initW, initH)
         .padding(config.padding);
 

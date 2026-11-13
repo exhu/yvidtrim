@@ -21,6 +21,7 @@ final class LayoutPainterPage {
     assert(ui !is null, "UiSystem must not be null");
     this.ui = ui;
     root = new Widget(ui.nextWidgetId());
+    root.name = "layoutPainterPage";
     root.rect = RectF(0, 0, 1280, 720);
     if (parent !is null) {
       parent.addChild(root);
@@ -93,7 +94,8 @@ private:
       ui,
       root,
       RectF(20, 68, 605, 280),
-      "1. Painter Styles (Background, Border, Alpha & Clipping)"
+      "1. Painter Styles (Background, Border, Alpha & Clipping)",
+      "painterCard"
     );
 
     buildChipsRow(card);
@@ -103,6 +105,7 @@ private:
   void buildChipsRow(Widget card) {
     auto chipsRow = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("chipsRow")
       .rect(RectF(12, 36, 581, 60))
       .flex(
         FlexDirection.row,
@@ -118,6 +121,7 @@ private:
   void buildBasicChips(Widget row) {
     WidgetBuilder(ui.nextWidgetId())
       .parent(row)
+      .name("rectStyleChip")
       .rect(RectF(0, 0, 108, 48))
       .padding(Insets(6, 8, 6, 8))
       .background(ColorF(0.18f, 0.35f, 0.60f, 1.0f), Background.Style.rect)
@@ -127,6 +131,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(row)
+      .name("roundStyleChip")
       .rect(RectF(0, 0, 108, 48))
       .padding(Insets(6, 8, 6, 8))
       .roundBackground(ColorF(0.18f, 0.50f, 0.30f, 1.0f), 10.0f)
@@ -143,6 +148,7 @@ private:
   void buildDashedAndPulseChips(Widget row) {
     WidgetBuilder(ui.nextWidgetId())
       .parent(row)
+      .name("dashedRectChip")
       .rect(RectF(0, 0, 108, 48))
       .padding(Insets(6, 8, 6, 8))
       .background(ColorF(0, 0, 0, 0), Background.Style.none)
@@ -157,6 +163,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(row)
+      .name("roundDashedChip")
       .rect(RectF(0, 0, 114, 48))
       .padding(Insets(6, 8, 6, 8))
       .roundBackground(ColorF(0.45f, 0.20f, 0.50f, 1.0f), 10.0f)
@@ -170,6 +177,7 @@ private:
 
     alphaChip = WidgetBuilder(ui.nextWidgetId())
       .parent(row)
+      .name("alphaPulseChip")
       .rect(RectF(0, 0, 114, 48))
       .padding(Insets(6, 8, 6, 8))
       .roundBackground(ColorF(0.80f, 0.25f, 0.25f, 0.8f), 8.0f)
@@ -181,6 +189,7 @@ private:
   void buildClippingDemo(Widget card) {
     WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("clippingLabel")
       .rect(RectF(12, 106, 581, 16))
       .text(
         "Clipping (clipChildren = true & clipContents = true):",
@@ -190,6 +199,7 @@ private:
 
     auto clipParent = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("clipParent")
       .rect(RectF(12, 128, 275, 136))
       .clipChildren(true)
       .roundBackground(ColorF(0.09f, 0.10f, 0.13f, 1.0f), 6.0f)
@@ -201,6 +211,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(clipParent)
+      .name("clipParentTitle")
       .rect(RectF(8, 6, 250, 16))
       .text(
         "Parent [clipChildren = true]",
@@ -210,6 +221,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(clipParent)
+      .name("clipOverflowChild")
       .rect(RectF(35, 30, 310, 80))
       .padding(Insets(6, 8, 6, 8))
       .roundBackground(ColorF(0.70f, 0.25f, 0.15f, 0.85f), 8.0f)
@@ -223,6 +235,7 @@ private:
   void buildContentClipBox(Widget card) {
     auto contentClipBox = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("contentClipBox")
       .rect(RectF(302, 128, 291, 136))
       .clipContents(true)
       .roundBackground(ColorF(0.15f, 0.18f, 0.24f, 1.0f), 6.0f)
@@ -231,6 +244,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(contentClipBox)
+      .name("contentClipTitle")
       .rect(RectF(10, 12, 270, 18))
       .text(
         "Widget [clipContents = true]",
@@ -239,6 +253,7 @@ private:
       .build();
     WidgetBuilder(ui.nextWidgetId())
       .parent(contentClipBox)
+      .name("contentClipLine1")
       .rect(RectF(10, 36, 270, 18))
       .text(
         "Guarantees internal drawing calls",
@@ -247,6 +262,7 @@ private:
       .build();
     WidgetBuilder(ui.nextWidgetId())
       .parent(contentClipBox)
+      .name("contentClipLine2")
       .rect(RectF(10, 58, 270, 18))
       .text(
         "scissor precisely within rect bounds.",
@@ -260,7 +276,8 @@ private:
       ui,
       root,
       RectF(645, 68, 615, 280),
-      "2. Layout Sizing Modes, Bounds & Insets"
+      "2. Layout Sizing Modes, Bounds & Insets",
+      "sizingCard"
     );
 
     buildSizingRow(card);
@@ -271,6 +288,7 @@ private:
   void buildSizingRow(Widget card) {
     auto sizingRow = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("sizingRow")
       .rect(RectF(12, 34, 591, 62))
       .flex(
         FlexDirection.row,
@@ -282,6 +300,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(sizingRow)
+      .name("fixedSizeBox")
       .rect(RectF(0, 0, 10, 10))
       .fixedSize(120.0f, 48.0f)
       .padding(Insets(6, 10, 6, 10))
@@ -292,6 +311,7 @@ private:
 
     autoLabelWidget = WidgetBuilder(ui.nextWidgetId())
       .parent(sizingRow)
+      .name("autoSizeLabel")
       .rect(RectF(0, 0, 10, 10))
       .autoSize()
       .padding(Insets(6, 10, 6, 10))
@@ -304,6 +324,7 @@ private:
   void buildFractionDemo(Widget card) {
     WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("fractionDemoLabel")
       .rect(RectF(12, 106, 591, 16))
       .text(
         "SizingMode.fraction (1fr vs 2fr space share) & Bounds [min: 100]:",
@@ -313,6 +334,7 @@ private:
 
     auto fracContainer = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("fractionContainer")
       .rect(RectF(12, 126, 591, 52))
       .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
       .flex(
@@ -325,6 +347,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(fracContainer)
+      .name("fraction1frBox")
       .rect(RectF(0, 0, 10, 10))
       .fractionSize(1.0f)
       .minSize(100.0f)
@@ -336,6 +359,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(fracContainer)
+      .name("fraction2frBox")
       .rect(RectF(0, 0, 10, 10))
       .fractionSize(2.0f)
       .maxSize(420.0f)
@@ -349,6 +373,7 @@ private:
   void buildInsetsDemo(Widget card) {
     auto insetsContainer = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("insetsContainer")
       .rect(RectF(12, 190, 591, 74))
       .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
       .padding(Insets(6, 12, 6, 12))
@@ -366,6 +391,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(insetsContainer)
+      .name("insetsChildBox")
       .rect(RectF(0, 0, 10, 10))
       .autoSize()
       .padding(Insets(6, 10, 6, 10))
@@ -384,7 +410,8 @@ private:
       ui,
       root,
       RectF(20, 356, 605, 290),
-      "3. Anchors & Out-of-Flow Positioning"
+      "3. Anchors & Out-of-Flow Positioning",
+      "anchorCard"
     );
 
     buildCornerAnchors(card);
@@ -394,6 +421,7 @@ private:
   void buildCornerAnchors(Widget card) {
     auto cornerBox = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("cornerAnchorBox")
       .rect(RectF(12, 34, 280, 244))
       .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
       .border(ColorF(0.28f, 0.32f, 0.40f, 1.0f), 1.5f)
@@ -401,6 +429,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(cornerBox)
+      .name("cornerAnchorTitle")
       .rect(RectF(10, 95, 260, 18))
       .text(
         "Corner Anchors Demonstration:",
@@ -409,11 +438,13 @@ private:
       .build();
     WidgetBuilder(ui.nextWidgetId())
       .parent(cornerBox)
+      .name("cornerAnchorLine1")
       .rect(RectF(10, 118, 260, 18))
       .text("Top-Left, Top-Right,", ColorF(0.60f, 0.65f, 0.75f, 1.0f))
       .build();
     WidgetBuilder(ui.nextWidgetId())
       .parent(cornerBox)
+      .name("cornerAnchorLine2")
       .rect(RectF(10, 138, 260, 18))
       .text(
         "Bottom-Left, Bottom-Right",
@@ -426,6 +457,7 @@ private:
 
   void populateCornerBadges(Widget cornerBox) {
     void addCornerBadge(
+      string badgeName,
       string text,
       Nullable!float left,
       Nullable!float top,
@@ -435,6 +467,7 @@ private:
     ) {
       WidgetBuilder(ui.nextWidgetId())
         .parent(cornerBox)
+        .name(badgeName)
         .rect(RectF(0, 0, 72, 28))
         .padding(Insets(5, 8, 5, 8))
         .roundBackground(bgCol, 15.0f)
@@ -444,6 +477,7 @@ private:
     }
 
     addCornerBadge(
+      "topLeftBadge",
       "Top-Left",
       nullable(6.0f),
       nullable(6.0f),
@@ -452,6 +486,7 @@ private:
       ColorF(0.80f, 0.20f, 0.20f, 1.0f)
     );
     addCornerBadge(
+      "topRightBadge",
       "Top-Right",
       Nullable!float.init,
       nullable(6.0f),
@@ -460,6 +495,7 @@ private:
       ColorF(0.20f, 0.70f, 0.30f, 1.0f)
     );
     addCornerBadge(
+      "bottomLeftBadge",
       "Bot-Left",
       nullable(6.0f),
       Nullable!float.init,
@@ -468,6 +504,7 @@ private:
       ColorF(0.20f, 0.40f, 0.80f, 1.0f)
     );
     addCornerBadge(
+      "bottomRightBadge",
       "Bot-Right",
       Nullable!float.init,
       Nullable!float.init,
@@ -480,6 +517,7 @@ private:
   void buildFlexBoxWithAnchor(Widget card) {
     auto flexBoxWithAnchor = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("flexBoxWithAnchor")
       .rect(RectF(302, 34, 291, 244))
       .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
       .border(ColorF(0.28f, 0.32f, 0.40f, 1.0f), 1.5f)
@@ -493,6 +531,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(flexBoxWithAnchor)
+      .name("flexAnchorTitle")
       .rect(RectF(0, 0, 10, 10))
       .fixedSize(10, 28)
       .padding(Insets(4, 8, 4, 8))
@@ -501,6 +540,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(flexBoxWithAnchor)
+      .name("flexAnchorChild1")
       .rect(RectF(0, 0, 10, 10))
       .fixedSize(10, 50)
       .padding(Insets(6, 8, 6, 8))
@@ -511,6 +551,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(flexBoxWithAnchor)
+      .name("flexAnchorChild2")
       .rect(RectF(0, 0, 10, 10))
       .fixedSize(10, 50)
       .padding(Insets(6, 8, 6, 8))
@@ -521,6 +562,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(flexBoxWithAnchor)
+      .name("outOfFlowBadge")
       .rect(RectF(0, 0, 108, 28))
       .padding(Insets(4, 6, 4, 6))
       .roundBackground(ColorF(0.85f, 0.30f, 0.10f, 1.0f), 6.0f)
@@ -540,7 +582,8 @@ private:
       ui,
       root,
       RectF(645, 356, 615, 290),
-      "4. Interactive Flexbox Playground (Keys: [D] [J] [A] [G] [V])"
+      "4. Interactive Flexbox Playground (Keys: [D] [J] [A] [G] [V])",
+      "flexPlaygroundCard"
     );
 
     playgroundFlex = FlexContainer.row(8.0f)
@@ -549,6 +592,7 @@ private:
 
     playgroundContainer = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("playgroundContainer")
       .rect(RectF(12, 34, 591, 244))
       .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
       .border(Border.dashed(
@@ -560,6 +604,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(playgroundContainer)
+      .name("playgroundBoxA")
       .rect(RectF(0, 0, 10, 10))
       .fixedSize(120, 48)
       .padding(Insets(6, 8, 6, 8))
@@ -570,6 +615,7 @@ private:
 
     playgroundChild2 = WidgetBuilder(ui.nextWidgetId())
       .parent(playgroundContainer)
+      .name("playgroundBoxB")
       .rect(RectF(0, 0, 10, 10))
       .fixedSize(140, 54)
       .padding(Insets(6, 8, 6, 8))
@@ -580,6 +626,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(playgroundContainer)
+      .name("playgroundBoxC")
       .rect(RectF(0, 0, 10, 10))
       .fixedSize(110, 44)
       .padding(Insets(6, 8, 6, 8))

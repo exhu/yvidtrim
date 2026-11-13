@@ -43,6 +43,7 @@ final class DemoView {
 
     // Root background
     view = WidgetBuilder(this.ui.nextWidgetId())
+      .name("demoRoot")
       .rect(RectF(0, 0, 1280, 720))
       .background(ColorF(0.08f, 0.09f, 0.11f, 1.0f))
       .build();
@@ -243,6 +244,7 @@ private:
   void buildHeader(UiRegistry registry) {
     auto header = WidgetBuilder(ui.nextWidgetId())
       .parent(view)
+      .name("header")
       .rect(RectF(20, 12, 1240, 48))
       .fixedSize(1240, 48)
       .padding(0, 14)
@@ -253,6 +255,7 @@ private:
 
     auto titleBox = WidgetBuilder(ui.nextWidgetId())
       .parent(header)
+      .name("headerTitleBox")
       .rect(RectF())
       .flexColumn(2.0f, JustifyContent.center, AlignItems.start)
       .autoSize()
@@ -260,6 +263,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(titleBox)
+      .name("headerTitle")
       .rect(RectF())
       .autoSize()
       .text(
@@ -271,6 +275,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(titleBox)
+      .name("headerSubtitle")
       .rect(RectF())
       .autoSize()
       .text(
@@ -282,6 +287,7 @@ private:
 
     TabControlBuilder b;
     tabControl = b
+      .name("headerTabControl")
       .model(tabsTracker)
       .event(headerTabSwitchEvent)
       .gap(10.0f)
@@ -292,6 +298,7 @@ private:
   void buildStatusBar() {
     auto footer = WidgetBuilder(ui.nextWidgetId())
       .parent(view)
+      .name("footer")
       .rect(RectF(20, 656, 1240, 52))
       .roundBackground(ColorF(0.12f, 0.14f, 0.18f, 1.0f), 6.0f)
       .border(ColorF(0.25f, 0.30f, 0.40f, 1.0f), 1.0f)
@@ -299,6 +306,7 @@ private:
 
     statusLabel = WidgetBuilder(ui.nextWidgetId())
       .parent(footer)
+      .name("statusLabel")
       .rect(RectF(14, 16, 1210, 20))
       .text(
         formatStatusString(tracker.model),
@@ -354,4 +362,13 @@ unittest {
   assert(tabCtrl is header.children[1]);
   assert(tabCtrl.components.size !is null);
   assert(tabCtrl.components.size.width.mode == SizingMode.fraction);
+
+  // Verify every widget in DemoView's tree has a non-empty name.
+  void verifyAllNamed(Widget w) {
+    assert(w.name.length > 0, "Widget missing name");
+    foreach (child; w.children) {
+      verifyAllNamed(child);
+    }
+  }
+  verifyAllNamed(root);
 }

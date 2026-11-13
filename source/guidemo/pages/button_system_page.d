@@ -24,6 +24,7 @@ final class ButtonSystemPage {
     assert(parent !is null, "parent must not be null");
     this.ui = ui;
     root = new Widget(ui.nextWidgetId());
+    root.name = "buttonSystemPage";
     root.rect = RectF(0, 0, 1280, 720);
     parent.addChild(root);
 
@@ -59,11 +60,13 @@ private:
       ui,
       root,
       RectF(20, 68, 605, 280),
-      "1. System-Driven Smooth Color Fading (Hover & Press Transition)"
+      "1. System-Driven Smooth Color Fading (Hover & Press Transition)",
+      "sysFadingCard"
     );
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("sysFadingDescLabel")
       .rect(RectF(16, 36, 570, 36))
       .text(
         "AnimatedHoverButtonSystem updates button colors in preLayout phase. " ~
@@ -76,6 +79,7 @@ private:
     // Row of fade buttons
     auto btnRow = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("sysFadeBtnRow")
       .rect(RectF(16, 80, 570, 50))
       .flex(
         FlexDirection.row,
@@ -94,7 +98,8 @@ private:
     cfg1.actionEvent = "btnCountAction";
 
     AnimatedHoverButtonBuilder b1;
-    b1.text("Slate Button")
+    b1.name("sysFadeSlateBtn")
+      .text("Slate Button")
       .bg(ColorF(0.18f, 0.20f, 0.25f, 1.0f))
       .border(ColorF(0.30f, 0.35f, 0.45f, 1.0f), 1.0f)
       .radius(6.0f)
@@ -111,7 +116,8 @@ private:
     cfg2.actionEvent = "btnCountAction";
 
     AnimatedHoverButtonBuilder b2;
-    b2.text("Emerald Confirm")
+    b2.name("sysFadeEmeraldBtn")
+      .text("Emerald Confirm")
       .bg(ColorF(0.12f, 0.24f, 0.18f, 1.0f))
       .border(ColorF(0.20f, 0.45f, 0.30f, 1.0f), 1.0f)
       .radius(6.0f)
@@ -128,7 +134,8 @@ private:
     cfg3.actionEvent = "btnCountAction";
 
     AnimatedHoverButtonBuilder b3;
-    b3.text("Crimson Delete")
+    b3.name("sysFadeCrimsonBtn")
+      .text("Crimson Delete")
       .bg(ColorF(0.26f, 0.12f, 0.14f, 1.0f))
       .border(ColorF(0.48f, 0.20f, 0.24f, 1.0f), 1.0f)
       .radius(6.0f)
@@ -139,6 +146,7 @@ private:
     // Note card
     auto noteBox = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("sysFadingNoteBox")
       .rect(RectF(16, 148, 570, 110))
       .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
       .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
@@ -147,6 +155,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(noteBox)
+      .name("sysFadingNoteTitle")
       .rect(RectF(12, 10, 546, 20))
       .text(
         "WidgetSystem Advantages:",
@@ -157,6 +166,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(noteBox)
+      .name("sysFadingNoteBody")
       .rect(RectF(12, 34, 546, 60))
       .text(
         "- Single Widget node with AnimatedHoverButtonComponent attached\n" ~
@@ -173,11 +183,13 @@ private:
       ui,
       root,
       RectF(645, 68, 615, 280),
-      "2. System Dynamic Gradient Play & Shimmer Wave"
+      "2. System Dynamic Gradient Play & Shimmer Wave",
+      "sysGradientCard"
     );
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("sysGradientDescLabel")
       .rect(RectF(16, 36, 580, 36))
       .text(
         "Continuous shimmer wave calculated during preLayout phase " ~
@@ -189,6 +201,7 @@ private:
 
     auto btnRow = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("sysGradientBtnRow")
       .rect(RectF(16, 80, 580, 50))
       .flex(
         FlexDirection.row,
@@ -208,7 +221,8 @@ private:
     cfg1.actionEvent = "btnCountAction";
 
     AnimatedHoverButtonBuilder b1;
-    b1.text("Cyan Wave")
+    b1.name("sysGradCyanBtn")
+      .text("Cyan Wave")
       .bg(ColorF(0.10f, 0.20f, 0.28f, 1.0f))
       .border(ColorF(0.20f, 0.45f, 0.65f, 1.0f), 1.0f)
       .radius(6.0f)
@@ -226,7 +240,8 @@ private:
     cfg2.actionEvent = "btnCountAction";
 
     AnimatedHoverButtonBuilder b2;
-    b2.text("Sunset Glow")
+    b2.name("sysGradSunsetBtn")
+      .text("Sunset Glow")
       .bg(ColorF(0.26f, 0.20f, 0.10f, 1.0f))
       .border(ColorF(0.50f, 0.38f, 0.18f, 1.0f), 1.0f)
       .radius(6.0f)
@@ -244,7 +259,8 @@ private:
     cfg3.actionEvent = "btnCountAction";
 
     AnimatedHoverButtonBuilder b3;
-    b3.text("Purple Aurora")
+    b3.name("sysGradAuroraBtn")
+      .text("Purple Aurora")
       .bg(ColorF(0.22f, 0.12f, 0.28f, 1.0f))
       .border(ColorF(0.42f, 0.22f, 0.55f, 1.0f), 1.0f)
       .radius(6.0f)
@@ -255,6 +271,7 @@ private:
     // Note card
     auto noteBox = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("sysGradientNoteBox")
       .rect(RectF(16, 148, 580, 110))
       .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
       .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
@@ -263,6 +280,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(noteBox)
+      .name("sysGradientNoteTitle")
       .rect(RectF(12, 10, 556, 20))
       .text(
         "Gradient Wave Features:",
@@ -273,6 +291,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(noteBox)
+      .name("sysGradientNoteBody")
       .rect(RectF(12, 34, 556, 60))
       .text(
         "- Continuous wave oscillation at 60 FPS while cursor is hovered\n" ~
@@ -289,11 +308,13 @@ private:
       ui,
       root,
       RectF(20, 360, 605, 280),
-      "3. Interactive Action Button & Click Counter"
+      "3. Interactive Action Button & Click Counter",
+      "sysCounterCard"
     );
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("sysCounterDescLabel")
       .rect(RectF(16, 36, 570, 36))
       .text(
         "Clicking the action button dispatches an event via ctx.host. " ~
@@ -305,6 +326,7 @@ private:
 
     auto actionRow = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("sysActionBtnRow")
       .rect(RectF(16, 80, 570, 50))
       .flex(
         FlexDirection.row,
@@ -323,7 +345,8 @@ private:
     cfg1.actionEvent = "btnCountAction";
 
     AnimatedHoverButtonBuilder b1;
-    b1.text("+ Click Increment")
+    b1.name("sysIncrementBtn")
+      .text("+ Click Increment")
       .bg(ColorF(0.15f, 0.30f, 0.55f, 1.0f))
       .border(ColorF(0.30f, 0.55f, 0.95f, 1.0f), 1.5f)
       .radius(8.0f)
@@ -340,7 +363,8 @@ private:
     cfg2.actionEvent = "btnCountReset";
 
     AnimatedHoverButtonBuilder b2;
-    b2.text("Reset Counter")
+    b2.name("sysResetCounterBtn")
+      .text("Reset Counter")
       .bg(ColorF(0.20f, 0.22f, 0.26f, 1.0f))
       .border(ColorF(0.35f, 0.38f, 0.45f, 1.0f), 1.0f)
       .radius(8.0f)
@@ -351,6 +375,7 @@ private:
     // HUD Counter Display Box
     auto hudBox = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("sysCounterHudBox")
       .rect(RectF(16, 148, 570, 110))
       .roundBackground(ColorF(0.09f, 0.12f, 0.16f, 1.0f), 6.0f)
       .border(ColorF(0.25f, 0.35f, 0.50f, 1.0f), 1.5f)
@@ -359,6 +384,7 @@ private:
 
     counterLabel = WidgetBuilder(ui.nextWidgetId())
       .parent(hudBox)
+      .name("sysCounterLabel")
       .rect(RectF(16, 14, 538, 28))
       .text(
         "Button Action Invocations: 0 clicks",
@@ -369,6 +395,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(hudBox)
+      .name("sysCounterHintLabel")
       .rect(RectF(16, 50, 538, 44))
       .text(
         "AnimatedHoverButtonSystem dispatches action events on button\n" ~
@@ -384,11 +411,13 @@ private:
       ui,
       root,
       RectF(645, 360, 615, 280),
-      "4. Architecture: WidgetSystem & WidgetComponent (ECS-Style)"
+      "4. Architecture: WidgetSystem & WidgetComponent (ECS-Style)",
+      "sysArchCard"
     );
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("sysArchDescLabel")
       .rect(RectF(16, 36, 580, 50))
       .text(
         "A button instance is a single Widget with " ~
@@ -403,6 +432,7 @@ private:
     // Pill shaped buttons demonstration
     auto pillRow = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("sysPillBtnRow")
       .rect(RectF(16, 92, 580, 48))
       .flex(
         FlexDirection.row,
@@ -421,7 +451,8 @@ private:
     pillCfg1.actionEvent = "btnCountAction";
 
     AnimatedHoverButtonBuilder p1;
-    p1.text("Pill Button (r=18)")
+    p1.name("sysPillFadeBtn")
+      .text("Pill Button (r=18)")
       .bg(ColorF(0.22f, 0.16f, 0.32f, 1.0f))
       .border(ColorF(0.45f, 0.32f, 0.65f, 1.5f), 1.5f)
       .radius(18.0f)
@@ -439,7 +470,8 @@ private:
     pillCfg2.actionEvent = "btnCountAction";
 
     AnimatedHoverButtonBuilder p2;
-    p2.text("Pill Wave (r=18)")
+    p2.name("sysPillWaveBtn")
+      .text("Pill Wave (r=18)")
       .bg(ColorF(0.14f, 0.26f, 0.24f, 1.0f))
       .border(ColorF(0.28f, 0.55f, 0.50f, 1.5f), 1.5f)
       .radius(18.0f)
@@ -450,6 +482,7 @@ private:
     // Explanatory code summary box
     auto archBox = WidgetBuilder(ui.nextWidgetId())
       .parent(card)
+      .name("sysArchBox")
       .rect(RectF(16, 148, 580, 110))
       .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
       .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
@@ -458,6 +491,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(archBox)
+      .name("sysArchTitle")
       .rect(RectF(12, 8, 556, 18))
       .text(
         "WidgetSystem Pipeline Flow:",
@@ -468,6 +502,7 @@ private:
 
     WidgetBuilder(ui.nextWidgetId())
       .parent(archBox)
+      .name("sysArchBody")
       .rect(RectF(12, 28, 556, 72))
       .text(
         "1. AppEvent -> AnimatedHoverButtonSystem.handleEvent\n" ~

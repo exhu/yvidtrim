@@ -48,7 +48,8 @@ Widget createTabButton(
   string eventName,
   bool isActive = false,
   float width = defaultTabButtonWidth,
-  float height = defaultTabButtonHeight
+  float height = defaultTabButtonHeight,
+  string name = null
 ) {
   assert(parent !is null, "parent must not be null");
 
@@ -57,9 +58,11 @@ Widget createTabButton(
     ? tabActiveBorder
     : tabInactiveBorder;
   const ColorF textCol = isActive ? tabActiveText : tabInactiveText;
+  const string btnName = (name.length > 0) ? name : "tabButton";
 
   return WidgetBuilder(ui.nextWidgetId())
     .parent(parent)
+    .name(btnName)
     .rect(RectF(0, 0, width, height))
     .fixedSize(width, height)
     .padding(5, 8, 5, 8)
@@ -114,6 +117,7 @@ final class HeaderTabButtonsProvider : WidgetArrayProvider {
     assert(w.components.mouseEvent !is null);
 
     w.setCaption(model.tabNames[index]);
+    w.name = format("headerTabBtn%d", index + 1);
     w.components.mouseEvent.mouseDown = format("tab%dBtn", index + 1);
     updateTabButtonState(w, index == model.activeTab);
   }

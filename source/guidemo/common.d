@@ -14,10 +14,13 @@ Widget makeSectionCard(
   UiSystem ui,
   Widget parent,
   RectF rect,
-  string title
+  string title,
+  string name = null
 ) {
+  const string cardName = (name.length > 0) ? name : "sectionCard";
   auto card = WidgetBuilder(ui.nextWidgetId())
     .parent(parent)
+    .name(cardName)
     .rect(rect)
     .roundBackground(ColorF(0.13f, 0.15f, 0.18f, 1.0f), 8.0f)
     .border(ColorF(0.25f, 0.28f, 0.35f, 1.0f), 1.0f)
@@ -25,6 +28,7 @@ Widget makeSectionCard(
 
   WidgetBuilder(ui.nextWidgetId())
     .parent(card)
+    .name(cardName ~ "Title")
     .rect(RectF(12, 10, rect.width - 24, 20))
     .text(title, ColorF(0.95f, 0.95f, 0.95f, 1.0f))
     .build();

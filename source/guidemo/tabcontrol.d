@@ -105,6 +105,7 @@ final class TabButtonsProvider : WidgetArrayProvider {
     assert(parent !is null, "parent must not be null");
     WidgetBuilder(ui.nextWidgetId())
       .parent(parent)
+      .name("tabButton")
       .rect(RectF(0, 0, style.buttonWidth, style.buttonHeight))
       .fixedSize(style.buttonWidth, style.buttonHeight)
       .padding(5, 8, 5, 8)
@@ -121,11 +122,14 @@ final class TabButtonsProvider : WidgetArrayProvider {
   }
 
   override void updateWidgetAt(Widget w, size_t index) {
+    import std.format : format;
+
     assert(w !is null, "w must not be null");
     assert(index < model.tabNames.length, "tab index out of bounds");
     assert(w.components.mouseEvent !is null);
 
     const bool isActive = (index == model.activeTab);
+    w.name = format("tabButton_%d", index);
     w.setCaption(model.tabNames[index]);
     w.components.mouseEvent.mouseDown = tabButtonMouseDownEvent;
     w.setBackgroundColor(isActive ? style.activeBg : style.inactiveBg);
@@ -845,6 +849,11 @@ final class TabControlWidgetViewController : WidgetViewControllerBase {
  * `TabControlWidgetView` via `UiRegistry`.
  */
 struct TabControlBuilder {
+  ref TabControlBuilder name(string controlName) return {
+    widgetName = controlName;
+    return this;
+  }
+
   ref TabControlBuilder model(TabsModel m) return {
     assert(m !is null, "m must not be null");
     tabsTracker = ModelTracker!TabsModel(m);
@@ -935,8 +944,13 @@ struct TabControlBuilder {
       ? btnStyle.buttonHeight
       : btnStyle.arrowButtonSize;
 
+    const string rootName = (widgetName.length > 0)
+      ? widgetName
+      : "tabControl";
+
     Widget root = WidgetBuilder(ui.nextWidgetId())
       .parent(parent)
+      .name(rootName)
       .rect(rect)
       .flex(flexDir, btnStyle.arrowGap, JustifyContent.start, flexAlign)
       .view(registry, renameMap, tabControlWidgetViewName)
@@ -944,6 +958,7 @@ struct TabControlBuilder {
 
     auto leftBtn = WidgetBuilder(ui.nextWidgetId())
       .parent(root)
+      .name(rootName ~ "LeftBtn")
       .rect(RectF(0, 0, arrowW, arrowH))
       .fixedSize(arrowW, arrowH)
       .padding(2, 4, 2, 4)
@@ -962,6 +977,7 @@ struct TabControlBuilder {
 
     auto scrollViewport = WidgetBuilder(ui.nextWidgetId())
       .parent(root)
+      .name(rootName ~ "Viewport")
       .rect(RectF(0, 0, rect.width, rect.height))
       .size(
         isRow
@@ -983,6 +999,7 @@ struct TabControlBuilder {
     auto provider = new TabButtonsProvider(ui, tabsTracker.model, btnStyle);
     auto tabsContainer = WidgetBuilder(ui.nextWidgetId())
       .parent(scrollViewport)
+      .name(rootName ~ "Tabs")
       .rect(RectF(0, 0, 1.0f, 1.0f))
       .autoSize()
       .minSize(1.0f, 1.0f)
@@ -992,6 +1009,7 @@ struct TabControlBuilder {
 
     auto rightBtn = WidgetBuilder(ui.nextWidgetId())
       .parent(root)
+      .name(rootName ~ "RightBtn")
       .rect(RectF(0, 0, arrowW, arrowH))
       .fixedSize(arrowW, arrowH)
       .padding(2, 4, 2, 4)
@@ -1041,6 +1059,7 @@ private:
   JustifyContent flexJustify = JustifyContent.start;
   AlignItems flexAlign = AlignItems.center;
   TabControlStyle btnStyle;
+  string widgetName = null;
 }
 
 /**

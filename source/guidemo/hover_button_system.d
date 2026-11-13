@@ -96,6 +96,12 @@ struct AnimatedHoverButtonBuilder {
   HoverAnimConfig animConfig;
   Size customSize = null;
   Anchor customAnchor = null;
+  string widgetName = null;
+
+  ref AnimatedHoverButtonBuilder name(string buttonName) return {
+    widgetName = buttonName;
+    return this;
+  }
 
   ref AnimatedHoverButtonBuilder text(string caption) return {
     config.text = caption;
@@ -171,9 +177,13 @@ struct AnimatedHoverButtonBuilder {
   Widget build(UiSystem ui, Widget parent, RectF rect) {
     const float initW = rect.width > 0.0f ? rect.width : 100.0f;
     const float initH = rect.height > 0.0f ? rect.height : 36.0f;
+    const string btnName = (widgetName.length > 0)
+      ? widgetName
+      : "animatedHoverButton";
 
     auto b = WidgetBuilder(ui.nextWidgetId())
       .parent(parent)
+      .name(btnName)
       .rect(rect);
 
     if (customSize !is null) {
