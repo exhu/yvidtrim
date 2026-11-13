@@ -1,12 +1,16 @@
-- add skill to author gui based on tabControl changes
+- use Widget.name in yguidemo with meaningful widget names, so that dumped
+widget tree is readable
 
-- Dynamic lists are for another feature to implement.
-
+- review yguidemo, widget builder, is it easy to write by hand?
 
 - may be just use ViewComponent on root widget + WidgetView +
 WidgetViewController in demo and everywhere for consistency instead of manually
 created View and Controller?
 
+
+- Dynamic lists are for another feature to implement.
+
+- add skill to author gui based on tabControl changes
 
 
 - Systems and components satisfy the case of parent and child widgets and
@@ -16,17 +20,9 @@ with (root (scroll-view-container (contents...))(scroll-bar)), so it must
 listen to events of scroll-bar and scroll-view on contents size change or
 also it must accept an array model and pass it to scroll-view-container.
 
-- To make lists scrollable we need additional component ScrollviewComponent, which
-expects a single child Widget that it moves and sends event when size of the
-child or its own size changed.
-
-- make combobox switch in guidemo (no more space to insert buttons)
-and/or scrollable tab panel
-
 - first devise reusable composite widgets in code (how to pass models, events,
 reusable views and controllers), then we'll invent a text format to construct
 widget trees to allow for visual editing
-
 
 - video player component and system is external to yguilib to be independent from ffmpeg
 
