@@ -1,6 +1,7 @@
-- design better builder interface for widgets,
+- rename WidgetBuilder to LegacyWidgetBuilder
+- design new better builder interface for widgets,
 see `d_gui_widgetbuilder_api_design_recommendations.md`,
-update guidemo, yvidtrim with new interfaces.
+update guidemo, yvidtrim with new WidgetBuilder.
 
 - add DebugDraw component to Widget with a debug draw system,
 which may draw widget names and outlines over rendered widgets,
