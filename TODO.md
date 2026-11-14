@@ -1,4 +1,10 @@
-- review yguidemo, widget builder, is it easy to write by hand?
+- design better builder interface for widgets,
+see `d_gui_widgetbuilder_api_design_recommendations.md`,
+update guidemo, yvidtrim with new interfaces.
+
+- add DebugDraw component to Widget with a debug draw system,
+which may draw widget names and outlines over rendered widgets,
+display hidden or unclipped widgets.
 
 - may be just use ViewComponent on root widget + WidgetView +
 WidgetViewController in demo and everywhere for consistency instead of manually
