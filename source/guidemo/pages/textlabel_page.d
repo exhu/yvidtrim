@@ -8,7 +8,7 @@ import guidemo.model : DemoModel;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
-import yguilib.widget.builder : LegacyWidgetBuilder;
+import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.layout_components : Dimension, Insets, Size, SizingMode;
 
@@ -117,14 +117,12 @@ private:
   }
 
   void buildSingleLineAlignment(Widget card) {
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("singleLineAlignLabel")
       .rect(RectF(12, 34, 581, 16))
-      .text(
-        "Single-line alignment within fixed-width boxes:",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f)
-      )
+      .text("Single-line alignment within fixed-width boxes:")
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
       .build();
 
     Widget makeAlignBox(
@@ -135,15 +133,19 @@ private:
       TextLabel.Alignment alignment,
       ColorF borderCol
     ) {
-      return LegacyWidgetBuilder.make(ui)
+      return WidgetBuilder.make(ui)
         .parent(card)
         .name(boxName)
         .rect(rect)
         .fixedSize(rect.width, rect.height)
         .padding(Insets(6, 10, 6, 10))
-        .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-        .border(Border.dashed(borderCol, 1.5f))
-        .text(text, textCol, 14.0f, alignment)
+        .roundBg(ColorF(0.10f, 0.12f, 0.15f, 1.0f))
+        .bgRadius(15.0f)
+        .borderComponent(Border.dashed(borderCol, 1.5f))
+        .text(text)
+        .textColor(textCol)
+        .fontSize(14.0f)
+        .textAlign(alignment)
         .build();
     }
 
@@ -174,40 +176,42 @@ private:
   }
 
   void buildMultilineAlignment(Widget card) {
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("multilineAlignLabel")
       .rect(RectF(12, 110, 581, 16))
-      .text(
-        "Multiline alignment (each line aligned individually):",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f)
-      )
+      .text("Multiline alignment (each line aligned individually):")
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
       .build();
 
-    auto multiCenterBox = LegacyWidgetBuilder.make(ui)
+    auto multiCenterBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("multiCenterBox")
       .rect(RectF(12, 130, 285, 138))
       .fixedSize(285, 138)
       .padding(Insets(8, 12, 8, 12))
-      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .border(ColorF(0.30f, 0.55f, 0.45f, 1.0f), 1.5f)
-      .text(new TextLabel(
+      .roundBg(ColorF(0.10f, 0.12f, 0.15f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.30f, 0.55f, 0.45f, 1.0f))
+      .borderWidth(1.5f)
+      .textComponent(new TextLabel(
         "Centered Paragraph:\nEach wrapped line\nis positioned at the\n" ~
           "exact horizontal center\nof the content bounds.",
         ColorF(0.80f, 1.0f, 0.85f, 1.0f)
       ).withMultiline(true).withAlignment(TextLabel.Alignment.center))
       .build();
 
-    auto multiRightBox = LegacyWidgetBuilder.make(ui)
+    auto multiRightBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("multiRightBox")
       .rect(RectF(307, 130, 286, 138))
       .fixedSize(286, 138)
       .padding(Insets(8, 12, 8, 12))
-      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .border(ColorF(0.60f, 0.45f, 0.30f, 1.0f), 1.5f)
-      .text(new TextLabel(
+      .roundBg(ColorF(0.10f, 0.12f, 0.15f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.60f, 0.45f, 0.30f, 1.0f))
+      .borderWidth(1.5f)
+      .textComponent(new TextLabel(
         "Right-Aligned Paragraph:\nEach wrapped line\nis pushed against\n" ~
           "the right boundary\nof the container area.",
         ColorF(1.0f, 0.85f, 0.70f, 1.0f)
@@ -229,40 +233,42 @@ private:
   }
 
   void buildSingleLineEllipsis(Widget card) {
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("singleLineEllipsisLabel")
       .rect(RectF(12, 34, 591, 16))
-      .text(
-        "Single-line overflow (overflowEllipsis = true vs false):",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f)
-      )
+      .text("Single-line overflow (overflowEllipsis = true vs false):")
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
       .build();
 
-    auto boxEllipsis = LegacyWidgetBuilder.make(ui)
+    auto boxEllipsis = WidgetBuilder.make(ui)
       .parent(card)
       .name("boxEllipsis")
       .rect(RectF(12, 54, 288, 48))
       .fixedSize(288, 48)
       .padding(Insets(6, 10, 6, 10))
-      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .border(ColorF(0.30f, 0.55f, 0.75f, 1.0f), 1.5f)
-      .text(new TextLabel(
+      .roundBg(ColorF(0.10f, 0.12f, 0.15f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.30f, 0.55f, 0.75f, 1.0f))
+      .borderWidth(1.5f)
+      .textComponent(new TextLabel(
         "overflowEllipsis=true: Very long sentence truncated with ellipsis.",
         ColorF(0.60f, 0.85f, 1.0f, 1.0f)
       ).withMultiline(false).withEllipsis(true))
       .build();
 
-    auto boxNoEllipsis = LegacyWidgetBuilder.make(ui)
+    auto boxNoEllipsis = WidgetBuilder.make(ui)
       .parent(card)
       .name("boxNoEllipsis")
       .rect(RectF(308, 54, 295, 48))
       .fixedSize(295, 48)
       .padding(Insets(6, 10, 6, 10))
       .clipContents(true)
-      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .border(ColorF(0.65f, 0.35f, 0.40f, 1.0f), 1.5f)
-      .text(new TextLabel(
+      .roundBg(ColorF(0.10f, 0.12f, 0.15f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.65f, 0.35f, 0.40f, 1.0f))
+      .borderWidth(1.5f)
+      .textComponent(new TextLabel(
         "overflowEllipsis=false: Long sentence scissored without " ~
           "ellipsis dots.",
         ColorF(1.0f, 0.65f, 0.70f, 1.0f)
@@ -271,26 +277,28 @@ private:
   }
 
   void buildMultilineEllipsis(Widget card) {
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("multilineEllipsisLabel")
       .rect(RectF(12, 110, 591, 16))
       .text(
-        "Multiline vertical overflow (last visible line truncated with '...'):",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f)
+        "Multiline vertical overflow (last visible line truncated with '...'):"
       )
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
       .build();
 
-    auto multiVertEllipsis = LegacyWidgetBuilder.make(ui)
+    auto multiVertEllipsis = WidgetBuilder.make(ui)
       .parent(card)
       .name("multiVertEllipsis")
       .rect(RectF(12, 130, 288, 138))
       .fixedSize(288, 138)
       .padding(Insets(8, 12, 8, 12))
       .clipContents(true)
-      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .border(ColorF(0.35f, 0.65f, 0.50f, 1.0f), 1.5f)
-      .text(new TextLabel(
+      .roundBg(ColorF(0.10f, 0.12f, 0.15f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.35f, 0.65f, 0.50f, 1.0f))
+      .borderWidth(1.5f)
+      .textComponent(new TextLabel(
         "Line 1: Primary line\nLine 2: Secondary line\n" ~
           "Line 3: Content line\nLine 4: Approaching boundary\n" ~
           "Line 5: Near container limit\n" ~
@@ -301,16 +309,18 @@ private:
       ).withMultiline(true).withEllipsis(true))
       .build();
 
-    auto multiVertNoEllipsis = LegacyWidgetBuilder.make(ui)
+    auto multiVertNoEllipsis = WidgetBuilder.make(ui)
       .parent(card)
       .name("multiVertNoEllipsis")
       .rect(RectF(308, 130, 295, 138))
       .fixedSize(295, 138)
       .padding(Insets(8, 12, 8, 12))
       .clipContents(true)
-      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .border(ColorF(0.65f, 0.50f, 0.30f, 1.0f), 1.5f)
-      .text(new TextLabel(
+      .roundBg(ColorF(0.10f, 0.12f, 0.15f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.65f, 0.50f, 0.30f, 1.0f))
+      .borderWidth(1.5f)
+      .textComponent(new TextLabel(
         "Line 1: Primary line\nLine 2: Secondary line\n" ~
           "Line 3: Content line\nLine 4: Approaching boundary\n" ~
           "Line 5: Near container limit\n" ~
@@ -336,40 +346,42 @@ private:
   }
 
   void buildWrappingBoxes(Widget card) {
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("wrappingLabel")
       .rect(RectF(12, 34, 581, 16))
-      .text(
-        "Automatic word wrapping & explicit newlines [multiline = true]:",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f)
-      )
+      .text("Automatic word wrapping & explicit newlines [multiline = true]:")
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
       .build();
 
-    auto wrapBox = LegacyWidgetBuilder.make(ui)
+    auto wrapBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("wrapBox")
       .rect(RectF(12, 54, 285, 120))
       .fixedSize(285, 120)
       .padding(Insets(8, 12, 8, 12))
-      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .border(ColorF(0.35f, 0.45f, 0.65f, 1.0f), 1.5f)
-      .text(new TextLabel(
+      .roundBg(ColorF(0.10f, 0.12f, 0.15f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.35f, 0.45f, 0.65f, 1.0f))
+      .borderWidth(1.5f)
+      .textComponent(new TextLabel(
         "Word wrapping algorithm wraps lines cleanly at space delimiters " ~
           "when width is limited.",
         ColorF(0.85f, 0.90f, 1.0f, 1.0f)
       ).withMultiline(true))
       .build();
 
-    auto newlinesBox = LegacyWidgetBuilder.make(ui)
+    auto newlinesBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("newlinesBox")
       .rect(RectF(307, 54, 286, 120))
       .fixedSize(286, 120)
       .padding(Insets(8, 12, 8, 12))
-      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .border(ColorF(0.40f, 0.35f, 0.55f, 1.0f), 1.5f)
-      .text(new TextLabel(
+      .roundBg(ColorF(0.10f, 0.12f, 0.15f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.40f, 0.35f, 0.55f, 1.0f))
+      .borderWidth(1.5f)
+      .textComponent(new TextLabel(
         "Explicit newlines:\n" ~
           "• First item in list\n" ~
           "• Second item with line break\n" ~
@@ -380,28 +392,27 @@ private:
   }
 
   void buildSanitizedComparison(Widget card) {
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("sanitizedLabel")
       .rect(RectF(12, 180, 581, 16))
-      .text(
-        "Multiline disabled comparison [multiline = false]:",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f)
-      )
+      .text("Multiline disabled comparison [multiline = false]:")
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
       .build();
 
-    auto sanitizedBox = LegacyWidgetBuilder.make(ui)
+    auto sanitizedBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("sanitizedBox")
       .rect(RectF(12, 200, 581, 74))
       .fixedSize(581, 74)
       .padding(Insets(8, 12, 8, 12))
-      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .border(Border.dashed(
+      .roundBg(ColorF(0.10f, 0.12f, 0.15f, 1.0f))
+      .bgRadius(15.0f)
+      .borderComponent(Border.dashed(
         ColorF(0.65f, 0.50f, 0.25f, 1.0f),
         1.5f
       ))
-      .text(new TextLabel(
+      .textComponent(new TextLabel(
         "Line 1\\nLine 2\\r\\nLine 3 (newlines sanitized into single spaces " ~
           "automatically when multiline=false, followed by overflow ellipsis)",
         ColorF(1.0f, 0.90f, 0.60f, 1.0f)
@@ -418,35 +429,38 @@ private:
       "labelPlaygroundCard"
     );
 
-    interactiveStatusWidget = LegacyWidgetBuilder.make(ui)
+    interactiveStatusWidget = WidgetBuilder.make(ui)
       .parent(card)
       .name("interactiveStatusLabel")
       .rect(RectF(12, 34, 591, 30))
       .fixedSize(591, 30)
       .padding(Insets(4, 10, 4, 10))
-      .roundBackground(ColorF(0.14f, 0.17f, 0.23f, 1.0f), 4.0f)
-      .border(ColorF(0.35f, 0.45f, 0.65f, 1.0f), 1.0f)
+      .roundBg(ColorF(0.14f, 0.17f, 0.23f, 1.0f))
+      .bgRadius(4.0f)
+      .border(ColorF(0.35f, 0.45f, 0.65f, 1.0f))
+      .borderWidth(1.0f)
       .text(
-        "[M] Multiline: ON | [E] Ellipsis: ON | [L] Align: left | Sample: 1/3",
-        ColorF(0.95f, 0.95f, 0.40f, 1.0f)
+        "[M] Multiline: ON | [E] Ellipsis: ON | [L] Align: left | Sample: 1/3"
       )
+      .textColor(ColorF(0.95f, 0.95f, 0.40f, 1.0f))
       .build();
 
-    interactiveLabelWidget = LegacyWidgetBuilder.make(ui)
+    interactiveLabelWidget = WidgetBuilder.make(ui)
       .parent(card)
       .name("interactiveTextLabel")
       .rect(RectF(12, 70, 591, 148))
       .fixedSize(591, 148)
       .padding(Insets(10, 14, 10, 14))
       .clipContents(true)
-      .roundBackground(ColorF(0.09f, 0.11f, 0.15f, 1.0f), 6.0f)
-      .border(Border.dashed(
+      .roundBg(ColorF(0.09f, 0.11f, 0.15f, 1.0f))
+      .bgRadius(6.0f)
+      .borderComponent(Border.dashed(
         ColorF(0.30f, 0.75f, 0.90f, 1.0f),
         2.0f,
         6.0f,
         3.0f
       ))
-      .text(new TextLabel(
+      .textComponent(new TextLabel(
         labelInteractiveSamples[0],
         ColorF(1.0f, 1.0f, 1.0f, 1.0f)
       ).withMultiline(true)
@@ -459,15 +473,17 @@ private:
   }
 
   void buildPlaygroundHint(Widget card) {
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("interactiveHintLabel")
       .rect(RectF(12, 226, 591, 52))
       .fixedSize(591, 52)
       .padding(Insets(6, 10, 6, 10))
-      .roundBackground(ColorF(0.11f, 0.13f, 0.17f, 1.0f), 4.0f)
-      .border(ColorF(0.25f, 0.28f, 0.35f, 1.0f), 1.0f)
-      .text(new TextLabel(
+      .roundBg(ColorF(0.11f, 0.13f, 0.17f, 1.0f))
+      .bgRadius(4.0f)
+      .border(ColorF(0.25f, 0.28f, 0.35f, 1.0f))
+      .borderWidth(1.0f)
+      .textComponent(new TextLabel(
         "[M] Toggle multiline | [E] Toggle ellipsis | [L] Cycle alignment\n" ~
           "[T] Cycle sample text | [Tab] or [1]/[2] Switch demo pages",
         ColorF(0.65f, 0.72f, 0.85f, 1.0f)

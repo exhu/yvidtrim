@@ -13,7 +13,7 @@ import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiRegistry, UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
-import yguilib.widget.builder : LegacyWidgetBuilder;
+import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
   JustifyContent;
 
@@ -256,16 +256,16 @@ private:
       "subTabCard"
     );
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("subTabDescLabel")
       .rect(RectF(16, 36, 570, 20))
       .text(
         "Clicking a tab translates mouseDown into \"pageTabSwitch\" with " ~
-          "tab index in value[0].",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f),
-        12.0f
+          "tab index in value[0]."
       )
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
+      .fontSize(12.0f)
       .build();
 
     TabControlBuilder b;
@@ -278,15 +278,13 @@ private:
 
     buildSubPanels(card);
 
-    eventLogLabel = LegacyWidgetBuilder.make(ui)
+    eventLogLabel = WidgetBuilder.make(ui)
       .parent(card)
       .name("subTabEventLogLabel")
       .rect(RectF(16, 246, 570, 22))
-      .text(
-        "Last Event: \"none\" | ViewData.value[0] = 0",
-        ColorF(0.95f, 0.90f, 0.40f, 1.0f),
-        13.0f
-      )
+      .text("Last Event: \"none\" | ViewData.value[0] = 0")
+      .textColor(ColorF(0.95f, 0.90f, 0.40f, 1.0f))
+      .fontSize(13.0f)
       .build();
   }
 
@@ -335,27 +333,33 @@ private:
     string title,
     string bodyText
   ) {
-    auto box = LegacyWidgetBuilder.make(ui)
+    auto box = WidgetBuilder.make(ui)
       .parent(parent)
       .name(panelName)
       .rect(RectF(16, 104, 573, 130))
-      .roundBackground(bgCol, 6.0f)
-      .border(borderCol, 1.0f)
-      .padding(10, 12)
+      .roundBg(bgCol)
+      .bgRadius(6.0f)
+      .border(borderCol)
+      .borderWidth(1.0f)
+      .paddingVh(10, 12)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(box)
       .name(panelName ~ "Title")
       .rect(RectF(14, 10, 540, 22))
-      .text(title, ColorF(0.95f, 0.98f, 1.0f, 1.0f), 14.0f)
+      .text(title)
+      .textColor(ColorF(0.95f, 0.98f, 1.0f, 1.0f))
+      .fontSize(14.0f)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(box)
       .name(panelName ~ "Body")
       .rect(RectF(14, 38, 540, 78))
-      .text(bodyText, ColorF(0.75f, 0.82f, 0.92f, 1.0f), 12.0f)
+      .text(bodyText)
+      .textColor(ColorF(0.75f, 0.82f, 0.92f, 1.0f))
+      .fontSize(12.0f)
       .build();
 
     return box;
@@ -370,15 +374,15 @@ private:
       "dynamicTabCard"
     );
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("dynamicTabDescLabel")
       .rect(RectF(16, 36, 580, 20))
       .text(
-        "Mutate TabsModel at runtime: DataSystem pools & reuses tab buttons.",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f),
-        12.0f
+        "Mutate TabsModel at runtime: DataSystem pools & reuses tab buttons."
       )
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
+      .fontSize(12.0f)
       .build();
 
     TabControlBuilder b;
@@ -395,16 +399,14 @@ private:
   }
 
   void buildDynamicMutationButtons(Widget card) {
-    auto btnRow = LegacyWidgetBuilder.make(ui)
+    auto btnRow = WidgetBuilder.make(ui)
       .parent(card)
       .name("dynamicMutationBtnRow")
       .rect(RectF(16, 108, 580, 42))
-      .flex(
-        FlexDirection.row,
-        10.0f,
-        JustifyContent.start,
-        AlignItems.center
-      )
+      .flexRow()
+      .gap(10.0f)
+      .justify(JustifyContent.start)
+      .alignItems(AlignItems.center)
       .build();
 
     buildTabCountButtons(btnRow);
@@ -504,37 +506,37 @@ private:
   }
 
   void buildDynamicInfoBox(Widget card) {
-    auto infoBox = LegacyWidgetBuilder.make(ui)
+    auto infoBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("dynamicInfoBox")
       .rect(RectF(16, 162, 583, 102))
-      .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
-      .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
-      .padding(10, 12)
+      .roundBg(ColorF(0.09f, 0.11f, 0.14f, 1.0f))
+      .bgRadius(6.0f)
+      .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f))
+      .borderWidth(1.0f)
+      .paddingVh(10, 12)
       .build();
 
-    dynamicStatusLabel = LegacyWidgetBuilder.make(ui)
+    dynamicStatusLabel = WidgetBuilder.make(ui)
       .parent(infoBox)
       .name("dynamicStatusLabel")
       .rect(RectF(12, 10, 555, 22))
-      .text(
-        "Model Tabs: 6 / 10 | Width: 580px | Active: 0 (Clip 1)",
-        ColorF(0.45f, 0.90f, 0.65f, 1.0f),
-        13.0f
-      )
+      .text("Model Tabs: 6 / 10 | Width: 580px | Active: 0 (Clip 1)")
+      .textColor(ColorF(0.45f, 0.90f, 0.65f, 1.0f))
+      .fontSize(13.0f)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(infoBox)
       .name("dynamicInfoBody")
       .rect(RectF(12, 38, 555, 52))
       .text(
         "- Adding tabs beyond 5 displays < and > scroll arrow buttons\n" ~
           "- Pressing < and > jumps scroll offset by tab button origins\n" ~
-          "- Resizing viewport (- Narrow / + Widen) snaps to nearest tab",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f),
-        12.0f
+          "- Resizing viewport (- Narrow / + Widen) snaps to nearest tab"
       )
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
+      .fontSize(12.0f)
       .build();
   }
 
@@ -547,15 +549,15 @@ private:
       "verticalTabCard"
     );
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("verticalTabDescLabel")
       .rect(RectF(16, 36, 570, 20))
       .text(
-        "FlexDirection.column TabControl with custom emerald active styling.",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f),
-        12.0f
+        "FlexDirection.column TabControl with custom emerald active styling."
       )
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
+      .fontSize(12.0f)
       .build();
 
     TabControlStyle emeraldStyle;
@@ -578,47 +580,45 @@ private:
   }
 
   void buildVerticalInspectorBox(Widget card) {
-    auto inspector = LegacyWidgetBuilder.make(ui)
+    auto inspector = WidgetBuilder.make(ui)
       .parent(card)
       .name("verticalInspectorBox")
       .rect(RectF(192, 66, 396, 196))
-      .roundBackground(ColorF(0.09f, 0.12f, 0.15f, 1.0f), 6.0f)
-      .border(ColorF(0.22f, 0.32f, 0.40f, 1.0f), 1.0f)
-      .padding(12, 14)
+      .roundBg(ColorF(0.09f, 0.12f, 0.15f, 1.0f))
+      .bgRadius(6.0f)
+      .border(ColorF(0.22f, 0.32f, 0.40f, 1.0f))
+      .borderWidth(1.0f)
+      .paddingVh(12, 14)
       .build();
 
-    verticalTitleLabel = LegacyWidgetBuilder.make(ui)
+    verticalTitleLabel = WidgetBuilder.make(ui)
       .parent(inspector)
       .name("verticalTitleLabel")
       .rect(RectF(14, 14, 368, 24))
-      .text(
-        "Track 0: Video Stream (H.264 / 60 FPS)",
-        ColorF(0.45f, 0.95f, 0.70f, 1.0f),
-        14.0f
-      )
+      .text("Track 0: Video Stream (H.264 / 60 FPS)")
+      .textColor(ColorF(0.45f, 0.95f, 0.70f, 1.0f))
+      .fontSize(14.0f)
       .build();
 
-    verticalDescLabel = LegacyWidgetBuilder.make(ui)
+    verticalDescLabel = WidgetBuilder.make(ui)
       .parent(inspector)
       .name("verticalDescLabel")
       .rect(RectF(14, 48, 368, 90))
       .text(
         "Resolution: 1920x1080 | Keyframe interval: 2.0s\n" ~
-          "Smart cut re-encodes only boundary GOP segments.",
-        ColorF(0.78f, 0.84f, 0.92f, 1.0f),
-        12.0f
+          "Smart cut re-encodes only boundary GOP segments."
       )
+      .textColor(ColorF(0.78f, 0.84f, 0.92f, 1.0f))
+      .fontSize(12.0f)
       .build();
 
-    verticalIndexLabel = LegacyWidgetBuilder.make(ui)
+    verticalIndexLabel = WidgetBuilder.make(ui)
       .parent(inspector)
       .name("verticalIndexLabel")
       .rect(RectF(14, 156, 368, 22))
-      .text(
-        "Selected Vertical Tab Index (value[0]): 0",
-        ColorF(0.95f, 0.90f, 0.40f, 1.0f),
-        12.0f
-      )
+      .text("Selected Vertical Tab Index (value[0]): 0")
+      .textColor(ColorF(0.95f, 0.90f, 0.40f, 1.0f))
+      .fontSize(12.0f)
       .build();
   }
 
@@ -631,27 +631,27 @@ private:
       "tabArchCard"
     );
 
-    auto archBox = LegacyWidgetBuilder.make(ui)
+    auto archBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("tabArchBox")
       .rect(RectF(16, 40, 583, 224))
-      .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
-      .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
-      .padding(12, 14)
+      .roundBg(ColorF(0.09f, 0.11f, 0.14f, 1.0f))
+      .bgRadius(6.0f)
+      .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f))
+      .borderWidth(1.0f)
+      .paddingVh(12, 14)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(archBox)
       .name("tabArchTitle")
       .rect(RectF(14, 12, 555, 22))
-      .text(
-        "End-to-End Event & Model Synchronization Pipeline:",
-        ColorF(0.45f, 0.80f, 1.0f, 1.0f),
-        13.0f
-      )
+      .text("End-to-End Event & Model Synchronization Pipeline:")
+      .textColor(ColorF(0.45f, 0.80f, 1.0f, 1.0f))
+      .fontSize(13.0f)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(archBox)
       .name("tabArchBody")
       .rect(RectF(14, 40, 555, 172))
@@ -665,10 +665,10 @@ private:
           "   translateEventForViewWidget() renames the event and writes\n" ~
           "   the clicked button's child index to ViewData.value[0].\n" ~
           "4. Controller Update: TabControlWidgetViewController updates\n" ~
-          "   activeTab in TabsModel and runs TabControlWidgetView.update().",
-        ColorF(0.75f, 0.80f, 0.88f, 1.0f),
-        12.0f
+          "   activeTab in TabsModel and runs TabControlWidgetView.update()."
       )
+      .textColor(ColorF(0.75f, 0.80f, 0.88f, 1.0f))
+      .fontSize(12.0f)
       .build();
   }
 

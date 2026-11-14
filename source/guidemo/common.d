@@ -6,7 +6,7 @@ module guidemo.common;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget;
-import yguilib.widget.builder : LegacyWidgetBuilder;
+import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 
 /// Factory function to create standard section cards across all demo pages.
@@ -18,19 +18,22 @@ Widget makeSectionCard(
   string name = null
 ) {
   const string cardName = (name.length > 0) ? name : "sectionCard";
-  auto card = LegacyWidgetBuilder.make(ui)
+  auto card = WidgetBuilder.make(ui)
     .parent(parent)
     .name(cardName)
     .rect(rect)
-    .roundBackground(ColorF(0.13f, 0.15f, 0.18f, 1.0f), 8.0f)
-    .border(ColorF(0.25f, 0.28f, 0.35f, 1.0f), 1.0f)
+    .roundBg(ColorF(0.13f, 0.15f, 0.18f, 1.0f))
+    .bgRadius(8.0f)
+    .border(ColorF(0.25f, 0.28f, 0.35f, 1.0f))
+    .borderWidth(1.0f)
     .build();
 
-  LegacyWidgetBuilder.make(ui)
+  WidgetBuilder.make(ui)
     .parent(card)
     .name(cardName ~ "Title")
     .rect(RectF(12, 10, rect.width - 24, 20))
-    .text(title, ColorF(0.95f, 0.95f, 0.95f, 1.0f))
+    .text(title)
+    .textColor(ColorF(0.95f, 0.95f, 0.95f, 1.0f))
     .build();
 
   return card;

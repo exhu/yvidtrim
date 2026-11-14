@@ -34,7 +34,7 @@ import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
-import yguilib.widget.builder : LegacyWidgetBuilder;
+import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.component : WidgetComponent;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.layout_components : Anchor, Insets, Size;
@@ -181,53 +181,50 @@ struct AnimatedHoverButtonBuilder {
       ? widgetName
       : "animatedHoverButton";
 
-    auto b = LegacyWidgetBuilder.make(ui)
+    auto b = WidgetBuilder.make(ui)
       .parent(parent)
       .name(btnName)
       .rect(rect);
 
     if (customSize !is null) {
-      b.size(customSize);
+      b.sizeComponent(customSize);
     } else {
       b.fixedSize(initW, initH);
     }
     if (customAnchor !is null) {
-      b.anchor(customAnchor);
+      b.anchorComponent(customAnchor);
     }
 
     b.padding(config.padding);
 
     if (config.cornerRadius > 0.0f) {
-      b.roundBackground(config.normalBg, config.cornerRadius);
+      b.roundBg(config.normalBg).bgRadius(config.cornerRadius);
     } else {
-      b.background(config.normalBg);
+      b.bg(config.normalBg);
     }
 
     if (config.borderWidth > 0.0f) {
-      b.border(
-        config.borderColor,
-        config.borderWidth,
-        config.cornerRadius > 0.0f ? Border.Style.round : Border.Style.rect,
-        config.cornerRadius
-      );
+      b.border(config.borderColor)
+        .borderWidth(config.borderWidth)
+        .borderStyle(
+          config.cornerRadius > 0.0f ? Border.Style.round : Border.Style.rect
+        )
+        .borderRadius(config.cornerRadius);
     }
 
-    b.text(
-      config.text,
-      config.textColor,
-      config.fontSize,
-      TextLabel.Alignment.center
-    );
+    b.text(config.text)
+      .textColor(config.textColor)
+      .fontSize(config.fontSize)
+      .textAlign(TextLabel.Alignment.center);
 
     auto comp = new AnimatedHoverButtonComponent(animConfig);
     comp.normalBg = config.normalBg;
     comp.normalBorder = config.borderColor;
     comp.colorsInitialized = true;
     b.component(comp);
+    b.inputEnabled(true);
 
-    auto w = b.build();
-    w.inputEnabled = true;
-    return w;
+    return b.build();
   }
 }
 

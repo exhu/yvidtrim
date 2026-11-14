@@ -13,11 +13,11 @@ import yguilib.model : ModelTracker, VersionedModel;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.uisystem : UiRegistry, UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
-import yguilib.widget.builder : LegacyWidgetBuilder;
+import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.data_components : WidgetArrayProvider;
 import yguilib.widget.drawing_components : TextLabel;
 import yguilib.widget.layout_components : AlignItems, Dimension, FlexDirection,
-  JustifyContent, Size, SizingMode;
+  Insets, JustifyContent, Size, SizingMode;
 import yguilib.widget.scroll_components : ScrollableArea;
 import yguilib.widget.widget_view : WidgetView, WidgetViewBase,
   WidgetViewControllerBase;
@@ -103,20 +103,20 @@ final class TabButtonsProvider : WidgetArrayProvider {
 
   override void addWidget(Widget parent) {
     assert(parent !is null, "parent must not be null");
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(parent)
       .name("tabButton")
       .rect(RectF(0, 0, style.buttonWidth, style.buttonHeight))
       .fixedSize(style.buttonWidth, style.buttonHeight)
-      .padding(5, 8, 5, 8)
-      .roundBackground(style.inactiveBg, style.cornerRadius)
-      .border(style.inactiveBorder, 1.0f)
-      .text(
-        null,
-        style.inactiveText,
-        style.fontSize,
-        TextLabel.Alignment.center
-      )
+      .padding(Insets(5, 8, 5, 8))
+      .roundBg(style.inactiveBg)
+      .bgRadius(style.cornerRadius)
+      .border(style.inactiveBorder)
+      .borderWidth(1.0f)
+      .text(null)
+      .textColor(style.inactiveText)
+      .fontSize(style.fontSize)
+      .textAlign(TextLabel.Alignment.center)
       .onMouseDown(tabButtonMouseDownEvent)
       .build();
   }
@@ -948,44 +948,51 @@ struct TabControlBuilder {
       ? widgetName
       : "tabControl";
 
-    Widget root = LegacyWidgetBuilder.make(ui)
+    Widget root = WidgetBuilder.make(ui)
       .parent(parent)
       .name(rootName)
       .rect(rect)
-      .flex(flexDir, btnStyle.arrowGap, JustifyContent.start, flexAlign)
-      .view(registry, renameMap, tabControlWidgetViewName)
+      .flexDirection(flexDir)
+      .gap(btnStyle.arrowGap)
+      .justify(JustifyContent.start)
+      .alignItems(flexAlign)
+      .viewEvents(renameMap)
+      .viewName(tabControlWidgetViewName)
       .build();
 
-    auto leftBtn = LegacyWidgetBuilder.make(ui)
+    auto leftBtn = WidgetBuilder.make(ui)
       .parent(root)
       .name(rootName ~ "LeftBtn")
       .rect(RectF(0, 0, arrowW, arrowH))
       .fixedSize(arrowW, arrowH)
-      .padding(2, 4, 2, 4)
-      .roundBackground(btnStyle.disabledBg, btnStyle.cornerRadius)
-      .border(btnStyle.disabledBorder, 1.0f)
-      .text(
-        isRow ? "<" : "^",
-        btnStyle.disabledText,
-        btnStyle.fontSize,
-        TextLabel.Alignment.center
-      )
+      .padding(Insets(2, 4, 2, 4))
+      .roundBg(btnStyle.disabledBg)
+      .bgRadius(btnStyle.cornerRadius)
+      .border(btnStyle.disabledBorder)
+      .borderWidth(1.0f)
+      .text(isRow ? "<" : "^")
+      .textColor(btnStyle.disabledText)
+      .fontSize(btnStyle.fontSize)
+      .textAlign(TextLabel.Alignment.center)
       .onMouseDown(tabScrollLeftEvent)
+      .inputEnabled(false)
+      .visible(false)
       .build();
-    leftBtn.inputEnabled = false;
-    leftBtn.visible = false;
 
-    auto scrollViewport = LegacyWidgetBuilder.make(ui)
+    auto scrollViewport = WidgetBuilder.make(ui)
       .parent(root)
       .name(rootName ~ "Viewport")
       .rect(RectF(0, 0, rect.width, rect.height))
-      .size(
+      .sizeComponent(
         isRow
           ? Size.fraction(1.0f, 0.0f)
           : Size.fraction(0.0f, 1.0f)
       )
-      .minSize(1.0f, 1.0f)
-      .scrollableArea(PointF(0.0f, 0.0f), tabScrollChangedEvent)
+      .minWidth(1.0f)
+      .minHeight(1.0f)
+      .scrollableArea()
+      .scrollOffset(0.0f, 0.0f)
+      .onScrollChanged(tabScrollChangedEvent)
       .clipChildren(true)
       .build();
     if (isRow) {
@@ -997,34 +1004,39 @@ struct TabControlBuilder {
     }
 
     auto provider = new TabButtonsProvider(ui, tabsTracker.model, btnStyle);
-    auto tabsContainer = LegacyWidgetBuilder.make(ui)
+    auto tabsContainer = WidgetBuilder.make(ui)
       .parent(scrollViewport)
       .name(rootName ~ "Tabs")
       .rect(RectF(0, 0, 1.0f, 1.0f))
       .autoSize()
-      .minSize(1.0f, 1.0f)
-      .flex(flexDir, flexGap, flexJustify, flexAlign)
-      .widgetArray(provider, tabsTracker.model.tabNames.length)
+      .minWidth(1.0f)
+      .minHeight(1.0f)
+      .flexDirection(flexDir)
+      .gap(flexGap)
+      .justify(flexJustify)
+      .alignItems(flexAlign)
+      .widgetArray(provider)
+      .widgetArrayCount(tabsTracker.model.tabNames.length)
       .build();
 
-    auto rightBtn = LegacyWidgetBuilder.make(ui)
+    auto rightBtn = WidgetBuilder.make(ui)
       .parent(root)
       .name(rootName ~ "RightBtn")
       .rect(RectF(0, 0, arrowW, arrowH))
       .fixedSize(arrowW, arrowH)
-      .padding(2, 4, 2, 4)
-      .roundBackground(btnStyle.disabledBg, btnStyle.cornerRadius)
-      .border(btnStyle.disabledBorder, 1.0f)
-      .text(
-        isRow ? ">" : "v",
-        btnStyle.disabledText,
-        btnStyle.fontSize,
-        TextLabel.Alignment.center
-      )
+      .padding(Insets(2, 4, 2, 4))
+      .roundBg(btnStyle.disabledBg)
+      .bgRadius(btnStyle.cornerRadius)
+      .border(btnStyle.disabledBorder)
+      .borderWidth(1.0f)
+      .text(isRow ? ">" : "v")
+      .textColor(btnStyle.disabledText)
+      .fontSize(btnStyle.fontSize)
+      .textAlign(TextLabel.Alignment.center)
       .onMouseDown(tabScrollRightEvent)
+      .inputEnabled(false)
+      .visible(false)
       .build();
-    rightBtn.inputEnabled = false;
-    rightBtn.visible = false;
 
     root.update(WidgetUpdateScope.parentView);
 

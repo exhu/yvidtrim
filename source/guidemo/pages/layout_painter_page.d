@@ -10,7 +10,7 @@ import guidemo.model : DemoModel;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
-import yguilib.widget.builder : LegacyWidgetBuilder;
+import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.layout_components : AlignItems, Anchor, Dimension,
   FlexContainer, FlexDirection, Insets, JustifyContent, Size, SizingMode;
@@ -103,71 +103,72 @@ private:
   }
 
   void buildChipsRow(Widget card) {
-    auto chipsRow = LegacyWidgetBuilder.make(ui)
+    auto chipsRow = WidgetBuilder.make(ui)
       .parent(card)
       .name("chipsRow")
       .rect(RectF(12, 36, 581, 60))
-      .flex(
-        FlexDirection.row,
-        8.0f,
-        JustifyContent.start,
-        AlignItems.center
-      )
+      .flexRow()
+      .gap(8.0f)
+      .justify(JustifyContent.start)
+      .alignItems(AlignItems.center)
       .build();
     buildBasicChips(chipsRow);
     buildDashedAndPulseChips(chipsRow);
   }
 
   void buildBasicChips(Widget row) {
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(row)
       .name("rectStyleChip")
       .rect(RectF(0, 0, 108, 48))
       .padding(Insets(6, 8, 6, 8))
-      .background(ColorF(0.18f, 0.35f, 0.60f, 1.0f), Background.Style.rect)
-      .border(ColorF(0.40f, 0.70f, 1.0f, 1.0f), 2.0f)
+      .bg(ColorF(0.18f, 0.35f, 0.60f, 1.0f))
+      .bgStyle(Background.Style.rect)
+      .border(ColorF(0.40f, 0.70f, 1.0f, 1.0f))
+      .borderWidth(2.0f)
       .text("Rect Style")
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(row)
       .name("roundStyleChip")
       .rect(RectF(0, 0, 108, 48))
       .padding(Insets(6, 8, 6, 8))
-      .roundBackground(ColorF(0.18f, 0.50f, 0.30f, 1.0f), 10.0f)
-      .border(
-        ColorF(0.40f, 0.90f, 0.50f, 1.0f),
-        2.0f,
-        Border.Style.round,
-        10.0f
-      )
+      .roundBg(ColorF(0.18f, 0.50f, 0.30f, 1.0f))
+      .bgRadius(10.0f)
+      .roundBorder(ColorF(0.40f, 0.90f, 0.50f, 1.0f))
+      .borderWidth(2.0f)
+      .borderRadius(10.0f)
       .text("Round Style")
       .build();
   }
 
   void buildDashedAndPulseChips(Widget row) {
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(row)
       .name("dashedRectChip")
       .rect(RectF(0, 0, 108, 48))
       .padding(Insets(6, 8, 6, 8))
-      .background(ColorF(0, 0, 0, 0), Background.Style.none)
-      .border(Border.dashed(
+      .bg(ColorF(0, 0, 0, 0))
+      .bgStyle(Background.Style.none)
+      .borderComponent(Border.dashed(
         ColorF(0.90f, 0.75f, 0.20f, 1.0f),
         2.0f,
         6.0f,
         3.0f
       ))
-      .text("Dashed Rect", ColorF(0.95f, 0.85f, 0.30f, 1.0f))
+      .text("Dashed Rect")
+      .textColor(ColorF(0.95f, 0.85f, 0.30f, 1.0f))
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(row)
       .name("roundDashedChip")
       .rect(RectF(0, 0, 114, 48))
       .padding(Insets(6, 8, 6, 8))
-      .roundBackground(ColorF(0.45f, 0.20f, 0.50f, 1.0f), 10.0f)
-      .border(Border.roundDashed(
+      .roundBg(ColorF(0.45f, 0.20f, 0.50f, 1.0f))
+      .bgRadius(10.0f)
+      .borderComponent(Border.roundDashed(
         ColorF(0.85f, 0.50f, 0.95f, 1.0f),
         10.0f,
         2.0f
@@ -175,57 +176,58 @@ private:
       .text("Round Dashed")
       .build();
 
-    alphaChip = LegacyWidgetBuilder.make(ui)
+    alphaChip = WidgetBuilder.make(ui)
       .parent(row)
       .name("alphaPulseChip")
       .rect(RectF(0, 0, 114, 48))
       .padding(Insets(6, 8, 6, 8))
-      .roundBackground(ColorF(0.80f, 0.25f, 0.25f, 0.8f), 8.0f)
-      .border(ColorF(1.0f, 0.50f, 0.50f, 1.0f), 1.5f)
+      .roundBg(ColorF(0.80f, 0.25f, 0.25f, 0.8f))
+      .bgRadius(8.0f)
+      .border(ColorF(1.0f, 0.50f, 0.50f, 1.0f))
+      .borderWidth(1.5f)
       .text("Alpha Pulse")
       .build();
   }
 
   void buildClippingDemo(Widget card) {
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("clippingLabel")
       .rect(RectF(12, 106, 581, 16))
-      .text(
-        "Clipping (clipChildren = true & clipContents = true):",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f)
-      )
+      .text("Clipping (clipChildren = true & clipContents = true):")
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
       .build();
 
-    auto clipParent = LegacyWidgetBuilder.make(ui)
+    auto clipParent = WidgetBuilder.make(ui)
       .parent(card)
       .name("clipParent")
       .rect(RectF(12, 128, 275, 136))
       .clipChildren(true)
-      .roundBackground(ColorF(0.09f, 0.10f, 0.13f, 1.0f), 6.0f)
-      .border(Border.dashed(
+      .roundBg(ColorF(0.09f, 0.10f, 0.13f, 1.0f))
+      .bgRadius(6.0f)
+      .borderComponent(Border.dashed(
         ColorF(0.35f, 0.40f, 0.50f, 1.0f),
         1.5f
       ))
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(clipParent)
       .name("clipParentTitle")
       .rect(RectF(8, 6, 250, 16))
-      .text(
-        "Parent [clipChildren = true]",
-        ColorF(0.60f, 0.70f, 0.90f, 1.0f)
-      )
+      .text("Parent [clipChildren = true]")
+      .textColor(ColorF(0.60f, 0.70f, 0.90f, 1.0f))
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(clipParent)
       .name("clipOverflowChild")
       .rect(RectF(35, 30, 310, 80))
       .padding(Insets(6, 8, 6, 8))
-      .roundBackground(ColorF(0.70f, 0.25f, 0.15f, 0.85f), 8.0f)
-      .border(ColorF(1.0f, 0.45f, 0.30f, 1.0f), 2.0f)
+      .roundBg(ColorF(0.70f, 0.25f, 0.15f, 0.85f))
+      .bgRadius(8.0f)
+      .border(ColorF(1.0f, 0.45f, 0.30f, 1.0f))
+      .borderWidth(2.0f)
       .text("Overflowing Child (Clipped at boundary)")
       .build();
 
@@ -233,41 +235,37 @@ private:
   }
 
   void buildContentClipBox(Widget card) {
-    auto contentClipBox = LegacyWidgetBuilder.make(ui)
+    auto contentClipBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("contentClipBox")
       .rect(RectF(302, 128, 291, 136))
       .clipContents(true)
-      .roundBackground(ColorF(0.15f, 0.18f, 0.24f, 1.0f), 6.0f)
-      .border(ColorF(0.40f, 0.50f, 0.65f, 1.0f), 1.5f)
+      .roundBg(ColorF(0.15f, 0.18f, 0.24f, 1.0f))
+      .bgRadius(6.0f)
+      .border(ColorF(0.40f, 0.50f, 0.65f, 1.0f))
+      .borderWidth(1.5f)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(contentClipBox)
       .name("contentClipTitle")
       .rect(RectF(10, 12, 270, 18))
-      .text(
-        "Widget [clipContents = true]",
-        ColorF(0.85f, 0.90f, 1.0f, 1.0f)
-      )
+      .text("Widget [clipContents = true]")
+      .textColor(ColorF(0.85f, 0.90f, 1.0f, 1.0f))
       .build();
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(contentClipBox)
       .name("contentClipLine1")
       .rect(RectF(10, 36, 270, 18))
-      .text(
-        "Guarantees internal drawing calls",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f)
-      )
+      .text("Guarantees internal drawing calls")
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
       .build();
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(contentClipBox)
       .name("contentClipLine2")
       .rect(RectF(10, 58, 270, 18))
-      .text(
-        "scissor precisely within rect bounds.",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f)
-      )
+      .text("scissor precisely within rect bounds.")
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
       .build();
   }
 
@@ -286,122 +284,124 @@ private:
   }
 
   void buildSizingRow(Widget card) {
-    auto sizingRow = LegacyWidgetBuilder.make(ui)
+    auto sizingRow = WidgetBuilder.make(ui)
       .parent(card)
       .name("sizingRow")
       .rect(RectF(12, 34, 591, 62))
-      .flex(
-        FlexDirection.row,
-        8.0f,
-        JustifyContent.start,
-        AlignItems.center
-      )
+      .flexRow()
+      .gap(8.0f)
+      .justify(JustifyContent.start)
+      .alignItems(AlignItems.center)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(sizingRow)
       .name("fixedSizeBox")
       .rect(RectF(0, 0, 10, 10))
       .fixedSize(120.0f, 48.0f)
       .padding(Insets(6, 10, 6, 10))
-      .roundBackground(ColorF(0.20f, 0.28f, 0.40f, 1.0f), 15.0f)
-      .border(ColorF(0.40f, 0.60f, 0.85f, 1.0f), 1.5f)
+      .roundBg(ColorF(0.20f, 0.28f, 0.40f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.40f, 0.60f, 0.85f, 1.0f))
+      .borderWidth(1.5f)
       .text("Fixed (120x48)")
       .build();
 
-    autoLabelWidget = LegacyWidgetBuilder.make(ui)
+    autoLabelWidget = WidgetBuilder.make(ui)
       .parent(sizingRow)
       .name("autoSizeLabel")
       .rect(RectF(0, 0, 10, 10))
       .autoSize()
       .padding(Insets(6, 10, 6, 10))
-      .roundBackground(ColorF(0.18f, 0.42f, 0.32f, 1.0f), 15.0f)
-      .border(ColorF(0.35f, 0.85f, 0.55f, 1.0f), 1.5f)
+      .roundBg(ColorF(0.18f, 0.42f, 0.32f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.35f, 0.85f, 0.55f, 1.0f))
+      .borderWidth(1.5f)
       .text(textSamples[0])
       .build();
   }
 
   void buildFractionDemo(Widget card) {
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("fractionDemoLabel")
       .rect(RectF(12, 106, 591, 16))
-      .text(
-        "SizingMode.fraction (1fr vs 2fr space share) & Bounds [min: 100]:",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f)
-      )
+      .text("SizingMode.fraction (1fr vs 2fr space share) & Bounds [min: 100]:")
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
       .build();
 
-    auto fracContainer = LegacyWidgetBuilder.make(ui)
+    auto fracContainer = WidgetBuilder.make(ui)
       .parent(card)
       .name("fractionContainer")
       .rect(RectF(12, 126, 591, 52))
-      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .flex(
-        FlexDirection.row,
-        8.0f,
-        JustifyContent.start,
-        AlignItems.stretch
-      )
+      .roundBg(ColorF(0.10f, 0.12f, 0.15f, 1.0f))
+      .bgRadius(15.0f)
+      .flexRow()
+      .gap(8.0f)
+      .justify(JustifyContent.start)
+      .alignItems(AlignItems.stretch)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(fracContainer)
       .name("fraction1frBox")
       .rect(RectF(0, 0, 10, 10))
-      .fractionSize(1.0f)
-      .minSize(100.0f)
+      .fractionWidth(1.0f)
+      .minWidth(100.0f)
       .padding(Insets(6, 10, 6, 10))
-      .roundBackground(ColorF(0.30f, 0.22f, 0.45f, 1.0f), 15.0f)
-      .border(ColorF(0.65f, 0.45f, 0.90f, 1.0f), 1.5f)
+      .roundBg(ColorF(0.30f, 0.22f, 0.45f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.65f, 0.45f, 0.90f, 1.0f))
+      .borderWidth(1.5f)
       .text("Fraction 1fr (min: 100)")
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(fracContainer)
       .name("fraction2frBox")
       .rect(RectF(0, 0, 10, 10))
-      .fractionSize(2.0f)
-      .maxSize(420.0f)
+      .fractionWidth(2.0f)
+      .maxWidth(420.0f)
       .padding(Insets(6, 10, 6, 10))
-      .roundBackground(ColorF(0.20f, 0.38f, 0.48f, 1.0f), 15.0f)
-      .border(ColorF(0.40f, 0.75f, 0.95f, 1.0f), 1.5f)
+      .roundBg(ColorF(0.20f, 0.38f, 0.48f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.40f, 0.75f, 0.95f, 1.0f))
+      .borderWidth(1.5f)
       .text("Fraction 2fr (max: 420)")
       .build();
   }
 
   void buildInsetsDemo(Widget card) {
-    auto insetsContainer = LegacyWidgetBuilder.make(ui)
+    auto insetsContainer = WidgetBuilder.make(ui)
       .parent(card)
       .name("insetsContainer")
       .rect(RectF(12, 190, 591, 74))
-      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
+      .roundBg(ColorF(0.10f, 0.12f, 0.15f, 1.0f))
+      .bgRadius(15.0f)
       .padding(Insets(6, 12, 6, 12))
-      .flex(
-        FlexDirection.row,
-        10.0f,
-        JustifyContent.start,
-        AlignItems.center
-      )
-      .border(Border.dashed(
+      .flexRow()
+      .gap(10.0f)
+      .justify(JustifyContent.start)
+      .alignItems(AlignItems.center)
+      .borderComponent(Border.dashed(
         ColorF(0.30f, 0.35f, 0.45f, 1.0f),
         1.5f
       ))
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(insetsContainer)
       .name("insetsChildBox")
       .rect(RectF(0, 0, 10, 10))
       .autoSize()
       .padding(Insets(6, 10, 6, 10))
       .margin(Insets(4, 14, 4, 14))
-      .roundBackground(ColorF(0.45f, 0.32f, 0.15f, 1.0f), 15.0f)
-      .border(ColorF(0.95f, 0.70f, 0.30f, 1.0f), 1.5f)
-      .text(
-        "Parent Insets (6,12) + Child Margins (4,14)",
-        ColorF(1.0f, 0.95f, 0.85f, 1.0f)
-      )
+      .roundBg(ColorF(0.45f, 0.32f, 0.15f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.95f, 0.70f, 0.30f, 1.0f))
+      .borderWidth(1.5f)
+      .text("Parent Insets (6,12) + Child Margins (4,14)")
+      .textColor(ColorF(1.0f, 0.95f, 0.85f, 1.0f))
       .build();
   }
 
@@ -419,37 +419,36 @@ private:
   }
 
   void buildCornerAnchors(Widget card) {
-    auto cornerBox = LegacyWidgetBuilder.make(ui)
+    auto cornerBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("cornerAnchorBox")
       .rect(RectF(12, 34, 280, 244))
-      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .border(ColorF(0.28f, 0.32f, 0.40f, 1.0f), 1.5f)
+      .roundBg(ColorF(0.10f, 0.12f, 0.15f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.28f, 0.32f, 0.40f, 1.0f))
+      .borderWidth(1.5f)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(cornerBox)
       .name("cornerAnchorTitle")
       .rect(RectF(10, 95, 260, 18))
-      .text(
-        "Corner Anchors Demonstration:",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f)
-      )
+      .text("Corner Anchors Demonstration:")
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
       .build();
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(cornerBox)
       .name("cornerAnchorLine1")
       .rect(RectF(10, 118, 260, 18))
-      .text("Top-Left, Top-Right,", ColorF(0.60f, 0.65f, 0.75f, 1.0f))
+      .text("Top-Left, Top-Right,")
+      .textColor(ColorF(0.60f, 0.65f, 0.75f, 1.0f))
       .build();
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(cornerBox)
       .name("cornerAnchorLine2")
       .rect(RectF(10, 138, 260, 18))
-      .text(
-        "Bottom-Left, Bottom-Right",
-        ColorF(0.60f, 0.65f, 0.75f, 1.0f)
-      )
+      .text("Bottom-Left, Bottom-Right")
+      .textColor(ColorF(0.60f, 0.65f, 0.75f, 1.0f))
       .build();
 
     populateCornerBadges(cornerBox);
@@ -465,15 +464,28 @@ private:
       Nullable!float bottom,
       ColorF bgCol
     ) {
-      LegacyWidgetBuilder.make(ui)
+      auto b = WidgetBuilder.make(ui)
         .parent(cornerBox)
         .name(badgeName)
         .rect(RectF(0, 0, 72, 28))
         .padding(Insets(5, 8, 5, 8))
-        .roundBackground(bgCol, 15.0f)
-        .anchor(left, top, right, bottom)
-        .text(text, ColorF(1, 1, 1, 1))
-        .build();
+        .roundBg(bgCol)
+        .bgRadius(15.0f)
+        .text(text)
+        .textColor(ColorF(1, 1, 1, 1));
+      if (!left.isNull) {
+        b.anchorLeft(left.get);
+      }
+      if (!top.isNull) {
+        b.anchorTop(top.get);
+      }
+      if (!right.isNull) {
+        b.anchorRight(right.get);
+      }
+      if (!bottom.isNull) {
+        b.anchorBottom(bottom.get);
+      }
+      b.build();
     }
 
     addCornerBadge(
@@ -515,64 +527,65 @@ private:
   }
 
   void buildFlexBoxWithAnchor(Widget card) {
-    auto flexBoxWithAnchor = LegacyWidgetBuilder.make(ui)
+    auto flexBoxWithAnchor = WidgetBuilder.make(ui)
       .parent(card)
       .name("flexBoxWithAnchor")
       .rect(RectF(302, 34, 291, 244))
-      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .border(ColorF(0.28f, 0.32f, 0.40f, 1.0f), 1.5f)
-      .flex(
-        FlexDirection.column,
-        8.0f,
-        JustifyContent.start,
-        AlignItems.stretch
-      )
+      .roundBg(ColorF(0.10f, 0.12f, 0.15f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.28f, 0.32f, 0.40f, 1.0f))
+      .borderWidth(1.5f)
+      .flexColumn()
+      .gap(8.0f)
+      .justify(JustifyContent.start)
+      .alignItems(AlignItems.stretch)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(flexBoxWithAnchor)
       .name("flexAnchorTitle")
       .rect(RectF(0, 0, 10, 10))
       .fixedSize(10, 28)
       .padding(Insets(4, 8, 4, 8))
-      .text("Flex Flow + Pinned Badge", ColorF(0.75f, 0.80f, 0.90f, 1.0f))
+      .text("Flex Flow + Pinned Badge")
+      .textColor(ColorF(0.75f, 0.80f, 0.90f, 1.0f))
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(flexBoxWithAnchor)
       .name("flexAnchorChild1")
       .rect(RectF(0, 0, 10, 10))
       .fixedSize(10, 50)
       .padding(Insets(6, 8, 6, 8))
       .margin(Insets(0, 8, 0, 8))
-      .roundBackground(ColorF(0.16f, 0.28f, 0.42f, 1.0f), 15.0f)
+      .roundBg(ColorF(0.16f, 0.28f, 0.42f, 1.0f))
+      .bgRadius(15.0f)
       .text("Flex Child 1 (Main Axis Flow)")
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(flexBoxWithAnchor)
       .name("flexAnchorChild2")
       .rect(RectF(0, 0, 10, 10))
       .fixedSize(10, 50)
       .padding(Insets(6, 8, 6, 8))
       .margin(Insets(0, 8, 0, 8))
-      .roundBackground(ColorF(0.22f, 0.35f, 0.28f, 1.0f), 15.0f)
+      .roundBg(ColorF(0.22f, 0.35f, 0.28f, 1.0f))
+      .bgRadius(15.0f)
       .text("Flex Child 2 (Main Axis Flow)")
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(flexBoxWithAnchor)
       .name("outOfFlowBadge")
       .rect(RectF(0, 0, 108, 28))
       .padding(Insets(4, 6, 4, 6))
-      .roundBackground(ColorF(0.85f, 0.30f, 0.10f, 1.0f), 6.0f)
-      .border(ColorF(1.0f, 0.65f, 0.40f, 1.0f), 1.5f)
-      .anchor(
-        Nullable!float.init,
-        nullable(8.0f),
-        nullable(8.0f),
-        Nullable!float.init
-      )
+      .roundBg(ColorF(0.85f, 0.30f, 0.10f, 1.0f))
+      .bgRadius(6.0f)
+      .border(ColorF(1.0f, 0.65f, 0.40f, 1.0f))
+      .borderWidth(1.5f)
+      .anchorTop(8.0f)
+      .anchorRight(8.0f)
       .text("OUT-OF-FLOW")
       .build();
   }
@@ -590,48 +603,55 @@ private:
       .withJustify(JustifyContent.start)
       .withAlign(AlignItems.stretch);
 
-    playgroundContainer = LegacyWidgetBuilder.make(ui)
+    playgroundContainer = WidgetBuilder.make(ui)
       .parent(card)
       .name("playgroundContainer")
       .rect(RectF(12, 34, 591, 244))
-      .roundBackground(ColorF(0.10f, 0.12f, 0.15f, 1.0f), 15.0f)
-      .border(Border.dashed(
+      .roundBg(ColorF(0.10f, 0.12f, 0.15f, 1.0f))
+      .bgRadius(15.0f)
+      .borderComponent(Border.dashed(
         ColorF(0.30f, 0.35f, 0.45f, 1.0f),
         1.5f
       ))
-      .flex(playgroundFlex)
+      .flexComponent(playgroundFlex)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(playgroundContainer)
       .name("playgroundBoxA")
       .rect(RectF(0, 0, 10, 10))
       .fixedSize(120, 48)
       .padding(Insets(6, 8, 6, 8))
-      .roundBackground(ColorF(0.18f, 0.35f, 0.60f, 1.0f), 15.0f)
-      .border(ColorF(0.40f, 0.70f, 1.0f, 1.0f), 2.0f)
+      .roundBg(ColorF(0.18f, 0.35f, 0.60f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.40f, 0.70f, 1.0f, 1.0f))
+      .borderWidth(2.0f)
       .text("Box A (120x48)")
       .build();
 
-    playgroundChild2 = LegacyWidgetBuilder.make(ui)
+    playgroundChild2 = WidgetBuilder.make(ui)
       .parent(playgroundContainer)
       .name("playgroundBoxB")
       .rect(RectF(0, 0, 10, 10))
       .fixedSize(140, 54)
       .padding(Insets(6, 8, 6, 8))
-      .roundBackground(ColorF(0.60f, 0.25f, 0.35f, 1.0f), 15.0f)
-      .border(ColorF(0.95f, 0.50f, 0.65f, 1.0f), 2.0f)
+      .roundBg(ColorF(0.60f, 0.25f, 0.35f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.95f, 0.50f, 0.65f, 1.0f))
+      .borderWidth(2.0f)
       .text("Box B [V to hide]")
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(playgroundContainer)
       .name("playgroundBoxC")
       .rect(RectF(0, 0, 10, 10))
       .fixedSize(110, 44)
       .padding(Insets(6, 8, 6, 8))
-      .roundBackground(ColorF(0.20f, 0.50f, 0.30f, 1.0f), 15.0f)
-      .border(ColorF(0.45f, 0.90f, 0.55f, 1.0f), 2.0f)
+      .roundBg(ColorF(0.20f, 0.50f, 0.30f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.45f, 0.90f, 0.55f, 1.0f))
+      .borderWidth(2.0f)
       .text("Box C (110x44)")
       .build();
   }

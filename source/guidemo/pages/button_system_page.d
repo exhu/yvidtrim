@@ -12,7 +12,7 @@ import guidemo.model : DemoModel;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget;
-import yguilib.widget.builder : LegacyWidgetBuilder;
+import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.layout_components : AlignItems, FlexDirection, Insets,
   JustifyContent, Size;
 
@@ -64,29 +64,27 @@ private:
       "sysFadingCard"
     );
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("sysFadingDescLabel")
       .rect(RectF(16, 36, 570, 36))
       .text(
         "AnimatedHoverButtonSystem updates button colors in preLayout phase. " ~
-          "No manual button registration or wrapper View required.",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f),
-        13.0f
+          "No manual button registration or wrapper View required."
       )
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
+      .fontSize(13.0f)
       .build();
 
     // Row of fade buttons
-    auto btnRow = LegacyWidgetBuilder.make(ui)
+    auto btnRow = WidgetBuilder.make(ui)
       .parent(card)
       .name("sysFadeBtnRow")
       .rect(RectF(16, 80, 570, 50))
-      .flex(
-        FlexDirection.row,
-        14.0f,
-        JustifyContent.start,
-        AlignItems.center
-      )
+      .flexRow()
+      .gap(14.0f)
+      .justify(JustifyContent.start)
+      .alignItems(AlignItems.center)
       .build();
 
     // Button 1: Slate Neutral
@@ -144,37 +142,37 @@ private:
       .build(ui, btnRow, RectF(0, 0, 140, 38));
 
     // Note card
-    auto noteBox = LegacyWidgetBuilder.make(ui)
+    auto noteBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("sysFadingNoteBox")
       .rect(RectF(16, 148, 570, 110))
-      .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
-      .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
-      .padding(10, 12)
+      .roundBg(ColorF(0.09f, 0.11f, 0.14f, 1.0f))
+      .bgRadius(6.0f)
+      .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f))
+      .borderWidth(1.0f)
+      .paddingVh(10, 12)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(noteBox)
       .name("sysFadingNoteTitle")
       .rect(RectF(12, 10, 546, 20))
-      .text(
-        "WidgetSystem Advantages:",
-        ColorF(0.90f, 0.90f, 0.40f, 1.0f),
-        13.0f
-      )
+      .text("WidgetSystem Advantages:")
+      .textColor(ColorF(0.90f, 0.90f, 0.40f, 1.0f))
+      .fontSize(13.0f)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(noteBox)
       .name("sysFadingNoteBody")
       .rect(RectF(12, 34, 546, 60))
       .text(
         "- Single Widget node with AnimatedHoverButtonComponent attached\n" ~
         "- Traversed via ctx.visibleWidgets in preLayout and postLayout\n" ~
-        "- 60 FPS transitions while active, 0% CPU when animations settle",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f),
-        12.0f
+        "- 60 FPS transitions while active, 0% CPU when animations settle"
       )
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
+      .fontSize(12.0f)
       .build();
   }
 
@@ -187,28 +185,26 @@ private:
       "sysGradientCard"
     );
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("sysGradientDescLabel")
       .rect(RectF(16, 36, 580, 36))
       .text(
         "Continuous shimmer wave calculated during preLayout phase " ~
-          "using cursor normalized coordinates.",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f),
-        13.0f
+          "using cursor normalized coordinates."
       )
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
+      .fontSize(13.0f)
       .build();
 
-    auto btnRow = LegacyWidgetBuilder.make(ui)
+    auto btnRow = WidgetBuilder.make(ui)
       .parent(card)
       .name("sysGradientBtnRow")
       .rect(RectF(16, 80, 580, 50))
-      .flex(
-        FlexDirection.row,
-        14.0f,
-        JustifyContent.start,
-        AlignItems.center
-      )
+      .flexRow()
+      .gap(14.0f)
+      .justify(JustifyContent.start)
+      .alignItems(AlignItems.center)
       .build();
 
     // Button 1: Neon Cyan Wave
@@ -269,37 +265,37 @@ private:
       .build(ui, btnRow, RectF(0, 0, 145, 38));
 
     // Note card
-    auto noteBox = LegacyWidgetBuilder.make(ui)
+    auto noteBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("sysGradientNoteBox")
       .rect(RectF(16, 148, 580, 110))
-      .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
-      .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
-      .padding(10, 12)
+      .roundBg(ColorF(0.09f, 0.11f, 0.14f, 1.0f))
+      .bgRadius(6.0f)
+      .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f))
+      .borderWidth(1.0f)
+      .paddingVh(10, 12)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(noteBox)
       .name("sysGradientNoteTitle")
       .rect(RectF(12, 10, 556, 20))
-      .text(
-        "Gradient Wave Features:",
-        ColorF(0.90f, 0.90f, 0.40f, 1.0f),
-        13.0f
-      )
+      .text("Gradient Wave Features:")
+      .textColor(ColorF(0.90f, 0.90f, 0.40f, 1.0f))
+      .fontSize(13.0f)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(noteBox)
       .name("sysGradientNoteBody")
       .rect(RectF(12, 34, 556, 60))
       .text(
         "- Continuous wave oscillation at 60 FPS while cursor is hovered\n" ~
         "- System queries cursorNormX/Y directly from hit test\n" ~
-        "- Automatically suspends timeout when cursor departs",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f),
-        12.0f
+        "- Automatically suspends timeout when cursor departs"
       )
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
+      .fontSize(12.0f)
       .build();
   }
 
@@ -312,28 +308,26 @@ private:
       "sysCounterCard"
     );
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("sysCounterDescLabel")
       .rect(RectF(16, 36, 570, 36))
       .text(
         "Clicking the action button dispatches an event via ctx.host. " ~
-          "DemoController intercepts the event and updates DemoModel.",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f),
-        13.0f
+          "DemoController intercepts the event and updates DemoModel."
       )
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
+      .fontSize(13.0f)
       .build();
 
-    auto actionRow = LegacyWidgetBuilder.make(ui)
+    auto actionRow = WidgetBuilder.make(ui)
       .parent(card)
       .name("sysActionBtnRow")
       .rect(RectF(16, 80, 570, 50))
-      .flex(
-        FlexDirection.row,
-        14.0f,
-        JustifyContent.start,
-        AlignItems.center
-      )
+      .flexRow()
+      .gap(14.0f)
+      .justify(JustifyContent.start)
+      .alignItems(AlignItems.center)
       .build();
 
     // Primary action trigger
@@ -373,36 +367,36 @@ private:
       .build(ui, actionRow, RectF(0, 0, 140, 42));
 
     // HUD Counter Display Box
-    auto hudBox = LegacyWidgetBuilder.make(ui)
+    auto hudBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("sysCounterHudBox")
       .rect(RectF(16, 148, 570, 110))
-      .roundBackground(ColorF(0.09f, 0.12f, 0.16f, 1.0f), 6.0f)
-      .border(ColorF(0.25f, 0.35f, 0.50f, 1.0f), 1.5f)
-      .padding(12, 16)
+      .roundBg(ColorF(0.09f, 0.12f, 0.16f, 1.0f))
+      .bgRadius(6.0f)
+      .border(ColorF(0.25f, 0.35f, 0.50f, 1.0f))
+      .borderWidth(1.5f)
+      .paddingVh(12, 16)
       .build();
 
-    counterLabel = LegacyWidgetBuilder.make(ui)
+    counterLabel = WidgetBuilder.make(ui)
       .parent(hudBox)
       .name("sysCounterLabel")
       .rect(RectF(16, 14, 538, 28))
-      .text(
-        "Button Action Invocations: 0 clicks",
-        ColorF(0.40f, 0.95f, 0.60f, 1.0f),
-        16.0f
-      )
+      .text("Button Action Invocations: 0 clicks")
+      .textColor(ColorF(0.40f, 0.95f, 0.60f, 1.0f))
+      .fontSize(16.0f)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(hudBox)
       .name("sysCounterHintLabel")
       .rect(RectF(16, 50, 538, 44))
       .text(
         "AnimatedHoverButtonSystem dispatches action events on button\n" ~
-        "release, seamlessly modifying model state via DemoController.",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f),
-        12.0f
+        "release, seamlessly modifying model state via DemoController."
       )
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
+      .fontSize(12.0f)
       .build();
   }
 
@@ -415,7 +409,7 @@ private:
       "sysArchCard"
     );
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(card)
       .name("sysArchDescLabel")
       .rect(RectF(16, 36, 580, 50))
@@ -423,23 +417,21 @@ private:
         "A button instance is a single Widget with " ~
           "AnimatedHoverButtonComponent.\n" ~
         "AnimatedHoverButtonSystem handles event, preLayout, and postLayout\n" ~
-        "phases without requiring manual registration or wrapper Views.",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f),
-        12.0f
+        "phases without requiring manual registration or wrapper Views."
       )
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
+      .fontSize(12.0f)
       .build();
 
     // Pill shaped buttons demonstration
-    auto pillRow = LegacyWidgetBuilder.make(ui)
+    auto pillRow = WidgetBuilder.make(ui)
       .parent(card)
       .name("sysPillBtnRow")
       .rect(RectF(16, 92, 580, 48))
-      .flex(
-        FlexDirection.row,
-        14.0f,
-        JustifyContent.start,
-        AlignItems.center
-      )
+      .flexRow()
+      .gap(14.0f)
+      .justify(JustifyContent.start)
+      .alignItems(AlignItems.center)
       .build();
 
     // Pill Button 1
@@ -480,27 +472,27 @@ private:
       .build(ui, pillRow, RectF(0, 0, 170, 36));
 
     // Explanatory code summary box
-    auto archBox = LegacyWidgetBuilder.make(ui)
+    auto archBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("sysArchBox")
       .rect(RectF(16, 148, 580, 110))
-      .roundBackground(ColorF(0.09f, 0.11f, 0.14f, 1.0f), 6.0f)
-      .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f), 1.0f)
-      .padding(10, 12)
+      .roundBg(ColorF(0.09f, 0.11f, 0.14f, 1.0f))
+      .bgRadius(6.0f)
+      .border(ColorF(0.20f, 0.23f, 0.28f, 1.0f))
+      .borderWidth(1.0f)
+      .paddingVh(10, 12)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(archBox)
       .name("sysArchTitle")
       .rect(RectF(12, 8, 556, 18))
-      .text(
-        "WidgetSystem Pipeline Flow:",
-        ColorF(0.95f, 0.80f, 0.30f, 1.0f),
-        13.0f
-      )
+      .text("WidgetSystem Pipeline Flow:")
+      .textColor(ColorF(0.95f, 0.80f, 0.30f, 1.0f))
+      .fontSize(13.0f)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(archBox)
       .name("sysArchBody")
       .rect(RectF(12, 28, 556, 72))
@@ -509,10 +501,10 @@ private:
         "2. preLayout: AnimatedHoverButtonSystem updates colors " ~
           "(dirty=visuals)\n" ~
         "3. layout: LayoutSystem recalculates geometry (if layoutDirty)\n" ~
-        "4. render: WidgetPainterSystem draws widgets to window",
-        ColorF(0.70f, 0.75f, 0.85f, 1.0f),
-        11.5f
+        "4. render: WidgetPainterSystem draws widgets to window"
       )
+      .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
+      .fontSize(11.5f)
       .build();
   }
 

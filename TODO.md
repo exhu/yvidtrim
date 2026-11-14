@@ -1,6 +1,3 @@
-- migrate guidemo to new WidgetBuilder, remove deprecated
-  LegacyBuilder and functions
-
 - add DebugDraw component to Widget with a debug draw system,
 which may draw widget names and outlines over rendered widgets,
 display hidden or unclipped widgets.

@@ -15,7 +15,7 @@ import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiRegistry, UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
-import yguilib.widget.builder : LegacyWidgetBuilder;
+import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.layout_components : AlignItems, FlexContainer,
   FlexDirection, Insets, JustifyContent, Size, SizingMode;
@@ -42,10 +42,10 @@ final class DemoView {
     tabsTracker = ModelTracker!TabsModel.from(tabsModelTracker);
 
     // Root background
-    view = LegacyWidgetBuilder.make(this.ui)
+    view = WidgetBuilder.make(this.ui)
       .name("demoRoot")
       .rect(RectF(0, 0, 1280, 720))
-      .background(ColorF(0.08f, 0.09f, 0.11f, 1.0f))
+      .bg(ColorF(0.08f, 0.09f, 0.11f, 1.0f))
       .build();
 
     buildHeader(this.ui);
@@ -242,47 +242,53 @@ private:
   }
 
   void buildHeader(UiRegistry registry) {
-    auto header = LegacyWidgetBuilder.make(ui)
+    auto header = WidgetBuilder.make(ui)
       .parent(view)
       .name("header")
       .rect(RectF(20, 12, 1240, 48))
       .fixedSize(1240, 48)
-      .padding(0, 14)
-      .flexRow(12.0f, JustifyContent.start, AlignItems.center)
-      .roundBackground(ColorF(0.11f, 0.13f, 0.17f, 1.0f), 6.0f)
-      .border(ColorF(0.22f, 0.25f, 0.32f, 1.0f), 1.0f)
+      .paddingVh(0, 14)
+      .flexRow()
+      .gap(12.0f)
+      .justify(JustifyContent.start)
+      .alignItems(AlignItems.center)
+      .roundBg(ColorF(0.11f, 0.13f, 0.17f, 1.0f))
+      .bgRadius(6.0f)
+      .border(ColorF(0.22f, 0.25f, 0.32f, 1.0f))
+      .borderWidth(1.0f)
       .build();
 
-    auto titleBox = LegacyWidgetBuilder.make(ui)
+    auto titleBox = WidgetBuilder.make(ui)
       .parent(header)
       .name("headerTitleBox")
       .rect(RectF())
-      .flexColumn(2.0f, JustifyContent.center, AlignItems.start)
+      .flexColumn()
+      .gap(2.0f)
+      .justify(JustifyContent.center)
+      .alignItems(AlignItems.start)
       .autoSize()
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(titleBox)
       .name("headerTitle")
       .rect(RectF())
       .autoSize()
-      .text(
-        "yguilib GUI Feature Demo & Showcase (guidemo)",
-        ColorF(1.0f, 1.0f, 1.0f, 1.0f),
-        16.0f
-      )
+      .text("yguilib GUI Feature Demo & Showcase (guidemo)")
+      .textColor(ColorF(1.0f, 1.0f, 1.0f, 1.0f))
+      .fontSize(16.0f)
       .build();
 
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(titleBox)
       .name("headerSubtitle")
       .rect(RectF())
       .autoSize()
       .text(
         "Verification for widget_painter.d, layout_system.d & " ~
-          "input_components.d",
-        ColorF(0.60f, 0.65f, 0.75f, 1.0f)
+          "input_components.d"
       )
+      .textColor(ColorF(0.60f, 0.65f, 0.75f, 1.0f))
       .build();
 
     TabControlBuilder b;
@@ -296,22 +302,22 @@ private:
   }
 
   void buildStatusBar() {
-    auto footer = LegacyWidgetBuilder.make(ui)
+    auto footer = WidgetBuilder.make(ui)
       .parent(view)
       .name("footer")
       .rect(RectF(20, 656, 1240, 52))
-      .roundBackground(ColorF(0.12f, 0.14f, 0.18f, 1.0f), 6.0f)
-      .border(ColorF(0.25f, 0.30f, 0.40f, 1.0f), 1.0f)
+      .roundBg(ColorF(0.12f, 0.14f, 0.18f, 1.0f))
+      .bgRadius(6.0f)
+      .border(ColorF(0.25f, 0.30f, 0.40f, 1.0f))
+      .borderWidth(1.0f)
       .build();
 
-    statusLabel = LegacyWidgetBuilder.make(ui)
+    statusLabel = WidgetBuilder.make(ui)
       .parent(footer)
       .name("statusLabel")
       .rect(RectF(14, 16, 1210, 20))
-      .text(
-        formatStatusString(tracker.model),
-        ColorF(0.95f, 0.95f, 0.40f, 1.0f)
-      )
+      .text(formatStatusString(tracker.model))
+      .textColor(ColorF(0.95f, 0.95f, 0.40f, 1.0f))
       .build();
   }
 

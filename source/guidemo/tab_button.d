@@ -7,9 +7,10 @@ import guidemo.model : HeaderTabsModel;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget;
-import yguilib.widget.builder : LegacyWidgetBuilder;
+import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.data_components : WidgetArrayProvider;
 import yguilib.widget.drawing_components : TextLabel;
+import yguilib.widget.layout_components : Insets;
 
 /// Default visual dimensions and font metrics for header tab buttons.
 enum defaultTabButtonWidth = 138.0f;
@@ -60,15 +61,20 @@ Widget createTabButton(
   const ColorF textCol = isActive ? tabActiveText : tabInactiveText;
   const string btnName = (name.length > 0) ? name : "tabButton";
 
-  return LegacyWidgetBuilder.make(ui)
+  return WidgetBuilder.make(ui)
     .parent(parent)
     .name(btnName)
     .rect(RectF(0, 0, width, height))
     .fixedSize(width, height)
-    .padding(5, 8, 5, 8)
-    .roundBackground(bgCol, defaultTabButtonRadius)
-    .border(borderCol, 1.0f)
-    .text(label, textCol, defaultTabButtonFontSize, TextLabel.Alignment.center)
+    .padding(Insets(5, 8, 5, 8))
+    .roundBg(bgCol)
+    .bgRadius(defaultTabButtonRadius)
+    .border(borderCol)
+    .borderWidth(1.0f)
+    .text(label)
+    .textColor(textCol)
+    .fontSize(defaultTabButtonFontSize)
+    .textAlign(TextLabel.Alignment.center)
     .onMouseDown(eventName)
     .build();
 }
@@ -180,15 +186,13 @@ unittest {
   auto ui = new UiSystemImpl(null);
   auto root = new Widget(ui.nextWidgetId());
   root.rect = RectF(0, 0, 800, 600);
-  auto row = LegacyWidgetBuilder.make(ui)
+  auto row = WidgetBuilder.make(ui)
     .parent(root)
     .rect(RectF(0, 0, 500, 40))
-    .flex(
-      FlexDirection.row,
-      10.0f,
-      JustifyContent.start,
-      AlignItems.center
-    )
+    .flexDirection(FlexDirection.row)
+    .gap(10.0f)
+    .justify(JustifyContent.start)
+    .alignItems(AlignItems.center)
     .build();
 
   auto b1 = createTabButton(ui, row, "Tab 1", "t1", true);

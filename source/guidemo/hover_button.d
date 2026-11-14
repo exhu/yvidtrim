@@ -56,7 +56,7 @@ import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : ViewComponent, Widget;
-import yguilib.widget.builder : LegacyWidgetBuilder;
+import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.input_components : MouseEvent;
 import yguilib.widget.layout_components : Anchor, Dimension, Insets, Size,
@@ -155,11 +155,11 @@ struct HoverButtonBuilder {
       ? widgetName
       : "hoverButton";
 
-    auto rootBuilder = LegacyWidgetBuilder.make(ui)
+    auto rootBuilder = WidgetBuilder.make(ui)
       .parent(parent)
       .name(rootName)
       .rect(rect)
-      .view(null, [
+      .viewEvents([
         "mouseEnter": "hoverBtn.enter",
         "mouseLeave": "hoverBtn.leave",
         "mouseDown": "hoverBtn.down",
@@ -168,44 +168,44 @@ struct HoverButtonBuilder {
       ]);
 
     if (customSize !is null) {
-      rootBuilder.size(customSize);
+      rootBuilder.sizeComponent(customSize);
     }
     if (customAnchor !is null) {
-      rootBuilder.anchor(customAnchor);
+      rootBuilder.anchorComponent(customAnchor);
     }
 
-    rootBuilder.child(ui, (ref LegacyWidgetBuilder cb) {
+    rootBuilder.child((WidgetBuilder cb) {
       cb.name(rootName ~ "Label")
         .rect(RectF(0, 0, initW, initH))
         .fixedSize(initW, initH)
         .padding(config.padding);
 
       if (config.cornerRadius > 0.0f) {
-        cb.roundBackground(config.normalBg, config.cornerRadius);
+        cb.roundBg(config.normalBg).bgRadius(config.cornerRadius);
       } else {
-        cb.background(config.normalBg);
+        cb.bg(config.normalBg);
       }
 
       if (config.borderWidth > 0.0f) {
-        cb.border(
-          config.borderColor,
-          config.borderWidth,
-          config.cornerRadius > 0.0f ? Border.Style.round : Border.Style.rect,
-          config.cornerRadius
-        );
+        cb.border(config.borderColor)
+          .borderWidth(config.borderWidth)
+          .borderStyle(
+            config.cornerRadius > 0.0f
+              ? Border.Style.round
+              : Border.Style.rect
+          )
+          .borderRadius(config.cornerRadius);
       }
 
-      cb.text(
-        config.text,
-        config.textColor,
-        config.fontSize,
-        TextLabel.Alignment.center
-      )
-      .onMouseEnter("mouseEnter")
-      .onMouseLeave("mouseLeave")
-      .onMouseDown("mouseDown")
-      .onMouseUp("mouseUp")
-      .onMouseMove("mouseMove");
+      cb.text(config.text)
+        .textColor(config.textColor)
+        .fontSize(config.fontSize)
+        .textAlign(TextLabel.Alignment.center)
+        .onMouseEnter("mouseEnter")
+        .onMouseLeave("mouseLeave")
+        .onMouseDown("mouseDown")
+        .onMouseUp("mouseUp")
+        .onMouseMove("mouseMove");
     });
 
     return rootBuilder.build();
