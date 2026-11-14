@@ -8,7 +8,7 @@ import guidemo.model : DemoModel;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
-import yguilib.widget.builder : WidgetBuilder;
+import yguilib.widget.builder : LegacyWidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.layout_components : Dimension, Insets, Size, SizingMode;
 
@@ -117,7 +117,7 @@ private:
   }
 
   void buildSingleLineAlignment(Widget card) {
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("singleLineAlignLabel")
       .rect(RectF(12, 34, 581, 16))
@@ -135,7 +135,7 @@ private:
       TextLabel.Alignment alignment,
       ColorF borderCol
     ) {
-      return WidgetBuilder.make(ui)
+      return LegacyWidgetBuilder.make(ui)
         .parent(card)
         .name(boxName)
         .rect(rect)
@@ -174,7 +174,7 @@ private:
   }
 
   void buildMultilineAlignment(Widget card) {
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("multilineAlignLabel")
       .rect(RectF(12, 110, 581, 16))
@@ -184,7 +184,7 @@ private:
       )
       .build();
 
-    auto multiCenterBox = WidgetBuilder.make(ui)
+    auto multiCenterBox = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("multiCenterBox")
       .rect(RectF(12, 130, 285, 138))
@@ -199,7 +199,7 @@ private:
       ).withMultiline(true).withAlignment(TextLabel.Alignment.center))
       .build();
 
-    auto multiRightBox = WidgetBuilder.make(ui)
+    auto multiRightBox = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("multiRightBox")
       .rect(RectF(307, 130, 286, 138))
@@ -229,7 +229,7 @@ private:
   }
 
   void buildSingleLineEllipsis(Widget card) {
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("singleLineEllipsisLabel")
       .rect(RectF(12, 34, 591, 16))
@@ -239,7 +239,7 @@ private:
       )
       .build();
 
-    auto boxEllipsis = WidgetBuilder.make(ui)
+    auto boxEllipsis = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("boxEllipsis")
       .rect(RectF(12, 54, 288, 48))
@@ -253,7 +253,7 @@ private:
       ).withMultiline(false).withEllipsis(true))
       .build();
 
-    auto boxNoEllipsis = WidgetBuilder.make(ui)
+    auto boxNoEllipsis = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("boxNoEllipsis")
       .rect(RectF(308, 54, 295, 48))
@@ -271,7 +271,7 @@ private:
   }
 
   void buildMultilineEllipsis(Widget card) {
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("multilineEllipsisLabel")
       .rect(RectF(12, 110, 591, 16))
@@ -281,7 +281,7 @@ private:
       )
       .build();
 
-    auto multiVertEllipsis = WidgetBuilder.make(ui)
+    auto multiVertEllipsis = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("multiVertEllipsis")
       .rect(RectF(12, 130, 288, 138))
@@ -301,7 +301,7 @@ private:
       ).withMultiline(true).withEllipsis(true))
       .build();
 
-    auto multiVertNoEllipsis = WidgetBuilder.make(ui)
+    auto multiVertNoEllipsis = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("multiVertNoEllipsis")
       .rect(RectF(308, 130, 295, 138))
@@ -336,7 +336,7 @@ private:
   }
 
   void buildWrappingBoxes(Widget card) {
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("wrappingLabel")
       .rect(RectF(12, 34, 581, 16))
@@ -346,7 +346,7 @@ private:
       )
       .build();
 
-    auto wrapBox = WidgetBuilder.make(ui)
+    auto wrapBox = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("wrapBox")
       .rect(RectF(12, 54, 285, 120))
@@ -361,7 +361,7 @@ private:
       ).withMultiline(true))
       .build();
 
-    auto newlinesBox = WidgetBuilder.make(ui)
+    auto newlinesBox = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("newlinesBox")
       .rect(RectF(307, 54, 286, 120))
@@ -380,7 +380,7 @@ private:
   }
 
   void buildSanitizedComparison(Widget card) {
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("sanitizedLabel")
       .rect(RectF(12, 180, 581, 16))
@@ -390,7 +390,7 @@ private:
       )
       .build();
 
-    auto sanitizedBox = WidgetBuilder.make(ui)
+    auto sanitizedBox = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("sanitizedBox")
       .rect(RectF(12, 200, 581, 74))
@@ -418,7 +418,7 @@ private:
       "labelPlaygroundCard"
     );
 
-    interactiveStatusWidget = WidgetBuilder.make(ui)
+    interactiveStatusWidget = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("interactiveStatusLabel")
       .rect(RectF(12, 34, 591, 30))
@@ -432,7 +432,7 @@ private:
       )
       .build();
 
-    interactiveLabelWidget = WidgetBuilder.make(ui)
+    interactiveLabelWidget = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("interactiveTextLabel")
       .rect(RectF(12, 70, 591, 148))
@@ -459,7 +459,7 @@ private:
   }
 
   void buildPlaygroundHint(Widget card) {
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("interactiveHintLabel")
       .rect(RectF(12, 226, 591, 52))

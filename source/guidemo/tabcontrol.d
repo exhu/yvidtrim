@@ -13,7 +13,7 @@ import yguilib.model : ModelTracker, VersionedModel;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.uisystem : UiRegistry, UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
-import yguilib.widget.builder : WidgetBuilder;
+import yguilib.widget.builder : LegacyWidgetBuilder;
 import yguilib.widget.data_components : WidgetArrayProvider;
 import yguilib.widget.drawing_components : TextLabel;
 import yguilib.widget.layout_components : AlignItems, Dimension, FlexDirection,
@@ -103,7 +103,7 @@ final class TabButtonsProvider : WidgetArrayProvider {
 
   override void addWidget(Widget parent) {
     assert(parent !is null, "parent must not be null");
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(parent)
       .name("tabButton")
       .rect(RectF(0, 0, style.buttonWidth, style.buttonHeight))
@@ -948,7 +948,7 @@ struct TabControlBuilder {
       ? widgetName
       : "tabControl";
 
-    Widget root = WidgetBuilder.make(ui)
+    Widget root = LegacyWidgetBuilder.make(ui)
       .parent(parent)
       .name(rootName)
       .rect(rect)
@@ -956,7 +956,7 @@ struct TabControlBuilder {
       .view(registry, renameMap, tabControlWidgetViewName)
       .build();
 
-    auto leftBtn = WidgetBuilder.make(ui)
+    auto leftBtn = LegacyWidgetBuilder.make(ui)
       .parent(root)
       .name(rootName ~ "LeftBtn")
       .rect(RectF(0, 0, arrowW, arrowH))
@@ -975,7 +975,7 @@ struct TabControlBuilder {
     leftBtn.inputEnabled = false;
     leftBtn.visible = false;
 
-    auto scrollViewport = WidgetBuilder.make(ui)
+    auto scrollViewport = LegacyWidgetBuilder.make(ui)
       .parent(root)
       .name(rootName ~ "Viewport")
       .rect(RectF(0, 0, rect.width, rect.height))
@@ -997,7 +997,7 @@ struct TabControlBuilder {
     }
 
     auto provider = new TabButtonsProvider(ui, tabsTracker.model, btnStyle);
-    auto tabsContainer = WidgetBuilder.make(ui)
+    auto tabsContainer = LegacyWidgetBuilder.make(ui)
       .parent(scrollViewport)
       .name(rootName ~ "Tabs")
       .rect(RectF(0, 0, 1.0f, 1.0f))
@@ -1007,7 +1007,7 @@ struct TabControlBuilder {
       .widgetArray(provider, tabsTracker.model.tabNames.length)
       .build();
 
-    auto rightBtn = WidgetBuilder.make(ui)
+    auto rightBtn = LegacyWidgetBuilder.make(ui)
       .parent(root)
       .name(rootName ~ "RightBtn")
       .rect(RectF(0, 0, arrowW, arrowH))

@@ -34,7 +34,7 @@ import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
-import yguilib.widget.builder : WidgetBuilder;
+import yguilib.widget.builder : LegacyWidgetBuilder;
 import yguilib.widget.component : WidgetComponent;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.layout_components : Anchor, Insets, Size;
@@ -181,7 +181,7 @@ struct AnimatedHoverButtonBuilder {
       ? widgetName
       : "animatedHoverButton";
 
-    auto b = WidgetBuilder.make(ui)
+    auto b = LegacyWidgetBuilder.make(ui)
       .parent(parent)
       .name(btnName)
       .rect(rect);

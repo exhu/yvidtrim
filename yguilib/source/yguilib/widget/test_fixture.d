@@ -4,7 +4,7 @@ import yguilib.internal.uisystem_impl : UiSystemImpl;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : ViewComponent, Widget, WidgetUpdateScope;
-import yguilib.widget.builder : WidgetBuilder;
+import yguilib.widget.builder : LegacyWidgetBuilder;
 import yguilib.widget.component : WidgetComponent;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.input_components : MouseEvent;
@@ -107,17 +107,17 @@ class WidgetFixture {
     return makeChild(parent, RectF(x, y, width, height));
   }
 
-  /// Creates a WidgetBuilder starting from this fixture's ID generator.
-  WidgetBuilder builder(
+  /// Creates a LegacyWidgetBuilder starting from this fixture's ID generator.
+  LegacyWidgetBuilder builder(
     Widget parent,
     RectF rect = RectF(0, 0, 100, 100)
   ) {
-    return WidgetBuilder(nextId()).parent(parent).rect(rect);
+    return LegacyWidgetBuilder(nextId()).parent(parent).rect(rect);
   }
 
-  /// Creates a WidgetBuilder for a root or standalone widget.
-  WidgetBuilder builder(RectF rect = RectF(0, 0, 100, 100)) {
-    return WidgetBuilder(nextId()).rect(rect);
+  /// Creates a LegacyWidgetBuilder for a root or standalone widget.
+  LegacyWidgetBuilder builder(RectF rect = RectF(0, 0, 100, 100)) {
+    return LegacyWidgetBuilder(nextId()).rect(rect);
   }
 
   /// Attaches a background component to widget and returns the widget.

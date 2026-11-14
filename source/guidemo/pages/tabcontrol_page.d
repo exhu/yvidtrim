@@ -13,7 +13,7 @@ import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiRegistry, UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
-import yguilib.widget.builder : WidgetBuilder;
+import yguilib.widget.builder : LegacyWidgetBuilder;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
   JustifyContent;
 
@@ -256,7 +256,7 @@ private:
       "subTabCard"
     );
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("subTabDescLabel")
       .rect(RectF(16, 36, 570, 20))
@@ -278,7 +278,7 @@ private:
 
     buildSubPanels(card);
 
-    eventLogLabel = WidgetBuilder.make(ui)
+    eventLogLabel = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("subTabEventLogLabel")
       .rect(RectF(16, 246, 570, 22))
@@ -335,7 +335,7 @@ private:
     string title,
     string bodyText
   ) {
-    auto box = WidgetBuilder.make(ui)
+    auto box = LegacyWidgetBuilder.make(ui)
       .parent(parent)
       .name(panelName)
       .rect(RectF(16, 104, 573, 130))
@@ -344,14 +344,14 @@ private:
       .padding(10, 12)
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(box)
       .name(panelName ~ "Title")
       .rect(RectF(14, 10, 540, 22))
       .text(title, ColorF(0.95f, 0.98f, 1.0f, 1.0f), 14.0f)
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(box)
       .name(panelName ~ "Body")
       .rect(RectF(14, 38, 540, 78))
@@ -370,7 +370,7 @@ private:
       "dynamicTabCard"
     );
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("dynamicTabDescLabel")
       .rect(RectF(16, 36, 580, 20))
@@ -395,7 +395,7 @@ private:
   }
 
   void buildDynamicMutationButtons(Widget card) {
-    auto btnRow = WidgetBuilder.make(ui)
+    auto btnRow = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("dynamicMutationBtnRow")
       .rect(RectF(16, 108, 580, 42))
@@ -504,7 +504,7 @@ private:
   }
 
   void buildDynamicInfoBox(Widget card) {
-    auto infoBox = WidgetBuilder.make(ui)
+    auto infoBox = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("dynamicInfoBox")
       .rect(RectF(16, 162, 583, 102))
@@ -513,7 +513,7 @@ private:
       .padding(10, 12)
       .build();
 
-    dynamicStatusLabel = WidgetBuilder.make(ui)
+    dynamicStatusLabel = LegacyWidgetBuilder.make(ui)
       .parent(infoBox)
       .name("dynamicStatusLabel")
       .rect(RectF(12, 10, 555, 22))
@@ -524,7 +524,7 @@ private:
       )
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(infoBox)
       .name("dynamicInfoBody")
       .rect(RectF(12, 38, 555, 52))
@@ -547,7 +547,7 @@ private:
       "verticalTabCard"
     );
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("verticalTabDescLabel")
       .rect(RectF(16, 36, 570, 20))
@@ -578,7 +578,7 @@ private:
   }
 
   void buildVerticalInspectorBox(Widget card) {
-    auto inspector = WidgetBuilder.make(ui)
+    auto inspector = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("verticalInspectorBox")
       .rect(RectF(192, 66, 396, 196))
@@ -587,7 +587,7 @@ private:
       .padding(12, 14)
       .build();
 
-    verticalTitleLabel = WidgetBuilder.make(ui)
+    verticalTitleLabel = LegacyWidgetBuilder.make(ui)
       .parent(inspector)
       .name("verticalTitleLabel")
       .rect(RectF(14, 14, 368, 24))
@@ -598,7 +598,7 @@ private:
       )
       .build();
 
-    verticalDescLabel = WidgetBuilder.make(ui)
+    verticalDescLabel = LegacyWidgetBuilder.make(ui)
       .parent(inspector)
       .name("verticalDescLabel")
       .rect(RectF(14, 48, 368, 90))
@@ -610,7 +610,7 @@ private:
       )
       .build();
 
-    verticalIndexLabel = WidgetBuilder.make(ui)
+    verticalIndexLabel = LegacyWidgetBuilder.make(ui)
       .parent(inspector)
       .name("verticalIndexLabel")
       .rect(RectF(14, 156, 368, 22))
@@ -631,7 +631,7 @@ private:
       "tabArchCard"
     );
 
-    auto archBox = WidgetBuilder.make(ui)
+    auto archBox = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("tabArchBox")
       .rect(RectF(16, 40, 583, 224))
@@ -640,7 +640,7 @@ private:
       .padding(12, 14)
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(archBox)
       .name("tabArchTitle")
       .rect(RectF(14, 12, 555, 22))
@@ -651,7 +651,7 @@ private:
       )
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(archBox)
       .name("tabArchBody")
       .rect(RectF(14, 40, 555, 172))

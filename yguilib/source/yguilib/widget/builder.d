@@ -16,16 +16,16 @@ import yguilib.uisystem : UiRegistry, UiSystem;
 import yguilib.widget.widget_view : WidgetView;
 
 /// Fluent builder for constructing and configuring widgets.
-struct WidgetBuilder {
+struct LegacyWidgetBuilder {
   @disable this();
 
-  /// Default method to create WidgetBuilder
-  static WidgetBuilder make(UiSystem ui) {
-    return WidgetBuilder(ui.nextWidgetId());
+  /// Default method to create LegacyWidgetBuilder
+  static LegacyWidgetBuilder make(UiSystem ui) {
+    return LegacyWidgetBuilder(ui.nextWidgetId());
   }
 
   /// Attaches the widget to `parentWidget` if non-null.
-  ref WidgetBuilder parent(Widget parentWidget) return {
+  ref LegacyWidgetBuilder parent(Widget parentWidget) return {
     if (parentWidget !is null) {
       parentWidget.addChild(widget);
     }
@@ -33,17 +33,17 @@ struct WidgetBuilder {
   }
 
   /// Sets the initial rectangle of the widget.
-  ref WidgetBuilder rect(RectF r) return {
+  ref LegacyWidgetBuilder rect(RectF r) return {
     widget.rect = r;
     return this;
   }
 
-  ref WidgetBuilder name(string widgetName) return {
+  ref LegacyWidgetBuilder name(string widgetName) return {
     widget.name = widgetName;
     return this;
   }
 
-  ref WidgetBuilder padding(Insets insets) return {
+  ref LegacyWidgetBuilder padding(Insets insets) return {
     if (widget.components.size is null) {
       widget.components.size = new Size();
     }
@@ -51,7 +51,7 @@ struct WidgetBuilder {
     return this;
   }
 
-  ref WidgetBuilder padding(
+  ref LegacyWidgetBuilder padding(
     float top,
     float right,
     float bottom,
@@ -60,15 +60,15 @@ struct WidgetBuilder {
     return padding(Insets(top, right, bottom, left));
   }
 
-  ref WidgetBuilder padding(float vertical, float horizontal) return {
+  ref LegacyWidgetBuilder padding(float vertical, float horizontal) return {
     return padding(Insets.vh(vertical, horizontal));
   }
 
-  ref WidgetBuilder padding(float all) return {
+  ref LegacyWidgetBuilder padding(float all) return {
     return padding(Insets.all(all));
   }
 
-  ref WidgetBuilder margin(Insets insets) return {
+  ref LegacyWidgetBuilder margin(Insets insets) return {
     if (widget.components.size is null) {
       widget.components.size = new Size();
     }
@@ -76,7 +76,7 @@ struct WidgetBuilder {
     return this;
   }
 
-  ref WidgetBuilder margin(
+  ref LegacyWidgetBuilder margin(
     float top,
     float right,
     float bottom,
@@ -85,20 +85,20 @@ struct WidgetBuilder {
     return margin(Insets(top, right, bottom, left));
   }
 
-  ref WidgetBuilder margin(float vertical, float horizontal) return {
+  ref LegacyWidgetBuilder margin(float vertical, float horizontal) return {
     return margin(Insets.vh(vertical, horizontal));
   }
 
-  ref WidgetBuilder margin(float all) return {
+  ref LegacyWidgetBuilder margin(float all) return {
     return margin(Insets.all(all));
   }
 
-  ref WidgetBuilder size(Size sz) return {
+  ref LegacyWidgetBuilder size(Size sz) return {
     widget.components.size = sz;
     return this;
   }
 
-  ref WidgetBuilder fixedSize(float w, float h) return {
+  ref LegacyWidgetBuilder fixedSize(float w, float h) return {
     if (widget.components.size is null) {
       widget.components.size = Size.fixed(w, h);
     } else {
@@ -108,7 +108,7 @@ struct WidgetBuilder {
     return this;
   }
 
-  ref WidgetBuilder autoSize() return {
+  ref LegacyWidgetBuilder autoSize() return {
     if (widget.components.size is null) {
       widget.components.size = Size.autoSize();
     } else {
@@ -118,7 +118,7 @@ struct WidgetBuilder {
     return this;
   }
 
-  ref WidgetBuilder fractionSize(float wFr, float hFr = 0.0f) return {
+  ref LegacyWidgetBuilder fractionSize(float wFr, float hFr = 0.0f) return {
     if (widget.components.size is null) {
       widget.components.size = Size.fraction(wFr, hFr);
     } else {
@@ -131,7 +131,7 @@ struct WidgetBuilder {
     return this;
   }
 
-  ref WidgetBuilder minSize(float minW, float minH = 0.0f) return {
+  ref LegacyWidgetBuilder minSize(float minW, float minH = 0.0f) return {
     if (widget.components.size is null) {
       widget.components.size = new Size();
     }
@@ -140,7 +140,10 @@ struct WidgetBuilder {
     return this;
   }
 
-  ref WidgetBuilder maxSize(float maxW, float maxH = float.infinity) return {
+  ref LegacyWidgetBuilder maxSize(
+    float maxW,
+    float maxH = float.infinity
+  ) return {
     if (widget.components.size is null) {
       widget.components.size = new Size();
     }
@@ -149,7 +152,7 @@ struct WidgetBuilder {
     return this;
   }
 
-  ref WidgetBuilder background(
+  ref LegacyWidgetBuilder background(
     ColorF color,
     Background.Style style = Background.Style.rect,
     float cornerRadius = 0.0f
@@ -158,12 +161,12 @@ struct WidgetBuilder {
     return this;
   }
 
-  ref WidgetBuilder background(Background bg) return {
+  ref LegacyWidgetBuilder background(Background bg) return {
     widget.components.background = bg;
     return this;
   }
 
-  ref WidgetBuilder roundBackground(
+  ref LegacyWidgetBuilder roundBackground(
     ColorF color,
     float cornerRadius = 6.0f
   ) return {
@@ -171,7 +174,7 @@ struct WidgetBuilder {
     return this;
   }
 
-  ref WidgetBuilder border(
+  ref LegacyWidgetBuilder border(
     ColorF color,
     float width = 1.0f,
     Border.Style style = Border.Style.rect,
@@ -185,12 +188,12 @@ struct WidgetBuilder {
     return this;
   }
 
-  ref WidgetBuilder border(Border b) return {
+  ref LegacyWidgetBuilder border(Border b) return {
     widget.components.border = b;
     return this;
   }
 
-  ref WidgetBuilder text(
+  ref LegacyWidgetBuilder text(
     string caption,
     ColorF color = ColorF(1, 1, 1, 1),
     float fontSize = defaultFontPtSize,
@@ -202,12 +205,12 @@ struct WidgetBuilder {
     return this;
   }
 
-  ref WidgetBuilder text(TextLabel tl) return {
+  ref LegacyWidgetBuilder text(TextLabel tl) return {
     widget.components.textLabel = tl;
     return this;
   }
 
-  ref WidgetBuilder flex(
+  ref LegacyWidgetBuilder flex(
     FlexDirection dir = FlexDirection.row,
     float gap = 0.0f,
     JustifyContent justify = JustifyContent.start,
@@ -221,12 +224,12 @@ struct WidgetBuilder {
     return this;
   }
 
-  ref WidgetBuilder flex(FlexContainer fc) return {
+  ref LegacyWidgetBuilder flex(FlexContainer fc) return {
     widget.components.flexContainer = fc;
     return this;
   }
 
-  ref WidgetBuilder flexRow(
+  ref LegacyWidgetBuilder flexRow(
     float gap = 0.0f,
     JustifyContent justify = JustifyContent.start,
     AlignItems align_ = AlignItems.stretch
@@ -234,7 +237,7 @@ struct WidgetBuilder {
     return flex(FlexDirection.row, gap, justify, align_);
   }
 
-  ref WidgetBuilder flexColumn(
+  ref LegacyWidgetBuilder flexColumn(
     float gap = 0.0f,
     JustifyContent justify = JustifyContent.start,
     AlignItems align_ = AlignItems.stretch
@@ -242,7 +245,7 @@ struct WidgetBuilder {
     return flex(FlexDirection.column, gap, justify, align_);
   }
 
-  ref WidgetBuilder anchor(
+  ref LegacyWidgetBuilder anchor(
     Nullable!float left = Nullable!float.init,
     Nullable!float top = Nullable!float.init,
     Nullable!float right = Nullable!float.init,
@@ -257,12 +260,12 @@ struct WidgetBuilder {
     return this;
   }
 
-  ref WidgetBuilder anchor(Anchor a) return {
+  ref LegacyWidgetBuilder anchor(Anchor a) return {
     widget.components.anchor = a;
     return this;
   }
 
-  ref WidgetBuilder onMouseDown(string eventName) return {
+  ref LegacyWidgetBuilder onMouseDown(string eventName) return {
     widget.inputEnabled = true;
     if (widget.components.mouseEvent is null) {
       widget.components.mouseEvent = new MouseEvent();
@@ -271,7 +274,7 @@ struct WidgetBuilder {
     return this;
   }
 
-  ref WidgetBuilder onMouseUp(string eventName) return {
+  ref LegacyWidgetBuilder onMouseUp(string eventName) return {
     widget.inputEnabled = true;
     if (widget.components.mouseEvent is null) {
       widget.components.mouseEvent = new MouseEvent();
@@ -280,7 +283,7 @@ struct WidgetBuilder {
     return this;
   }
 
-  ref WidgetBuilder onMouseEnter(string eventName) return {
+  ref LegacyWidgetBuilder onMouseEnter(string eventName) return {
     if (widget.components.mouseEvent is null) {
       widget.components.mouseEvent = new MouseEvent();
     }
@@ -288,7 +291,7 @@ struct WidgetBuilder {
     return this;
   }
 
-  ref WidgetBuilder onMouseLeave(string eventName) return {
+  ref LegacyWidgetBuilder onMouseLeave(string eventName) return {
     if (widget.components.mouseEvent is null) {
       widget.components.mouseEvent = new MouseEvent();
     }
@@ -296,7 +299,7 @@ struct WidgetBuilder {
     return this;
   }
 
-  ref WidgetBuilder onMouseMove(string eventName) return {
+  ref LegacyWidgetBuilder onMouseMove(string eventName) return {
     if (widget.components.mouseEvent is null) {
       widget.components.mouseEvent = new MouseEvent();
     }
@@ -304,19 +307,19 @@ struct WidgetBuilder {
     return this;
   }
 
-  ref WidgetBuilder clipContents(bool clip = true) return {
+  ref LegacyWidgetBuilder clipContents(bool clip = true) return {
     widget.clipContents = clip;
     return this;
   }
 
-  ref WidgetBuilder clipChildren(bool clip = true) return {
+  ref LegacyWidgetBuilder clipChildren(bool clip = true) return {
     widget.clipChildren = clip;
     return this;
   }
 
   /// Attaches a ViewComponent to mark a view root and optional event mappings.
   /// `registry`, `events`, and `widgetViewName` are allowed to be null.
-  ref WidgetBuilder view(
+  ref LegacyWidgetBuilder view(
     UiRegistry registry,
     string[string] events = null,
     string widgetViewName = null
@@ -340,11 +343,11 @@ struct WidgetBuilder {
   }
 
   /// Appends and configures a child widget within a scoped delegate.
-  ref WidgetBuilder child(
+  ref LegacyWidgetBuilder child(
     UiSystem ui,
-    scope void delegate(ref WidgetBuilder) config
+    scope void delegate(ref LegacyWidgetBuilder) config
   ) return {
-    auto b = WidgetBuilder.make(ui).parent(widget);
+    auto b = LegacyWidgetBuilder.make(ui).parent(widget);
     if (config !is null) {
       config(b);
     }
@@ -352,14 +355,14 @@ struct WidgetBuilder {
   }
 
   /// Attaches a custom user-defined WidgetComponent of type C to the widget.
-  ref WidgetBuilder component(C : WidgetComponent)(C comp) return {
+  ref LegacyWidgetBuilder component(C : WidgetComponent)(C comp) return {
     widget.components.set!C(comp);
     return this;
   }
 
   /// Attaches a WidgetArrayComponent with the given provider and item count.
   /// `provider` is allowed to be null during incremental configuration.
-  ref WidgetBuilder widgetArray(
+  ref LegacyWidgetBuilder widgetArray(
     WidgetArrayProvider provider,
     size_t itemsCount = 0
   ) return {
@@ -372,21 +375,21 @@ struct WidgetBuilder {
 
   /// Attaches a pre-configured WidgetArrayComponent to the widget.
   /// `wa` is allowed to be null to clear the component.
-  ref WidgetBuilder widgetArray(WidgetArrayComponent wa) return {
+  ref LegacyWidgetBuilder widgetArray(WidgetArrayComponent wa) return {
     widget.components.widgetArray = wa;
     return this;
   }
 
   /// Attaches a ScrollableArea component to the widget and enables child
   /// clipping.
-  ref WidgetBuilder scrollableArea(ScrollableArea sa) return {
+  ref LegacyWidgetBuilder scrollableArea(ScrollableArea sa) return {
     widget.clipChildren = true;
     widget.components.scrollableArea = sa;
     return this;
   }
 
   /// Attaches a ScrollableArea with given offset and optional event name.
-  ref WidgetBuilder scrollableArea(
+  ref LegacyWidgetBuilder scrollableArea(
     PointF offset = PointF(0.0f, 0.0f),
     string scrollChangedEvent = null
   ) return {
@@ -406,11 +409,11 @@ package(yguilib):
     widget = new Widget(uId);
   }
 
-  ref WidgetBuilder child(
+  ref LegacyWidgetBuilder child(
     uint childId,
-    scope void delegate(ref WidgetBuilder) config
+    scope void delegate(ref LegacyWidgetBuilder) config
   ) return {
-    auto b = WidgetBuilder(childId).parent(widget);
+    auto b = LegacyWidgetBuilder(childId).parent(widget);
     if (config !is null) {
       config(b);
     }
@@ -431,7 +434,7 @@ Widget flexRow(
   JustifyContent justify = JustifyContent.start,
   AlignItems align_ = AlignItems.stretch
 ) {
-  return WidgetBuilder(uId)
+  return LegacyWidgetBuilder(uId)
     .parent(parent)
     .rect(rect)
     .flex(FlexDirection.row, gap, justify, align_)
@@ -462,7 +465,7 @@ Widget flexColumn(
   JustifyContent justify = JustifyContent.start,
   AlignItems align_ = AlignItems.stretch
 ) {
-  return WidgetBuilder(uId)
+  return LegacyWidgetBuilder(uId)
     .parent(parent)
     .rect(rect)
     .flex(FlexDirection.column, gap, justify, align_)
@@ -485,12 +488,12 @@ Widget flexColumn(
 }
 
 unittest {
-  auto root = WidgetBuilder(1)
+  auto root = LegacyWidgetBuilder(1)
     .rect(RectF(0, 0, 800, 600))
     .flexRow(12.0f, JustifyContent.center, AlignItems.center)
     .roundBackground(ColorF(0.1f, 0.12f, 0.15f, 1.0f), 8.0f)
     .border(ColorF(0.3f, 0.35f, 0.4f, 1.0f), 1.0f)
-    .child(2, (ref WidgetBuilder b) {
+    .child(2, (ref LegacyWidgetBuilder b) {
       b.rect(RectF(0, 0, 100, 40))
         .fixedSize(100.0f, 40.0f)
         .padding(4.0f, 8.0f)
@@ -498,7 +501,7 @@ unittest {
         .text("Child 1", ColorF(1, 1, 1, 1))
         .onMouseDown("child1Click");
     })
-    .child(3, (ref WidgetBuilder b) {
+    .child(3, (ref LegacyWidgetBuilder b) {
       b.rect(RectF(0, 0, 120, 40))
         .autoSize()
         .minSize(50.0f, 20.0f)
@@ -520,7 +523,7 @@ unittest {
   // Component setter overloads test
   auto customBorder = Border.dashed(ColorF(1, 0, 0, 1), 2.0f, 4.0f, 2.0f);
   auto customText = new TextLabel("Custom").withMultiline(true);
-  auto item = WidgetBuilder(4)
+  auto item = LegacyWidgetBuilder(4)
     .parent(root)
     .rect(RectF(0, 0, 50, 50))
     .border(customBorder)
@@ -546,7 +549,7 @@ unittest {
   assert(col.components.flexContainer.gap == 8.0f);
 
   // View component test
-  auto viewWidget = WidgetBuilder(8)
+  auto viewWidget = LegacyWidgetBuilder(8)
     .rect(RectF(0, 0, 100, 100))
     .view(null, ["btn": "press"])
     .build();
@@ -561,7 +564,7 @@ unittest {
     }
   }
   auto extra = new ExtraDataComponent(42);
-  auto customWidget = WidgetBuilder(9)
+  auto customWidget = LegacyWidgetBuilder(9)
     .rect(RectF(0, 0, 50, 50))
     .component(extra)
     .build();
@@ -575,7 +578,7 @@ unittest {
     override void updateWidgetAt(Widget w, size_t index) {}
   }
   auto arrProvider = new DummyArrayProvider();
-  auto arrWidget = WidgetBuilder(10)
+  auto arrWidget = LegacyWidgetBuilder(10)
     .rect(RectF(0, 0, 100, 30))
     .widgetArray(arrProvider, 4)
     .build();

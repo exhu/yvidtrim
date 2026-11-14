@@ -7,7 +7,7 @@ import guidemo.model : HeaderTabsModel;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget;
-import yguilib.widget.builder : WidgetBuilder;
+import yguilib.widget.builder : LegacyWidgetBuilder;
 import yguilib.widget.data_components : WidgetArrayProvider;
 import yguilib.widget.drawing_components : TextLabel;
 
@@ -60,7 +60,7 @@ Widget createTabButton(
   const ColorF textCol = isActive ? tabActiveText : tabInactiveText;
   const string btnName = (name.length > 0) ? name : "tabButton";
 
-  return WidgetBuilder.make(ui)
+  return LegacyWidgetBuilder.make(ui)
     .parent(parent)
     .name(btnName)
     .rect(RectF(0, 0, width, height))
@@ -180,7 +180,7 @@ unittest {
   auto ui = new UiSystemImpl(null);
   auto root = new Widget(ui.nextWidgetId());
   root.rect = RectF(0, 0, 800, 600);
-  auto row = WidgetBuilder.make(ui)
+  auto row = LegacyWidgetBuilder.make(ui)
     .parent(root)
     .rect(RectF(0, 0, 500, 40))
     .flex(

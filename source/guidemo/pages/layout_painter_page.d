@@ -10,7 +10,7 @@ import guidemo.model : DemoModel;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
-import yguilib.widget.builder : WidgetBuilder;
+import yguilib.widget.builder : LegacyWidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.layout_components : AlignItems, Anchor, Dimension,
   FlexContainer, FlexDirection, Insets, JustifyContent, Size, SizingMode;
@@ -103,7 +103,7 @@ private:
   }
 
   void buildChipsRow(Widget card) {
-    auto chipsRow = WidgetBuilder.make(ui)
+    auto chipsRow = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("chipsRow")
       .rect(RectF(12, 36, 581, 60))
@@ -119,7 +119,7 @@ private:
   }
 
   void buildBasicChips(Widget row) {
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(row)
       .name("rectStyleChip")
       .rect(RectF(0, 0, 108, 48))
@@ -129,7 +129,7 @@ private:
       .text("Rect Style")
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(row)
       .name("roundStyleChip")
       .rect(RectF(0, 0, 108, 48))
@@ -146,7 +146,7 @@ private:
   }
 
   void buildDashedAndPulseChips(Widget row) {
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(row)
       .name("dashedRectChip")
       .rect(RectF(0, 0, 108, 48))
@@ -161,7 +161,7 @@ private:
       .text("Dashed Rect", ColorF(0.95f, 0.85f, 0.30f, 1.0f))
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(row)
       .name("roundDashedChip")
       .rect(RectF(0, 0, 114, 48))
@@ -175,7 +175,7 @@ private:
       .text("Round Dashed")
       .build();
 
-    alphaChip = WidgetBuilder.make(ui)
+    alphaChip = LegacyWidgetBuilder.make(ui)
       .parent(row)
       .name("alphaPulseChip")
       .rect(RectF(0, 0, 114, 48))
@@ -187,7 +187,7 @@ private:
   }
 
   void buildClippingDemo(Widget card) {
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("clippingLabel")
       .rect(RectF(12, 106, 581, 16))
@@ -197,7 +197,7 @@ private:
       )
       .build();
 
-    auto clipParent = WidgetBuilder.make(ui)
+    auto clipParent = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("clipParent")
       .rect(RectF(12, 128, 275, 136))
@@ -209,7 +209,7 @@ private:
       ))
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(clipParent)
       .name("clipParentTitle")
       .rect(RectF(8, 6, 250, 16))
@@ -219,7 +219,7 @@ private:
       )
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(clipParent)
       .name("clipOverflowChild")
       .rect(RectF(35, 30, 310, 80))
@@ -233,7 +233,7 @@ private:
   }
 
   void buildContentClipBox(Widget card) {
-    auto contentClipBox = WidgetBuilder.make(ui)
+    auto contentClipBox = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("contentClipBox")
       .rect(RectF(302, 128, 291, 136))
@@ -242,7 +242,7 @@ private:
       .border(ColorF(0.40f, 0.50f, 0.65f, 1.0f), 1.5f)
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(contentClipBox)
       .name("contentClipTitle")
       .rect(RectF(10, 12, 270, 18))
@@ -251,7 +251,7 @@ private:
         ColorF(0.85f, 0.90f, 1.0f, 1.0f)
       )
       .build();
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(contentClipBox)
       .name("contentClipLine1")
       .rect(RectF(10, 36, 270, 18))
@@ -260,7 +260,7 @@ private:
         ColorF(0.70f, 0.75f, 0.85f, 1.0f)
       )
       .build();
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(contentClipBox)
       .name("contentClipLine2")
       .rect(RectF(10, 58, 270, 18))
@@ -286,7 +286,7 @@ private:
   }
 
   void buildSizingRow(Widget card) {
-    auto sizingRow = WidgetBuilder.make(ui)
+    auto sizingRow = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("sizingRow")
       .rect(RectF(12, 34, 591, 62))
@@ -298,7 +298,7 @@ private:
       )
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(sizingRow)
       .name("fixedSizeBox")
       .rect(RectF(0, 0, 10, 10))
@@ -309,7 +309,7 @@ private:
       .text("Fixed (120x48)")
       .build();
 
-    autoLabelWidget = WidgetBuilder.make(ui)
+    autoLabelWidget = LegacyWidgetBuilder.make(ui)
       .parent(sizingRow)
       .name("autoSizeLabel")
       .rect(RectF(0, 0, 10, 10))
@@ -322,7 +322,7 @@ private:
   }
 
   void buildFractionDemo(Widget card) {
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("fractionDemoLabel")
       .rect(RectF(12, 106, 591, 16))
@@ -332,7 +332,7 @@ private:
       )
       .build();
 
-    auto fracContainer = WidgetBuilder.make(ui)
+    auto fracContainer = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("fractionContainer")
       .rect(RectF(12, 126, 591, 52))
@@ -345,7 +345,7 @@ private:
       )
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(fracContainer)
       .name("fraction1frBox")
       .rect(RectF(0, 0, 10, 10))
@@ -357,7 +357,7 @@ private:
       .text("Fraction 1fr (min: 100)")
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(fracContainer)
       .name("fraction2frBox")
       .rect(RectF(0, 0, 10, 10))
@@ -371,7 +371,7 @@ private:
   }
 
   void buildInsetsDemo(Widget card) {
-    auto insetsContainer = WidgetBuilder.make(ui)
+    auto insetsContainer = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("insetsContainer")
       .rect(RectF(12, 190, 591, 74))
@@ -389,7 +389,7 @@ private:
       ))
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(insetsContainer)
       .name("insetsChildBox")
       .rect(RectF(0, 0, 10, 10))
@@ -419,7 +419,7 @@ private:
   }
 
   void buildCornerAnchors(Widget card) {
-    auto cornerBox = WidgetBuilder.make(ui)
+    auto cornerBox = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("cornerAnchorBox")
       .rect(RectF(12, 34, 280, 244))
@@ -427,7 +427,7 @@ private:
       .border(ColorF(0.28f, 0.32f, 0.40f, 1.0f), 1.5f)
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(cornerBox)
       .name("cornerAnchorTitle")
       .rect(RectF(10, 95, 260, 18))
@@ -436,13 +436,13 @@ private:
         ColorF(0.70f, 0.75f, 0.85f, 1.0f)
       )
       .build();
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(cornerBox)
       .name("cornerAnchorLine1")
       .rect(RectF(10, 118, 260, 18))
       .text("Top-Left, Top-Right,", ColorF(0.60f, 0.65f, 0.75f, 1.0f))
       .build();
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(cornerBox)
       .name("cornerAnchorLine2")
       .rect(RectF(10, 138, 260, 18))
@@ -465,7 +465,7 @@ private:
       Nullable!float bottom,
       ColorF bgCol
     ) {
-      WidgetBuilder.make(ui)
+      LegacyWidgetBuilder.make(ui)
         .parent(cornerBox)
         .name(badgeName)
         .rect(RectF(0, 0, 72, 28))
@@ -515,7 +515,7 @@ private:
   }
 
   void buildFlexBoxWithAnchor(Widget card) {
-    auto flexBoxWithAnchor = WidgetBuilder.make(ui)
+    auto flexBoxWithAnchor = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("flexBoxWithAnchor")
       .rect(RectF(302, 34, 291, 244))
@@ -529,7 +529,7 @@ private:
       )
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(flexBoxWithAnchor)
       .name("flexAnchorTitle")
       .rect(RectF(0, 0, 10, 10))
@@ -538,7 +538,7 @@ private:
       .text("Flex Flow + Pinned Badge", ColorF(0.75f, 0.80f, 0.90f, 1.0f))
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(flexBoxWithAnchor)
       .name("flexAnchorChild1")
       .rect(RectF(0, 0, 10, 10))
@@ -549,7 +549,7 @@ private:
       .text("Flex Child 1 (Main Axis Flow)")
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(flexBoxWithAnchor)
       .name("flexAnchorChild2")
       .rect(RectF(0, 0, 10, 10))
@@ -560,7 +560,7 @@ private:
       .text("Flex Child 2 (Main Axis Flow)")
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(flexBoxWithAnchor)
       .name("outOfFlowBadge")
       .rect(RectF(0, 0, 108, 28))
@@ -590,7 +590,7 @@ private:
       .withJustify(JustifyContent.start)
       .withAlign(AlignItems.stretch);
 
-    playgroundContainer = WidgetBuilder.make(ui)
+    playgroundContainer = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("playgroundContainer")
       .rect(RectF(12, 34, 591, 244))
@@ -602,7 +602,7 @@ private:
       .flex(playgroundFlex)
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(playgroundContainer)
       .name("playgroundBoxA")
       .rect(RectF(0, 0, 10, 10))
@@ -613,7 +613,7 @@ private:
       .text("Box A (120x48)")
       .build();
 
-    playgroundChild2 = WidgetBuilder.make(ui)
+    playgroundChild2 = LegacyWidgetBuilder.make(ui)
       .parent(playgroundContainer)
       .name("playgroundBoxB")
       .rect(RectF(0, 0, 10, 10))
@@ -624,7 +624,7 @@ private:
       .text("Box B [V to hide]")
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(playgroundContainer)
       .name("playgroundBoxC")
       .rect(RectF(0, 0, 10, 10))

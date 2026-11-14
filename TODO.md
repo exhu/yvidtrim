@@ -1,4 +1,3 @@
-- rename WidgetBuilder to LegacyWidgetBuilder
 - design new better builder interface for widgets,
 see `d_gui_widgetbuilder_api_design_recommendations.md`,
 update guidemo, yvidtrim with new WidgetBuilder.

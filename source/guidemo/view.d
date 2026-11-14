@@ -15,7 +15,7 @@ import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiRegistry, UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
-import yguilib.widget.builder : WidgetBuilder;
+import yguilib.widget.builder : LegacyWidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.layout_components : AlignItems, FlexContainer,
   FlexDirection, Insets, JustifyContent, Size, SizingMode;
@@ -42,7 +42,7 @@ final class DemoView {
     tabsTracker = ModelTracker!TabsModel.from(tabsModelTracker);
 
     // Root background
-    view = WidgetBuilder.make(this.ui)
+    view = LegacyWidgetBuilder.make(this.ui)
       .name("demoRoot")
       .rect(RectF(0, 0, 1280, 720))
       .background(ColorF(0.08f, 0.09f, 0.11f, 1.0f))
@@ -242,7 +242,7 @@ private:
   }
 
   void buildHeader(UiRegistry registry) {
-    auto header = WidgetBuilder.make(ui)
+    auto header = LegacyWidgetBuilder.make(ui)
       .parent(view)
       .name("header")
       .rect(RectF(20, 12, 1240, 48))
@@ -253,7 +253,7 @@ private:
       .border(ColorF(0.22f, 0.25f, 0.32f, 1.0f), 1.0f)
       .build();
 
-    auto titleBox = WidgetBuilder.make(ui)
+    auto titleBox = LegacyWidgetBuilder.make(ui)
       .parent(header)
       .name("headerTitleBox")
       .rect(RectF())
@@ -261,7 +261,7 @@ private:
       .autoSize()
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(titleBox)
       .name("headerTitle")
       .rect(RectF())
@@ -273,7 +273,7 @@ private:
       )
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(titleBox)
       .name("headerSubtitle")
       .rect(RectF())
@@ -296,7 +296,7 @@ private:
   }
 
   void buildStatusBar() {
-    auto footer = WidgetBuilder.make(ui)
+    auto footer = LegacyWidgetBuilder.make(ui)
       .parent(view)
       .name("footer")
       .rect(RectF(20, 656, 1240, 52))
@@ -304,7 +304,7 @@ private:
       .border(ColorF(0.25f, 0.30f, 0.40f, 1.0f), 1.0f)
       .build();
 
-    statusLabel = WidgetBuilder.make(ui)
+    statusLabel = LegacyWidgetBuilder.make(ui)
       .parent(footer)
       .name("statusLabel")
       .rect(RectF(14, 16, 1210, 20))

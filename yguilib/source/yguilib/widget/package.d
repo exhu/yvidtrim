@@ -887,15 +887,15 @@ unittest {
 }
 
 unittest {
-  import yguilib.widget.builder : WidgetBuilder;
+  import yguilib.widget.builder : LegacyWidgetBuilder;
 
-  auto root = WidgetBuilder(1)
+  auto root = LegacyWidgetBuilder(1)
     .rect(RectF(0, 0, 800, 600))
     .flex(FlexDirection.row, 10.0f)
     .background(ColorF(0.1f, 0.1f, 0.1f, 1.0f))
     .build();
 
-  auto item = WidgetBuilder(2)
+  auto item = LegacyWidgetBuilder(2)
     .parent(root)
     .rect(RectF(0, 0, 100, 50))
     .fixedSize(100.0f, 50.0f)
@@ -1094,7 +1094,7 @@ unittest {
 // Verifies Widget.dumpTree serialization.
 unittest {
   import std.json : parseJSON;
-  import yguilib.widget.builder : WidgetBuilder;
+  import yguilib.widget.builder : LegacyWidgetBuilder;
 
   final class TestExtraComponent : WidgetComponent {
     string info;
@@ -1105,14 +1105,14 @@ unittest {
     }
   }
 
-  auto root = WidgetBuilder(100)
+  auto root = LegacyWidgetBuilder(100)
     .rect(RectF(0, 0, 800, 600))
     .flex(FlexDirection.column, 5.0f)
     .background(ColorF(0.1f, 0.2f, 0.3f, 1.0f))
     .build();
   root.name = "RootPanel";
 
-  auto child = WidgetBuilder(101)
+  auto child = LegacyWidgetBuilder(101)
     .parent(root)
     .rect(RectF(10, 10, 120, 40))
     .fixedSize(120.0f, 40.0f)
@@ -1163,13 +1163,13 @@ unittest {
   import std.algorithm : canFind;
   import std.json : JSONType, parseJSON;
   import std.string : indexOf;
-  import yguilib.widget.builder : WidgetBuilder;
+  import yguilib.widget.builder : LegacyWidgetBuilder;
 
   final class SimpleTestExtraComponent : WidgetComponent {
     int value = 42;
   }
 
-  auto root = WidgetBuilder(200)
+  auto root = LegacyWidgetBuilder(200)
     .rect(RectF(0, 0, 640, 480))
     .flex(FlexDirection.row, 4.0f)
     .background(ColorF(0.2f, 0.3f, 0.4f, 1.0f))
@@ -1179,7 +1179,7 @@ unittest {
   root.handleInput = true;
   root.inputEnabled = true;
 
-  auto child = WidgetBuilder(201)
+  auto child = LegacyWidgetBuilder(201)
     .parent(root)
     .rect(RectF(5, 5, 100, 30))
     .text("ClickMe")

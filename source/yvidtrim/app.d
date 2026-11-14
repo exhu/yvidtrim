@@ -10,7 +10,7 @@ import colors = yguilib.render.colors;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
-import yguilib.widget.builder : WidgetBuilder;
+import yguilib.widget.builder : LegacyWidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border;
 import yguilib.widget.layout_components : AlignItems, Anchor, FlexContainer,
   JustifyContent;
@@ -41,13 +41,13 @@ public:
     this.ui = ui;
     tracker = ModelTracker!MainModel.from(otherTracker);
 
-    rootWidget = WidgetBuilder.make(ui)
+    rootWidget = LegacyWidgetBuilder.make(ui)
       .rect(RectF(10, 10, 200, 200))
       .view(null)
       .background(ColorF(0.5f, 0.5f, 0.0f, 1.0f))
       .build();
 
-    alphaWidget = WidgetBuilder.make(ui)
+    alphaWidget = LegacyWidgetBuilder.make(ui)
       .parent(rootWidget)
       .rect(RectF(35, 45, 150, 190))
       .background(ColorF(0.0f, 1.0f, 0.5f, 0.3f))
@@ -57,25 +57,25 @@ public:
       .clipChildren(true)
       .build();
 
-    toggleWidget = WidgetBuilder.make(ui)
+    toggleWidget = LegacyWidgetBuilder.make(ui)
       .parent(rootWidget)
       .rect(RectF(15, 15, 300, 90))
       .background(ColorF(0.5f, 1.0f, 0.5f, 0.3f), Background.Style.round)
       .build();
 
     // --- layout testing ---
-    container = WidgetBuilder.make(ui)
+    container = LegacyWidgetBuilder.make(ui)
       .parent(rootWidget)
       .rect(RectF(35, 250, 400, 300))
       .background(colors.darkGray)
       .border(colors.brightWhite, 3.0f, Border.Style.dashed)
       .flexRow(8.0f, JustifyContent.start, tracker.model.alignItems)
-      .child(ui, (ref WidgetBuilder b) {
+      .child(ui, (ref LegacyWidgetBuilder b) {
         b.rect(RectF(5, 8, 1, 1))
           .background(colors.yellow)
           .fixedSize(100.0f, 40.0f);
       })
-      .child(ui, (ref WidgetBuilder b) {
+      .child(ui, (ref LegacyWidgetBuilder b) {
         b.rect(RectF(15, 18, 1, 1))
           .background(colors.brown)
           .margin(10.0f, 10.0f, 14.0f, 15.0f)
@@ -94,7 +94,7 @@ public:
   }
 
   void addRightTopAnchor() {
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(rootWidget)
       .rect(RectF(0, 0, 30, 30))
       .background(colors.red)
@@ -103,7 +103,7 @@ public:
   }
 
   void addLeftBottomAnchor() {
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(rootWidget)
       .rect(RectF(0, 0, 30, 30))
       .background(colors.brightRed)
@@ -112,7 +112,7 @@ public:
   }
 
   void addRightBottomAnchor() {
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(rootWidget)
       .rect(RectF(0, 0, 30, 30))
       .background(colors.magenta)

@@ -56,7 +56,7 @@ import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : ViewComponent, Widget;
-import yguilib.widget.builder : WidgetBuilder;
+import yguilib.widget.builder : LegacyWidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.input_components : MouseEvent;
 import yguilib.widget.layout_components : Anchor, Dimension, Insets, Size,
@@ -155,7 +155,7 @@ struct HoverButtonBuilder {
       ? widgetName
       : "hoverButton";
 
-    auto rootBuilder = WidgetBuilder.make(ui)
+    auto rootBuilder = LegacyWidgetBuilder.make(ui)
       .parent(parent)
       .name(rootName)
       .rect(rect)
@@ -174,7 +174,7 @@ struct HoverButtonBuilder {
       rootBuilder.anchor(customAnchor);
     }
 
-    rootBuilder.child(ui, (ref WidgetBuilder cb) {
+    rootBuilder.child(ui, (ref LegacyWidgetBuilder cb) {
       cb.name(rootName ~ "Label")
         .rect(RectF(0, 0, initW, initH))
         .fixedSize(initW, initH)

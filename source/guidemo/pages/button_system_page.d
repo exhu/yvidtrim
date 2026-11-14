@@ -12,7 +12,7 @@ import guidemo.model : DemoModel;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget;
-import yguilib.widget.builder : WidgetBuilder;
+import yguilib.widget.builder : LegacyWidgetBuilder;
 import yguilib.widget.layout_components : AlignItems, FlexDirection, Insets,
   JustifyContent, Size;
 
@@ -64,7 +64,7 @@ private:
       "sysFadingCard"
     );
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("sysFadingDescLabel")
       .rect(RectF(16, 36, 570, 36))
@@ -77,7 +77,7 @@ private:
       .build();
 
     // Row of fade buttons
-    auto btnRow = WidgetBuilder.make(ui)
+    auto btnRow = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("sysFadeBtnRow")
       .rect(RectF(16, 80, 570, 50))
@@ -144,7 +144,7 @@ private:
       .build(ui, btnRow, RectF(0, 0, 140, 38));
 
     // Note card
-    auto noteBox = WidgetBuilder.make(ui)
+    auto noteBox = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("sysFadingNoteBox")
       .rect(RectF(16, 148, 570, 110))
@@ -153,7 +153,7 @@ private:
       .padding(10, 12)
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(noteBox)
       .name("sysFadingNoteTitle")
       .rect(RectF(12, 10, 546, 20))
@@ -164,7 +164,7 @@ private:
       )
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(noteBox)
       .name("sysFadingNoteBody")
       .rect(RectF(12, 34, 546, 60))
@@ -187,7 +187,7 @@ private:
       "sysGradientCard"
     );
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("sysGradientDescLabel")
       .rect(RectF(16, 36, 580, 36))
@@ -199,7 +199,7 @@ private:
       )
       .build();
 
-    auto btnRow = WidgetBuilder.make(ui)
+    auto btnRow = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("sysGradientBtnRow")
       .rect(RectF(16, 80, 580, 50))
@@ -269,7 +269,7 @@ private:
       .build(ui, btnRow, RectF(0, 0, 145, 38));
 
     // Note card
-    auto noteBox = WidgetBuilder.make(ui)
+    auto noteBox = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("sysGradientNoteBox")
       .rect(RectF(16, 148, 580, 110))
@@ -278,7 +278,7 @@ private:
       .padding(10, 12)
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(noteBox)
       .name("sysGradientNoteTitle")
       .rect(RectF(12, 10, 556, 20))
@@ -289,7 +289,7 @@ private:
       )
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(noteBox)
       .name("sysGradientNoteBody")
       .rect(RectF(12, 34, 556, 60))
@@ -312,7 +312,7 @@ private:
       "sysCounterCard"
     );
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("sysCounterDescLabel")
       .rect(RectF(16, 36, 570, 36))
@@ -324,7 +324,7 @@ private:
       )
       .build();
 
-    auto actionRow = WidgetBuilder.make(ui)
+    auto actionRow = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("sysActionBtnRow")
       .rect(RectF(16, 80, 570, 50))
@@ -373,7 +373,7 @@ private:
       .build(ui, actionRow, RectF(0, 0, 140, 42));
 
     // HUD Counter Display Box
-    auto hudBox = WidgetBuilder.make(ui)
+    auto hudBox = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("sysCounterHudBox")
       .rect(RectF(16, 148, 570, 110))
@@ -382,7 +382,7 @@ private:
       .padding(12, 16)
       .build();
 
-    counterLabel = WidgetBuilder.make(ui)
+    counterLabel = LegacyWidgetBuilder.make(ui)
       .parent(hudBox)
       .name("sysCounterLabel")
       .rect(RectF(16, 14, 538, 28))
@@ -393,7 +393,7 @@ private:
       )
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(hudBox)
       .name("sysCounterHintLabel")
       .rect(RectF(16, 50, 538, 44))
@@ -415,7 +415,7 @@ private:
       "sysArchCard"
     );
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("sysArchDescLabel")
       .rect(RectF(16, 36, 580, 50))
@@ -430,7 +430,7 @@ private:
       .build();
 
     // Pill shaped buttons demonstration
-    auto pillRow = WidgetBuilder.make(ui)
+    auto pillRow = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("sysPillBtnRow")
       .rect(RectF(16, 92, 580, 48))
@@ -480,7 +480,7 @@ private:
       .build(ui, pillRow, RectF(0, 0, 170, 36));
 
     // Explanatory code summary box
-    auto archBox = WidgetBuilder.make(ui)
+    auto archBox = LegacyWidgetBuilder.make(ui)
       .parent(card)
       .name("sysArchBox")
       .rect(RectF(16, 148, 580, 110))
@@ -489,7 +489,7 @@ private:
       .padding(10, 12)
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(archBox)
       .name("sysArchTitle")
       .rect(RectF(12, 8, 556, 18))
@@ -500,7 +500,7 @@ private:
       )
       .build();
 
-    WidgetBuilder.make(ui)
+    LegacyWidgetBuilder.make(ui)
       .parent(archBox)
       .name("sysArchBody")
       .rect(RectF(12, 28, 556, 72))
