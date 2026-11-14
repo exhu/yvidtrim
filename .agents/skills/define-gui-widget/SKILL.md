@@ -83,8 +83,9 @@ events, or synchronize dynamic children via `WidgetArrayProvider` or
 - Define a `*Style` or `*Config` struct for visual defaults.
 - Define a fluent `*Builder` struct with `build(UiSystem ui, Widget parent,
   RectF rect, UiRegistry registry = null)`.
-- Attach `.view(registry, renameMap, widgetViewName)` to the root widget so
-  child `MouseEvent` triggers bubble up and get translated by `WidgetView`.
+- Attach `.viewEvents(renameMap)` and `.viewName(widgetViewName)` to the root
+  widget so child `MouseEvent` triggers bubble up and get translated by
+  `WidgetView`.
 - Register the shared `WidgetView` and `WidgetViewController` once at startup.
 
 ### Tier 3: ECS-Style Widget (`*Component` + `WidgetSystem`)
@@ -112,18 +113,20 @@ follow these rules:
 
 2. **Use `UiSystem` for ID Allocation**:
    - Always start chains with `WidgetBuilder.make(ui)`.
-   - When using `.child(id, delegate)`, pass `ui.nextWidgetId()` for the child
-     ID.
+   - Use `.child((WidgetBuilder b) { ... })` or `.children(...)` for nested
+     children (the `UiSystem` context propagates automatically).
 
-3. **Pair `.rect(...)` with Explicit Sizing in Flex Containers**:
-   - Always call `.rect(RectF(...))` (use `RectF(0, 0, w, h)` or `RectF()` when
-     positioned by a parent flex container).
-   - Inside `.flexRow(...)` or `.flexColumn(...)` parents, explicitly specify
+3. **Pair Geometry with Explicit Sizing in Flex Containers**:
+   - Call `.pos(...)`, `.size(...)`, `.bounds(...)`, or `.rect(...)` when
+     setting geometry explicitly.
+   - Inside `.flexRow()` or `.flexColumn()` parents, explicitly specify
      the child's sizing mode:
-     - `.fixedSize(w, h)` for fixed pixel dimensions.
+     - `.fixedSize(w, h)` / `.fixedWidth(w)` / `.fixedHeight(h)` for fixed
+       pixel dimensions.
      - `.autoSize()` for text labels or shrink-wrapped containers.
-     - `.fractionSize(wFr, hFr)` to fill remaining flex space (often paired
-       with `.minSize(1.0f, 1.0f)` for scrollable viewports).
+     - `.fractionWidth(wFr)` / `.fractionHeight(hFr)` to fill remaining flex
+       space (often paired with `.minWidth(1.0f)` / `.minHeight(1.0f)` for
+       scrollable viewports).
 
 4. **Use Correct `WidgetUpdateScope` When Mutating Widgets**:
    - `WidgetBuilder.build()` automatically calls
@@ -153,28 +156,36 @@ void buildHeader(UiRegistry registry) {
   auto header = WidgetBuilder.make(ui)
     .parent(view)
     .name("header")
-    .rect(RectF(20, 12, 1240, 48))
+    .pos(20, 12)
     .fixedSize(1240, 48)
-    .padding(0, 14)
-    .flexRow(12.0f, JustifyContent.start, AlignItems.center)
-    .roundBackground(ColorF(0.11f, 0.13f, 0.17f, 1.0f), 6.0f)
-    .border(ColorF(0.22f, 0.25f, 0.32f, 1.0f), 1.0f)
+    .paddingVh(0, 14)
+    .flexRow()
+    .gap(12.0f)
+    .justify(JustifyContent.start)
+    .alignItems(AlignItems.center)
+    .roundBg(ColorF(0.11f, 0.13f, 0.17f, 1.0f))
+    .bgRadius(6.0f)
+    .border(ColorF(0.22f, 0.25f, 0.32f, 1.0f))
+    .borderWidth(1.0f)
     .build();
 
   auto titleBox = WidgetBuilder.make(ui)
     .parent(header)
     .name("headerTitleBox")
-    .rect(RectF())
-    .flexColumn(2.0f, JustifyContent.center, AlignItems.start)
+    .flexColumn()
+    .gap(2.0f)
+    .justify(JustifyContent.center)
+    .alignItems(AlignItems.start)
     .autoSize()
     .build();
 
   WidgetBuilder.make(ui)
     .parent(titleBox)
     .name("headerTitle")
-    .rect(RectF())
     .autoSize()
-    .text("Title Text", ColorF(1.0f, 1.0f, 1.0f, 1.0f), 16.0f)
+    .text("Title Text")
+    .textColor(ColorF(1.0f, 1.0f, 1.0f, 1.0f))
+    .fontSize(16.0f)
     .build();
 }
 ```
@@ -221,9 +232,14 @@ struct MyWidgetBuilder {
       .name(rootName)
       .rect(rect)
       .fixedSize(cfg.width, cfg.height)
-      .roundBackground(cfg.bg, cfg.cornerRadius)
-      .border(cfg.border, 1.0f)
-      .text(rootName, cfg.text, 13.0f, TextLabel.Alignment.center)
+      .roundBg(cfg.bg)
+      .bgRadius(cfg.cornerRadius)
+      .border(cfg.border)
+      .borderWidth(1.0f)
+      .text(rootName)
+      .textColor(cfg.text)
+      .fontSize(13.0f)
+      .textAlign(TextLabel.Alignment.center)
       .onMouseDown(actionEvent)
       .build();
   }

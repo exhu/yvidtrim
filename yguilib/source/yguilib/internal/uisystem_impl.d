@@ -46,6 +46,10 @@ class UiSystemImpl : UiSystem {
     return fNextWidgetId++;
   }
 
+  override Widget makeWidget() {
+    return new Widget(nextWidgetId());
+  }
+
   /// safe to call from a thread
   override void sendAppEvent(AppEvent ev) {
     messageBus.send(ev);

@@ -1,6 +1,11 @@
-- design new better builder interface for widgets,
-see `d_gui_widgetbuilder_api_design_recommendations.md`,
-update guidemo, yvidtrim with new WidgetBuilder.
+- migrate guidemo to new WidgetBuilder, remove deprecated
+  LegacyBuilder and functions
+
+- add to codestyle:
+no default parameter values,
+named methods e.g. withBorder
+no overloaded functions/methods
+package private constructors, static make() method factories
 
 - add DebugDraw component to Widget with a debug draw system,
 which may draw widget names and outlines over rendered widgets,

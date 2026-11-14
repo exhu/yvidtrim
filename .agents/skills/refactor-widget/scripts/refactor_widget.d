@@ -129,6 +129,8 @@ CallSite[] scanWidgetCallSites(string[] files) {
 
       // Check for Widget and WidgetBuilder creations
       if (trimmed.canFind("new Widget(") ||
+          trimmed.canFind(".makeWidget(") ||
+          trimmed.canFind("WidgetBuilder.make(") ||
           trimmed.canFind("WidgetBuilder(") ||
           trimmed.canFind("flexRow(") ||
           trimmed.canFind("flexColumn(")) {

@@ -55,6 +55,38 @@ struct Insets {
   static Insets vh(float vertical, float horizontal) {
     return Insets(vertical, horizontal, vertical, horizontal);
   }
+
+  static Insets horizontal(float val) {
+    return Insets(0, val, 0, val);
+  }
+
+  static Insets vertical(float val) {
+    return Insets(val, 0, val, 0);
+  }
+
+  Insets withTop(float val) const {
+    Insets res = this;
+    res.top = val;
+    return res;
+  }
+
+  Insets withRight(float val) const {
+    Insets res = this;
+    res.right = val;
+    return res;
+  }
+
+  Insets withBottom(float val) const {
+    Insets res = this;
+    res.bottom = val;
+    return res;
+  }
+
+  Insets withLeft(float val) const {
+    Insets res = this;
+    res.left = val;
+    return res;
+  }
 }
 
 /// Direction a flex container lays out its children along the
@@ -290,6 +322,18 @@ unittest {
   const Insets i3 = Insets(5.0f, 10.0f, 15.0f, 20.0f);
   assert(i3.top == 5.0f && i3.right == 10.0f && i3.bottom == 15.0f &&
     i3.left == 20.0f);
+
+  const Insets i4 = Insets.horizontal(10.0f)
+    .withTop(14.0f)
+    .withBottom(15.0f);
+  assert(i4.left == 10.0f && i4.right == 10.0f);
+  assert(i4.top == 14.0f && i4.bottom == 15.0f);
+
+  const Insets i5 = Insets.vertical(8.0f)
+    .withLeft(4.0f)
+    .withRight(12.0f);
+  assert(i5.top == 8.0f && i5.bottom == 8.0f);
+  assert(i5.left == 4.0f && i5.right == 12.0f);
 
   // FlexContainer builder
   auto fc = FlexContainer.row(8.0f)

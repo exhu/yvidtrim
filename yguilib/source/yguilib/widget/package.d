@@ -226,6 +226,8 @@ final class Widget {
   @disable this();
 
   /// Constructs a widget with unique ID.
+  /// User code should create widgets via `UiSystem.makeWidget()` (or
+  /// `WidgetBuilder.make(ui)`) rather than constructing `Widget` directly.
   this(uint uId) {
     this.uId = uId;
   }
@@ -887,22 +889,27 @@ unittest {
 }
 
 unittest {
-  import yguilib.widget.builder : LegacyWidgetBuilder;
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.widget.builder : WidgetBuilder;
 
-  auto root = LegacyWidgetBuilder(1)
+  auto ui = new UiSystemImpl(null);
+  auto root = WidgetBuilder.make(ui)
     .rect(RectF(0, 0, 800, 600))
-    .flex(FlexDirection.row, 10.0f)
-    .background(ColorF(0.1f, 0.1f, 0.1f, 1.0f))
+    .flexRow()
+    .gap(10.0f)
+    .bg(ColorF(0.1f, 0.1f, 0.1f, 1.0f))
     .build();
 
-  auto item = LegacyWidgetBuilder(2)
+  auto item = WidgetBuilder.make(ui)
     .parent(root)
     .rect(RectF(0, 0, 100, 50))
     .fixedSize(100.0f, 50.0f)
-    .padding(4.0f, 8.0f)
-    .margin(Insets.all(2.0f))
-    .roundBackground(ColorF(0.2f, 0.4f, 0.8f, 1.0f), 6.0f)
-    .border(ColorF(1.0f, 1.0f, 1.0f, 1.0f), 1.5f)
+    .paddingVh(4.0f, 8.0f)
+    .marginAll(2.0f)
+    .roundBg(ColorF(0.2f, 0.4f, 0.8f, 1.0f))
+    .bgRadius(6.0f)
+    .border(ColorF(1.0f, 1.0f, 1.0f, 1.0f))
+    .borderWidth(1.5f)
     .text("Button")
     .onMouseDown("btnClick")
     .clipContents(true)
@@ -1094,7 +1101,8 @@ unittest {
 // Verifies Widget.dumpTree serialization.
 unittest {
   import std.json : parseJSON;
-  import yguilib.widget.builder : LegacyWidgetBuilder;
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.widget.builder : WidgetBuilder;
 
   final class TestExtraComponent : WidgetComponent {
     string info;
@@ -1105,28 +1113,31 @@ unittest {
     }
   }
 
-  auto root = LegacyWidgetBuilder(100)
+  auto ui = new UiSystemImpl(null);
+  auto root = WidgetBuilder.make(ui)
+    .name("RootPanel")
     .rect(RectF(0, 0, 800, 600))
-    .flex(FlexDirection.column, 5.0f)
-    .background(ColorF(0.1f, 0.2f, 0.3f, 1.0f))
+    .flexColumn()
+    .gap(5.0f)
+    .bg(ColorF(0.1f, 0.2f, 0.3f, 1.0f))
     .build();
-  root.name = "RootPanel";
 
-  auto child = LegacyWidgetBuilder(101)
+  auto child = WidgetBuilder.make(ui)
     .parent(root)
+    .name("Button1")
     .rect(RectF(10, 10, 120, 40))
     .fixedSize(120.0f, 40.0f)
     .text("DumpButton")
-    .border(ColorF(1.0f, 1.0f, 1.0f, 1.0f), 2.0f)
+    .border(ColorF(1.0f, 1.0f, 1.0f, 1.0f))
+    .borderWidth(2.0f)
+    .component(new TestExtraComponent("extraData", 7))
     .build();
-  child.name = "Button1";
-  child.components.set(new TestExtraComponent("extraData", 7));
 
   // Dump without children
   string rootOnlyJson = root.dumpTree(false);
   auto parsedRootOnly = parseJSON(rootOnlyJson);
   assert(parsedRootOnly["type"].str == "Widget");
-  assert(parsedRootOnly["fields"]["uId"].integer == 100);
+  assert(parsedRootOnly["fields"]["uId"].integer == root.uId);
   assert(parsedRootOnly["fields"]["name"].str == "RootPanel");
   assert("children" !in parsedRootOnly["fields"]);
   auto rootComps = parsedRootOnly["fields"]["components"]["fields"];
@@ -1136,16 +1147,16 @@ unittest {
   string fullTreeJson = root.dumpTree(true);
   auto parsedFull = parseJSON(fullTreeJson);
   assert(parsedFull["type"].str == "Widget");
-  assert(parsedFull["fields"]["uId"].integer == 100);
+  assert(parsedFull["fields"]["uId"].integer == root.uId);
   assert("children" in parsedFull["fields"]);
   auto childrenArray = parsedFull["fields"]["children"].array;
   assert(childrenArray.length == 1);
 
   auto parsedChild = childrenArray[0];
   assert(parsedChild["type"].str == "Widget");
-  assert(parsedChild["fields"]["uId"].integer == 101);
+  assert(parsedChild["fields"]["uId"].integer == child.uId);
   assert(parsedChild["fields"]["name"].str == "Button1");
-  assert(parsedChild["fields"]["parentUId"].integer == 100);
+  assert(parsedChild["fields"]["parentUId"].integer == root.uId);
   auto childComps = parsedChild["fields"]["components"]["fields"];
   assert(childComps["textLabel"]["fields"]["caption"].str == "DumpButton");
 
@@ -1163,31 +1174,34 @@ unittest {
   import std.algorithm : canFind;
   import std.json : JSONType, parseJSON;
   import std.string : indexOf;
-  import yguilib.widget.builder : LegacyWidgetBuilder;
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.widget.builder : WidgetBuilder;
 
   final class SimpleTestExtraComponent : WidgetComponent {
     int value = 42;
   }
 
-  auto root = LegacyWidgetBuilder(200)
+  auto ui = new UiSystemImpl(null);
+  auto root = WidgetBuilder.make(ui)
+    .name("SimpleRoot")
     .rect(RectF(0, 0, 640, 480))
-    .flex(FlexDirection.row, 4.0f)
-    .background(ColorF(0.2f, 0.3f, 0.4f, 1.0f))
+    .flexRow()
+    .gap(4.0f)
+    .bg(ColorF(0.2f, 0.3f, 0.4f, 1.0f))
+    .visible(false)
+    .handleInput(true)
+    .inputEnabled(true)
     .build();
-  root.name = "SimpleRoot";
-  root.visible = false;
-  root.handleInput = true;
-  root.inputEnabled = true;
 
-  auto child = LegacyWidgetBuilder(201)
+  auto child = WidgetBuilder.make(ui)
     .parent(root)
+    .name("SimpleChild")
     .rect(RectF(5, 5, 100, 30))
     .text("ClickMe")
+    .component(new SimpleTestExtraComponent())
     .build();
-  child.name = "SimpleChild";
-  child.components.set(new SimpleTestExtraComponent());
 
-  auto emptyChild = new Widget(202);
+  auto emptyChild = ui.makeWidget();
   emptyChild.name = "EmptyChild";
   root.addChild(emptyChild);
 
@@ -1196,7 +1210,7 @@ unittest {
   auto rf = parseJSON(rootOnlyJson);
   assert("type" !in rf);
   assert("fields" !in rf);
-  assert(rf["uId"].integer == 200);
+  assert(rf["uId"].integer == root.uId);
   assert(rf["name"].str == "SimpleRoot");
   assert(rf["rect"].type == JSONType.array);
   assert(rf["rect"].array.length == 4);
@@ -1240,7 +1254,7 @@ unittest {
   assert(childrenArr.length == 2);
 
   auto cf = childrenArr[0];
-  assert(cf["uId"].integer == 201);
+  assert(cf["uId"].integer == child.uId);
   assert(cf["name"].str == "SimpleChild");
   assert(cf["visible"].boolean == true);
   assert(cf["handleInput"].boolean == false);

@@ -631,6 +631,9 @@ unittest {
     override uint nextWidgetId() {
       return fNextWidgetId++;
     }
+    override Widget makeWidget() {
+      return new Widget(nextWidgetId());
+    }
     override void releaseWidget(Widget w) {
       if (w !is null) {
         w.release();

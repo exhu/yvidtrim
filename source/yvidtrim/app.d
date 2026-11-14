@@ -10,9 +10,9 @@ import colors = yguilib.render.colors;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
-import yguilib.widget.builder : LegacyWidgetBuilder;
-import yguilib.widget.drawing_components : Background, Border;
-import yguilib.widget.layout_components : AlignItems, Anchor, FlexContainer,
+import yguilib.widget.builder : WidgetBuilder;
+import yguilib.widget.drawing_components : Border;
+import yguilib.widget.layout_components : AlignItems, FlexContainer, Insets,
   JustifyContent;
 import yguilib.window : Window;
 
@@ -41,46 +41,65 @@ public:
     this.ui = ui;
     tracker = ModelTracker!MainModel.from(otherTracker);
 
-    rootWidget = LegacyWidgetBuilder.make(ui)
-      .rect(RectF(10, 10, 200, 200))
-      .view(null)
-      .background(ColorF(0.5f, 0.5f, 0.0f, 1.0f))
+    rootWidget = WidgetBuilder.make(ui)
+      .name("root")
+      .bounds(10, 10, 200, 200)
+      .view()
+      .bg(ColorF(0.5f, 0.5f, 0.0f, 1.0f))
       .build();
 
-    alphaWidget = LegacyWidgetBuilder.make(ui)
+    alphaWidget = WidgetBuilder.make(ui)
       .parent(rootWidget)
-      .rect(RectF(35, 45, 150, 190))
-      .background(ColorF(0.0f, 1.0f, 0.5f, 0.3f))
-      .border(ColorF(0.0f, 0.0f, 0.5f, 1.0f), 2.0f, Border.Style.roundDashed)
-      .text("Hello-0123456789", ColorF(0.0f, 0.0f, 1.0f, 1.0f))
+      .name("alphaWidget")
+      .bounds(35, 45, 150, 190)
+      .bg(ColorF(0.0f, 1.0f, 0.5f, 0.3f))
+      .border(ColorF(0.0f, 0.0f, 0.5f, 1.0f))
+      .borderWidth(2.0f)
+      .borderStyle(Border.Style.roundDashed)
+      .borderRadius(10.0f)
+      .text("Hello-0123456789")
+      .textColor(ColorF(0.0f, 0.0f, 1.0f, 1.0f))
       .autoSize()
       .clipChildren(true)
       .build();
 
-    toggleWidget = LegacyWidgetBuilder.make(ui)
+    toggleWidget = WidgetBuilder.make(ui)
       .parent(rootWidget)
-      .rect(RectF(15, 15, 300, 90))
-      .background(ColorF(0.5f, 1.0f, 0.5f, 0.3f), Background.Style.round)
+      .name("toggleWidget")
+      .bounds(15, 15, 300, 90)
+      .roundBg(ColorF(0.5f, 1.0f, 0.5f, 0.3f))
+      .bgRadius(15.0f)
       .build();
 
     // --- layout testing ---
-    container = LegacyWidgetBuilder.make(ui)
+    container = WidgetBuilder.make(ui)
       .parent(rootWidget)
-      .rect(RectF(35, 250, 400, 300))
-      .background(colors.darkGray)
-      .border(colors.brightWhite, 3.0f, Border.Style.dashed)
-      .flexRow(8.0f, JustifyContent.start, tracker.model.alignItems)
-      .child(ui, (ref LegacyWidgetBuilder b) {
-        b.rect(RectF(5, 8, 1, 1))
-          .background(colors.yellow)
-          .fixedSize(100.0f, 40.0f);
-      })
-      .child(ui, (ref LegacyWidgetBuilder b) {
-        b.rect(RectF(15, 18, 1, 1))
-          .background(colors.brown)
-          .margin(10.0f, 10.0f, 14.0f, 15.0f)
-          .fixedSize(110.0f, 50.0f);
-      })
+      .name("container")
+      .pos(35, 250)
+      .size(400, 300)
+      .bg(colors.darkGray)
+      .border(colors.brightWhite)
+      .borderWidth(3.0f)
+      .borderStyle(Border.Style.dashed)
+      .flexRow()
+      .gap(8.0f)
+      .justify(JustifyContent.start)
+      .alignItems(tracker.model.alignItems)
+      .children(
+        WidgetBuilder.make(ui)
+          .name("yellowBox")
+          .pos(5, 8)
+          .fixedSize(100.0f, 40.0f)
+          .bg(colors.yellow)
+          .build(),
+        WidgetBuilder.make(ui)
+          .name("brownBox")
+          .pos(15, 18)
+          .fixedSize(110.0f, 50.0f)
+          .bg(colors.brown)
+          .margin(Insets.horizontal(10.0f).withTop(14.0f).withBottom(15.0f))
+          .build()
+      )
       .build();
     fc = container.components.flexContainer;
 
@@ -94,29 +113,35 @@ public:
   }
 
   void addRightTopAnchor() {
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(rootWidget)
-      .rect(RectF(0, 0, 30, 30))
-      .background(colors.red)
-      .anchor(new Anchor().withRight(0.0f).withTop(3.0f))
+      .name("rightTopAnchor")
+      .size(30, 30)
+      .bg(colors.red)
+      .anchorRight(0.0f)
+      .anchorTop(3.0f)
       .build();
   }
 
   void addLeftBottomAnchor() {
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(rootWidget)
-      .rect(RectF(0, 0, 30, 30))
-      .background(colors.brightRed)
-      .anchor(new Anchor().withLeft(3.0f).withBottom(7.0f))
+      .name("leftBottomAnchor")
+      .size(30, 30)
+      .bg(colors.brightRed)
+      .anchorLeft(3.0f)
+      .anchorBottom(7.0f)
       .build();
   }
 
   void addRightBottomAnchor() {
-    LegacyWidgetBuilder.make(ui)
+    WidgetBuilder.make(ui)
       .parent(rootWidget)
-      .rect(RectF(0, 0, 30, 30))
-      .background(colors.magenta)
-      .anchor(new Anchor().withRight(5.0f).withBottom(2.0f))
+      .name("rightBottomAnchor")
+      .size(30, 30)
+      .bg(colors.magenta)
+      .anchorRight(5.0f)
+      .anchorBottom(2.0f)
       .build();
   }
 

@@ -284,6 +284,16 @@ void printAuditReport(in BuilderChain[] chains) {
   }
 }
 
+bool hasGeometryCall(string line) {
+  import std.algorithm : canFind;
+
+  return line.canFind(".rect(") ||
+    line.canFind(".bounds(") ||
+    line.canFind(".pos(") ||
+    line.canFind(".size(") ||
+    line.canFind(".fixedSize(");
+}
+
 BuilderChain[] scanFileBuilderChains(string file, const string[] lines) {
   import std.algorithm : canFind, startsWith;
 
@@ -351,17 +361,25 @@ BuilderChain extractChain(
   bool hasName = false;
   bool hasRect = false;
   size_t endIdx = startIdx;
+  int parenDepth = 0;
 
-  for (size_t i = startIdx; i < lines.length && i < startIdx + 45; ++i) {
+  for (size_t i = startIdx; i < lines.length && i < startIdx + 60; ++i) {
     const string t = lines[i].strip();
     if (t.canFind(".name(")) {
       hasName = true;
     }
-    if (t.canFind(".rect(")) {
+    if (hasGeometryCall(t)) {
       hasRect = true;
     }
+    foreach (c; t) {
+      if (c == '(') {
+        parenDepth++;
+      } else if (c == ')') {
+        parenDepth--;
+      }
+    }
     endIdx = i;
-    if (t.canFind(".build()") || t.endsWith(";")) {
+    if (parenDepth <= 0 && (t.canFind(".build()") || t.endsWith(";"))) {
       break;
     }
   }
@@ -396,7 +414,7 @@ BuilderChain extractChildBlock(
     if (t.canFind(".name(")) {
       hasName = true;
     }
-    if (t.canFind(".rect(")) {
+    if (hasGeometryCall(t)) {
       hasRect = true;
     }
     foreach (c; t) {
@@ -565,19 +583,26 @@ string inlineTemplatePart2() {
       .name(rootName)
       .rect(rect)
       .fixedSize(cfg.width, cfg.height)
-      .padding(4, 10)
-      .flexRow(8.0f, JustifyContent.center, AlignItems.center)
-      .roundBackground(cfg.bg, cfg.cornerRadius)
-      .border(cfg.border, 1.0f)
+      .paddingVh(4, 10)
+      .flexRow()
+      .gap(8.0f)
+      .justify(JustifyContent.center)
+      .alignItems(AlignItems.center)
+      .roundBg(cfg.bg)
+      .bgRadius(cfg.cornerRadius)
+      .border(cfg.border)
+      .borderWidth(1.0f)
       .onMouseDown(eventName)
       .build();
 
     WidgetBuilder.make(ui)
       .parent(root)
       .name(rootName ~ "Label")
-      .rect(RectF())
       .autoSize()
-      .text(labelText, cfg.text, cfg.fontSize, TextLabel.Alignment.center)
+      .text(labelText)
+      .textColor(cfg.text)
+      .fontSize(cfg.fontSize)
+      .textAlign(TextLabel.Alignment.center)
       .build();
 
     return root;
@@ -739,18 +764,27 @@ struct __NAME__Builder {
       .name(rootName)
       .rect(rect)
       .fixedSize(cfg.width, cfg.height)
-      .flexRow(8.0f, JustifyContent.center, AlignItems.center)
-      .roundBackground(cfg.bg, cfg.cornerRadius)
-      .border(cfg.border, 1.0f)
-      .view(registry, renameMap, __CAMEL__WidgetViewName)
+      .flexRow()
+      .gap(8.0f)
+      .justify(JustifyContent.center)
+      .alignItems(AlignItems.center)
+      .roundBg(cfg.bg)
+      .bgRadius(cfg.cornerRadius)
+      .border(cfg.border)
+      .borderWidth(1.0f)
+      .viewEvents(renameMap)
+      .viewName(__CAMEL__WidgetViewName)
       .build();
 
     WidgetBuilder.make(ui)
       .parent(root)
       .name(rootName ~ "Btn")
-      .rect(RectF(0, 0, cfg.width, cfg.height))
+      .size(cfg.width, cfg.height)
       .autoSize()
-      .text(rootName, cfg.text, cfg.fontSize, TextLabel.Alignment.center)
+      .text(rootName)
+      .textColor(cfg.text)
+      .fontSize(cfg.fontSize)
+      .textAlign(TextLabel.Alignment.center)
       .onMouseDown(__CAMEL__ChildClickEvent)
       .build();
 
@@ -862,19 +896,23 @@ string systemTemplatePart2() {
     assert(ui !is null, "ui must not be null");
     const string rootName = (widgetName.length > 0) ? widgetName : "__CAMEL__";
 
-    auto w = WidgetBuilder.make(ui)
+    return WidgetBuilder.make(ui)
       .parent(parent)
       .name(rootName)
       .rect(rect)
       .fixedSize(cfg.width, cfg.height)
-      .padding(6, 12)
-      .roundBackground(cfg.bg, cfg.cornerRadius)
-      .border(cfg.border, 1.0f)
-      .text(labelText, cfg.text, cfg.fontSize, TextLabel.Alignment.center)
+      .paddingVh(6, 12)
+      .roundBg(cfg.bg)
+      .bgRadius(cfg.cornerRadius)
+      .border(cfg.border)
+      .borderWidth(1.0f)
+      .text(labelText)
+      .textColor(cfg.text)
+      .fontSize(cfg.fontSize)
+      .textAlign(TextLabel.Alignment.center)
+      .inputEnabled(true)
       .component(new __NAME__Component(actionEvent))
       .build();
-    w.inputEnabled = true;
-    return w;
   }
 
 private:
