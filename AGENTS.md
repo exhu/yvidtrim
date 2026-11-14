@@ -64,3 +64,9 @@ running guidemo, yvidtrim need to set `SDL_LOGGING` env var, e.g.
 ```
 SDL_LOGGING=app=trace ./_build/yvidtrim
 ```
+
+## Planning
+Ask questions on missing information, confusing topics, available options.
+For multiple valid options propose a recommended one. Update TODO.md by removing
+the completed item if it is refered to in the prompt, if TODO.md is not mentioned,
+propose to update it as part of the implementation plan.

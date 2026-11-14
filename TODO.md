@@ -1,12 +1,6 @@
 - migrate guidemo to new WidgetBuilder, remove deprecated
   LegacyBuilder and functions
 
-- add to codestyle:
-no default parameter values,
-named methods e.g. withBorder
-no overloaded functions/methods
-package private constructors, static make() method factories
-
 - add DebugDraw component to Widget with a debug draw system,
 which may draw widget names and outlines over rendered widgets,
 display hidden or unclipped widgets.

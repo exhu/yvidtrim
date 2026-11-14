@@ -5,7 +5,19 @@ Prefered coding style is slightly different from standard D style. It's similar 
 All source file names are always lower case.
 
 ## D symbol names
-D code symbol names use D style naming rules, e.g. all module names lowercase, types, classes in PascalCase; consts, variables, functions/methods, fields, enum values in camelCase.
+D code symbol names use D style naming rules, e.g. all module names lowercase, types, classes in PascalCase; consts, variables, functions/methods, fields, enum values in camelCase. Consecutive/adjacent capital letters are not allowed: `ID`, `makeGUID`, `colorRGB` are bad names, `Id`, `makeGuid`, `colorRgb` are good.
+
+Function/method names should convey arguments that it accepts, e.g.
+```D
+// good
+void drawText(TextParameters text);
+void drawString(string text);
+void drawTextAt(String text, PointF pos);
+// bad
+void draw(TextParameters text);
+void draw(String text);
+void draw(String text, PointF pos);
+```
 
 ## D null handling
 By default reference types (classes) and pointers passed to functions and in
@@ -36,7 +48,6 @@ E.g. "source/yguilib/internal/assets.d"
 Prefer declaring local variables and fields const if they are not meant to change.
 
 ## Architecture & Module Visibility (D)
-
 To preserve API stability, prevent encapsulation leaks, and protect compiler
 throughput, all modules must strictly adhere to domain-bounded encapsulation.
 
@@ -113,6 +124,8 @@ direct access, as properies, or methods.
 ## Function parameters
 Put the main semantic paramter first, e.g. in drawText function put string type
 the first.
+
+Do not use default parameter values. All parameters must be explicit.
 
 In overloaded functions/methods keep the same uniform order, e.g.
 ```D
