@@ -7,7 +7,7 @@ import std.math : isFinite;
 import yguilib.render : Renderer;
 import yguilib.render.font : Font, defaultFontPtSize;
 import yguilib.render.render_types : PointF, RectF, intersectRects;
-import yguilib.widget.drawing_components : Background, Border, TextLabel;
+import yguilib.widget.drawing_components : Background, Border, TextLabel, DebugDrawComponent;
 import yguilib.widget : Widget;
 import yguilib.widget.system : SystemPhase, WidgetSystem,
   WidgetSystemContext;
@@ -105,6 +105,9 @@ private:
     }
 
     // TODO CustomWidgetPainter.drawBorder
+    debug {
+      drawDebug(w, absRect, r);
+    }
   }
 
   static void drawBackground(Widget w, in RectF absRect, Renderer r) {
@@ -169,6 +172,21 @@ private:
       const float lineX = absContentRect.x + line.xOffset;
       const float lineY = absContentRect.y + cast(float)i * lineStep;
       r.drawText(line.text, PointF(lineX, lineY), comp.color, font);
+    }
+  }
+
+  debug {
+    static void drawDebug(Widget w, in RectF absRect, Renderer r) {
+      DebugDrawComponent comp = w.components.debugDraw;
+      if (comp !is null) {
+        r.drawRect(absRect, 1.0, comp.fgColor);
+        // TODO calculate displayed text rect, if there's no such function yet,
+        // make it public available in renderer or font api
+        PointF textExtent;
+        // TODO draw background under text
+        // r.drawFillRect(RectF(absRect.x, absRect.y, textExtent.x, textExtent.y), comp.bgColor);
+        // TODO draw text string at absRect.x, absRect.y in format "<uId> <name>" with comp.fgColor
+      }
     }
   }
 }

@@ -62,7 +62,6 @@ class ViewComponent : WidgetComponent {
   // so need a named registry of model types and a factory, so that ModelTracker instances
   // can be constructed at runtime via string parameters.
   string[string] trackedModels;
-
 }
 
 struct WidgetComponents {
@@ -88,6 +87,8 @@ struct WidgetComponents {
 
   // data driven
   WidgetArrayComponent widgetArray;
+
+  DebugDrawComponent debugDraw;
 
   /// Attaches or replaces a user-defined component of type `C`.
   /// Pass `null` to remove the component of type `C`.

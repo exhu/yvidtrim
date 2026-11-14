@@ -5,6 +5,8 @@ import yguilib.render.font : Font, defaultFontPtSize;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.widget.component;
 import yguilib.widget : Widget;
+import colors = yguilib.render.colors;
+
 package(yguilib) import yguilib.widget.internal.layout_text : FormattedTextLine,
   TextAlignment, sanitizeSingleLine;
 
@@ -169,6 +171,19 @@ class Border : WidgetComponent {
 
 class CustomDraw : WidgetComponent {
   void delegate(in Renderer r, in Widget w) drawFunc;
+}
+
+class DebugDrawComponent : WidgetComponent {
+  /// can be disabled or enabled on runtime
+  bool enabled = true;
+  /// if true enables debug draw for children widgets as if they have the same
+  /// DebugDrawCompoenent, so that it's enough to add DebugDrawComponent with
+  /// recursive=true only to the root widget to visualize the whole tree.
+  bool recursive;
+  /// text and frame color
+  ColorF fgColor = colors.yellow;
+  /// text background color
+  ColorF bgColor = colors.black;
 }
 
 unittest {

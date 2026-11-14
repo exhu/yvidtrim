@@ -1,6 +1,10 @@
-- add DebugDraw component to Widget with a debug draw system,
-which may draw widget names and outlines over rendered widgets,
-display hidden or unclipped widgets.
+- complete DebugDraw component implementation (there's draft drawDebug in widget_painter.d
+method) which must draw widget names and outlines over
+rendered widgets, display hidden or unclipped widgets.
+drawDebug method must be moved from `widget_painter.d` WidgetPainterSystem to a
+new DebugDrawSystem class and module. DebugDrawSystem must be registered only
+for debug builds (debug{} version statement), it must execute after the WidgetPainterSystem so
+that debug text and frames overwrite already rendered tree on the screen.
 
 - may be just use ViewComponent on root widget + WidgetView +
 WidgetViewController in demo and everywhere for consistency instead of manually
