@@ -7,7 +7,7 @@ import yguilib.widget.component : WidgetComponent;
 import yguilib.widget.data_components : WidgetArrayComponent,
   WidgetArrayProvider;
 import yguilib.widget.drawing_components : Background, Border, CustomDraw,
-  TextLabel;
+  DebugDrawComponent, TextLabel;
 import yguilib.widget.input_components : DefaultButton, Focus, MouseEvent;
 import yguilib.widget.layout_components : AlignItems, Anchor, Dimension,
   FlexContainer, FlexDirection, Insets, JustifyContent, Size, SizingMode;
@@ -465,6 +465,36 @@ final class WidgetBuilder {
     return this;
   }
 
+  /// Enables or disables debug drawing for this widget.
+  WidgetBuilder debugDraw(bool enabled = true, bool recursive = false) {
+    auto comp = ensureDebugDraw();
+    comp.enabled = enabled;
+    comp.recursive = recursive;
+    return this;
+  }
+
+  /// Enables recursive debug drawing for this widget and its descendants.
+  WidgetBuilder debugDrawRecursive(bool enabled = true) {
+    return debugDraw(enabled, true);
+  }
+
+  /// Sets the foreground and background colors for debug drawing.
+  WidgetBuilder debugDrawColors(ColorF fgColor, ColorF bgColor) {
+    auto comp = ensureDebugDraw();
+    comp.fgColor = fgColor;
+    comp.bgColor = bgColor;
+    comp.hiddenFgColor = ColorF(fgColor.r, fgColor.g, fgColor.b, 0.4);
+    comp.hiddenBgColor = ColorF(bgColor.r, bgColor.g, bgColor.b, 0.4);
+    return this;
+  }
+
+  /// Attaches a pre-configured DebugDrawComponent.
+  WidgetBuilder debugDrawComponent(DebugDrawComponent comp) {
+    assert(comp !is null, "DebugDrawComponent must not be null");
+    fWidget.components.debugDraw = comp;
+    return this;
+  }
+
   /// Sets the TextLabel caption (`caption` is allowed to be null).
   WidgetBuilder text(string caption) {
     ensureText().caption = caption;
@@ -768,6 +798,13 @@ private:
     return fWidget.components.textLabel;
   }
 
+  DebugDrawComponent ensureDebugDraw() {
+    if (fWidget.components.debugDraw is null) {
+      fWidget.components.debugDraw = new DebugDrawComponent();
+    }
+    return fWidget.components.debugDraw;
+  }
+
   MouseEvent ensureMouseEvent() {
     if (fWidget.components.mouseEvent is null) {
       fWidget.components.mouseEvent = new MouseEvent();
@@ -951,6 +988,18 @@ unittest {
   assert(viewRoot.components.view.renameEvents["btn"] == "press");
   assert(testView.isWidgetRegistered(viewRoot));
   assert(viewRoot.children[0].parentView is viewRoot);
+
+  // DebugDrawComponent builder helpers
+  auto dbgWidget = WidgetBuilder.make(ui)
+    .name("dbg")
+    .debugDrawRecursive()
+    .debugDrawColors(ColorF(1, 0, 0, 1), ColorF(0, 0, 0, 1))
+    .build();
+  assert(dbgWidget.components.debugDraw !is null);
+  assert(dbgWidget.components.debugDraw.enabled);
+  assert(dbgWidget.components.debugDraw.recursive);
+  assert(dbgWidget.components.debugDraw.fgColor == ColorF(1, 0, 0, 1));
+  assert(dbgWidget.components.debugDraw.bgColor == ColorF(0, 0, 0, 1));
 
   // ScrollableArea, WidgetArray, Focus, DefaultButton, and custom component
   final class DummyArrayProvider : WidgetArrayProvider {

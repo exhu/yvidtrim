@@ -176,14 +176,19 @@ class CustomDraw : WidgetComponent {
 class DebugDrawComponent : WidgetComponent {
   /// can be disabled or enabled on runtime
   bool enabled = true;
+  /// should visible=false widgets be drawn
+  bool drawHidden = false;
   /// if true enables debug draw for children widgets as if they have the same
   /// DebugDrawCompoenent, so that it's enough to add DebugDrawComponent with
   /// recursive=true only to the root widget to visualize the whole tree.
   bool recursive;
   /// text and frame color
   ColorF fgColor = colors.yellow;
+  /// if widget is invisible use that color
+  ColorF hiddenFgColor = ColorF(colors.yellow.r, colors.yellow.g,colors.yellow.b, 0.4);
   /// text background color
   ColorF bgColor = colors.black;
+  ColorF hiddenBgColor = ColorF(colors.black.r, colors.black.g,colors.black.b, 0.4);
 }
 
 unittest {

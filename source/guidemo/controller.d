@@ -8,7 +8,8 @@ import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.model : ModelTracker;
-import yguilib.widget.drawing_components : TextLabel;
+import yguilib.widget : WidgetUpdateScope;
+import yguilib.widget.drawing_components : DebugDrawComponent, TextLabel;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
   JustifyContent;
 
@@ -199,6 +200,11 @@ private:
     auto model = tracker.edit();
     const size_t prevPage = model.activePage;
 
+    if (isKey(ev, Keycode.f12, Scancode.f12)) {
+      toggleDebugDraw();
+      tracker.commit(model);
+      return true;
+    }
     if (isKey(ev, Keycode.tab, Scancode.tab)) {
       model.activePage = (model.activePage + 1) % 5;
       consumed = true;
@@ -227,6 +233,30 @@ private:
       syncActiveTab(newPage);
     }
     return consumed;
+  }
+
+  void toggleDebugDraw() {
+    auto root = app.ui.mainWindow().rootWidget;
+    if (root is null) {
+      return;
+    }
+    if (root.components.debugDraw is null) {
+      auto comp = new DebugDrawComponent();
+      comp.recursive = true;
+      root.components.debugDraw = comp;
+    } else {
+      const bool debugDrawEnabled = root.components.debugDraw.enabled;
+      const bool debugDrawHiddenEnabled = root.components.debugDraw.drawHidden;
+      if (debugDrawEnabled && debugDrawHiddenEnabled) {
+        root.components.debugDraw.enabled = false;
+        root.components.debugDraw.drawHidden = false;
+      }
+      else if (debugDrawEnabled)
+        root.components.debugDraw.drawHidden = true;
+      else
+        root.components.debugDraw.enabled = true;
+    }
+    root.update(WidgetUpdateScope.visuals);
   }
 
   static bool handlePageShortcutKey(in AppEvent ev, DemoModel model) {

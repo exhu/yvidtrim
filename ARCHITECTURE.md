@@ -130,7 +130,8 @@ UiSystemController.updateView() ──► WidgetSystemPipeline.updateAndRender()
   │     └─► postLayoutSystems.postLayout(ctx) (ScrollSystem feedback)
   │
   ├─► 3. Render Phase (if rootWidget.isTreeDirty()):
-  │     └─► WidgetPainterSystem draws backgrounds, borders, text, customDraw
+  │     ├─► WidgetPainterSystem draws backgrounds, borders, text, customDraw
+  │     └─► DebugDrawSystem (debug only) draws unclipped outlines & labels
   │
   └─► 4. Buffer Swap: Window.swapBuffers()
 ```

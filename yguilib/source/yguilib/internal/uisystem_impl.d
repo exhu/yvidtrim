@@ -20,6 +20,9 @@ import yguilib.widget.internal.input_system;
 import yguilib.widget.internal.layout_system : LayoutSystem;
 import yguilib.widget.internal.system_pipeline : WidgetSystemPipeline;
 import yguilib.widget.internal.widget_painter : WidgetPainterSystem;
+debug {
+  import yguilib.widget.internal.debug_draw_system : DebugDrawSystem;
+}
 import yguilib.widget.internal.data_system: DataSystem;
 import yguilib.widget.internal.scroll_system : ScrollSystem;
 import yguilib.widget.system : WidgetSystem;
@@ -37,6 +40,9 @@ class UiSystemImpl : UiSystem {
     pipeline.registerSystem(new LayoutSystem());
     pipeline.registerSystem(new ScrollSystem(this));
     pipeline.registerSystem(new WidgetPainterSystem());
+    debug {
+      pipeline.registerSystem(new DebugDrawSystem());
+    }
     pipeline.registerSystem(new DataSystem());
     fWidgetViewControllers = new ObjectRegistry!WidgetViewController();
     fWidgetViews = new ObjectRegistry!WidgetView();
