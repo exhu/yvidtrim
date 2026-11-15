@@ -34,8 +34,15 @@ final class DemoController : DefaultController {
 
   override bool updateView() {
     view.update();
+    // TODO updateView should be called in tabControlController itself,
+    // it should not be called from any other controller because
+    // tabControlController is pushed into controller stack,
+    // something is missing, probably update event is consumed when tabs are switched via keys, while
+    // tabControlController needs it as well.
+    version(none) {
     if (tabControlController !is null) {
       tabControlController.updateView();
+    }
     }
     return true;
   }
