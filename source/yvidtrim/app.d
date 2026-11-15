@@ -15,6 +15,7 @@ import yguilib.widget.drawing_components : Border;
 import yguilib.widget.layout_components : AlignItems, FlexContainer, Insets,
   JustifyContent;
 import yguilib.window : Window;
+import yvidtrim.uitree.mainview;
 
 import std.logger;
 
@@ -40,6 +41,8 @@ public:
       .bg(ColorF(0.5f, 0.5f, 0.0f, 1.0f))
       .build();
 
+    widgets = makeMainViewWidgets(ui);
+    // TODO move all widget constr
     alphaWidget = WidgetBuilder.make(ui)
       .parent(rootWidget)
       .name("alphaWidget")
@@ -158,14 +161,18 @@ public:
   }
 
 package(yvidtrim):
+  // TODO remove
   Widget rootWidget;
 
 private:
   UiSystem ui;
   ModelTracker!MainModel tracker;
+  MainViewWidgets widgets;
+  FlexContainer fc;
+
+  // TODO remove
   Widget toggleWidget;
   Widget alphaWidget;
-  FlexContainer fc;
   Widget container;
 }
 
