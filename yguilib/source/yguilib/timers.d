@@ -4,37 +4,49 @@ import std.math.algebraic : fabs;
 
 
 // TODO write unittests
-struct TimeCounter {
+/// Time counter primarily for animations. Duration in float type means seconds passed.
+/// Wraps around.
+struct AnimationLoopTimer {
+  /// Append seconds passed.
   void update(float step) {
+    if (paused)
+      return;
     accumulatedSteps += step;
-
+    // wrap around
+    accumulatedSteps = accumulatedSteps % (duration+1);
   }
 
-  /// returns (-n..+n)
-  float progress() {
-    return accumulatedSteps / intervalSeconds;
+  /// resets accumulated time.
+  void stop() {
+    paused = true;
+    accumulatedSteps = 0;
   }
 
-  /// returns [0..1], negative time roundtrips
-  float progressClamped() {
-    return clamp(fabs(progress()), 0f, 1f);
+  void start(float newDuration) {
+    duration = newDuration;
+    accumulatedSteps = 0;
   }
 
-  /// returns [0..1] but as reminder, negative time roundtrips
-  float progressAround() {
-    return clamp(fabs(progress() % intervalSeconds), 0f, 1f);
+  void setPause(bool aPaused) {
+    paused = aPaused;
   }
 
-  float intervalSeconds = 1;
+  /// returns [0..1]
+  float getProgress() {
+    return clamp(accumulatedSteps / duration, 0, 1f);
+  }
 
 private:
   float accumulatedSteps = 0;
+  float duration = 1;
+  bool paused = true;
 
 }
 
+
 /// reusable tool to measure parts of code
 struct MeasureTime {
-  // TODO
+  // TODO querry time via std.datetime or core.time
 
 }
 
