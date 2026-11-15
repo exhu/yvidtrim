@@ -1,9 +1,9 @@
 module yguilib.timers;
 import std.algorithm.comparison : clamp;
 import std.math.algebraic : fabs;
+import std.math.remainder : fmod;
 
 
-// TODO write unittests
 /// Time counter primarily for animations. Duration in float type means seconds passed.
 /// Wraps around.
 struct AnimationLoopTimer {
@@ -13,7 +13,7 @@ struct AnimationLoopTimer {
       return;
     accumulatedSteps += step;
     // wrap around
-    accumulatedSteps = accumulatedSteps % (duration+1);
+    accumulatedSteps = fmod(accumulatedSteps, duration+1);
   }
 
   /// resets accumulated time.
@@ -54,4 +54,20 @@ struct MeasureTime {
 struct MeasureScopeTime {
   // TODO
 
+}
+
+unittest {
+  import std.math.operations : isClose;
+  // Starts paused with zero progress; updates while paused are ignored.
+  AnimationLoopTimer timer;
+  timer.start(1.0);
+  timer.setPause(true);
+  assert(isClose(timer.getProgress(), 0.0f));
+  timer.update(0.5f);
+  assert(isClose(timer.getProgress(), 0.0f));
+  timer.setPause(false);
+  timer.update(0.5f);
+  assert(isClose(timer.getProgress(), 0.5f));
+  timer.update(0.5f);
+  assert(isClose(timer.getProgress(), 1f));
 }
