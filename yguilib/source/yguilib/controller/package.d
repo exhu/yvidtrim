@@ -108,9 +108,10 @@ class DefaultController : Controller {
     uiSystem.sendAppEvent(ev);
   }
 
-  /// request additional update (e.g. when thread updated the model)
+  /// request additional update (e.g. when thread updated the model, or there's
+  /// shared model in controllers)
   void sendUpdate() {
-    sendAppEvent(AppEvent(AppEvent.Kind.update));
+    sendAppEvent(AppEvent.makeNoRepeat(AppEvent.Kind.update));
   }
 
   void sendQuit() {

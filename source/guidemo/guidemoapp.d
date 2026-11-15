@@ -56,16 +56,22 @@ import guidemo.controller : DemoController;
 import guidemo.hover_button : HoverButtonController;
 import guidemo.hover_button_system : AnimatedHoverButtonSystem;
 
+import guidemo.tabcontrol : registerTabControl;
+
 void main() {
   auto app = App.makeAppWithTitleWh("yguilib feature demo - guidemo", 1280, 720);
+  // register systems here
+  app.ui.registerWidgetSystem(new AnimatedHoverButtonSystem());
+  // register reusable controllers for composite widgets here
+  auto tabControlController = registerTabControl(app.ui);
+  app.ui.pushController(tabControlController);
+  // now create the main app controller, and custom controllers
   auto demoController = new DemoController(app);
   auto hoverButtonController = new HoverButtonController(app.ui);
   demoController.getView().getButtonPage().registerWithController(
     hoverButtonController
   );
   app.ui.pushController(hoverButtonController);
-  app.ui.pushController(demoController.getTabControlController());
-  app.ui.registerWidgetSystem(new AnimatedHoverButtonSystem());
   import std.logger : infof;
   infof("ui = %s", app.ui.dumpInfo());
   infof("root = %s", app.ui.mainWindow.rootWidget.dumpTree());

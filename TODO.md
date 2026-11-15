@@ -1,7 +1,8 @@
-- may be just use ViewComponent on root widget + WidgetView +
-WidgetViewController in demo and everywhere for consistency instead of manually
-created View and Controller?
+- add easy timers to send updates to fix alpha pulse (model.alphaValue) in guidemo page 1
+see controller.d update() where model.alphaValue is modified.
 
+- add events queue stats to catch bugs that trigger too many updates:
+how many events posted, how many per second on average, max events per second.
 
 - Dynamic lists are for another feature to implement.
 

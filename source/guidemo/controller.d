@@ -15,8 +15,7 @@ import yguilib.widget.layout_components : AlignItems, FlexDirection,
 
 import guidemo.model : DemoModel;
 import guidemo.pages.textlabel_page : TextLabelPage;
-import guidemo.tabcontrol : TabControlWidgetViewController, TabsModel,
-  registerTabControl;
+import guidemo.tabcontrol : TabsModel;
 import guidemo.view : DemoView, createHeaderTabsModel, headerTabSwitchEvent;
 
 /// Controller handling keyboard shortcuts, animation ticks, and view updates.
@@ -25,7 +24,6 @@ final class DemoController : DefaultController {
     assert(app !is null);
     super(app.ui);
     this.app = app;
-    tabControlController = registerTabControl(app.ui);
     tracker = ModelTracker!DemoModel(new DemoModel);
     tabsTracker = ModelTracker!TabsModel(createHeaderTabsModel());
     view = new DemoView(tracker, tabsTracker, app.ui);
@@ -34,16 +32,6 @@ final class DemoController : DefaultController {
 
   override bool updateView() {
     view.update();
-    // TODO updateView should be called in tabControlController itself,
-    // it should not be called from any other controller because
-    // tabControlController is pushed into controller stack,
-    // something is missing, probably update event is consumed when tabs are switched via keys, while
-    // tabControlController needs it as well.
-    version(none) {
-    if (tabControlController !is null) {
-      tabControlController.updateView();
-    }
-    }
     return true;
   }
 
@@ -105,10 +93,6 @@ final class DemoController : DefaultController {
 
   DemoView getView() {
     return view;
-  }
-
-  TabControlWidgetViewController getTabControlController() {
-    return tabControlController;
   }
 
 private:
@@ -238,6 +222,7 @@ private:
     tracker.commit(model);
     if (newPage != prevPage) {
       syncActiveTab(newPage);
+      sendUpdate();
     }
     return consumed;
   }
@@ -335,7 +320,6 @@ private:
 
   App app;
   DemoView view;
-  TabControlWidgetViewController tabControlController;
   ModelTracker!DemoModel tracker;
   ModelTracker!TabsModel tabsTracker;
 }
