@@ -18,6 +18,7 @@ yvidtrim/
 ├── source/
 │   ├── yvidtrim/          # Video trimmer entry point, models, controllers
 │   │   ├── app.d          # Application entry point, controller, main view
+│   │   ├── uitree/        # Declarative widget tree construction
 │   │   └── clibs/sdl3.d   # extern(C) D bindings for yvidtrim-clibs
 │   └── guidemo/           # Interactive GUI showcase and verification app
 │       ├── guidemoapp.d   # guidemo entry point and system registration

@@ -6,14 +6,9 @@ import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.events.keyboard : Keycode;
 import yguilib.model : ModelTracker, VersionedModel;
-import colors = yguilib.render.colors;
-import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
-import yguilib.widget.builder : WidgetBuilder;
-import yguilib.widget.drawing_components : Border;
-import yguilib.widget.layout_components : AlignItems, FlexContainer, Insets,
-  JustifyContent;
+import yguilib.widget.layout_components : AlignItems, FlexContainer;
 import yguilib.window : Window;
 import yvidtrim.uitree.mainview;
 
@@ -34,146 +29,45 @@ public:
     this.ui = ui;
     tracker = ModelTracker!MainModel.from(otherTracker);
 
-    rootWidget = WidgetBuilder.make(ui)
-      .name("root")
-      .bounds(10, 10, 200, 200)
-      .view()
-      .bg(ColorF(0.5f, 0.5f, 0.0f, 1.0f))
-      .build();
-
     widgets = makeMainViewWidgets(ui);
-    // TODO move all widget constr
-    alphaWidget = WidgetBuilder.make(ui)
-      .parent(rootWidget)
-      .name("alphaWidget")
-      .bounds(35, 45, 150, 190)
-      .bg(ColorF(0.0f, 1.0f, 0.5f, 0.3f))
-      .border(ColorF(0.0f, 0.0f, 0.5f, 1.0f))
-      .borderWidth(2.0f)
-      .borderStyle(Border.Style.roundDashed)
-      .borderRadius(10.0f)
-      .text("Hello-0123456789")
-      .textColor(ColorF(0.0f, 0.0f, 1.0f, 1.0f))
-      .autoSize()
-      .clipChildren(true)
-      .build();
+    fc = widgets.container.components.flexContainer;
+    assert(fc !is null);
+    fc.alignItems = tracker.model.alignItems;
 
-    toggleWidget = WidgetBuilder.make(ui)
-      .parent(rootWidget)
-      .name("toggleWidget")
-      .bounds(15, 15, 300, 90)
-      .roundBg(ColorF(0.5f, 1.0f, 0.5f, 0.3f))
-      .bgRadius(15.0f)
-      .build();
-
-    // --- layout testing ---
-    container = WidgetBuilder.make(ui)
-      .parent(rootWidget)
-      .name("container")
-      .pos(35, 250)
-      .size(400, 300)
-      .bg(colors.darkGray)
-      .border(colors.brightWhite)
-      .borderWidth(3.0f)
-      .borderStyle(Border.Style.dashed)
-      .flexRow()
-      .gap(8.0f)
-      .justify(JustifyContent.start)
-      .alignItems(tracker.model.alignItems)
-      .children(
-        WidgetBuilder.make(ui)
-          .name("yellowBox")
-          .pos(5, 8)
-          .fixedSize(100.0f, 40.0f)
-          .bg(colors.yellow)
-          .build(),
-        WidgetBuilder.make(ui)
-          .name("brownBox")
-          .pos(15, 18)
-          .fixedSize(110.0f, 50.0f)
-          .bg(colors.brown)
-          .margin(Insets.horizontal(10.0f).withTop(14.0f).withBottom(15.0f))
-          .build()
-      )
-      .build();
-    fc = container.components.flexContainer;
-
-    // TODO demo all other supported flex etc.
-    addRightTopAnchor();
-    addLeftBottomAnchor();
-    addRightBottomAnchor();
-
-    infof("tree = %s", rootWidget.dumpTree());
-
-  }
-
-  void addRightTopAnchor() {
-    WidgetBuilder.make(ui)
-      .parent(rootWidget)
-      .name("rightTopAnchor")
-      .size(30, 30)
-      .bg(colors.red)
-      .anchorRight(0.0f)
-      .anchorTop(3.0f)
-      .build();
-  }
-
-  void addLeftBottomAnchor() {
-    WidgetBuilder.make(ui)
-      .parent(rootWidget)
-      .name("leftBottomAnchor")
-      .size(30, 30)
-      .bg(colors.brightRed)
-      .anchorLeft(3.0f)
-      .anchorBottom(7.0f)
-      .build();
-  }
-
-  void addRightBottomAnchor() {
-    WidgetBuilder.make(ui)
-      .parent(rootWidget)
-      .name("rightBottomAnchor")
-      .size(30, 30)
-      .bg(colors.magenta)
-      .anchorRight(5.0f)
-      .anchorBottom(2.0f)
-      .build();
+    infof("tree = %s", widgets.root.dumpTree());
   }
 
   void update() {
     if (tracker.update()) {
-      if (toggleWidget.visible != tracker.model.toggleVisible) {
-        toggleWidget.visible = tracker.model.toggleVisible;
-        toggleWidget.update(WidgetUpdateScope.layout);
+      if (widgets.toggle.visible != tracker.model.toggleVisible) {
+        widgets.toggle.visible = tracker.model.toggleVisible;
+        widgets.toggle.update(WidgetUpdateScope.layout);
       }
-      if (alphaWidget.components.background !is null &&
-          alphaWidget.components.background.color.a !=
+      if (widgets.alpha.components.background !is null &&
+          widgets.alpha.components.background.color.a !=
           tracker.model.alphaValue) {
-        alphaWidget.components.background.color.a = tracker.model.alphaValue;
-        alphaWidget.update(WidgetUpdateScope.visuals);
+        widgets.alpha.components.background.color.a =
+          tracker.model.alphaValue;
+        widgets.alpha.update(WidgetUpdateScope.visuals);
       }
       if (fc.alignItems != tracker.model.alignItems) {
         fc.alignItems = tracker.model.alignItems;
-        container.update(WidgetUpdateScope.layout);
+        widgets.container.update(WidgetUpdateScope.layout);
         writeln("alignItems=", fc.alignItems);
       }
     }
   }
 
 package(yvidtrim):
-  // TODO remove
-  Widget rootWidget;
+  Widget rootWidget() {
+    return widgets.root;
+  }
 
 private:
   UiSystem ui;
   ModelTracker!MainModel tracker;
   MainViewWidgets widgets;
   FlexContainer fc;
-
-  // TODO remove
-  Widget toggleWidget;
-  Widget alphaWidget;
-  Widget container;
 }
 
 final class MainController : DefaultController {

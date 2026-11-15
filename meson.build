@@ -12,6 +12,7 @@ subdir('yvidtrim-clibs')
 yvidtrim_src = files(
   'source/yvidtrim/app.d',
   'source/yvidtrim/clibs/sdl3.d',
+  'source/yvidtrim/uitree/mainview.d',
 )
 
 yvidtrim_inc = include_directories('source')
