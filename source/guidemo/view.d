@@ -3,7 +3,7 @@
  */
 module guidemo.view;
 
-import guidemo.model : DemoModel, defaultHeaderTabNames;
+import guidemo.model : DebugDrawMode, DemoModel, defaultHeaderTabNames;
 import guidemo.pages.button_page : ButtonPage;
 import guidemo.pages.button_system_page : ButtonSystemPage;
 import guidemo.pages.layout_painter_page : LayoutPainterPage;
@@ -16,7 +16,8 @@ import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiRegistry, UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
-import yguilib.widget.drawing_components : Background, Border, TextLabel;
+import yguilib.widget.drawing_components : Background, Border,
+  DebugDrawComponent, TextLabel;
 import yguilib.widget.layout_components : AlignItems, FlexContainer,
   FlexDirection, Insets, JustifyContent, Size, SizingMode;
 import yguilib.widget.input_components : MouseEvent;
@@ -70,6 +71,7 @@ final class DemoView {
 
     const auto m = tracker.model;
     updatePageVisibilityAndContent(m);
+    updateDebugDraw(m);
     statusLabel.setCaption(formatStatusString(m));
   }
 
@@ -125,6 +127,73 @@ private:
       page5.update(m);
     }
   }
+  void updateDebugDraw(const DemoModel m) {
+    if (m.debugDrawMode == appliedDebugDrawMode &&
+        m.activePage == appliedDebugDrawPage) {
+      return;
+    }
+
+    view.components.debugDraw = null;
+    foreach (size_t i; 0 .. 5) {
+      auto pageRoot = getPageRoot(i);
+      if (pageRoot !is null) {
+        pageRoot.components.debugDraw = null;
+      }
+    }
+
+    Widget target = null;
+    bool drawHidden = false;
+    final switch (m.debugDrawMode) {
+    case DebugDrawMode.off:
+      break;
+    case DebugDrawMode.allVisible:
+      target = view;
+      drawHidden = false;
+      break;
+    case DebugDrawMode.allWithHidden:
+      target = view;
+      drawHidden = true;
+      break;
+    case DebugDrawMode.activePageVisible:
+      target = getPageRoot(m.activePage);
+      drawHidden = false;
+      break;
+    case DebugDrawMode.activePageWithHidden:
+      target = getPageRoot(m.activePage);
+      drawHidden = true;
+      break;
+    }
+
+    if (target !is null) {
+      auto comp = new DebugDrawComponent();
+      comp.enabled = true;
+      comp.recursive = true;
+      comp.drawHidden = drawHidden;
+      target.components.debugDraw = comp;
+    }
+
+    appliedDebugDrawMode = m.debugDrawMode;
+    appliedDebugDrawPage = m.activePage;
+    view.update(WidgetUpdateScope.visuals);
+  }
+
+  Widget getPageRoot(size_t pageIdx) {
+    switch (pageIdx) {
+    case 0:
+      return page1.getRootWidget();
+    case 1:
+      return page2.getRootWidget();
+    case 2:
+      return page3.getRootWidget();
+    case 3:
+      return page4.getRootWidget();
+    case 4:
+      return page5.getRootWidget();
+    default:
+      return null;
+    }
+  }
+
   static string formatPage2Status(const DemoModel m) {
     import std.format : format;
 
@@ -334,6 +403,9 @@ private:
   ButtonPage page3;
   ButtonSystemPage page4;
   TabControlPage page5;
+
+  DebugDrawMode appliedDebugDrawMode = DebugDrawMode.off;
+  size_t appliedDebugDrawPage = 0;
 }
 
 // View header layout construction test
@@ -377,4 +449,56 @@ unittest {
     }
   }
   verifyAllNamed(root);
+
+  // Verify debug draw mode synchronization across all 5 states
+  assert(root.components.debugDraw is null);
+  foreach (size_t i; 0 .. 5) {
+    assert(demoView.getPageRoot(i).components.debugDraw is null);
+  }
+
+  void applyMode(DebugDrawMode mode, size_t pageIdx = 0) {
+    auto m = tracker.edit();
+    m.debugDrawMode = mode;
+    m.activePage = pageIdx;
+    tracker.commit(m);
+    demoView.update();
+  }
+
+  applyMode(DebugDrawMode.allVisible);
+  assert(root.components.debugDraw !is null);
+  assert(root.components.debugDraw.enabled);
+  assert(root.components.debugDraw.recursive);
+  assert(!root.components.debugDraw.drawHidden);
+  foreach (size_t i; 0 .. 5) {
+    assert(demoView.getPageRoot(i).components.debugDraw is null);
+  }
+
+  applyMode(DebugDrawMode.allWithHidden);
+  assert(root.components.debugDraw !is null);
+  assert(root.components.debugDraw.enabled);
+  assert(root.components.debugDraw.recursive);
+  assert(root.components.debugDraw.drawHidden);
+
+  applyMode(DebugDrawMode.activePageVisible, 1);
+  assert(root.components.debugDraw is null);
+  assert(demoView.getPageRoot(0).components.debugDraw is null);
+  assert(demoView.getPageRoot(1).components.debugDraw !is null);
+  assert(demoView.getPageRoot(1).components.debugDraw.enabled);
+  assert(demoView.getPageRoot(1).components.debugDraw.recursive);
+  assert(!demoView.getPageRoot(1).components.debugDraw.drawHidden);
+
+  // Switching page moves DebugDrawComponent to the new active page
+  applyMode(DebugDrawMode.activePageWithHidden, 3);
+  assert(root.components.debugDraw is null);
+  assert(demoView.getPageRoot(1).components.debugDraw is null);
+  assert(demoView.getPageRoot(3).components.debugDraw !is null);
+  assert(demoView.getPageRoot(3).components.debugDraw.enabled);
+  assert(demoView.getPageRoot(3).components.debugDraw.recursive);
+  assert(demoView.getPageRoot(3).components.debugDraw.drawHidden);
+
+  applyMode(DebugDrawMode.off, 3);
+  assert(root.components.debugDraw is null);
+  foreach (size_t i; 0 .. 5) {
+    assert(demoView.getPageRoot(i).components.debugDraw is null);
+  }
 }

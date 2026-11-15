@@ -8,12 +8,11 @@ import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.model : ModelTracker;
-import yguilib.widget : WidgetUpdateScope;
-import yguilib.widget.drawing_components : DebugDrawComponent, TextLabel;
+import yguilib.widget.drawing_components : TextLabel;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
   JustifyContent;
 
-import guidemo.model : DemoModel;
+import guidemo.model : DebugDrawMode, DemoModel;
 import guidemo.pages.textlabel_page : TextLabelPage;
 import guidemo.tabcontrol : TabsModel;
 import guidemo.view : DemoView, createHeaderTabsModel, headerTabSwitchEvent;
@@ -192,7 +191,7 @@ private:
     const size_t prevPage = model.activePage;
 
     if (isKey(ev, Keycode.f12, Scancode.f12)) {
-      toggleDebugDraw();
+      toggleDebugDraw(model);
       tracker.commit(model);
       return true;
     }
@@ -227,28 +226,10 @@ private:
     return consumed;
   }
 
-  void toggleDebugDraw() {
-    auto root = app.ui.mainWindow().rootWidget;
-    if (root is null) {
-      return;
-    }
-    if (root.components.debugDraw is null) {
-      auto comp = new DebugDrawComponent();
-      comp.recursive = true;
-      root.components.debugDraw = comp;
-    } else {
-      const bool debugDrawEnabled = root.components.debugDraw.enabled;
-      const bool debugDrawHiddenEnabled = root.components.debugDraw.drawHidden;
-      if (debugDrawEnabled && debugDrawHiddenEnabled) {
-        root.components.debugDraw.enabled = false;
-        root.components.debugDraw.drawHidden = false;
-      }
-      else if (debugDrawEnabled)
-        root.components.debugDraw.drawHidden = true;
-      else
-        root.components.debugDraw.enabled = true;
-    }
-    root.update(WidgetUpdateScope.visuals);
+  static void toggleDebugDraw(DemoModel model) {
+    size_t next = (cast(size_t) model.debugDrawMode + 1) %
+      (DebugDrawMode.max + 1);
+    model.debugDrawMode = cast(DebugDrawMode) next;
   }
 
   static bool handlePageShortcutKey(in AppEvent ev, DemoModel model) {
@@ -359,4 +340,26 @@ unittest {
   assert(!hrHeader.consume);
   assert(demoCtrl.tracker.model.activePage == 3);
   assert(demoCtrl.tabsTracker.model.activeTab == 3);
+
+  // F12 cycles DebugDrawMode through all 5 states
+  import yguilib.events.builder : KeyAppEventBuilder;
+
+  assert(demoCtrl.tracker.model.debugDrawMode == DebugDrawMode.off);
+  DebugDrawMode[5] expectedModes = [
+    DebugDrawMode.allVisible,
+    DebugDrawMode.allWithHidden,
+    DebugDrawMode.activePageVisible,
+    DebugDrawMode.activePageWithHidden,
+    DebugDrawMode.off,
+  ];
+  foreach (expected; expectedModes) {
+    auto evF12 = KeyAppEventBuilder(AppEvent.Kind.keyDown)
+      .key(Keycode.f12)
+      .scancode(Scancode.f12)
+      .build();
+    auto hrF12 = demoCtrl.handleEvent(evF12);
+    assert(hrF12.result == HandleResult.Result.updateView);
+    assert(hrF12.consume);
+    assert(demoCtrl.tracker.model.debugDrawMode == expected);
+  }
 }

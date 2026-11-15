@@ -8,9 +8,19 @@ import yguilib.widget.drawing_components : TextLabel;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
   JustifyContent;
 
+/// Debug draw visualization mode cycled via F12.
+enum DebugDrawMode {
+  off,
+  allVisible,
+  allWithHidden,
+  activePageVisible,
+  activePageWithHidden,
+}
+
 /// Model holding interactive state for the demo.
 final class DemoModel : VersionedModel {
   size_t activePage = 0;
+  DebugDrawMode debugDrawMode = DebugDrawMode.off;
 
   // Page 1 state (Layout & Painter)
   JustifyContent justify = JustifyContent.start;
