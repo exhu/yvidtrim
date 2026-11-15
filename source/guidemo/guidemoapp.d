@@ -57,8 +57,7 @@ import guidemo.hover_button : HoverButtonController;
 import guidemo.hover_button_system : AnimatedHoverButtonSystem;
 
 void main() {
-  auto window = new Window(1280, 720, "yguilib feature demo - guidemo");
-  auto app = new App(window);
+  auto app = App.makeAppWithTitleWh("yguilib feature demo - guidemo", 1280, 720);
   auto demoController = new DemoController(app);
   auto hoverButtonController = new HoverButtonController(app.ui);
   demoController.getView().getButtonPage().registerWithController(
@@ -69,7 +68,7 @@ void main() {
   app.ui.registerWidgetSystem(new AnimatedHoverButtonSystem());
   import std.logger : infof;
   infof("ui = %s", app.ui.dumpInfo());
-  infof("root = %s", window.rootWidget.dumpTree());
-  infof("root simple = %s", window.rootWidget.dumpSimpleTree());
+  infof("root = %s", app.ui.mainWindow.rootWidget.dumpTree());
+  infof("root simple = %s", app.ui.mainWindow.rootWidget.dumpSimpleTree());
   app.run(demoController);
 }

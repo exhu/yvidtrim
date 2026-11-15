@@ -142,7 +142,7 @@ private:
 }
 
 void main() {
-  auto window = new Window(1280, 720, "yvidtrim");
-  auto app = new App(window);
+  // TODO parse cmdline arguments
+  auto app = App.makeAppWithTitleWh("yvidtrim", 1280, 720);
   app.run(new MainController(app));
 }
