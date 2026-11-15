@@ -1,6 +1,14 @@
 # yvidtrim
 Video trimming tool
 
+This is a research project (although of a practical necessity) to grasp how LLM
+assistance could help develop a new thing in niche tech (that's why D language,
+new gui lib instead of bindings to c++ lib or electron etc).
+
+MVP is a working app with gui lib covering the basic needs of it. UI is
+constructed by code. The final goal is to build a reusable gui lib beyond this
+app with a visual WYSIWYG editor.
+
 ## How to build
 dub.json is used only for code completion, use meson+ninja to build:
 ```
@@ -23,26 +31,26 @@ updating and editing the related C code.
 
 ## Wrapper C libraries
 Each wrapper library uses only one C/C++ third-party library and is named
-following the pattern "<project>_LIBRARY_NAME", e.g. for sdl3 it will be
-"yvidtrim_sdl3" or "yguilib_sdl3".
+following the pattern `<project>_LIBRARY_NAME`, e.g. for sdl3 it will be
+`yvidtrim_sdl3` or `yguilib_sdl3`.
 
 Each wrapper C library's public interface bindings are declared in a
-corresponding D module in "./source/yvidtrim/clibs/" (for yvidtrim) or
-"./yguilib/source/yguilib/clibs/" (for yguilib),
-e.g. "./source/yvidtrim/clibs/sdl3.d" for "./yvidtrim-clibs/yvidtrim_sdl3.h",
-or "./yguilib/source/yguilib/clibs/sdl3.d" for
-"./yguilib/yguilib-clibs/yguilib_sdl3.h".
+corresponding D module in `./source/yvidtrim/clibs/` (for yvidtrim) or
+`./yguilib/source/yguilib/clibs/` (for yguilib),
+e.g. `./source/yvidtrim/clibs/sdl3.d` for `./yvidtrim-clibs/yvidtrim_sdl3.h`,
+or `./yguilib/source/yguilib/clibs/sdl3.d` for
+`./yguilib/yguilib-clibs/yguilib_sdl3.h`.
 
 Each public symbol in a wrapper library is prefixed with the library name,
-e.g. "yvidtrim_sdl3_" for "yvidtrim_sdl3" library, or "yguilib_sdl3_" for
-"yguilib_sdl3".
+e.g. `yvidtrim_sdl3_` for `yvidtrim_sdl3` library, or `yguilib_sdl3_` for
+`yguilib_sdl3`.
 
 This is why meson is used to build D code as well as the wrappers.
 
 ## yguilib
-./yguilib is an independent GUI library that uses SDL3 (via
-yguilib/yguilib-clibs). Sources in ./yguilib/ must not depend on
-./source/yvidtrim or ./yvidtrim-clibs.
+`./yguilib` is an independent GUI library that uses SDL3 (via
+`yguilib/yguilib-clibs`). Sources in `./yguilib/` must not depend on
+`./source/yvidtrim` or `./yvidtrim-clibs`.
 
 Dependency on SDL3_image
 

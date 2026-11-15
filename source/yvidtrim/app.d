@@ -26,14 +26,6 @@ final class MainModel : VersionedModel {
   AlignItems alignItems;
 }
 
-// TODO 1) widgets will not have bindings,
-// instead all updates to widgest are performed in code in update()
-// 2) a group of widgets may make a subview/composite
-// 3) implement a view builder, where the models are accessed via
-// introspection, and the update() checks which models changed,
-// calls setters on the widgets and calls update() on widgets.
-// widgets usually should not update on changing their properties.
-
 final class MainView {
 public:
   this(UiSystem ui, ref ModelTracker!MainModel otherTracker) {
