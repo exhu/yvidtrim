@@ -1,4 +1,5 @@
 module yguilib.timers;
+import core.time : MonoTime, ticksToNSecs;
 import std.algorithm.comparison : clamp;
 import std.math.remainder : fmod;
 
@@ -80,7 +81,7 @@ private:
 
 
 /// reusable tool to measure parts of code
-struct StopWatchMs {
+struct StopWatchNs {
   void reset() {
     fElapsed = 0;
     running = false;
@@ -103,21 +104,23 @@ struct StopWatchMs {
     }
   }
 
-  /// time passed in milliseconds
-  ulong elapsed() {
+  /// time passed in nanoseconds
+  long elapsed() {
     return fElapsed;
   }
 
 private:
-  ulong currentTime() {
-    // TODO querry time via std.datetime or core.time
-    return 0;
+  long currentTime() {
+    return  ticksToNSecs(MonoTime.currTime.ticks);
   }
   void updateElapsed() {
-    fElapsed += currentTime() - startTime;
+    const long current = currentTime();
+    fElapsed += current - startTime;
+    startTime = current;
   }
-  ulong startTime = 0;
-  ulong fElapsed;
+
+  long startTime = 0;
+  long fElapsed = 0;
   bool running = false;
 }
 
@@ -178,4 +181,29 @@ unittest {
   assert(isClose(timer.getProgress(), 0.5f));
   timer.update(0.5f);
   assert(isClose(timer.getProgress(), 0.0f));
+}
+
+unittest {
+  import core.thread : Thread;
+  import core.time : msecs;
+
+  StopWatchNs sw;
+  assert(sw.elapsed() == 0);
+
+  sw.start();
+  Thread.sleep(2.msecs);
+  sw.update();
+  const ulong first = sw.elapsed();
+  assert(first > 0);
+
+  sw.stop();
+  const ulong stopped = sw.elapsed();
+  assert(stopped >= first);
+
+  Thread.sleep(2.msecs);
+  sw.update();
+  assert(sw.elapsed() == stopped);
+
+  sw.reset();
+  assert(sw.elapsed() == 0);
 }
