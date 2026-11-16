@@ -80,9 +80,45 @@ private:
 
 
 /// reusable tool to measure parts of code
-struct MeasureTime {
-  // TODO querry time via std.datetime or core.time
+struct StopWatchMs {
+  void reset() {
+    fElapsed = 0;
+    running = false;
+  }
 
+  void start() {
+    running = true;
+    startTime = currentTime();
+  }
+
+  void update() {
+    if (running)
+      updateElapsed();
+  }
+
+  void stop() {
+    if (running) {
+      running = false;
+      updateElapsed();
+    }
+  }
+
+  /// time passed in milliseconds
+  ulong elapsed() {
+    return fElapsed;
+  }
+
+private:
+  ulong currentTime() {
+    // TODO querry time via std.datetime or core.time
+    return 0;
+  }
+  void updateElapsed() {
+    fElapsed += currentTime() - startTime;
+  }
+  ulong startTime = 0;
+  ulong fElapsed;
+  bool running = false;
 }
 
 /// gets time in constructor and destructor, dumps duration
