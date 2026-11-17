@@ -62,3 +62,15 @@ rdmd .agents/skills/build-and-test/scripts/run_verify.d --reconfigure --clean
 - `--clean`: Run `ninja clean` before building.
 - `--test <name>`: Run a specific test name.
 - `-h`, `--help`: Display help and options.
+
+## Adding Meson Unit Test Targets
+
+- Never define `version (unittest) void main() {}` inside library, widget, or
+  application modules—doing so causes duplicate `main` linker errors when
+  modules are combined into unified test binaries (`yguilib_test`,
+  `guidemo_test`).
+- Use the package's shared `test_main.d`
+  (`yguilib/source/yguilib/internal/test_main.d` or
+  `source/guidemo/test_main.d`) in `meson.build` with `d_unittest : true`.
+- When adding a new module with `unittest` blocks, verify it is included in a
+  Meson test target and passes under `meson test -C _build`.

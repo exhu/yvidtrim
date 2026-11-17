@@ -383,6 +383,15 @@ uint32_t yguilib_sdl3_get_scancode_from_name(const char *name);
  */
 const char *yguilib_sdl3_get_scancode_name(uint32_t scancode);
 
+/**
+ * Enables or disables mouse capture for the current window to track mouse
+ * position and button state outside window bounds during dragging.
+ *
+ * @param enabled Non-zero to enable capture, 0 to disable capture.
+ * @return 0 on success, or -1 on failure.
+ */
+int yguilib_sdl3_capture_mouse(int enabled);
+
 #ifdef __cplusplus
 }
 #endif

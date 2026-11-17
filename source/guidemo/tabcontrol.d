@@ -1298,8 +1298,3 @@ unittest {
   assert(tabRoot.released);
   assert(tabsContainer.released);
 }
-
-version (unittest) {
-  void main() {
-  }
-}

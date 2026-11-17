@@ -24,9 +24,10 @@ yvidtrim/
 │       ├── guidemoapp.d   # guidemo entry point and system registration
 │       ├── controller.d   # Demo controller, page routing, keyboard shortcuts
 │       ├── hover_button*.d# Reusable button demos (controller vs system)
+│       ├── scrollbars.d   # Composite Scrollbar widget, view, and controller
 │       ├── tab_button.d   # Reusable header tab buttons in flex container
 │       ├── tabcontrol.d   # Composite TabControl widget, view, and controller
-│       └── pages/         # Showcase views (layout, text, buttons, tabcontrol)
+│       └── pages/         # Showcase views (layout, text, buttons, tab, sb)
 ├── yguilib/               # Independent GUI library (no yvidtrim dependency)
 │   ├── source/yguilib/
 │   │   ├── app.d          # Application wrapper running event loop

@@ -81,6 +81,9 @@ int main(void) {
   int stop_text_res = yguilib_sdl3_stop_text_input(win);
   assert(stop_text_res == 0);
 
+  // Release mouse capture (returns 0 on desktop backends, or -1 if unsupported)
+  (void)yguilib_sdl3_capture_mouse(0);
+
   yguilib_sdl3_gl_destroy_context(ctx);
   yguilib_sdl3_destroy_window(win);
 

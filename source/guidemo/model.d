@@ -49,6 +49,15 @@ final class DemoModel : VersionedModel {
   string page5LastEventName = "none";
   size_t page5LastEventIndex = 0;
 
+  // Page 6 state (Scrollbars Showcase)
+  long page6HScroll = 0;
+  long page6VScroll = 0;
+  long page6LiveValue = 250;
+  size_t page6LiveEventCount = 0;
+  long page6ReleaseValue = 250;
+  size_t page6ReleaseEventCount = 0;
+  long page6PlaygroundValue = 200;
+
   bool quitRequested = false;
 }
 
@@ -59,6 +68,7 @@ immutable string[] defaultHeaderTabNames = [
   "[3] Hover (Ctrl)",
   "[4] Hover (System)",
   "[5] TabControl",
+  "[6] Scrollbars",
 ];
 
 /// Model holding header tab names and active tab index.
@@ -69,6 +79,7 @@ final class HeaderTabsModel : VersionedModel {
     "[3] Hover (Ctrl)",
     "[4] Hover (System)",
     "[5] TabControl",
+    "[6] Scrollbars",
   ];
   size_t activeTab = 0;
 }

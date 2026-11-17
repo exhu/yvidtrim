@@ -14,6 +14,9 @@ import yguilib.widget.layout_components : AlignItems, FlexDirection,
   JustifyContent;
 
 import guidemo.model : DebugDrawMode, DemoModel;
+import guidemo.pages.scrollbars_page : page6HScrollEvent,
+  page6LiveScrollEvent, page6PlaygroundScrollEvent, page6ReleaseScrollEvent,
+  page6VScrollEvent;
 import guidemo.pages.textlabel_page : TextLabelPage;
 import guidemo.tabcontrol : TabsModel;
 import guidemo.view : DemoView, createHeaderTabsModel, headerTabSwitchEvent;
@@ -105,7 +108,7 @@ private:
     const auto eventName = ev.view.eventName;
     if (eventName == headerTabSwitchEvent) {
       const size_t idx = cast(size_t) ev.view.value[0];
-      if (idx < 5) {
+      if (idx < 6) {
         model.activePage = idx;
       }
       consumeEvent = false;
@@ -116,8 +119,10 @@ private:
     } else if (eventName == "btnCountReset") {
       model.buttonClickCount = 0;
       handled = true;
+    } else if (handlePage5ViewEvent(ev, model, consumeEvent)) {
+      handled = true;
     } else {
-      handled = handlePage5ViewEvent(ev, model, consumeEvent);
+      handled = handlePage6ViewEvent(ev, model);
     }
     const size_t newPage = model.activePage;
     tracker.commit(model);
@@ -188,6 +193,53 @@ private:
     return true;
   }
 
+  bool handlePage6ViewEvent(in AppEvent ev, DemoModel model) {
+    const string eventName = ev.view.eventName;
+    const long val = cast(long) ev.view.value[0];
+    if (eventName == page6HScrollEvent) {
+      model.page6HScroll = val;
+      return true;
+    } else if (eventName == page6VScrollEvent) {
+      model.page6VScroll = val;
+      return true;
+    } else if (eventName == page6LiveScrollEvent) {
+      model.page6LiveValue = val;
+      model.page6LiveEventCount += 1;
+      return true;
+    } else if (eventName == page6ReleaseScrollEvent) {
+      model.page6ReleaseValue = val;
+      model.page6ReleaseEventCount += 1;
+      return true;
+    } else if (eventName == page6PlaygroundScrollEvent) {
+      model.page6PlaygroundValue = val;
+      return true;
+    }
+    return handlePage6Mutation(eventName, model);
+  }
+
+  bool handlePage6Mutation(string eventName, DemoModel model) {
+    auto p6 = view.getScrollbarsPage();
+    if (eventName == "page6VisDec") {
+      p6.shrinkVisibleSize();
+    } else if (eventName == "page6VisInc") {
+      p6.growVisibleSize();
+    } else if (eventName == "page6RangeToggle") {
+      p6.togglePlaygroundRange();
+      model.page6PlaygroundValue = p6.getPlaygroundValue();
+    } else if (eventName == "page6NarrowBar") {
+      p6.narrowPlaygroundBar();
+    } else if (eventName == "page6WidenBar") {
+      p6.widenPlaygroundBar();
+    } else if (eventName == "page6ResetBar") {
+      p6.resetPlayground();
+      model.page6PlaygroundValue = p6.getPlaygroundValue();
+    } else {
+      return false;
+    }
+    sendUpdate();
+    return true;
+  }
+
   bool handleKeyDownEvent(in AppEvent ev) {
     bool consumed = false;
     auto model = tracker.edit();
@@ -199,7 +251,7 @@ private:
       return true;
     }
     if (isKey(ev, Keycode.tab, Scancode.tab)) {
-      model.activePage = (model.activePage + 1) % 5;
+      model.activePage = (model.activePage + 1) % 6;
       consumed = true;
     } else if (isKey(ev, Keycode.key1, Scancode.key1)) {
       model.activePage = 0;
@@ -215,6 +267,9 @@ private:
       consumed = true;
     } else if (isKey(ev, Keycode.key5, Scancode.key5)) {
       model.activePage = 4;
+      consumed = true;
+    } else if (isKey(ev, Keycode.key6, Scancode.key6)) {
+      model.activePage = 5;
       consumed = true;
     } else {
       consumed = handlePageShortcutKey(ev, model);
@@ -325,11 +380,16 @@ private:
 
 unittest {
   import yguilib.events.builder : ViewAppEventBuilder;
-  import yguilib.window : Window;
 
-  auto win = new Window(1280, 720, "test_demo_controller");
-  auto app = new App(win);
+  auto app = App.makeAppWithTitleWh("test_demo_controller", 1280, 720);
   auto demoCtrl = new DemoController(app);
+
+  AppEvent makeKeyDown(Keycode k, Scancode sc) {
+    return AppEvent.keyEvent(
+      AppEvent.Kind.keyDown,
+      AppEvent.KeyData(1, k, sc)
+    );
+  }
 
   // Page 5 TabControl switch events must not be consumed by DemoController so
   // TabControlWidgetViewController on the stack also receives them.
@@ -360,8 +420,6 @@ unittest {
   assert(demoCtrl.tabsTracker.model.activeTab == 3);
 
   // F12 cycles DebugDrawMode through all 5 states
-  import yguilib.events.builder : KeyAppEventBuilder;
-
   assert(demoCtrl.tracker.model.debugDrawMode == DebugDrawMode.off);
   DebugDrawMode[5] expectedModes = [
     DebugDrawMode.allVisible,
@@ -371,10 +429,7 @@ unittest {
     DebugDrawMode.off,
   ];
   foreach (expected; expectedModes) {
-    auto evF12 = KeyAppEventBuilder(AppEvent.Kind.keyDown)
-      .key(Keycode.f12)
-      .scancode(Scancode.f12)
-      .build();
+    auto evF12 = makeKeyDown(Keycode.f12, Scancode.f12);
     auto hrF12 = demoCtrl.handleEvent(evF12);
     assert(hrF12.result == HandleResult.Result.updateView);
     assert(hrF12.consume);
@@ -382,10 +437,7 @@ unittest {
   }
 
   // Page 1 alpha pulse animates with 16ms timeout and pauses off Page 1
-  auto evKey1 = KeyAppEventBuilder(AppEvent.Kind.keyDown)
-    .key(Keycode.key1)
-    .scancode(Scancode.key1)
-    .build();
+  auto evKey1 = makeKeyDown(Keycode.key1, Scancode.key1);
   auto hrPage1 = demoCtrl.handleEvent(evKey1);
   assert(hrPage1.timeoutMs == 16);
   const float alphaBefore = demoCtrl.tracker.model.alphaValue;
@@ -394,10 +446,23 @@ unittest {
   assert(hrTick.timeoutMs == 16);
   assert(demoCtrl.tracker.model.alphaValue != alphaBefore);
 
-  auto evKey2 = KeyAppEventBuilder(AppEvent.Kind.keyDown)
-    .key(Keycode.key2)
-    .scancode(Scancode.key2)
-    .build();
+  auto evKey2 = makeKeyDown(Keycode.key2, Scancode.key2);
   auto hrPage2 = demoCtrl.handleEvent(evKey2);
   assert(hrPage2.timeoutMs == -1);
+
+  // Page 6 key switch & scrollbar event handling
+  auto evKey6 = makeKeyDown(Keycode.key6, Scancode.key6);
+  auto hrPage6 = demoCtrl.handleEvent(evKey6);
+  assert(hrPage6.consume);
+  assert(demoCtrl.tracker.model.activePage == 5);
+  assert(demoCtrl.tabsTracker.model.activeTab == 5);
+
+  auto evHScroll = ViewAppEventBuilder(page6HScrollEvent).value(120).build();
+  assert(demoCtrl.handleEvent(evHScroll).consume);
+  assert(demoCtrl.tracker.model.page6HScroll == 120);
+
+  auto evLive = ViewAppEventBuilder(page6LiveScrollEvent).value(480).build();
+  assert(demoCtrl.handleEvent(evLive).consume);
+  assert(demoCtrl.tracker.model.page6LiveValue == 480);
+  assert(demoCtrl.tracker.model.page6LiveEventCount == 1);
 }

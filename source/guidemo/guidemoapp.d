@@ -33,9 +33,9 @@
  * update this demo with dedicated visual sections and interactive controls.
  *
  * KEYBOARD CONTROLS:
- *   [Tab]/[1-5]   Switch demo page (Page 1: Layout, Page 2: TextLabel,
+ *   [Tab]/[1-6]   Switch demo page (Page 1: Layout, Page 2: TextLabel,
  *                 Page 3: Hover Ctrl, Page 4: Hover System,
- *                 Page 5: TabControl)
+ *                 Page 5: TabControl, Page 6: Scrollbars)
  *   [M]           Toggle multiline on interactive TextLabel
  *   [E]           Toggle overflow ellipsis on interactive TextLabel
  *   [L]           Cycle horizontal alignment (left -> center -> right)
@@ -55,7 +55,7 @@ import yguilib.window : Window;
 import guidemo.controller : DemoController;
 import guidemo.hover_button : HoverButtonController;
 import guidemo.hover_button_system : AnimatedHoverButtonSystem;
-
+import guidemo.scrollbars : registerScrollbars;
 import guidemo.tabcontrol : registerTabControl;
 
 void main() {
@@ -65,6 +65,8 @@ void main() {
   // register reusable controllers for composite widgets here
   auto tabControlController = registerTabControl(app.ui);
   app.ui.pushController(tabControlController);
+  auto scrollbarController = registerScrollbars(app.ui);
+  app.ui.pushController(scrollbarController);
   // now create the main app controller, and custom controllers
   auto demoController = new DemoController(app);
   auto hoverButtonController = new HoverButtonController(app.ui);

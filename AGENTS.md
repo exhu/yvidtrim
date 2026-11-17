@@ -9,6 +9,11 @@ ninja -C _build             # Build
 meson test -C _build        # Run tests
 meson setup _build .        # Setup (or --reconfigure)
 ```
+- Always run unit tests through `meson test -C _build` (never ad-hoc
+  `ldc2 -unittest` commands). Ensure every module with `unittest` blocks is
+  covered by a Meson test target using a shared `test_main.d`, and do not add
+  per-module `version (unittest) void main()` stubs that block unified test
+  executables.
 
 ## Architecture & Wrapper Rules
 - **No Direct C/C++ in D**: Never import external C headers or auto-bind.

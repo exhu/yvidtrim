@@ -3,6 +3,7 @@ module yguilib.widget.internal.input_system;
 package(yguilib):
 
 import std.algorithm.searching : canFind;
+import yguilib.clibs.sdl3 : yguilib_sdl3_capture_mouse;
 import yguilib.widget.internal.focus_system;
 import yguilib.widget.system : SystemEventResult, SystemPhase,
   WidgetSystem, WidgetSystemContext, WidgetSystemHost;
@@ -74,6 +75,12 @@ final class InputSystem : WidgetSystem {
         pw = null;
       }
     }
+    syncCursorCapture();
+  }
+
+  /// Returns true if cursor capture is currently active on the window.
+  @property bool isCursorCaptured() const nothrow @safe {
+    return hasCursorCapture;
   }
 
   /// Handles incoming input events.
@@ -134,13 +141,17 @@ private:
         if (!w.inputEnabled)
           return;
 
-        if (btn < maxMouseButtons)
+        if (btn < maxMouseButtons) {
           pressedWidgets[btn] = w;
+          syncCursorCapture();
+        }
 
         if (w.components.mouseEvent.mouseDown.length > 0) {
           const float lx = p.x - vw.absRect.x;
           const float ly = p.y - vw.absRect.y;
-          auto val = MouseEvent.AppEventViewValue.pack(lx, ly, btn, true);
+          auto val = MouseEvent.AppEventViewValue.pack(
+            lx, ly, btn, true, 0.0f, 0.0f, p.x, p.y
+          );
           sendMouseEvent(w, w.components.mouseEvent.mouseDown, val);
         }
         return;
@@ -160,6 +171,7 @@ private:
 
     Widget target = pressedWidgets[btn];
     pressedWidgets[btn] = null;
+    syncCursorCapture();
 
     if (!target.inputEnabled)
       return;
@@ -168,20 +180,15 @@ private:
         target.components.mouseEvent.mouseUp.length == 0)
       return;
 
-    RectF targetRect = target.rect;
+    RectF targetRect;
     bool inside = false;
-    const idx = findVisibleWidgetIndex(widgets, target);
-    if (idx >= 0) {
-      targetRect = widgets[idx].absRect;
-      inside = isHit(widgets[idx], p);
-    } else {
-      targetRect = computeWidgetAbsRect(target);
-      inside = targetRect.contains(p);
-    }
+    resolveWidgetRectAndHit(widgets, target, p, targetRect, inside);
 
     const float lx = p.x - targetRect.x;
     const float ly = p.y - targetRect.y;
-    auto val = MouseEvent.AppEventViewValue.pack(lx, ly, btn, inside);
+    auto val = MouseEvent.AppEventViewValue.pack(
+      lx, ly, btn, inside, 0.0f, 0.0f, p.x, p.y
+    );
     sendMouseEvent(target, target.components.mouseEvent.mouseUp, val);
   }
 
@@ -195,6 +202,71 @@ private:
     lastMousePos = p;
     hasLastMousePos = true;
     updateHoverState(p, widgets, true);
+    dispatchMouseDrag(
+      p,
+      PointF(event.mouse.xrel, event.mouse.yrel),
+      widgets
+    );
+  }
+
+  void dispatchMouseDrag(
+    PointF p,
+    PointF rel,
+    VisibleWidgets widgets
+  ) {
+    foreach (size_t i, Widget target; pressedWidgets) {
+      if (target is null || target.released || !target.inputEnabled) {
+        continue;
+      }
+      auto me = target.components.mouseEvent;
+      if (me is null || me.mouseDrag.length == 0) {
+        continue;
+      }
+
+      RectF targetRect;
+      bool inside = false;
+      resolveWidgetRectAndHit(widgets, target, p, targetRect, inside);
+
+      const float lx = p.x - targetRect.x;
+      const float ly = p.y - targetRect.y;
+      auto val = MouseEvent.AppEventViewValue.pack(
+        lx, ly, cast(ubyte) i, inside, rel.x, rel.y, p.x, p.y
+      );
+      sendMouseEvent(target, me.mouseDrag, val);
+    }
+  }
+
+  static void resolveWidgetRectAndHit(
+    VisibleWidgets widgets,
+    Widget target,
+    PointF p,
+    out RectF targetRect,
+    out bool inside
+  ) {
+    const idx = findVisibleWidgetIndex(widgets, target);
+    if (idx >= 0) {
+      targetRect = widgets[idx].absRect;
+      inside = isHit(widgets[idx], p);
+    } else {
+      targetRect = computeWidgetAbsRect(target);
+      inside = targetRect.contains(p);
+    }
+  }
+
+  void syncCursorCapture() {
+    bool shouldCapture = false;
+    foreach (pw; pressedWidgets) {
+      if (pw !is null && !pw.released && pw.inputEnabled &&
+          pw.components.mouseEvent !is null &&
+          pw.components.mouseEvent.captureCursor) {
+        shouldCapture = true;
+        break;
+      }
+    }
+    if (shouldCapture != hasCursorCapture) {
+      hasCursorCapture = shouldCapture;
+      yguilib_sdl3_capture_mouse(shouldCapture ? 1 : 0);
+    }
   }
 
   void handleWindowMouseLeave(VisibleWidgets widgets) {
@@ -249,7 +321,9 @@ private:
             entry.widget.components.mouseEvent.mouseLeave.length > 0) {
           const float lx = p.x - entry.absRect.x;
           const float ly = p.y - entry.absRect.y;
-          auto val = MouseEvent.AppEventViewValue.pack(lx, ly, 0, false);
+          auto val = MouseEvent.AppEventViewValue.pack(
+            lx, ly, 0, false, 0.0f, 0.0f, p.x, p.y
+          );
           sendMouseEvent(
             entry.widget, entry.widget.components.mouseEvent.mouseLeave, val
           );
@@ -266,7 +340,9 @@ private:
       const wasHovered = containsWidget(hoveredWidgets, entry.widget);
       const float lx = p.x - entry.absRect.x;
       const float ly = p.y - entry.absRect.y;
-      auto val = MouseEvent.AppEventViewValue.pack(lx, ly, 0, true);
+      auto val = MouseEvent.AppEventViewValue.pack(
+        lx, ly, 0, true, 0.0f, 0.0f, p.x, p.y
+      );
 
       if (!wasHovered &&
           entry.widget.components.mouseEvent.mouseEnter.length > 0) {
@@ -300,6 +376,7 @@ private:
   HoverEntry[] hoveredWidgets;
   HoverEntry[] hoverScratch;
   Widget[maxMouseButtons] pressedWidgets;
+  bool hasCursorCapture = false;
   PointF lastMousePos;
   bool hasLastMousePos = false;
   FocusSystem focusSystem;
@@ -995,4 +1072,79 @@ unittest {
   assert(testUi.sentEvents.length == 2);
   assert(testUi.sentEvents[0].view.eventName == "childEnter");
   assert(testUi.sentEvents[1].view.eventName == "parentEnter");
+}
+
+// Verifies mouseDrag delivery inside/outside bounds and cursor capture state.
+unittest {
+  import yguilib.widget.test_fixture : WidgetFixture;
+
+  auto fix = new WidgetFixture();
+  auto testUi = new TestUiSystem;
+  auto inputSys = new InputSystem(testUi);
+
+  auto dragBox = fix.makeRoot(RectF(20, 30, 80, 40));
+  dragBox.inputEnabled = true;
+  dragBox.components.mouseEvent = new MouseEvent;
+  dragBox.components.mouseEvent.mouseDown = "dragDown";
+  dragBox.components.mouseEvent.mouseDrag = "dragMove";
+  dragBox.components.mouseEvent.mouseUp = "dragUp";
+  dragBox.components.mouseEvent.captureCursor = true;
+
+  VisibleWidgets vis = [
+    VisibleWidget(dragBox, RectF(20, 30, 80, 40), false, RectF.init)
+  ];
+
+  // Press inside dragBox activates cursor capture
+  assert(!inputSys.isCursorCaptured);
+  auto downEv = AppEvent.mouseEvent(
+    AppEvent.Kind.mouseButtonDown,
+    AppEvent.MouseData(1, 50.0f, 45.0f, 0, 0, 0, 1, true, 1)
+  );
+  inputSys.handleEventAndUpdateView(downEv, vis);
+  assert(inputSys.isCursorCaptured);
+  assert(testUi.sentEvents.length == 1);
+  assert(testUi.sentEvents[0].view.eventName == "dragDown");
+  auto downVal = MouseEvent.AppEventViewValue.fromRaw(
+    testUi.sentEvents[0].view.value
+  );
+  assert(downVal.windowX == 50.0f);
+  assert(downVal.windowY == 45.0f);
+
+  // Dragging outside widget bounds still emits mouseDrag with window & rel
+  testUi.sentEvents = null;
+  auto dragOutsideEv = AppEvent.mouseEvent(
+    AppEvent.Kind.mouseMotion,
+    AppEvent.MouseData(1, 220.0f, 15.0f, 1, 170.0f, -30.0f, 0, false, 0)
+  );
+  inputSys.handleEventAndUpdateView(dragOutsideEv, vis);
+  assert(testUi.sentEvents.length == 1);
+  assert(testUi.sentEvents[0].view.eventName == "dragMove");
+  auto dragVal = MouseEvent.AppEventViewValue.fromRaw(
+    testUi.sentEvents[0].view.value
+  );
+  assert(dragVal.buttons == 1);
+  assert(!dragVal.inside);
+  assert(dragVal.localX == 200.0f);
+  assert(dragVal.localY == -15.0f);
+  assert(dragVal.relX == 170.0f);
+  assert(dragVal.relY == -30.0f);
+  assert(dragVal.windowX == 220.0f);
+  assert(dragVal.windowY == 15.0f);
+
+  // Releasing outside releases cursor capture and fires mouseUp
+  testUi.sentEvents = null;
+  auto upOutsideEv = AppEvent.mouseEvent(
+    AppEvent.Kind.mouseButtonUp,
+    AppEvent.MouseData(1, 220.0f, 15.0f, 0, 0, 0, 1, false, 1)
+  );
+  inputSys.handleEventAndUpdateView(upOutsideEv, vis);
+  assert(!inputSys.isCursorCaptured);
+  assert(testUi.sentEvents.length == 1);
+  assert(testUi.sentEvents[0].view.eventName == "dragUp");
+
+  // Releasing widget mid-drag also clears cursor capture
+  inputSys.handleEventAndUpdateView(downEv, vis);
+  assert(inputSys.isCursorCaptured);
+  inputSys.onWidgetReleased(dragBox);
+  assert(!inputSys.isCursorCaptured);
 }

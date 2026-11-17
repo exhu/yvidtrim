@@ -442,3 +442,10 @@ uint32_t yguilib_sdl3_get_scancode_from_name(const char *name) {
 const char *yguilib_sdl3_get_scancode_name(uint32_t scancode) {
   return SDL_GetScancodeName((SDL_Scancode)scancode);
 }
+
+int yguilib_sdl3_capture_mouse(int enabled) {
+  if (!g_sdl_initialized) {
+    return -1;
+  }
+  return SDL_CaptureMouse(enabled != 0) ? 0 : -1;
+}

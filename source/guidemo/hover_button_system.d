@@ -858,8 +858,3 @@ unittest {
   sys.onWidgetReleased(gradBtn);
   assert(!sys.isAnyAnimating());
 }
-
-version (unittest) {
-  void main() {
-  }
-}

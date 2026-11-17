@@ -719,6 +719,7 @@ extern(C) {
   uint yguilib_sdl3_get_key_from_name(const(char)* name);
   uint yguilib_sdl3_get_scancode_from_name(const(char)* name);
   const(char)* yguilib_sdl3_get_scancode_name(uint scancode);
+  int yguilib_sdl3_capture_mouse(int enabled);
 }
 
 unittest {

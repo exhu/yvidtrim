@@ -7,6 +7,7 @@ import guidemo.model : DebugDrawMode, DemoModel, defaultHeaderTabNames;
 import guidemo.pages.button_page : ButtonPage;
 import guidemo.pages.button_system_page : ButtonSystemPage;
 import guidemo.pages.layout_painter_page : LayoutPainterPage;
+import guidemo.pages.scrollbars_page : ScrollbarsPage;
 import guidemo.pages.tabcontrol_page : TabControlPage;
 import guidemo.pages.textlabel_page : TextLabelPage;
 import guidemo.tabcontrol : TabControlBuilder, TabsModel;
@@ -60,6 +61,8 @@ final class DemoView {
     page4.setVisible(false);
     page5 = new TabControlPage(this.ui, view, this.ui);
     page5.setVisible(false);
+    page6 = new ScrollbarsPage(this.ui, view, this.ui);
+    page6.setVisible(false);
 
     buildStatusBar();
   }
@@ -95,6 +98,10 @@ final class DemoView {
     return page5;
   }
 
+  ScrollbarsPage getScrollbarsPage() {
+    return page6;
+  }
+
 private:
   void updatePageVisibilityAndContent(const DemoModel m) {
     const bool p1Vis = (m.activePage == 0);
@@ -102,16 +109,19 @@ private:
     const bool p3Vis = (m.activePage == 2);
     const bool p4Vis = (m.activePage == 3);
     const bool p5Vis = (m.activePage == 4);
+    const bool p6Vis = (m.activePage == 5);
     if (page1.isVisible() != p1Vis ||
         page2.isVisible() != p2Vis ||
         page3.isVisible() != p3Vis ||
         page4.isVisible() != p4Vis ||
-        page5.isVisible() != p5Vis) {
+        page5.isVisible() != p5Vis ||
+        page6.isVisible() != p6Vis) {
       page1.setVisible(p1Vis);
       page2.setVisible(p2Vis);
       page3.setVisible(p3Vis);
       page4.setVisible(p4Vis);
       page5.setVisible(p5Vis);
+      page6.setVisible(p6Vis);
       view.update(WidgetUpdateScope.layout);
     }
 
@@ -123,8 +133,10 @@ private:
       page3.update(m);
     } else if (p4Vis) {
       page4.update(m);
-    } else {
+    } else if (p5Vis) {
       page5.update(m);
+    } else {
+      page6.update(m);
     }
   }
   void updateDebugDraw(const DemoModel m) {
@@ -134,7 +146,7 @@ private:
     }
 
     view.components.debugDraw = null;
-    foreach (size_t i; 0 .. 5) {
+    foreach (size_t i; 0 .. 6) {
       auto pageRoot = getPageRoot(i);
       if (pageRoot !is null) {
         pageRoot.components.debugDraw = null;
@@ -189,6 +201,8 @@ private:
       return page4.getRootWidget();
     case 4:
       return page5.getRootWidget();
+    case 5:
+      return page6.getRootWidget();
     default:
       return null;
     }
@@ -294,6 +308,20 @@ private:
     );
   }
 
+  static string formatPage6Status(const DemoModel m) {
+    import std.format : format;
+    return format(
+      "[Tab/1-6] Page 6: Scrollbars | Viewport: (%d,%d) | Live: %d (%d) | " ~
+        "Rel: %d (%d) | [Q/Esc] Quit",
+      m.page6HScroll,
+      m.page6VScroll,
+      m.page6LiveValue,
+      m.page6LiveEventCount,
+      m.page6ReleaseValue,
+      m.page6ReleaseEventCount
+    );
+  }
+
   static string formatStatusString(const DemoModel m) {
     if (m.activePage == 1) {
       return formatPage2Status(m);
@@ -306,6 +334,9 @@ private:
     }
     if (m.activePage == 4) {
       return formatPage5Status(m);
+    }
+    if (m.activePage == 5) {
+      return formatPage6Status(m);
     }
     return formatPage1Status(m);
   }
@@ -403,6 +434,7 @@ private:
   ButtonPage page3;
   ButtonSystemPage page4;
   TabControlPage page5;
+  ScrollbarsPage page6;
 
   DebugDrawMode appliedDebugDrawMode = DebugDrawMode.off;
   size_t appliedDebugDrawPage = 0;
@@ -450,9 +482,9 @@ unittest {
   }
   verifyAllNamed(root);
 
-  // Verify debug draw mode synchronization across all 5 states
+  // Verify debug draw mode synchronization across all 6 pages
   assert(root.components.debugDraw is null);
-  foreach (size_t i; 0 .. 5) {
+  foreach (size_t i; 0 .. 6) {
     assert(demoView.getPageRoot(i).components.debugDraw is null);
   }
 
@@ -469,7 +501,7 @@ unittest {
   assert(root.components.debugDraw.enabled);
   assert(root.components.debugDraw.recursive);
   assert(!root.components.debugDraw.drawHidden);
-  foreach (size_t i; 0 .. 5) {
+  foreach (size_t i; 0 .. 6) {
     assert(demoView.getPageRoot(i).components.debugDraw is null);
   }
 
@@ -498,7 +530,7 @@ unittest {
 
   applyMode(DebugDrawMode.off, 3);
   assert(root.components.debugDraw is null);
-  foreach (size_t i; 0 .. 5) {
+  foreach (size_t i; 0 .. 6) {
     assert(demoView.getPageRoot(i).components.debugDraw is null);
   }
 }

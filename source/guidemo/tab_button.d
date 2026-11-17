@@ -258,8 +258,3 @@ unittest {
   assert(container.children[0].components.background.color == tabInactiveBg);
   assert(container.children[2].components.background.color == tabActiveBg);
 }
-
-version (unittest) {
-  void main() {
-  }
-}

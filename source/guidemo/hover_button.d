@@ -736,8 +736,3 @@ unittest {
   gradController.onWidgetReleased(btnRoot);
   assert(gradController.entries.length == 0);
 }
-
-version (unittest) {
-  void main() {
-  }
-}

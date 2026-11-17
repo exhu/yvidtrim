@@ -585,6 +585,22 @@ final class WidgetBuilder {
     return this;
   }
 
+  /// Sets the mouse-drag view event name, enables input, and sets cursor
+  /// capture.
+  WidgetBuilder onMouseDrag(string eventName, bool capture = true) {
+    fWidget.inputEnabled = true;
+    auto me = ensureMouseEvent();
+    me.mouseDrag = eventName;
+    me.captureCursor = capture;
+    return this;
+  }
+
+  /// Enables or disables cursor capture on mouse press for this widget.
+  WidgetBuilder captureCursor(bool capture = true) {
+    ensureMouseEvent().captureCursor = capture;
+    return this;
+  }
+
   /// Attaches a ViewComponent marking this widget as a view boundary.
   WidgetBuilder view() {
     ensureView();

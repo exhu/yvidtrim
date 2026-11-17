@@ -41,7 +41,20 @@ final class MouseEvent : WidgetComponent {
       float localX;
       /// Cursor Y in widget-local space (origin = widget rect left-top).
       float localY;
+      /// Relative X motion since last mouse event.
+      float relX;
+      /// Relative Y motion since last mouse event.
+      float relY;
+      /// Cursor X in window space.
+      float windowX;
+      /// Cursor Y in window space.
+      float windowY;
     }
+
+    static assert(
+      AppEventViewValue.sizeof ==
+        (ulong[AppEvent.ViewData.valueSize]).sizeof
+    );
 
     /// Allows implicit conversion to array for ViewAppEventBuilder.value.
     alias raw this;
@@ -60,7 +73,11 @@ final class MouseEvent : WidgetComponent {
       float localX,
       float localY,
       ubyte buttons = 0,
-      bool inside = true
+      bool inside = true,
+      float relX = 0.0f,
+      float relY = 0.0f,
+      float windowX = 0.0f,
+      float windowY = 0.0f
     ) {
       AppEventViewValue val;
       val.raw = 0;
@@ -68,6 +85,10 @@ final class MouseEvent : WidgetComponent {
       val.inside = inside;
       val.localX = localX;
       val.localY = localY;
+      val.relX = relX;
+      val.relY = relY;
+      val.windowX = windowX;
+      val.windowY = windowY;
       return val;
     }
   }
@@ -85,4 +106,10 @@ final class MouseEvent : WidgetComponent {
   /// mouse is moving over widget abs rect.
   /// NOTE: mouseMove is not sent when outside the widget even after mouseDown.
   string mouseMove;
+  /// Sent on mouse motion while a button pressed on this widget is held down
+  /// (continues firing even when cursor moves outside the widget).
+  string mouseDrag;
+  /// When true, captures mouse cursor to the window while pressed on this
+  /// widget so drag and release events are tracked outside window bounds.
+  bool captureCursor = false;
 }
