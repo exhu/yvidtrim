@@ -162,6 +162,19 @@ drawText(TextParameters().withText("abc").withColor(colors.red));
 
 ```
 
+# UI controllers vs systems and components
+Widget components are smaller features of a widget,
+while controllers implement complex logic that affects
+composite widgets.
+
+Systems and components satisfy the case of parent and child widgets and
+multitude of instances, e.g. input focus tracking, hover effect on a button,
+while WidgetController may be more appropriate when multiple Widgets are at play
+and use named events, e.g. a scrollable list may be implemented with a widget
+tree like (root (scroll-view-container (contents...))(scroll-bar)), so it must
+listen to events of scroll-bar and scroll-view on contents size change or also
+it must accept an array model and pass it to scroll-view-container.
+
 # C coding style
 C code uses the same formatting: 2 spaces, open curly brance on the same line.
 

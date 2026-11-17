@@ -1,12 +1,6 @@
 - Dynamic lists are for another feature to implement.
 
 
-- Systems and components satisfy the case of parent and child widgets and
-multitude of instances, while WidgetController may be more appropriate when
-multiple Widgets are at play, e.g. a scrollable list may be implemented
-with (root (scroll-view-container (contents...))(scroll-bar)), so it must
-listen to events of scroll-bar and scroll-view on contents size change or
-also it must accept an array model and pass it to scroll-view-container.
 
 - first devise reusable composite widgets in code (how to pass models, events,
 reusable views and controllers), then we'll invent a text format to construct
