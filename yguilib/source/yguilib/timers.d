@@ -89,7 +89,7 @@ struct StopWatchNs {
 
   void start() {
     running = true;
-    startTime = currentTime();
+    startTime = currentTimeNs();
   }
 
   void update() {
@@ -110,11 +110,8 @@ struct StopWatchNs {
   }
 
 private:
-  long currentTime() {
-    return  ticksToNSecs(MonoTime.currTime.ticks);
-  }
   void updateElapsed() {
-    const long current = currentTime();
+    const long current = currentTimeNs();
     fElapsed += current - startTime;
     startTime = current;
   }
@@ -127,13 +124,16 @@ private:
 struct Timer {
   /// duration in seconds
   void start(float duration) {
-    this.duration = duration;
+    assert(duration >= 0);
+    durationNs = cast(long)(duration * 1_000_000_000.0);
+    startTimeNs = currentTimeNs();
+    looping = false;
     running = true;
   }
 
   void startLoop(float duration) {
-    looping = true;
     start(duration);
+    looping = true;
   }
 
   void stop() {
@@ -151,12 +151,19 @@ struct Timer {
   bool updateAndTrigger() {
     if (!running)
       return false;
-    // TODO
-    return false;
+    const long now = currentTimeNs();
+    if (now - startTimeNs < durationNs)
+      return false;
+    if (looping)
+      startTimeNs = now;
+    else
+      running = false;
+    return true;
   }
 
 private:
-  float duration = 1;
+  long durationNs = 1_000_000_000;
+  long startTimeNs = 0;
   bool looping = false;
   bool running = false;
 }
@@ -165,6 +172,11 @@ private:
 struct MeasureScopeTime {
   // TODO
 
+}
+
+private:
+long currentTimeNs() {
+  return ticksToNSecs(MonoTime.currTime.ticks);
 }
 
 unittest {
@@ -243,4 +255,43 @@ unittest {
 
   sw.reset();
   assert(sw.elapsed() == 0);
+}
+
+unittest {
+  import core.thread : Thread;
+  import core.time : msecs;
+
+  Timer timer;
+  assert(!timer.updateAndTrigger());
+
+  // Not yet elapsed.
+  timer.start(1.0f);
+  assert(!timer.updateAndTrigger());
+
+  // One-shot triggers once and stops.
+  timer.start(0.005f);
+  Thread.sleep(10.msecs);
+  assert(timer.updateAndTrigger());
+  assert(!timer.updateAndTrigger());
+
+  // Stop prevents triggering even after duration passes.
+  timer.start(0.005f);
+  timer.stop();
+  Thread.sleep(10.msecs);
+  assert(!timer.updateAndTrigger());
+
+  // Looping triggers repeatedly, resetting start point on each trigger.
+  timer.startLoop(0.010f);
+  Thread.sleep(15.msecs);
+  assert(timer.updateAndTrigger());
+  assert(!timer.updateAndTrigger());
+  Thread.sleep(15.msecs);
+  assert(timer.updateAndTrigger());
+
+  // Switching from startLoop to start resets looping to false.
+  timer.start(0.005f);
+  Thread.sleep(10.msecs);
+  assert(timer.updateAndTrigger());
+  Thread.sleep(10.msecs);
+  assert(!timer.updateAndTrigger());
 }
