@@ -607,6 +607,10 @@ unittest {
         w.release();
       }
     }
+    override void setEventStatsEnabled(bool enabled) {}
+    override @property bool eventStatsEnabled() {
+      return false;
+    }
     override string dumpInfo() {
       return "{}";
     }

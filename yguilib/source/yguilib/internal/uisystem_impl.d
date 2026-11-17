@@ -61,6 +61,14 @@ class UiSystemImpl : UiSystem {
     messageBus.send(ev);
   }
 
+  override void setEventStatsEnabled(bool enabled) {
+    messageBus.setStatsEnabled(enabled);
+  }
+
+  override @property bool eventStatsEnabled() {
+    return messageBus.statsEnabled;
+  }
+
   override @property Window mainWindow() {
     return fMainWindow;
   }
@@ -174,6 +182,7 @@ class UiSystemImpl : UiSystem {
         break;
       }
     }
+    messageBus.logStats();
   }
 
   override @property
@@ -1269,4 +1278,18 @@ unittest {
   // Ensure full widget tree fields are not included
   assert("children" !in winJson["rootWidget"].object);
   assert("components" !in winJson["rootWidget"].object);
+}
+
+// Verifies runtime event stats toggling through UiSystem.
+unittest {
+  UiSystem ui = new UiSystemImpl(null);
+  debug {
+    assert(ui.eventStatsEnabled);
+  } else {
+    assert(!ui.eventStatsEnabled);
+  }
+  ui.setEventStatsEnabled(false);
+  assert(!ui.eventStatsEnabled);
+  ui.setEventStatsEnabled(true);
+  assert(ui.eventStatsEnabled);
 }

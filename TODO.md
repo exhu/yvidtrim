@@ -1,10 +1,3 @@
-- add events queue stats recording to MessageBus (message_bus.d)
-to catch bugs that trigger too many updates:
-how many events posted, how many per second on average, max events per second.
-Stats gathering is on by default for debug builds and off for release.
-Can be enabled dynamically on runtime. Stats are logged via std.logger in
-MessageBus destruction.
-
 - Dynamic lists are for another feature to implement.
 
 

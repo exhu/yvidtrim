@@ -47,6 +47,8 @@ interface UiSystem : ControllerStack, WidgetSystemHost, FocusControl,
   uint nextWidgetId();
   Widget makeWidget();
   void releaseWidget(Widget w);
+  void setEventStatsEnabled(bool enabled);
+  @property bool eventStatsEnabled();
 
   /// Returns a JSON string with debugging info (controller stack, registered
   /// views and view controllers, main window and root widget name/uId) in the
