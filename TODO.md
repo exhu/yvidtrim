@@ -1,3 +1,17 @@
+- implement scroll bar composit widget for vertical and horizontal scroll
+bars. Add new module scrollbars.d in source/guidemo.  Implement a controller and
+builder function or struct that returns root widget.  Controller should be
+registered in UiSystem (see tabcontrol.d). Scrollbar must be resizable, it
+consists of left/right (or top/bottom) arrow buttons a free area between them
+which holds a bar button that is a rectangle that is movable by mouse dragging
+to display or select current position. Min, max, current value, visible window size
+in units of min/max/value (to calculate relative size of the drag bar to the free area), are tracked via
+VersionedModel (see TabsModel as example), also there's option to report position change only after mouse is released (in order to not spam the events per every pixel moved). Support mouse drag event with possible cursor
+capture (implement necessary WidgetComponents). Mouse clicks on free area move page up/down (page size = visible window size from the model). Root scrollbar container has a View
+component that translates button events to capture by the scrollbar controller. The controller sends update events to inform about position change. Draggable bar
+changes its size to express how much of scrolling is available relative to the
+viewable area, has a minimum size to be visible.
+
 - Dynamic lists are for another feature to implement.
 
 
