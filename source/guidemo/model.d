@@ -29,8 +29,7 @@ final class DemoModel : VersionedModel {
   float gap = 8.0f;
   bool child2Visible = true;
   size_t textSampleIndex = 0;
-  float alphaValue = 0.8f;
-  float alphaStep = 0.015f;
+  float alphaValue = 0.2f;
 
   // Page 2 state (TextLabel Playground)
   bool labelMultiline = true;

@@ -1,6 +1,3 @@
-- timers.d for animations and time in guidemo, replace updates to fix alpha pulse (model.alphaValue) in guidemo page 1
-see controller.d update() where model.alphaValue is modified and other controls that animate values to use timers.d structs. If implemented structs in timers.d lack necessary features, extend them to support already existing animations in guidemo.
-
 - add events queue stats to catch bugs that trigger too many updates:
 how many events posted, how many per second on average, max events per second.
 

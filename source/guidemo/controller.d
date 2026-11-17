@@ -8,6 +8,7 @@ import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.model : ModelTracker;
+import yguilib.timers : AnimationTimer, AnimationWrapMode, DeltaTimer;
 import yguilib.widget.drawing_components : TextLabel;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
   JustifyContent;
@@ -25,6 +26,8 @@ final class DemoController : DefaultController {
     this.app = app;
     tracker = ModelTracker!DemoModel(new DemoModel);
     tabsTracker = ModelTracker!TabsModel(createHeaderTabsModel());
+    alphaTimer.start(1.2f, AnimationWrapMode.pingPong);
+    alphaTimer.setPause(false);
     view = new DemoView(tracker, tabsTracker, app.ui);
     app.ui.mainWindow().rootWidget = view.getRootWidget();
   }
@@ -42,14 +45,10 @@ final class DemoController : DefaultController {
       return false;
     }
 
-    // Smoothly animate alpha pulse
-    model.alphaValue += model.alphaStep;
-    if (model.alphaValue >= 1.0f) {
-      model.alphaValue = 1.0f;
-      model.alphaStep = -model.alphaStep;
-    } else if (model.alphaValue <= 0.2f) {
-      model.alphaValue = 0.2f;
-      model.alphaStep = -model.alphaStep;
+    if (model.activePage == 0 && !alphaTimer.isPaused()) {
+      const float dt = alphaDeltaTimer.step();
+      alphaTimer.update(dt);
+      model.alphaValue = alphaTimer.map(0.2f, 1.0f);
     }
 
     tracker.commit(model);
@@ -63,6 +62,7 @@ final class DemoController : DefaultController {
         HandleResult res;
         res.result = HandleResult.Result.updateView;
         res.consume = consumeViewEvent;
+        res.timeoutMs = animationTimeoutMs();
         return res;
       }
     }
@@ -80,13 +80,15 @@ final class DemoController : DefaultController {
         HandleResult res;
         res.result = HandleResult.Result.updateView;
         res.consume = true;
-        // timeout will abuse rendering
-        //res.timeoutMs = 16;
+        res.timeoutMs = animationTimeoutMs();
         return res;
       }
     }
 
     auto res = super.handleEvent(ev);
+    if (!res.isQuit()) {
+      res.timeoutMs = animationTimeoutMs();
+    }
     return res;
   }
 
@@ -121,6 +123,7 @@ private:
     tracker.commit(model);
     if (newPage != prevPage) {
       syncActiveTab(newPage);
+      syncAlphaTimerForPage(newPage);
     }
     return handled;
   }
@@ -221,6 +224,7 @@ private:
     tracker.commit(model);
     if (newPage != prevPage) {
       syncActiveTab(newPage);
+      syncAlphaTimerForPage(newPage);
       sendUpdate();
     }
     return consumed;
@@ -299,10 +303,24 @@ private:
     }
   }
 
+  void syncAlphaTimerForPage(size_t newPage) {
+    alphaDeltaTimer.reset();
+    alphaTimer.setPause(newPage != 0);
+  }
+
+  int animationTimeoutMs() {
+    if (tracker.model.activePage == 0 && !alphaTimer.isPaused()) {
+      return 16;
+    }
+    return -1;
+  }
+
   App app;
   DemoView view;
   ModelTracker!DemoModel tracker;
   ModelTracker!TabsModel tabsTracker;
+  AnimationTimer alphaTimer;
+  DeltaTimer alphaDeltaTimer;
 }
 
 unittest {
@@ -362,4 +380,24 @@ unittest {
     assert(hrF12.consume);
     assert(demoCtrl.tracker.model.debugDrawMode == expected);
   }
+
+  // Page 1 alpha pulse animates with 16ms timeout and pauses off Page 1
+  auto evKey1 = KeyAppEventBuilder(AppEvent.Kind.keyDown)
+    .key(Keycode.key1)
+    .scancode(Scancode.key1)
+    .build();
+  auto hrPage1 = demoCtrl.handleEvent(evKey1);
+  assert(hrPage1.timeoutMs == 16);
+  const float alphaBefore = demoCtrl.tracker.model.alphaValue;
+  auto hrTick = demoCtrl.handleEvent(AppEvent(AppEvent.Kind.update));
+  assert(hrTick.result == HandleResult.Result.updateView);
+  assert(hrTick.timeoutMs == 16);
+  assert(demoCtrl.tracker.model.alphaValue != alphaBefore);
+
+  auto evKey2 = KeyAppEventBuilder(AppEvent.Kind.keyDown)
+    .key(Keycode.key2)
+    .scancode(Scancode.key2)
+    .build();
+  auto hrPage2 = demoCtrl.handleEvent(evKey2);
+  assert(hrPage2.timeoutMs == -1);
 }

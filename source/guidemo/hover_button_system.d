@@ -26,12 +26,12 @@
  */
 module guidemo.hover_button_system;
 
-import core.time : MonoTime;
-import std.algorithm.comparison : clamp, max, min;
-import std.math : PI, abs, sin;
+import std.algorithm.comparison : clamp;
+import std.math : PI, sin;
 import yguilib.events : AppEvent;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, PointF, RectF;
+import yguilib.timers : AnimationTimer, AnimationWrapMode, DeltaTimer;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
@@ -80,6 +80,9 @@ final class AnimatedHoverButtonComponent : WidgetComponent {
   float hoverProgress = 0.0f;
   float pressProgress = 0.0f;
   float animPhase = 0.0f;
+  AnimationTimer hoverTimer;
+  AnimationTimer pressTimer;
+  AnimationTimer gradTimer;
   bool isHovered = false;
   bool isPressed = false;
   float cursorNormX = 0.5f;
@@ -87,6 +90,13 @@ final class AnimatedHoverButtonComponent : WidgetComponent {
 
   this(in HoverAnimConfig animConfig = HoverAnimConfig()) {
     this.animConfig = animConfig;
+    const float speed = animConfig.fadeSpeed > 0.0f
+      ? animConfig.fadeSpeed
+      : 3.5f;
+    hoverTimer.start(1.0f / speed, AnimationWrapMode.once);
+    pressTimer.start(1.0f / (speed * 3.0f), AnimationWrapMode.once);
+    gradTimer.start((2.0f * PI) / 3.5f, AnimationWrapMode.loop);
+    gradTimer.setPause(false);
   }
 }
 
@@ -280,12 +290,16 @@ final class AnimatedHoverButtonSystem : WidgetSystem {
 
   override void preLayout(ref WidgetSystemContext ctx) {
     if (!needsAnimationStep && !isAnyAnimating()) {
+      deltaTimer.reset();
       return;
     }
     needsAnimationStep = false;
 
-    const float dt = computeDeltaTime();
+    const float dt = deltaTimer.step();
     stepActiveButtons(dt);
+    if (!isAnyAnimating()) {
+      deltaTimer.reset();
+    }
   }
 
   override void postLayout(ref WidgetSystemContext ctx) {
@@ -428,7 +442,7 @@ private:
       needsAnimationStep = true;
       return SystemEventResult(false, true, 16);
     }
-    hasLastTime = false;
+    deltaTimer.reset();
     return SystemEventResult(false, false, -1);
   }
 
@@ -466,6 +480,8 @@ private:
         if (comp !is null) {
           comp.isHovered = false;
           comp.isPressed = false;
+          comp.hoverTimer.stop();
+          comp.pressTimer.stop();
           comp.hoverProgress = 0.0f;
           comp.pressProgress = 0.0f;
           if (comp.colorsInitialized) {
@@ -522,49 +538,27 @@ private:
     AnimatedHoverButtonComponent comp,
     float dt
   ) {
-    const float targetHover = comp.isHovered ? 1.0f : 0.0f;
-    const float targetPress = comp.isPressed ? 1.0f : 0.0f;
-    const float speed = comp.animConfig.fadeSpeed;
-
     bool visualDirty = false;
 
     // Hover progress transition
-    if (abs(comp.hoverProgress - targetHover) > 0.001f) {
-      if (comp.hoverProgress < targetHover) {
-        comp.hoverProgress = min(targetHover, comp.hoverProgress + dt * speed);
-      } else {
-        comp.hoverProgress = max(targetHover, comp.hoverProgress - dt * speed);
-      }
+    if (!comp.hoverTimer.isAtTarget(comp.isHovered)) {
+      comp.hoverTimer.stepTowards(dt, comp.isHovered);
+      comp.hoverProgress = comp.hoverTimer.getProgress();
       visualDirty = true;
-    } else {
-      comp.hoverProgress = targetHover;
     }
 
     // Press progress transition
-    if (abs(comp.pressProgress - targetPress) > 0.001f) {
-      if (comp.pressProgress < targetPress) {
-        comp.pressProgress = min(
-          targetPress,
-          comp.pressProgress + dt * speed * 3.0f
-        );
-      } else {
-        comp.pressProgress = max(
-          targetPress,
-          comp.pressProgress - dt * speed * 3.0f
-        );
-      }
+    if (!comp.pressTimer.isAtTarget(comp.isPressed)) {
+      comp.pressTimer.stepTowards(dt, comp.isPressed);
+      comp.pressProgress = comp.pressTimer.getProgress();
       visualDirty = true;
-    } else {
-      comp.pressProgress = targetPress;
     }
 
     // Gradient play wave oscillation
     if (comp.animConfig.style == HoverAnimConfig.AnimStyle.gradientPlay &&
         (comp.isHovered || comp.hoverProgress > 0.001f)) {
-      comp.animPhase += dt * 3.5f;
-      if (comp.animPhase > 2.0f * PI) {
-        comp.animPhase -= 2.0f * PI;
-      }
+      comp.gradTimer.update(dt);
+      comp.animPhase = comp.gradTimer.map(0.0f, 2.0f * PI);
       visualDirty = true;
     }
 
@@ -573,8 +567,8 @@ private:
     }
 
     // Check if this component needs further animation steps
-    const bool isHoverBusy = abs(comp.hoverProgress - targetHover) > 0.001f;
-    const bool isPressBusy = abs(comp.pressProgress - targetPress) > 0.001f;
+    const bool isHoverBusy = !comp.hoverTimer.isAtTarget(comp.isHovered);
+    const bool isPressBusy = !comp.pressTimer.isAtTarget(comp.isPressed);
     const bool isGradBusy =
       comp.animConfig.style == HoverAnimConfig.AnimStyle.gradientPlay &&
       (comp.isHovered || comp.hoverProgress > 0.001f);
@@ -685,24 +679,10 @@ private:
     }
   }
 
-  float computeDeltaTime() {
-    const MonoTime now = MonoTime.currTime;
-    if (!hasLastTime) {
-      lastTime = now;
-      hasLastTime = true;
-      return 0.01667f;
-    }
-    const long usecs = (now - lastTime).total!"usecs";
-    lastTime = now;
-    const float dt = cast(float) usecs / 1_000_000.0f;
-    return clamp(dt, 0.001f, 0.1f);
-  }
-
   Widget hoveredWidget = null;
   Widget pressedWidget = null;
   Widget[] activeButtons;
-  MonoTime lastTime;
-  bool hasLastTime = false;
+  DeltaTimer deltaTimer;
   bool needsAnimationStep = false;
 }
 

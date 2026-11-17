@@ -47,13 +47,13 @@
  */
 module guidemo.hover_button;
 
-import core.time : MonoTime;
-import std.algorithm.comparison : clamp, max, min;
+import std.algorithm.comparison : clamp;
 import std.math : PI, abs, sin;
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, RectF;
+import yguilib.timers : AnimationTimer, AnimationWrapMode, DeltaTimer;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : ViewComponent, Widget;
 import yguilib.widget.builder : WidgetBuilder;
@@ -251,6 +251,9 @@ final class HoverButtonController : DefaultController {
     float hoverProgress = 0.0f;
     float pressProgress = 0.0f;
     float animPhase = 0.0f;
+    AnimationTimer hoverTimer;
+    AnimationTimer pressTimer;
+    AnimationTimer gradTimer;
     bool isHovered = false;
     bool isPressed = false;
     float cursorNormX = 0.5f;
@@ -295,6 +298,13 @@ final class HoverButtonController : DefaultController {
     entry.animConfig = animConfig;
     entry.normalBg = normalBg;
     entry.normalBorder = normalBorder;
+    const float speed = animConfig.fadeSpeed > 0.0f
+      ? animConfig.fadeSpeed
+      : 3.5f;
+    entry.hoverTimer.start(1.0f / speed, AnimationWrapMode.once);
+    entry.pressTimer.start(1.0f / (speed * 3.0f), AnimationWrapMode.once);
+    entry.gradTimer.start((2.0f * PI) / 3.5f, AnimationWrapMode.loop);
+    entry.gradTimer.setPause(false);
 
     entries ~= entry;
   }
@@ -337,7 +347,7 @@ final class HoverButtonController : DefaultController {
       if (isAnyAnimating()) {
         return HandleResult(HandleResult.Result.updateView, false, 16);
       } else {
-        hasLastTime = false;
+        deltaTimer.reset();
         return HandleResult(HandleResult.Result.nothing, false, -1);
       }
     }
@@ -352,7 +362,7 @@ final class HoverButtonController : DefaultController {
   }
 
   override bool updateView() {
-    const float dt = computeDeltaTime();
+    const float dt = deltaTimer.step();
     return stepAnimation(dt);
   }
 
@@ -383,19 +393,6 @@ private:
       }
     }
     return false;
-  }
-
-  float computeDeltaTime() {
-    const MonoTime now = MonoTime.currTime;
-    if (!hasLastTime) {
-      lastTime = now;
-      hasLastTime = true;
-      return 0.01667f;
-    }
-    const long usecs = (now - lastTime).total!"usecs";
-    lastTime = now;
-    const float dt = cast(float)usecs / 1_000_000.0f;
-    return clamp(dt, 0.001f, 0.1f);
   }
 
   void updateCursorNorm(ref ButtonEntry entry, in AppEvent ev) {
@@ -479,55 +476,27 @@ private:
     bool anyChanged = false;
 
     foreach (ref entry; entries) {
-      const float targetHover = entry.isHovered ? 1.0f : 0.0f;
-      const float targetPress = entry.isPressed ? 1.0f : 0.0f;
-      const float speed = entry.animConfig.fadeSpeed;
-
       bool buttonVisualDirty = false;
 
       // Hover progress transition
-      if (abs(entry.hoverProgress - targetHover) > 0.001f) {
-        if (entry.hoverProgress < targetHover) {
-          entry.hoverProgress = min(
-            targetHover,
-            entry.hoverProgress + dt * speed
-          );
-        } else {
-          entry.hoverProgress = max(
-            targetHover,
-            entry.hoverProgress - dt * speed
-          );
-        }
+      if (!entry.hoverTimer.isAtTarget(entry.isHovered)) {
+        entry.hoverTimer.stepTowards(dt, entry.isHovered);
+        entry.hoverProgress = entry.hoverTimer.getProgress();
         buttonVisualDirty = true;
-      } else {
-        entry.hoverProgress = targetHover;
       }
 
       // Press progress transition
-      if (abs(entry.pressProgress - targetPress) > 0.001f) {
-        if (entry.pressProgress < targetPress) {
-          entry.pressProgress = min(
-            targetPress,
-            entry.pressProgress + dt * speed * 3.0f
-          );
-        } else {
-          entry.pressProgress = max(
-            targetPress,
-            entry.pressProgress - dt * speed * 3.0f
-          );
-        }
+      if (!entry.pressTimer.isAtTarget(entry.isPressed)) {
+        entry.pressTimer.stepTowards(dt, entry.isPressed);
+        entry.pressProgress = entry.pressTimer.getProgress();
         buttonVisualDirty = true;
-      } else {
-        entry.pressProgress = targetPress;
       }
 
       // Gradient play oscillation while hovered or fading out
       if (entry.animConfig.style == HoverAnimConfig.AnimStyle.gradientPlay &&
           (entry.isHovered || entry.hoverProgress > 0.001f)) {
-        entry.animPhase += dt * 3.5f;
-        if (entry.animPhase > 2.0f * PI) {
-          entry.animPhase -= 2.0f * PI;
-        }
+        entry.gradTimer.update(dt);
+        entry.animPhase = entry.gradTimer.map(0.0f, 2.0f * PI);
         buttonVisualDirty = true;
       }
 
@@ -590,8 +559,7 @@ private:
   }
 
   ButtonEntry[] entries;
-  MonoTime lastTime;
-  bool hasLastTime = false;
+  DeltaTimer deltaTimer;
 }
 
 // Unit tests verifying HoverButtonBuilder, View event renaming, and controller.

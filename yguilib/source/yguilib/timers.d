@@ -56,12 +56,63 @@ struct AnimationTimer {
     elapsed = 0;
   }
 
-  void setPause(bool aPaused) {
+  void setPause(bool aPaused) nothrow @safe {
     paused = aPaused;
   }
 
+  bool isPaused() const nothrow @safe {
+    return paused;
+  }
+
+  float getDuration() const nothrow @safe {
+    return duration;
+  }
+
+  void setDuration(float newDuration) nothrow @safe {
+    duration = newDuration;
+    if (duration <= 0) {
+      elapsed = 0;
+    } else if (elapsed > duration) {
+      elapsed = duration;
+    }
+  }
+
+  /// Advances toward duration (forward=true) or 0 (forward=false).
+  void stepTowards(float step, bool forward) nothrow @safe {
+    if (duration <= 0 || step <= 0) {
+      return;
+    }
+    const float target = forward ? duration : 0.0f;
+    if (elapsed < target) {
+      elapsed += step;
+      if (elapsed >= target) {
+        elapsed = target;
+        paused = true;
+      } else {
+        paused = false;
+      }
+    } else if (elapsed > target) {
+      elapsed -= step;
+      if (elapsed <= target) {
+        elapsed = target;
+        paused = true;
+      } else {
+        paused = false;
+      }
+    } else {
+      paused = true;
+    }
+  }
+
+  bool isAtTarget(bool forward) const nothrow @safe {
+    if (duration <= 0) {
+      return true;
+    }
+    return forward ? (elapsed >= duration) : (elapsed <= 0.0f);
+  }
+
   /// returns [0..1]
-  float getProgress() const {
+  float getProgress() const nothrow @safe {
     if (duration <= 0)
       return 0;
     if (mode == AnimationWrapMode.pingPong) {
@@ -69,6 +120,11 @@ struct AnimationTimer {
       return clamp(t <= 1.0f ? t : 2.0f - t, 0, 1f);
     }
     return clamp(elapsed / duration, 0, 1f);
+  }
+
+  /// Linearly maps progress [0..1] into [minVal..maxVal].
+  float map(float minVal, float maxVal) const nothrow @safe {
+    return minVal + (maxVal - minVal) * getProgress();
   }
 
 private:
@@ -166,6 +222,37 @@ private:
   long startTimeNs = 0;
   bool looping = false;
   bool running = false;
+}
+
+/// Measures elapsed seconds between consecutive steps (e.g. animation frames).
+struct DeltaTimer {
+  /// Returns seconds elapsed since previous step,
+  /// clamped to [minStep, maxStep].
+  /// On the first call (or after reset), returns initialStep.
+  float step(
+    float minStep = 0.001f,
+    float maxStep = 0.1f,
+    float initialStep = 1.0f / 60.0f
+  ) {
+    const long now = currentTimeNs();
+    if (!hasLastTime) {
+      lastTimeNs = now;
+      hasLastTime = true;
+      return initialStep;
+    }
+    const long diffNs = now - lastTimeNs;
+    lastTimeNs = now;
+    const float dt = cast(float) diffNs / 1_000_000_000.0f;
+    return clamp(dt, minStep, maxStep);
+  }
+
+  void reset() nothrow @safe {
+    hasLastTime = false;
+  }
+
+private:
+  long lastTimeNs = 0;
+  bool hasLastTime = false;
 }
 
 /// gets time in constructor and destructor, dumps duration
@@ -294,4 +381,55 @@ unittest {
   assert(timer.updateAndTrigger());
   Thread.sleep(10.msecs);
   assert(!timer.updateAndTrigger());
+}
+
+unittest {
+  import std.math.operations : isClose;
+
+  // AnimationTimer stepTowards, isAtTarget, map, isPaused, setDuration.
+  AnimationTimer t;
+  t.start(1.0f, AnimationWrapMode.once);
+  assert(t.isPaused());
+  assert(t.isAtTarget(false));
+  assert(!t.isAtTarget(true));
+
+  t.stepTowards(0.4f, true);
+  assert(!t.isPaused());
+  assert(isClose(t.getProgress(), 0.4f));
+  assert(isClose(t.map(0.2f, 1.0f), 0.52f));
+
+  // Reverse mid-way back toward 0.
+  t.stepTowards(0.2f, false);
+  assert(!t.isPaused());
+  assert(isClose(t.getProgress(), 0.2f));
+  t.stepTowards(0.5f, false);
+  assert(t.isPaused());
+  assert(t.isAtTarget(false));
+  assert(isClose(t.getProgress(), 0.0f));
+
+  // Forward to completion.
+  t.setDuration(0.5f);
+  assert(isClose(t.getDuration(), 0.5f));
+  t.stepTowards(0.5f, true);
+  assert(t.isPaused());
+  assert(t.isAtTarget(true));
+  assert(isClose(t.getProgress(), 1.0f));
+}
+
+unittest {
+  import core.thread : Thread;
+  import core.time : msecs;
+  import std.math.operations : isClose;
+
+  DeltaTimer dt;
+  const float first = dt.step(0.001f, 0.1f, 0.016f);
+  assert(isClose(first, 0.016f));
+
+  Thread.sleep(5.msecs);
+  const float second = dt.step(0.001f, 0.1f, 0.016f);
+  assert(second >= 0.001f && second <= 0.1f);
+
+  dt.reset();
+  const float afterReset = dt.step(0.001f, 0.1f, 0.02f);
+  assert(isClose(afterReset, 0.02f));
 }
