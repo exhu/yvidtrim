@@ -124,6 +124,43 @@ private:
   bool running = false;
 }
 
+struct Timer {
+  /// duration in seconds
+  void start(float duration) {
+    this.duration = duration;
+    running = true;
+  }
+
+  void startLoop(float duration) {
+    looping = true;
+    start(duration);
+  }
+
+  void stop() {
+    running = false;
+  }
+
+  /// returns true if duration has passed.
+  /// If duration passed:
+  /// stops for one-shot timer, next calls
+  /// will return false;
+  /// continues for looping but now new
+  /// time start point is set, so it won't
+  /// consecutively return true if duration
+  /// between calls is not reached.
+  bool updateAndTrigger() {
+    if (!running)
+      return false;
+    // TODO
+    return false;
+  }
+
+private:
+  float duration = 1;
+  bool looping = false;
+  bool running = false;
+}
+
 /// gets time in constructor and destructor, dumps duration
 struct MeasureScopeTime {
   // TODO
