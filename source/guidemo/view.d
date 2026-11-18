@@ -68,14 +68,17 @@ final class DemoView {
   }
 
   void update() {
-    if (!tracker.update()) {
-      return;
+    if (tracker.update()) {
+      const auto m = tracker.model;
+      updatePageVisibility(m);
+      updateDebugDraw(m);
     }
+    updateActivePageContent(tracker.model.activePage);
+    updateStatusBar();
+  }
 
-    const auto m = tracker.model;
-    updatePageVisibilityAndContent(m);
-    updateDebugDraw(m);
-    statusLabel.setCaption(formatStatusString(m));
+  void updateStatusBar() {
+    statusLabel.setCaption(formatStatusString(tracker.model.activePage));
   }
 
   Widget getRootWidget() {
@@ -84,6 +87,14 @@ final class DemoView {
 
   Widget getHeaderTabControl() {
     return tabControl;
+  }
+
+  LayoutPainterPage getLayoutPainterPage() {
+    return page1;
+  }
+
+  TextLabelPage getTextLabelPage() {
+    return page2;
   }
 
   ButtonPage getButtonPage() {
@@ -103,7 +114,7 @@ final class DemoView {
   }
 
 private:
-  void updatePageVisibilityAndContent(const DemoModel m) {
+  void updatePageVisibility(const DemoModel m) {
     const bool p1Vis = (m.activePage == 0);
     const bool p2Vis = (m.activePage == 1);
     const bool p3Vis = (m.activePage == 2);
@@ -124,19 +135,21 @@ private:
       page6.setVisible(p6Vis);
       view.update(WidgetUpdateScope.layout);
     }
+  }
 
-    if (p1Vis) {
-      page1.update(m);
-    } else if (p2Vis) {
-      page2.update(m);
-    } else if (p3Vis) {
-      page3.update(m);
-    } else if (p4Vis) {
-      page4.update(m);
-    } else if (p5Vis) {
-      page5.update(m);
+  void updateActivePageContent(size_t activePage) {
+    if (activePage == 0) {
+      page1.update();
+    } else if (activePage == 1) {
+      page2.update();
+    } else if (activePage == 2) {
+      page3.update();
+    } else if (activePage == 3) {
+      page4.update();
+    } else if (activePage == 4) {
+      page5.update();
     } else {
-      page6.update(m);
+      page6.update();
     }
   }
   void updateDebugDraw(const DemoModel m) {
@@ -208,137 +221,23 @@ private:
     }
   }
 
-  static string formatPage2Status(const DemoModel m) {
-    import std.format : format;
-
-    string alignStr;
-    final switch (m.labelAlignment) {
-    case TextLabel.Alignment.left:
-      alignStr = "left";
-      break;
-    case TextLabel.Alignment.center:
-      alignStr = "center";
-      break;
-    case TextLabel.Alignment.right:
-      alignStr = "right";
-      break;
+  string formatStatusString(size_t activePage) {
+    if (activePage == 1) {
+      return page2.formatStatus();
     }
-    return format(
-      "[Tab/1-4] Page 2: TextLabel | [M] Multiline: %s | " ~
-      "[E] Ellipsis: %s | [L] Align: %s | [T] Sample: %d/3 | [Q/Esc] Quit",
-      m.labelMultiline ? "ON" : "OFF",
-      m.labelEllipsis ? "ON" : "OFF",
-      alignStr,
-      m.labelSampleIndex + 1
-    );
-  }
-
-  static string formatPage1Status(const DemoModel m) {
-    import std.format : format;
-
-    string dirStr = m.direction == FlexDirection.row ? "row" : "col";
-    string justStr;
-    final switch (m.justify) {
-    case JustifyContent.start:
-      justStr = "start";
-      break;
-    case JustifyContent.end:
-      justStr = "end";
-      break;
-    case JustifyContent.center:
-      justStr = "center";
-      break;
-    case JustifyContent.spaceBetween:
-      justStr = "spaceBetween";
-      break;
+    if (activePage == 2) {
+      return page3.formatStatus();
     }
-
-    string alignStr;
-    final switch (m.alignItems) {
-    case AlignItems.start:
-      alignStr = "start";
-      break;
-    case AlignItems.end:
-      alignStr = "end";
-      break;
-    case AlignItems.center:
-      alignStr = "center";
-      break;
-    case AlignItems.stretch:
-      alignStr = "stretch";
-      break;
+    if (activePage == 3) {
+      return page4.formatStatus();
     }
-
-    string visStr = m.child2Visible ? "visible" : "hidden";
-
-    return format(
-      "[Tab/1-4] Page 1: Layout | [D] Dir: %s | [J] Justify: %s | " ~
-      "[A] Align: %s | [G] Gap: %.0f | [V] Box B: %s | [T] Text: %d | " ~
-      "[Q/Esc] Quit",
-      dirStr, justStr, alignStr, m.gap, visStr, m.textSampleIndex + 1
-    );
-  }
-
-  static string formatPage3Status(const DemoModel m) {
-    import std.format : format;
-    return format(
-      "[Tab/1-4] Page 3: Hover Buttons | Clicks: %d | [Q/Esc] Quit",
-      m.buttonClickCount
-    );
-  }
-
-  static string formatPage4Status(const DemoModel m) {
-    import std.format : format;
-    return format(
-      "[Tab/1-5] Page 4: Hover System | Clicks: %d | [Q/Esc] Quit",
-      m.buttonClickCount
-    );
-  }
-
-  static string formatPage5Status(const DemoModel m) {
-    import std.format : format;
-    return format(
-      "[Tab/1-5] Page 5: TabControl | SubTab: %d | VertTab: %d | " ~
-        "DynTabs: %d | LastEv: %s(%d) | [Q/Esc] Quit",
-      m.page5SubTab,
-      m.page5VerticalTab,
-      m.page5DynamicTabCount,
-      m.page5LastEventName,
-      m.page5LastEventIndex
-    );
-  }
-
-  static string formatPage6Status(const DemoModel m) {
-    import std.format : format;
-    return format(
-      "[Tab/1-6] Page 6: Scrollbars | Viewport: (%d,%d) | Live: %d (%d) | " ~
-        "Rel: %d (%d) | [Q/Esc] Quit",
-      m.page6HScroll,
-      m.page6VScroll,
-      m.page6LiveValue,
-      m.page6LiveEventCount,
-      m.page6ReleaseValue,
-      m.page6ReleaseEventCount
-    );
-  }
-
-  static string formatStatusString(const DemoModel m) {
-    if (m.activePage == 1) {
-      return formatPage2Status(m);
+    if (activePage == 4) {
+      return page5.formatStatus();
     }
-    if (m.activePage == 2) {
-      return formatPage3Status(m);
+    if (activePage == 5) {
+      return page6.formatStatus();
     }
-    if (m.activePage == 3) {
-      return formatPage4Status(m);
-    }
-    if (m.activePage == 4) {
-      return formatPage5Status(m);
-    }
-    if (m.activePage == 5) {
-      return formatPage6Status(m);
-    }
-    return formatPage1Status(m);
+    return page1.formatStatus();
   }
 
   void buildHeader(UiRegistry registry) {
@@ -416,7 +315,7 @@ private:
       .parent(footer)
       .name("statusLabel")
       .rect(RectF(14, 16, 1210, 20))
-      .text(formatStatusString(tracker.model))
+      .text(formatStatusString(tracker.model.activePage))
       .textColor(ColorF(0.95f, 0.95f, 0.40f, 1.0f))
       .build();
   }

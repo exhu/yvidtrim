@@ -3,11 +3,31 @@
  */
 module guidemo.common;
 
+import yguilib.events : AppEvent;
+import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
+
+/// Returns true if `ev` matches `targetKey` (case-insensitive for ASCII
+/// letters) or `targetScan`.
+bool isKey(in AppEvent ev, Keycode targetKey, Scancode targetScan) {
+  if (ev.keyData.scancode == targetScan) {
+    return true;
+  }
+  if (ev.keyData.key == targetKey) {
+    return true;
+  }
+  // Handle potential uppercase ASCII keycode
+  if (targetKey >= 'a' && targetKey <= 'z') {
+    if (ev.keyData.key == (targetKey - 32)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 /// Factory function to create standard section cards across all demo pages.
 Widget makeSectionCard(

@@ -7,7 +7,7 @@ module guidemo.pages.tabcontrol_page;
 import guidemo.common : makeSectionCard;
 import guidemo.hover_button_system : AnimatedHoverButtonBuilder,
   HoverAnimConfig;
-import guidemo.model : DemoModel;
+import guidemo.model : TabControlPageModel;
 import guidemo.tabcontrol : TabControlBuilder, TabControlStyle, TabsModel;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
@@ -16,6 +16,16 @@ import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
   JustifyContent;
+
+/// View event names emitted by Page 5 TabControls and mutation buttons.
+enum pageTabSwitchEvent = "pageTabSwitch";
+enum dynamicTabSwitchEvent = "dynamicTabSwitch";
+enum verticalTabSwitchEvent = "verticalTabSwitch";
+enum page5AddTabEvent = "page5AddTab";
+enum page5RemoveTabEvent = "page5RemoveTab";
+enum page5ResetTabsEvent = "page5ResetTabs";
+enum page5NarrowViewportEvent = "page5NarrowViewport";
+enum page5WidenViewportEvent = "page5WidenViewport";
 
 /// Page 5 widget container showcasing reusable TabControl instances.
 final class TabControlPage {
@@ -26,6 +36,7 @@ final class TabControlPage {
     assert(parent !is null, "parent must not be null");
     this.ui = ui;
     this.registry = (registry !is null) ? registry : ui;
+    tracker = ModelTracker!TabControlPageModel(new TabControlPageModel());
     root = new Widget(ui.nextWidgetId());
     root.name = "tabControlPage";
     root.rect = RectF(0, 0, 1280, 720);
@@ -64,17 +75,26 @@ final class TabControlPage {
     assert(root !is null);
   }
 
-  void update(const DemoModel m) {
+  ref ModelTracker!TabControlPageModel getTracker() return {
+    return tracker;
+  }
+
+  void update() {
     import std.format : format;
 
-    updateSubPanels(m.page5SubTab);
+    if (!tracker.update()) {
+      return;
+    }
+
+    const auto m = tracker.model;
+    updateSubPanels(m.subTab);
 
     if (eventLogLabel !is null) {
       eventLogLabel.setCaption(
         format(
           "Last Event: \"%s\" | ViewData.value[0] = %d",
-          m.page5LastEventName,
-          m.page5LastEventIndex
+          m.lastEventName,
+          m.lastEventIndex
         )
       );
     }
@@ -95,7 +115,22 @@ final class TabControlPage {
       );
     }
 
-    updateVerticalInspector(m.page5VerticalTab);
+    updateVerticalInspector(m.verticalTab);
+  }
+
+  string formatStatus() {
+    import std.format : format;
+
+    const auto m = tracker.model;
+    return format(
+      "[Tab/1-6] Page 5: TabControl | SubTab: %d | VertTab: %d | " ~
+        "DynTabs: %d | LastEv: %s(%d) | [Q/Esc] Quit",
+      m.subTab,
+      m.verticalTab,
+      m.dynamicTabCount,
+      m.lastEventName,
+      m.lastEventIndex
+    );
   }
 
   /// Appends a new tab to the dynamic TabsModel (up to 10 tabs).
@@ -673,6 +708,7 @@ private:
   }
 
   UiSystem ui;
+  ModelTracker!TabControlPageModel tracker;
   Widget root;
   UiRegistry registry;
 

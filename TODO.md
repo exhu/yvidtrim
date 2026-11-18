@@ -1,6 +1,8 @@
-- guidemo: controller.d refactoring: split to separate controllers per page,
-leave only shared controller logic in DemoController. Put new controllers in
-stack, each listens only for its related events, does not consume unrelated.
+- revise guidemo view, are there views per page?
+- how active animations are updated? maybe support timers as new events in
+  MessageBus to wake the system instead of uninterrupted loop of result updates
+  in handleEvent, so that any controller can forget about timeOut value for event,
+  which then will be set by UiSystem based on the nearest timer to fire?
 
 - Dynamic lists are for another feature to implement.
 

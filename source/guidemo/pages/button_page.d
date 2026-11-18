@@ -7,7 +7,8 @@ import std.format : format;
 import guidemo.common : makeSectionCard;
 import guidemo.hover_button : HoverAnimConfig, HoverButtonBuilder,
   HoverButtonConfig, HoverButtonController, createHoverButton;
-import guidemo.model : DemoModel;
+import guidemo.model : ButtonPageModel;
+import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget;
@@ -16,11 +17,16 @@ import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.layout_components : AlignItems, FlexDirection, Insets,
   JustifyContent, Size;
 
+/// View event names emitted by Page 3 buttons.
+enum btnCountActionEvent = "btnCountAction";
+enum btnCountResetEvent = "btnCountReset";
+
 /// Page 3 widget container showcasing HoverButton and HoverButtonController.
 final class ButtonPage {
   this(UiSystem ui, Widget parent) {
     assert(ui !is null, "UiSystem must not be null");
     this.ui = ui;
+    tracker = ModelTracker!ButtonPageModel(new ButtonPageModel());
     root = new Widget(ui.nextWidgetId());
     root.name = "buttonPage";
     root.rect = RectF(0, 0, 1280, 720);
@@ -34,12 +40,30 @@ final class ButtonPage {
     buildArchitectureSection();
   }
 
-  void update(const DemoModel m) {
+  ref ModelTracker!ButtonPageModel getTracker() return {
+    return tracker;
+  }
+
+  void update() {
+    if (!tracker.update()) {
+      return;
+    }
+
     if (counterLabel !is null) {
       counterLabel.setCaption(
-        format("Button Action Invocations: %d clicks", m.buttonClickCount)
+        format(
+          "Button Action Invocations: %d clicks",
+          tracker.model.buttonClickCount
+        )
       );
     }
+  }
+
+  string formatStatus() {
+    return format(
+      "[Tab/1-6] Page 3: Hover Buttons | Clicks: %d | [Q/Esc] Quit",
+      tracker.model.buttonClickCount
+    );
   }
 
   Widget getRootWidget() {
@@ -557,6 +581,7 @@ private:
   }
 
   UiSystem ui;
+  ModelTracker!ButtonPageModel tracker;
   Widget root;
   Widget counterLabel;
   Widget[] managedButtons;

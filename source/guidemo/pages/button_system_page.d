@@ -8,13 +8,18 @@ import std.format : format;
 import guidemo.common : makeSectionCard;
 import guidemo.hover_button_system : AnimatedHoverButtonBuilder,
   HoverAnimConfig, HoverButtonConfig;
-import guidemo.model : DemoModel;
+import guidemo.model : ButtonSystemPageModel;
+import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.layout_components : AlignItems, FlexDirection, Insets,
   JustifyContent, Size;
+
+/// View event names emitted by Page 4 buttons.
+enum sysBtnCountActionEvent = "sysBtnCountAction";
+enum sysBtnCountResetEvent = "sysBtnCountReset";
 
 /// Page 4 widget container showcasing AnimatedHoverButtonSystem and
 /// AnimatedHoverButtonComponent.
@@ -23,6 +28,7 @@ final class ButtonSystemPage {
     assert(ui !is null, "UiSystem must not be null");
     assert(parent !is null, "parent must not be null");
     this.ui = ui;
+    tracker = ModelTracker!ButtonSystemPageModel(new ButtonSystemPageModel());
     root = new Widget(ui.nextWidgetId());
     root.name = "buttonSystemPage";
     root.rect = RectF(0, 0, 1280, 720);
@@ -34,12 +40,30 @@ final class ButtonSystemPage {
     buildArchitectureSection();
   }
 
-  void update(const DemoModel m) {
+  ref ModelTracker!ButtonSystemPageModel getTracker() return {
+    return tracker;
+  }
+
+  void update() {
+    if (!tracker.update()) {
+      return;
+    }
+
     if (counterLabel !is null) {
       counterLabel.setCaption(
-        format("Button Action Invocations: %d clicks", m.buttonClickCount)
+        format(
+          "Button Action Invocations: %d clicks",
+          tracker.model.buttonClickCount
+        )
       );
     }
+  }
+
+  string formatStatus() {
+    return format(
+      "[Tab/1-6] Page 4: Hover System | Clicks: %d | [Q/Esc] Quit",
+      tracker.model.buttonClickCount
+    );
   }
 
   Widget getRootWidget() {
@@ -93,7 +117,7 @@ private:
     cfg1.hoverBg = ColorF(0.28f, 0.38f, 0.55f, 1.0f);
     cfg1.pressBg = ColorF(0.12f, 0.18f, 0.30f, 1.0f);
     cfg1.hoverBorder = ColorF(0.50f, 0.70f, 1.0f, 1.0f);
-    cfg1.actionEvent = "btnCountAction";
+    cfg1.actionEvent = sysBtnCountActionEvent;
 
     AnimatedHoverButtonBuilder b1;
     b1.name("sysFadeSlateBtn")
@@ -111,7 +135,7 @@ private:
     cfg2.hoverBg = ColorF(0.18f, 0.55f, 0.35f, 1.0f);
     cfg2.pressBg = ColorF(0.08f, 0.35f, 0.20f, 1.0f);
     cfg2.hoverBorder = ColorF(0.35f, 0.85f, 0.55f, 1.0f);
-    cfg2.actionEvent = "btnCountAction";
+    cfg2.actionEvent = sysBtnCountActionEvent;
 
     AnimatedHoverButtonBuilder b2;
     b2.name("sysFadeEmeraldBtn")
@@ -129,7 +153,7 @@ private:
     cfg3.hoverBg = ColorF(0.65f, 0.20f, 0.25f, 1.0f);
     cfg3.pressBg = ColorF(0.40f, 0.10f, 0.15f, 1.0f);
     cfg3.hoverBorder = ColorF(0.95f, 0.40f, 0.45f, 1.0f);
-    cfg3.actionEvent = "btnCountAction";
+    cfg3.actionEvent = sysBtnCountActionEvent;
 
     AnimatedHoverButtonBuilder b3;
     b3.name("sysFadeCrimsonBtn")
@@ -214,7 +238,7 @@ private:
     cfg1.gradientAccentBg = ColorF(0.15f, 0.85f, 0.90f, 1.0f);
     cfg1.pressBg = ColorF(0.06f, 0.22f, 0.42f, 1.0f);
     cfg1.hoverBorder = ColorF(0.40f, 0.90f, 1.0f, 1.0f);
-    cfg1.actionEvent = "btnCountAction";
+    cfg1.actionEvent = sysBtnCountActionEvent;
 
     AnimatedHoverButtonBuilder b1;
     b1.name("sysGradCyanBtn")
@@ -233,7 +257,7 @@ private:
     cfg2.gradientAccentBg = ColorF(1.0f, 0.82f, 0.20f, 1.0f);
     cfg2.pressBg = ColorF(0.45f, 0.18f, 0.06f, 1.0f);
     cfg2.hoverBorder = ColorF(1.0f, 0.88f, 0.35f, 1.0f);
-    cfg2.actionEvent = "btnCountAction";
+    cfg2.actionEvent = sysBtnCountActionEvent;
 
     AnimatedHoverButtonBuilder b2;
     b2.name("sysGradSunsetBtn")
@@ -252,7 +276,7 @@ private:
     cfg3.gradientAccentBg = ColorF(0.92f, 0.30f, 0.75f, 1.0f);
     cfg3.pressBg = ColorF(0.28f, 0.10f, 0.42f, 1.0f);
     cfg3.hoverBorder = ColorF(0.90f, 0.55f, 1.0f, 1.0f);
-    cfg3.actionEvent = "btnCountAction";
+    cfg3.actionEvent = sysBtnCountActionEvent;
 
     AnimatedHoverButtonBuilder b3;
     b3.name("sysGradAuroraBtn")
@@ -336,7 +360,7 @@ private:
     cfg1.hoverBg = ColorF(0.25f, 0.45f, 0.80f, 1.0f);
     cfg1.pressBg = ColorF(0.10f, 0.22f, 0.45f, 1.0f);
     cfg1.hoverBorder = ColorF(0.60f, 0.85f, 1.0f, 1.0f);
-    cfg1.actionEvent = "btnCountAction";
+    cfg1.actionEvent = sysBtnCountActionEvent;
 
     AnimatedHoverButtonBuilder b1;
     b1.name("sysIncrementBtn")
@@ -354,7 +378,7 @@ private:
     cfg2.hoverBg = ColorF(0.30f, 0.34f, 0.40f, 1.0f);
     cfg2.pressBg = ColorF(0.14f, 0.16f, 0.18f, 1.0f);
     cfg2.hoverBorder = ColorF(0.55f, 0.60f, 0.70f, 1.0f);
-    cfg2.actionEvent = "btnCountReset";
+    cfg2.actionEvent = sysBtnCountResetEvent;
 
     AnimatedHoverButtonBuilder b2;
     b2.name("sysResetCounterBtn")
@@ -440,7 +464,7 @@ private:
     pillCfg1.hoverBg = ColorF(0.40f, 0.28f, 0.60f, 1.0f);
     pillCfg1.pressBg = ColorF(0.18f, 0.12f, 0.26f, 1.0f);
     pillCfg1.hoverBorder = ColorF(0.75f, 0.55f, 1.0f, 1.0f);
-    pillCfg1.actionEvent = "btnCountAction";
+    pillCfg1.actionEvent = sysBtnCountActionEvent;
 
     AnimatedHoverButtonBuilder p1;
     p1.name("sysPillFadeBtn")
@@ -459,7 +483,7 @@ private:
     pillCfg2.gradientAccentBg = ColorF(0.25f, 0.92f, 0.65f, 1.0f);
     pillCfg2.pressBg = ColorF(0.08f, 0.30f, 0.20f, 1.0f);
     pillCfg2.hoverBorder = ColorF(0.45f, 0.98f, 0.75f, 1.0f);
-    pillCfg2.actionEvent = "btnCountAction";
+    pillCfg2.actionEvent = sysBtnCountActionEvent;
 
     AnimatedHoverButtonBuilder p2;
     p2.name("sysPillWaveBtn")
@@ -509,6 +533,7 @@ private:
   }
 
   UiSystem ui;
+  ModelTracker!ButtonSystemPageModel tracker;
   Widget root;
   Widget counterLabel;
 }

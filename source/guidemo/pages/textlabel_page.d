@@ -4,7 +4,8 @@
 module guidemo.pages.textlabel_page;
 
 import guidemo.common : makeSectionCard;
-import guidemo.model : DemoModel;
+import guidemo.model : TextLabelPageModel;
+import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
@@ -17,6 +18,7 @@ final class TextLabelPage {
   this(UiSystem ui, Widget parent) {
     assert(ui !is null, "UiSystem must not be null");
     this.ui = ui;
+    tracker = ModelTracker!TextLabelPageModel(new TextLabelPageModel());
     root = new Widget(ui.nextWidgetId());
     root.name = "textLabelPage";
     root.rect = RectF(0, 0, 1280, 720);
@@ -30,7 +32,16 @@ final class TextLabelPage {
     buildPlaygroundSection();
   }
 
-  void update(const DemoModel m) {
+  ref ModelTracker!TextLabelPageModel getTracker() return {
+    return tracker;
+  }
+
+  void update() {
+    if (!tracker.update()) {
+      return;
+    }
+
+    const auto m = tracker.model;
     if (interactiveLabelWidget !is null &&
         interactiveLabelWidget.components.textLabel !is null) {
       auto tl = interactiveLabelWidget.components.textLabel;
@@ -52,6 +63,21 @@ final class TextLabelPage {
     if (interactiveStatusWidget !is null) {
       interactiveStatusWidget.setCaption(formatInteractiveStatus(m));
     }
+  }
+
+  string formatStatus() {
+    import std.format : format;
+
+    const auto m = tracker.model;
+    string alignStr = alignmentToString(m.labelAlignment);
+    return format(
+      "[Tab/1-6] Page 2: TextLabel | [M] Multiline: %s | " ~
+      "[E] Ellipsis: %s | [L] Align: %s | [T] Sample: %d/3 | [Q/Esc] Quit",
+      m.labelMultiline ? "ON" : "OFF",
+      m.labelEllipsis ? "ON" : "OFF",
+      alignStr,
+      m.labelSampleIndex + 1
+    );
   }
 
   Widget getRootWidget() {
@@ -77,27 +103,25 @@ final class TextLabelPage {
       "• Line 4: Additional content exceeding height boundary",
   ];
 
-  static string formatInteractiveStatus(const DemoModel m) {
-    import std.format : format;
-
-    string alignStr;
-    final switch (m.labelAlignment) {
+  static string alignmentToString(TextLabel.Alignment alignment) {
+    final switch (alignment) {
     case TextLabel.Alignment.left:
-      alignStr = "left";
-      break;
+      return "left";
     case TextLabel.Alignment.center:
-      alignStr = "center";
-      break;
+      return "center";
     case TextLabel.Alignment.right:
-      alignStr = "right";
-      break;
+      return "right";
     }
+  }
+
+  static string formatInteractiveStatus(const TextLabelPageModel m) {
+    import std.format : format;
 
     return format(
       "[M] Multiline: %s | [E] Ellipsis: %s | [L] Align: %s | [T] Sample: %d/3",
       m.labelMultiline ? "ON" : "OFF",
       m.labelEllipsis ? "ON" : "OFF",
-      alignStr,
+      alignmentToString(m.labelAlignment),
       m.labelSampleIndex + 1
     );
   }
@@ -493,6 +517,7 @@ private:
   }
 
   UiSystem ui;
+  ModelTracker!TextLabelPageModel tracker;
   Widget root;
   Widget interactiveLabelWidget;
   Widget interactiveStatusWidget;

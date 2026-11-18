@@ -7,7 +7,7 @@ module guidemo.pages.scrollbars_page;
 import guidemo.common : makeSectionCard;
 import guidemo.hover_button_system : AnimatedHoverButtonBuilder,
   HoverAnimConfig;
-import guidemo.model : DemoModel;
+import guidemo.model : ScrollbarsPageModel;
 import guidemo.scrollbars : ScrollbarBuilder, ScrollbarModel, ScrollbarStyle;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, PointF, RectF;
@@ -24,6 +24,12 @@ enum page6VScrollEvent = "page6VScroll";
 enum page6LiveScrollEvent = "page6LiveScroll";
 enum page6ReleaseScrollEvent = "page6ReleaseScroll";
 enum page6PlaygroundScrollEvent = "page6PlaygroundScroll";
+enum page6VisDecEvent = "page6VisDec";
+enum page6VisIncEvent = "page6VisInc";
+enum page6RangeToggleEvent = "page6RangeToggle";
+enum page6NarrowBarEvent = "page6NarrowBar";
+enum page6WidenBarEvent = "page6WidenBar";
+enum page6ResetBarEvent = "page6ResetBar";
 
 /// Page 6 widget container showcasing horizontal and vertical Scrollbars.
 final class ScrollbarsPage {
@@ -34,6 +40,7 @@ final class ScrollbarsPage {
     assert(parent !is null, "parent must not be null");
     this.ui = ui;
     this.registry = (registry !is null) ? registry : ui;
+    tracker = ModelTracker!ScrollbarsPageModel(new ScrollbarsPageModel());
     root = new Widget(ui.nextWidgetId());
     root.name = "scrollbarsPage";
     root.rect = RectF(0, 0, 1280, 720);
@@ -65,20 +72,29 @@ final class ScrollbarsPage {
     assert(root !is null);
   }
 
-  void update(const DemoModel m) {
+  ref ModelTracker!ScrollbarsPageModel getTracker() return {
+    return tracker;
+  }
+
+  void update() {
     import std.format : format;
 
+    if (!tracker.update()) {
+      return;
+    }
+
+    const auto m = tracker.model;
     if (viewportArea !is null) {
       viewportArea.setScrollOffset(
-        PointF(cast(float) m.page6HScroll, cast(float) m.page6VScroll)
+        PointF(cast(float) m.hScroll, cast(float) m.vScroll)
       );
     }
     if (viewportStatusLabel !is null) {
       viewportStatusLabel.setCaption(
         format(
           "Offset: (%d, %d) | Content: 1080x540 | Viewport: 538x176",
-          m.page6HScroll,
-          m.page6VScroll
+          m.hScroll,
+          m.vScroll
         )
       );
     }
@@ -87,8 +103,8 @@ final class ScrollbarsPage {
       liveStatusLabel.setCaption(
         format(
           "Live (reportOnReleaseOnly=false) | Value: %d | Events: %d",
-          m.page6LiveValue,
-          m.page6LiveEventCount
+          m.liveValue,
+          m.liveEventCount
         )
       );
     }
@@ -96,8 +112,8 @@ final class ScrollbarsPage {
       releaseStatusLabel.setCaption(
         format(
           "On-Release (reportOnReleaseOnly=true) | Value: %d | Events: %d",
-          m.page6ReleaseValue,
-          m.page6ReleaseEventCount
+          m.releaseValue,
+          m.releaseEventCount
         )
       );
     }
@@ -110,7 +126,7 @@ final class ScrollbarsPage {
         format(
           "Value: %d | Range: [%d..%d] | VisibleSize: %d\n" ~
             "Container Width: %.0fpx | Thumb Ratio: %.1f%% (min 20px)",
-          m.page6PlaygroundValue,
+          m.playgroundValue,
           pm.min,
           pm.max,
           pm.visibleSize,
@@ -119,6 +135,22 @@ final class ScrollbarsPage {
         )
       );
     }
+  }
+
+  string formatStatus() {
+    import std.format : format;
+
+    const auto m = tracker.model;
+    return format(
+      "[Tab/1-6] Page 6: Scrollbars | Viewport: (%d,%d) | Live: %d (%d) | " ~
+        "Rel: %d (%d) | [Q/Esc] Quit",
+      m.hScroll,
+      m.vScroll,
+      m.liveValue,
+      m.liveEventCount,
+      m.releaseValue,
+      m.releaseEventCount
+    );
   }
 
   void shrinkVisibleSize() {
@@ -605,6 +637,7 @@ private:
   }
 
   UiSystem ui;
+  ModelTracker!ScrollbarsPageModel tracker;
   Widget root;
   UiRegistry registry;
 

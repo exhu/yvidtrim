@@ -55,6 +55,12 @@ import yguilib.window : Window;
 import guidemo.controller : DemoController;
 import guidemo.hover_button : HoverButtonController;
 import guidemo.hover_button_system : AnimatedHoverButtonSystem;
+import guidemo.pages.button_controller : ButtonPageController;
+import guidemo.pages.button_system_controller : ButtonSystemPageController;
+import guidemo.pages.layout_painter_controller : LayoutPainterPageController;
+import guidemo.pages.scrollbars_controller : ScrollbarsPageController;
+import guidemo.pages.tabcontrol_controller : TabControlPageController;
+import guidemo.pages.textlabel_controller : TextLabelPageController;
 import guidemo.scrollbars : registerScrollbars;
 import guidemo.tabcontrol : registerTabControl;
 
@@ -69,11 +75,52 @@ void main() {
   app.ui.pushController(scrollbarController);
   // now create the main app controller, and custom controllers
   auto demoController = new DemoController(app);
+  auto demoView = demoController.getView();
+
   auto hoverButtonController = new HoverButtonController(app.ui);
-  demoController.getView().getButtonPage().registerWithController(
-    hoverButtonController
-  );
+  demoView.getButtonPage().registerWithController(hoverButtonController);
   app.ui.pushController(hoverButtonController);
+
+  app.ui.pushController(
+    new LayoutPainterPageController(
+      app.ui,
+      demoController.getTracker(),
+      demoView.getLayoutPainterPage(),
+      demoView
+    )
+  );
+  app.ui.pushController(
+    new TextLabelPageController(
+      app.ui,
+      demoController.getTracker(),
+      demoView.getTextLabelPage(),
+      demoView
+    )
+  );
+  app.ui.pushController(
+    new ButtonPageController(app.ui, demoView.getButtonPage(), demoView)
+  );
+  app.ui.pushController(
+    new ButtonSystemPageController(
+      app.ui,
+      demoView.getButtonSystemPage(),
+      demoView
+    )
+  );
+  app.ui.pushController(
+    new TabControlPageController(
+      app.ui,
+      demoView.getTabControlPage(),
+      demoView
+    )
+  );
+  app.ui.pushController(
+    new ScrollbarsPageController(
+      app.ui,
+      demoView.getScrollbarsPage(),
+      demoView
+    )
+  );
   import std.logger : infof;
   infof("ui = %s", app.ui.dumpInfo());
   infof("root = %s", app.ui.mainWindow.rootWidget.dumpTree());

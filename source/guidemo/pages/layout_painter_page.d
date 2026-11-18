@@ -6,7 +6,8 @@ module guidemo.pages.layout_painter_page;
 import std.typecons : Nullable, nullable;
 
 import guidemo.common : makeSectionCard;
-import guidemo.model : DemoModel;
+import guidemo.model : LayoutPainterPageModel;
+import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
@@ -20,6 +21,9 @@ final class LayoutPainterPage {
   this(UiSystem ui, Widget parent) {
     assert(ui !is null, "UiSystem must not be null");
     this.ui = ui;
+    tracker = ModelTracker!LayoutPainterPageModel(
+      new LayoutPainterPageModel()
+    );
     root = new Widget(ui.nextWidgetId());
     root.name = "layoutPainterPage";
     root.rect = RectF(0, 0, 1280, 720);
@@ -33,7 +37,16 @@ final class LayoutPainterPage {
     buildFlexPlayground();
   }
 
-  void update(const DemoModel m) {
+  ref ModelTracker!LayoutPainterPageModel getTracker() return {
+    return tracker;
+  }
+
+  void update() {
+    if (!tracker.update()) {
+      return;
+    }
+
+    const auto m = tracker.model;
     // 1. Update animated alpha chip (only visual dirty, no flex re-layout!)
     if (alphaChip !is null && alphaChip.components.background !is null) {
       ColorF c = alphaChip.components.background.color;
@@ -68,6 +81,53 @@ final class LayoutPainterPage {
         playgroundContainer.update(WidgetUpdateScope.layout);
       }
     }
+  }
+
+  string formatStatus() {
+    import std.format : format;
+
+    const auto m = tracker.model;
+    string dirStr = m.direction == FlexDirection.row ? "row" : "col";
+    string justStr;
+    final switch (m.justify) {
+    case JustifyContent.start:
+      justStr = "start";
+      break;
+    case JustifyContent.end:
+      justStr = "end";
+      break;
+    case JustifyContent.center:
+      justStr = "center";
+      break;
+    case JustifyContent.spaceBetween:
+      justStr = "spaceBetween";
+      break;
+    }
+
+    string alignStr;
+    final switch (m.alignItems) {
+    case AlignItems.start:
+      alignStr = "start";
+      break;
+    case AlignItems.end:
+      alignStr = "end";
+      break;
+    case AlignItems.center:
+      alignStr = "center";
+      break;
+    case AlignItems.stretch:
+      alignStr = "stretch";
+      break;
+    }
+
+    string visStr = m.child2Visible ? "visible" : "hidden";
+
+    return format(
+      "[Tab/1-6] Page 1: Layout | [D] Dir: %s | [J] Justify: %s | " ~
+      "[A] Align: %s | [G] Gap: %.0f | [V] Box B: %s | [T] Text: %d | " ~
+      "[Q/Esc] Quit",
+      dirStr, justStr, alignStr, m.gap, visStr, m.textSampleIndex + 1
+    );
   }
 
   Widget getRootWidget() {
@@ -657,6 +717,7 @@ private:
   }
 
   UiSystem ui;
+  ModelTracker!LayoutPainterPageModel tracker;
   Widget root;
   Widget alphaChip;
   Widget autoLabelWidget;

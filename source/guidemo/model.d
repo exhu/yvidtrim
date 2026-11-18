@@ -17,12 +17,15 @@ enum DebugDrawMode {
   activePageWithHidden,
 }
 
-/// Model holding interactive state for the demo.
+/// Model holding shared global state for the demo.
 final class DemoModel : VersionedModel {
   size_t activePage = 0;
   DebugDrawMode debugDrawMode = DebugDrawMode.off;
+  bool quitRequested = false;
+}
 
-  // Page 1 state (Layout & Painter)
+/// Model holding Page 1 (Layout & Painter) state.
+final class LayoutPainterPageModel : VersionedModel {
   JustifyContent justify = JustifyContent.start;
   AlignItems alignItems = AlignItems.stretch;
   FlexDirection direction = FlexDirection.row;
@@ -30,35 +33,46 @@ final class DemoModel : VersionedModel {
   bool child2Visible = true;
   size_t textSampleIndex = 0;
   float alphaValue = 0.2f;
+}
 
-  // Page 2 state (TextLabel Playground)
+/// Model holding Page 2 (TextLabel Playground) state.
+final class TextLabelPageModel : VersionedModel {
   bool labelMultiline = true;
   bool labelEllipsis = true;
   TextLabel.Alignment labelAlignment = TextLabel.Alignment.left;
   size_t labelSampleIndex = 0;
+}
 
-  // Page 3 state (Hover Button Showcase)
+/// Model holding Page 3 (Hover Button Showcase) state.
+final class ButtonPageModel : VersionedModel {
   size_t buttonClickCount = 0;
+}
 
-  // Page 5 state (TabControl Showcase)
-  size_t page5SubTab = 0;
-  size_t page5VerticalTab = 0;
-  size_t page5DynamicTab = 0;
-  size_t page5DynamicTabCount = 6;
-  float page5ViewportWidth = 580.0f;
-  string page5LastEventName = "none";
-  size_t page5LastEventIndex = 0;
+/// Model holding Page 4 (Hover System Showcase) state.
+final class ButtonSystemPageModel : VersionedModel {
+  size_t buttonClickCount = 0;
+}
 
-  // Page 6 state (Scrollbars Showcase)
-  long page6HScroll = 0;
-  long page6VScroll = 0;
-  long page6LiveValue = 250;
-  size_t page6LiveEventCount = 0;
-  long page6ReleaseValue = 250;
-  size_t page6ReleaseEventCount = 0;
-  long page6PlaygroundValue = 200;
+/// Model holding Page 5 (TabControl Showcase) state.
+final class TabControlPageModel : VersionedModel {
+  size_t subTab = 0;
+  size_t verticalTab = 0;
+  size_t dynamicTab = 0;
+  size_t dynamicTabCount = 6;
+  float viewportWidth = 580.0f;
+  string lastEventName = "none";
+  size_t lastEventIndex = 0;
+}
 
-  bool quitRequested = false;
+/// Model holding Page 6 (Scrollbars Showcase) state.
+final class ScrollbarsPageModel : VersionedModel {
+  long hScroll = 0;
+  long vScroll = 0;
+  long liveValue = 250;
+  size_t liveEventCount = 0;
+  long releaseValue = 250;
+  size_t releaseEventCount = 0;
+  long playgroundValue = 200;
 }
 
 /// Default tab captions for the main guidemo header TabControl.
