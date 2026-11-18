@@ -381,7 +381,7 @@ private:
     applyViewUpdatesAndRender(viewUpdateBuf[0 .. viewUpdateCount]);
 
     if (needUpdate) {
-      sendAppEvent(AppEvent(AppEvent.Kind.update));
+      sendAppEvent(AppEvent.makeNoRepeat(AppEvent.Kind.update));
     }
 
     return true;

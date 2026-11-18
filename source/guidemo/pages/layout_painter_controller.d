@@ -116,7 +116,7 @@ final class LayoutPainterPageController : DefaultController {
     }
 
     HandleResult res;
-    res.result = HandleResult.Result.nothing;
+    res.result = isAnimating() && update() ? HandleResult.Result.updateView : HandleResult.Result.nothing;
     res.consume = false;
     res.timeoutMs = animationTimeoutMs();
     return res;
@@ -161,6 +161,10 @@ private:
       alphaTimer.setPause(!onPage1);
       wasOnPage1 = onPage1;
     }
+  }
+
+  bool isAnimating() {
+    return animationTimeoutMs() != -1;
   }
 
   int animationTimeoutMs() {
