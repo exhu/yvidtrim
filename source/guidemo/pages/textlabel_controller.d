@@ -74,7 +74,7 @@ final class TextLabelPageController : DefaultController {
         return HandleResult(HandleResult.Result.updateView, true);
       }
     }
-    return HandleResult(HandleResult.Result.nothing);
+    return super.handleEvent(ev);
   }
 
 private:
@@ -127,10 +127,17 @@ unittest {
   assert(!hrIgnored.consume);
   assert(page.getTracker().model.labelMultiline);
 
-  // Switch to Page 2 (activePage == 1)
+  // Switch to Page 2 (activePage == DemoPage.textLabel)
+  assert(!page.isVisible());
   auto dm = demoTracker.edit();
-  dm.activePage = 1;
+  dm.activePage = DemoPage.textLabel;
   demoTracker.commit(dm);
+
+  auto hrUpdate = ctrl.handleEvent(AppEvent(AppEvent.Kind.update));
+  assert(hrUpdate.result == HandleResult.Result.updateView);
+  assert(!hrUpdate.consume);
+  ctrl.updateView();
+  assert(page.isVisible());
 
   auto hrM = ctrl.handleEvent(makeKeyDown(Keycode.m, Scancode.m));
   assert(hrM.result == HandleResult.Result.updateView);

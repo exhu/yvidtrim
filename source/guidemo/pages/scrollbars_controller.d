@@ -74,7 +74,7 @@ final class ScrollbarsPageController : DefaultController {
 
   override HandleResult handleEvent(AppEvent ev) {
     if (ev.kind != AppEvent.Kind.view) {
-      return HandleResult(HandleResult.Result.nothing);
+      return super.handleEvent(ev);
     }
 
     const string eventName = ev.view.eventName;
@@ -82,7 +82,7 @@ final class ScrollbarsPageController : DefaultController {
     if (handleScrollEvent(eventName, val) || handleMutation(eventName)) {
       return HandleResult(HandleResult.Result.updateView, true);
     }
-    return HandleResult(HandleResult.Result.nothing);
+    return super.handleEvent(ev);
   }
 
 private:
@@ -164,4 +164,18 @@ unittest {
   auto hrOther = ctrl.handleEvent(evOther);
   assert(hrOther.result == HandleResult.Result.nothing);
   assert(!hrOther.consume);
+
+  // AppEvent.Kind.update syncs page visibility when activePage changes
+  auto demoTracker = ModelTracker!DemoModel(new DemoModel());
+  auto page2 = new ScrollbarsPage(ui, root);
+  auto ctrl2 = new ScrollbarsPageController(ui, demoTracker, page2);
+  assert(!page2.isVisible());
+  auto dm = demoTracker.edit();
+  dm.activePage = DemoPage.scrollbars;
+  demoTracker.commit(dm);
+  auto hrUpdate = ctrl2.handleEvent(AppEvent(AppEvent.Kind.update));
+  assert(hrUpdate.result == HandleResult.Result.updateView);
+  assert(!hrUpdate.consume);
+  ctrl2.updateView();
+  assert(page2.isVisible());
 }

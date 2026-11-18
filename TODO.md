@@ -1,3 +1,6 @@
+- decide on view-controller architecture, View should be created before the controller
+and passed to it instead of creating a view inside one.
+
 - how active animations are updated? maybe support timers as new events in
   MessageBus to wake the system instead of uninterrupted loop of result updates
   in handleEvent, so that any controller can forget about timeOut value for event,

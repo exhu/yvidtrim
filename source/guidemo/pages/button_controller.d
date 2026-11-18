@@ -78,7 +78,7 @@ final class ButtonPageController : DefaultController {
 
   override HandleResult handleEvent(AppEvent ev) {
     if (ev.kind != AppEvent.Kind.view) {
-      return HandleResult(HandleResult.Result.nothing);
+      return super.handleEvent(ev);
     }
 
     const string eventName = ev.view.eventName;
@@ -94,7 +94,7 @@ final class ButtonPageController : DefaultController {
       tracker.commit(model);
       return HandleResult(HandleResult.Result.updateView, true);
     }
-    return HandleResult(HandleResult.Result.nothing);
+    return super.handleEvent(ev);
   }
 
 private:
@@ -129,4 +129,18 @@ unittest {
   auto hrOther = ctrl.handleEvent(evOther);
   assert(hrOther.result == HandleResult.Result.nothing);
   assert(!hrOther.consume);
+
+  // AppEvent.Kind.update syncs page visibility when activePage changes
+  auto demoTracker = ModelTracker!DemoModel(new DemoModel());
+  auto page2 = new ButtonPage(ui, root);
+  auto ctrl2 = new ButtonPageController(ui, demoTracker, page2);
+  assert(!page2.isVisible());
+  auto dm = demoTracker.edit();
+  dm.activePage = DemoPage.button;
+  demoTracker.commit(dm);
+  auto hrUpdate = ctrl2.handleEvent(AppEvent(AppEvent.Kind.update));
+  assert(hrUpdate.result == HandleResult.Result.updateView);
+  assert(!hrUpdate.consume);
+  ctrl2.updateView();
+  assert(page2.isVisible());
 }
