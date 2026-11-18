@@ -1,3 +1,7 @@
+- guidemo: controller.d refactoring: split to separate controllers per page,
+leave only shared controller logic in DemoController. Put new controllers in
+stack, each listens only for its related events, does not consume unrelated.
+
 - Dynamic lists are for another feature to implement.
 
 
