@@ -22,6 +22,7 @@ final class DemoModel : VersionedModel {
   size_t activePage = 0;
   DebugDrawMode debugDrawMode = DebugDrawMode.off;
   bool quitRequested = false;
+  string statusText = "";
 }
 
 /// Model holding Page 1 (Layout & Painter) state.

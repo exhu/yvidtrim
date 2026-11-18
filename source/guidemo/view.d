@@ -1,15 +1,9 @@
 /**
- * view.d - Shell view coordinating header, pages, and footer status bar.
+ * view.d - Shell view for guidemo header and footer status bar.
  */
 module guidemo.view;
 
 import guidemo.model : DebugDrawMode, DemoModel, defaultHeaderTabNames;
-import guidemo.pages.button_page : ButtonPage;
-import guidemo.pages.button_system_page : ButtonSystemPage;
-import guidemo.pages.layout_painter_page : LayoutPainterPage;
-import guidemo.pages.scrollbars_page : ScrollbarsPage;
-import guidemo.pages.tabcontrol_page : TabControlPage;
-import guidemo.pages.textlabel_page : TextLabelPage;
 import guidemo.tabcontrol : TabControlBuilder, TabsModel;
 import yguilib.internal.uisystem_impl : UiSystemImpl;
 import yguilib.model : ModelTracker;
@@ -17,11 +11,9 @@ import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiRegistry, UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
-import yguilib.widget.drawing_components : Background, Border,
-  DebugDrawComponent, TextLabel;
-import yguilib.widget.layout_components : AlignItems, FlexContainer,
-  FlexDirection, Insets, JustifyContent, Size, SizingMode;
-import yguilib.widget.input_components : MouseEvent;
+import yguilib.widget.drawing_components : DebugDrawComponent;
+import yguilib.widget.layout_components : AlignItems, FlexDirection,
+  JustifyContent, Size, SizingMode;
 
 /// Event name emitted by the header TabControl on tab switch.
 enum headerTabSwitchEvent = "headerTabSwitch";
@@ -31,7 +23,7 @@ TabsModel createHeaderTabsModel() {
   return new TabsModel(defaultHeaderTabNames.dup, 0);
 }
 
-/// View building and updating all demo widget hierarchies.
+/// Shell view building and updating the shared demo frame (header and footer).
 final class DemoView {
   /// Constructs DemoView. `ui` is allowed to be null in headless tests.
   this(
@@ -51,34 +43,15 @@ final class DemoView {
       .build();
 
     buildHeader(this.ui);
-
-    page1 = new LayoutPainterPage(this.ui, view);
-    page2 = new TextLabelPage(this.ui, view);
-    page2.setVisible(false);
-    page3 = new ButtonPage(this.ui, view);
-    page3.setVisible(false);
-    page4 = new ButtonSystemPage(this.ui, view);
-    page4.setVisible(false);
-    page5 = new TabControlPage(this.ui, view, this.ui);
-    page5.setVisible(false);
-    page6 = new ScrollbarsPage(this.ui, view, this.ui);
-    page6.setVisible(false);
-
     buildStatusBar();
   }
 
   void update() {
     if (tracker.update()) {
       const auto m = tracker.model;
-      updatePageVisibility(m);
       updateDebugDraw(m);
+      updateStatusBar(m.statusText);
     }
-    updateActivePageContent(tracker.model.activePage);
-    updateStatusBar();
-  }
-
-  void updateStatusBar() {
-    statusLabel.setCaption(formatStatusString(tracker.model.activePage));
   }
 
   Widget getRootWidget() {
@@ -89,87 +62,24 @@ final class DemoView {
     return tabControl;
   }
 
-  LayoutPainterPage getLayoutPainterPage() {
-    return page1;
-  }
-
-  TextLabelPage getTextLabelPage() {
-    return page2;
-  }
-
-  ButtonPage getButtonPage() {
-    return page3;
-  }
-
-  ButtonSystemPage getButtonSystemPage() {
-    return page4;
-  }
-
-  TabControlPage getTabControlPage() {
-    return page5;
-  }
-
-  ScrollbarsPage getScrollbarsPage() {
-    return page6;
-  }
-
 private:
-  void updatePageVisibility(const DemoModel m) {
-    const bool p1Vis = (m.activePage == 0);
-    const bool p2Vis = (m.activePage == 1);
-    const bool p3Vis = (m.activePage == 2);
-    const bool p4Vis = (m.activePage == 3);
-    const bool p5Vis = (m.activePage == 4);
-    const bool p6Vis = (m.activePage == 5);
-    if (page1.isVisible() != p1Vis ||
-        page2.isVisible() != p2Vis ||
-        page3.isVisible() != p3Vis ||
-        page4.isVisible() != p4Vis ||
-        page5.isVisible() != p5Vis ||
-        page6.isVisible() != p6Vis) {
-      page1.setVisible(p1Vis);
-      page2.setVisible(p2Vis);
-      page3.setVisible(p3Vis);
-      page4.setVisible(p4Vis);
-      page5.setVisible(p5Vis);
-      page6.setVisible(p6Vis);
-      view.update(WidgetUpdateScope.layout);
-    }
+  void updateStatusBar(string statusText) {
+    statusLabel.setCaption(statusText);
   }
 
-  void updateActivePageContent(size_t activePage) {
-    if (activePage == 0) {
-      page1.update();
-    } else if (activePage == 1) {
-      page2.update();
-    } else if (activePage == 2) {
-      page3.update();
-    } else if (activePage == 3) {
-      page4.update();
-    } else if (activePage == 4) {
-      page5.update();
-    } else {
-      page6.update();
-    }
-  }
   void updateDebugDraw(const DemoModel m) {
-    if (m.debugDrawMode == appliedDebugDrawMode &&
-        m.activePage == appliedDebugDrawPage) {
+    if (m.debugDrawMode == appliedDebugDrawMode) {
       return;
     }
 
     view.components.debugDraw = null;
-    foreach (size_t i; 0 .. 6) {
-      auto pageRoot = getPageRoot(i);
-      if (pageRoot !is null) {
-        pageRoot.components.debugDraw = null;
-      }
-    }
 
     Widget target = null;
     bool drawHidden = false;
     final switch (m.debugDrawMode) {
     case DebugDrawMode.off:
+    case DebugDrawMode.activePageVisible:
+    case DebugDrawMode.activePageWithHidden:
       break;
     case DebugDrawMode.allVisible:
       target = view;
@@ -177,14 +87,6 @@ private:
       break;
     case DebugDrawMode.allWithHidden:
       target = view;
-      drawHidden = true;
-      break;
-    case DebugDrawMode.activePageVisible:
-      target = getPageRoot(m.activePage);
-      drawHidden = false;
-      break;
-    case DebugDrawMode.activePageWithHidden:
-      target = getPageRoot(m.activePage);
       drawHidden = true;
       break;
     }
@@ -198,46 +100,7 @@ private:
     }
 
     appliedDebugDrawMode = m.debugDrawMode;
-    appliedDebugDrawPage = m.activePage;
     view.update(WidgetUpdateScope.visuals);
-  }
-
-  Widget getPageRoot(size_t pageIdx) {
-    switch (pageIdx) {
-    case 0:
-      return page1.getRootWidget();
-    case 1:
-      return page2.getRootWidget();
-    case 2:
-      return page3.getRootWidget();
-    case 3:
-      return page4.getRootWidget();
-    case 4:
-      return page5.getRootWidget();
-    case 5:
-      return page6.getRootWidget();
-    default:
-      return null;
-    }
-  }
-
-  string formatStatusString(size_t activePage) {
-    if (activePage == 1) {
-      return page2.formatStatus();
-    }
-    if (activePage == 2) {
-      return page3.formatStatus();
-    }
-    if (activePage == 3) {
-      return page4.formatStatus();
-    }
-    if (activePage == 4) {
-      return page5.formatStatus();
-    }
-    if (activePage == 5) {
-      return page6.formatStatus();
-    }
-    return page1.formatStatus();
   }
 
   void buildHeader(UiRegistry registry) {
@@ -315,7 +178,7 @@ private:
       .parent(footer)
       .name("statusLabel")
       .rect(RectF(14, 16, 1210, 20))
-      .text(formatStatusString(tracker.model.activePage))
+      .text(tracker.model.statusText)
       .textColor(ColorF(0.95f, 0.95f, 0.40f, 1.0f))
       .build();
   }
@@ -328,15 +191,7 @@ private:
   Widget tabControl;
   Widget statusLabel;
 
-  LayoutPainterPage page1;
-  TextLabelPage page2;
-  ButtonPage page3;
-  ButtonSystemPage page4;
-  TabControlPage page5;
-  ScrollbarsPage page6;
-
   DebugDrawMode appliedDebugDrawMode = DebugDrawMode.off;
-  size_t appliedDebugDrawPage = 0;
 }
 
 // View header layout construction test
@@ -381,55 +236,34 @@ unittest {
   }
   verifyAllNamed(root);
 
-  // Verify debug draw mode synchronization across all 6 pages
+  // Verify root-level debug draw mode synchronization and statusText updates
   assert(root.components.debugDraw is null);
-  foreach (size_t i; 0 .. 6) {
-    assert(demoView.getPageRoot(i).components.debugDraw is null);
-  }
 
-  void applyMode(DebugDrawMode mode, size_t pageIdx = 0) {
+  void applyMode(DebugDrawMode mode, string status = "") {
     auto m = tracker.edit();
     m.debugDrawMode = mode;
-    m.activePage = pageIdx;
+    m.statusText = status;
     tracker.commit(m);
     demoView.update();
   }
 
-  applyMode(DebugDrawMode.allVisible);
+  applyMode(DebugDrawMode.allVisible, "Page 1 status");
   assert(root.components.debugDraw !is null);
   assert(root.components.debugDraw.enabled);
   assert(root.components.debugDraw.recursive);
   assert(!root.components.debugDraw.drawHidden);
-  foreach (size_t i; 0 .. 6) {
-    assert(demoView.getPageRoot(i).components.debugDraw is null);
-  }
+  assert(demoView.statusLabel.components.textLabel.caption == "Page 1 status");
 
-  applyMode(DebugDrawMode.allWithHidden);
+  applyMode(DebugDrawMode.allWithHidden, "Page 2 status");
   assert(root.components.debugDraw !is null);
   assert(root.components.debugDraw.enabled);
   assert(root.components.debugDraw.recursive);
   assert(root.components.debugDraw.drawHidden);
+  assert(demoView.statusLabel.components.textLabel.caption == "Page 2 status");
 
-  applyMode(DebugDrawMode.activePageVisible, 1);
+  applyMode(DebugDrawMode.activePageVisible, "Page 2 status");
   assert(root.components.debugDraw is null);
-  assert(demoView.getPageRoot(0).components.debugDraw is null);
-  assert(demoView.getPageRoot(1).components.debugDraw !is null);
-  assert(demoView.getPageRoot(1).components.debugDraw.enabled);
-  assert(demoView.getPageRoot(1).components.debugDraw.recursive);
-  assert(!demoView.getPageRoot(1).components.debugDraw.drawHidden);
 
-  // Switching page moves DebugDrawComponent to the new active page
-  applyMode(DebugDrawMode.activePageWithHidden, 3);
+  applyMode(DebugDrawMode.off, "Page 2 status");
   assert(root.components.debugDraw is null);
-  assert(demoView.getPageRoot(1).components.debugDraw is null);
-  assert(demoView.getPageRoot(3).components.debugDraw !is null);
-  assert(demoView.getPageRoot(3).components.debugDraw.enabled);
-  assert(demoView.getPageRoot(3).components.debugDraw.recursive);
-  assert(demoView.getPageRoot(3).components.debugDraw.drawHidden);
-
-  applyMode(DebugDrawMode.off, 3);
-  assert(root.components.debugDraw is null);
-  foreach (size_t i; 0 .. 6) {
-    assert(demoView.getPageRoot(i).components.debugDraw is null);
-  }
 }

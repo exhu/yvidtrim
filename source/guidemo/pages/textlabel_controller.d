@@ -3,15 +3,15 @@
  */
 module guidemo.pages.textlabel_controller;
 
-import guidemo.common : isKey;
+import guidemo.common : isKey, syncPageShell;
 import guidemo.model : DemoModel, TextLabelPageModel;
 import guidemo.pages.textlabel_page : TextLabelPage;
-import guidemo.view : DemoView;
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.model : ModelTracker;
 import yguilib.uisystem : UiSystem;
+import yguilib.widget : Widget;
 import yguilib.widget.drawing_components : TextLabel;
 
 /// Controller handling Page 2 keyboard shortcuts for TextLabel options.
@@ -19,8 +19,17 @@ final class TextLabelPageController : DefaultController {
   this(
     UiSystem ui,
     ref ModelTracker!DemoModel demoTracker,
-    TextLabelPage page,
-    DemoView demoView = null
+    Widget parent
+  ) {
+    assert(ui !is null, "ui must not be null");
+    assert(parent !is null, "parent must not be null");
+    this(ui, demoTracker, new TextLabelPage(ui, parent));
+  }
+
+  this(
+    UiSystem ui,
+    ref ModelTracker!DemoModel demoTracker,
+    TextLabelPage page
   ) {
     assert(ui !is null, "ui must not be null");
     assert(page !is null, "page must not be null");
@@ -28,17 +37,31 @@ final class TextLabelPageController : DefaultController {
     this.demoTracker = ModelTracker!DemoModel.from(demoTracker);
     this.page = page;
     this.tracker = ModelTracker!TextLabelPageModel.from(page.getTracker());
-    this.demoView = demoView;
+    syncPageShell(
+      this.demoTracker,
+      1,
+      page.getRootWidget(),
+      page.formatStatus()
+    );
   }
 
   invariant {
     assert(page !is null);
   }
 
+  override bool update() {
+    return demoTracker.update();
+  }
+
   override bool updateView() {
     page.update();
-    if (demoView !is null) {
-      demoView.updateStatusBar();
+    if (syncPageShell(
+        demoTracker,
+        1,
+        page.getRootWidget(),
+        page.formatStatus()
+      )) {
+      sendUpdate();
     }
     return true;
   }
@@ -76,7 +99,6 @@ private:
   ModelTracker!DemoModel demoTracker;
   ModelTracker!TextLabelPageModel tracker;
   TextLabelPage page;
-  DemoView demoView;
 }
 
 unittest {

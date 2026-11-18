@@ -3,34 +3,69 @@
  */
 module guidemo.pages.button_system_controller;
 
-import guidemo.model : ButtonSystemPageModel;
+import guidemo.common : syncPageShell;
+import guidemo.model : ButtonSystemPageModel, DemoModel;
 import guidemo.pages.button_system_page : ButtonSystemPage,
   sysBtnCountActionEvent, sysBtnCountResetEvent;
-import guidemo.view : DemoView;
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker;
 import yguilib.uisystem : UiSystem;
+import yguilib.widget : Widget;
 
 /// Controller handling Page 4 system-driven button action and reset events.
 final class ButtonSystemPageController : DefaultController {
-  this(UiSystem ui, ButtonSystemPage page, DemoView demoView = null) {
+  this(
+    UiSystem ui,
+    ref ModelTracker!DemoModel demoTracker,
+    Widget parent
+  ) {
+    assert(ui !is null, "ui must not be null");
+    assert(parent !is null, "parent must not be null");
+    this(ui, demoTracker, new ButtonSystemPage(ui, parent));
+  }
+
+  this(
+    UiSystem ui,
+    ref ModelTracker!DemoModel demoTracker,
+    ButtonSystemPage page
+  ) {
     assert(ui !is null, "ui must not be null");
     assert(page !is null, "page must not be null");
     super(ui);
+    this.demoTracker = ModelTracker!DemoModel.from(demoTracker);
     this.page = page;
     this.tracker = ModelTracker!ButtonSystemPageModel.from(page.getTracker());
-    this.demoView = demoView;
+    syncPageShell(
+      this.demoTracker,
+      3,
+      page.getRootWidget(),
+      page.formatStatus()
+    );
+  }
+
+  this(UiSystem ui, ButtonSystemPage page) {
+    auto dm = ModelTracker!DemoModel(new DemoModel());
+    this(ui, dm, page);
   }
 
   invariant {
     assert(page !is null);
   }
 
+  override bool update() {
+    return demoTracker.update();
+  }
+
   override bool updateView() {
     page.update();
-    if (demoView !is null) {
-      demoView.updateStatusBar();
+    if (syncPageShell(
+        demoTracker,
+        3,
+        page.getRootWidget(),
+        page.formatStatus()
+      )) {
+      sendUpdate();
     }
     return true;
   }
@@ -57,9 +92,9 @@ final class ButtonSystemPageController : DefaultController {
   }
 
 private:
+  ModelTracker!DemoModel demoTracker;
   ModelTracker!ButtonSystemPageModel tracker;
   ButtonSystemPage page;
-  DemoView demoView;
 }
 
 unittest {

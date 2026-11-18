@@ -3,34 +3,75 @@
  */
 module guidemo.pages.button_controller;
 
-import guidemo.model : ButtonPageModel;
+import guidemo.common : syncPageShell;
+import guidemo.hover_button : HoverButtonController;
+import guidemo.model : ButtonPageModel, DemoModel;
 import guidemo.pages.button_page : ButtonPage, btnCountActionEvent,
   btnCountResetEvent;
-import guidemo.view : DemoView;
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker;
 import yguilib.uisystem : UiSystem;
+import yguilib.widget : Widget;
 
 /// Controller handling Page 3 button action and reset events.
 final class ButtonPageController : DefaultController {
-  this(UiSystem ui, ButtonPage page, DemoView demoView = null) {
+  this(
+    UiSystem ui,
+    ref ModelTracker!DemoModel demoTracker,
+    Widget parent,
+    HoverButtonController hoverController = null
+  ) {
+    assert(ui !is null, "ui must not be null");
+    assert(parent !is null, "parent must not be null");
+    auto page = new ButtonPage(ui, parent);
+    if (hoverController !is null) {
+      page.registerWithController(hoverController);
+    }
+    this(ui, demoTracker, page);
+  }
+
+  this(
+    UiSystem ui,
+    ref ModelTracker!DemoModel demoTracker,
+    ButtonPage page
+  ) {
     assert(ui !is null, "ui must not be null");
     assert(page !is null, "page must not be null");
     super(ui);
+    this.demoTracker = ModelTracker!DemoModel.from(demoTracker);
     this.page = page;
     this.tracker = ModelTracker!ButtonPageModel.from(page.getTracker());
-    this.demoView = demoView;
+    syncPageShell(
+      this.demoTracker,
+      2,
+      page.getRootWidget(),
+      page.formatStatus()
+    );
+  }
+
+  this(UiSystem ui, ButtonPage page) {
+    auto dm = ModelTracker!DemoModel(new DemoModel());
+    this(ui, dm, page);
   }
 
   invariant {
     assert(page !is null);
   }
 
+  override bool update() {
+    return demoTracker.update();
+  }
+
   override bool updateView() {
     page.update();
-    if (demoView !is null) {
-      demoView.updateStatusBar();
+    if (syncPageShell(
+        demoTracker,
+        2,
+        page.getRootWidget(),
+        page.formatStatus()
+      )) {
+      sendUpdate();
     }
     return true;
   }
@@ -57,9 +98,9 @@ final class ButtonPageController : DefaultController {
   }
 
 private:
+  ModelTracker!DemoModel demoTracker;
   ModelTracker!ButtonPageModel tracker;
   ButtonPage page;
-  DemoView demoView;
 }
 
 unittest {

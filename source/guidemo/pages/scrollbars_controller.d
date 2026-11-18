@@ -3,36 +3,71 @@
  */
 module guidemo.pages.scrollbars_controller;
 
-import guidemo.model : ScrollbarsPageModel;
+import guidemo.common : syncPageShell;
+import guidemo.model : DemoModel, ScrollbarsPageModel;
 import guidemo.pages.scrollbars_page : ScrollbarsPage, page6HScrollEvent,
   page6LiveScrollEvent, page6NarrowBarEvent, page6PlaygroundScrollEvent,
   page6RangeToggleEvent, page6ReleaseScrollEvent, page6ResetBarEvent,
   page6VScrollEvent, page6VisDecEvent, page6VisIncEvent, page6WidenBarEvent;
-import guidemo.view : DemoView;
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker;
 import yguilib.uisystem : UiSystem;
+import yguilib.widget : Widget;
 
 /// Controller handling Page 6 scrollbar position and playground events.
 final class ScrollbarsPageController : DefaultController {
-  this(UiSystem ui, ScrollbarsPage page, DemoView demoView = null) {
+  this(
+    UiSystem ui,
+    ref ModelTracker!DemoModel demoTracker,
+    Widget parent
+  ) {
+    assert(ui !is null, "ui must not be null");
+    assert(parent !is null, "parent must not be null");
+    this(ui, demoTracker, new ScrollbarsPage(ui, parent, ui));
+  }
+
+  this(
+    UiSystem ui,
+    ref ModelTracker!DemoModel demoTracker,
+    ScrollbarsPage page
+  ) {
     assert(ui !is null, "ui must not be null");
     assert(page !is null, "page must not be null");
     super(ui);
+    this.demoTracker = ModelTracker!DemoModel.from(demoTracker);
     this.page = page;
     this.tracker = ModelTracker!ScrollbarsPageModel.from(page.getTracker());
-    this.demoView = demoView;
+    syncPageShell(
+      this.demoTracker,
+      5,
+      page.getRootWidget(),
+      page.formatStatus()
+    );
+  }
+
+  this(UiSystem ui, ScrollbarsPage page) {
+    auto dm = ModelTracker!DemoModel(new DemoModel());
+    this(ui, dm, page);
   }
 
   invariant {
     assert(page !is null);
   }
 
+  override bool update() {
+    return demoTracker.update();
+  }
+
   override bool updateView() {
     page.update();
-    if (demoView !is null) {
-      demoView.updateStatusBar();
+    if (syncPageShell(
+        demoTracker,
+        5,
+        page.getRootWidget(),
+        page.formatStatus()
+      )) {
+      sendUpdate();
     }
     return true;
   }
@@ -100,9 +135,9 @@ private:
     return handled;
   }
 
+  ModelTracker!DemoModel demoTracker;
   ModelTracker!ScrollbarsPageModel tracker;
   ScrollbarsPage page;
-  DemoView demoView;
 }
 
 unittest {

@@ -75,50 +75,52 @@ void main() {
   app.ui.pushController(scrollbarController);
   // now create the main app controller, and custom controllers
   auto demoController = new DemoController(app);
-  auto demoView = demoController.getView();
+  auto rootWidget = app.ui.mainWindow().rootWidget;
 
   auto hoverButtonController = new HoverButtonController(app.ui);
-  demoView.getButtonPage().registerWithController(hoverButtonController);
   app.ui.pushController(hoverButtonController);
 
   app.ui.pushController(
     new LayoutPainterPageController(
       app.ui,
       demoController.getTracker(),
-      demoView.getLayoutPainterPage(),
-      demoView
+      rootWidget
     )
   );
   app.ui.pushController(
     new TextLabelPageController(
       app.ui,
       demoController.getTracker(),
-      demoView.getTextLabelPage(),
-      demoView
+      rootWidget
     )
   );
   app.ui.pushController(
-    new ButtonPageController(app.ui, demoView.getButtonPage(), demoView)
+    new ButtonPageController(
+      app.ui,
+      demoController.getTracker(),
+      rootWidget,
+      hoverButtonController
+    )
   );
   app.ui.pushController(
     new ButtonSystemPageController(
       app.ui,
-      demoView.getButtonSystemPage(),
-      demoView
+      demoController.getTracker(),
+      rootWidget
     )
   );
   app.ui.pushController(
     new TabControlPageController(
       app.ui,
-      demoView.getTabControlPage(),
-      demoView
+      demoController.getTracker(),
+      rootWidget
     )
   );
   app.ui.pushController(
     new ScrollbarsPageController(
       app.ui,
-      demoView.getScrollbarsPage(),
-      demoView
+      demoController.getTracker(),
+      rootWidget
     )
   );
   import std.logger : infof;

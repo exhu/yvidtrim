@@ -100,6 +100,7 @@ private:
     if (isKey(ev, Keycode.f12, Scancode.f12)) {
       toggleDebugDraw(model);
       tracker.commit(model);
+      sendUpdate();
       return true;
     }
     if (isKey(ev, Keycode.tab, Scancode.tab)) {

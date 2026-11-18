@@ -3,16 +3,16 @@
  */
 module guidemo.pages.layout_painter_controller;
 
-import guidemo.common : isKey;
+import guidemo.common : isKey, syncPageShell;
 import guidemo.model : DemoModel, LayoutPainterPageModel;
 import guidemo.pages.layout_painter_page : LayoutPainterPage;
-import guidemo.view : DemoView;
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.model : ModelTracker;
 import yguilib.timers : AnimationTimer, AnimationWrapMode, DeltaTimer;
 import yguilib.uisystem : UiSystem;
+import yguilib.widget : Widget;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
   JustifyContent;
 
@@ -21,8 +21,17 @@ final class LayoutPainterPageController : DefaultController {
   this(
     UiSystem ui,
     ref ModelTracker!DemoModel demoTracker,
-    LayoutPainterPage page,
-    DemoView demoView = null
+    Widget parent
+  ) {
+    assert(ui !is null, "ui must not be null");
+    assert(parent !is null, "parent must not be null");
+    this(ui, demoTracker, new LayoutPainterPage(ui, parent));
+  }
+
+  this(
+    UiSystem ui,
+    ref ModelTracker!DemoModel demoTracker,
+    LayoutPainterPage page
   ) {
     assert(ui !is null, "ui must not be null");
     assert(page !is null, "page must not be null");
@@ -30,10 +39,15 @@ final class LayoutPainterPageController : DefaultController {
     this.demoTracker = ModelTracker!DemoModel.from(demoTracker);
     this.page = page;
     this.tracker = ModelTracker!LayoutPainterPageModel.from(page.getTracker());
-    this.demoView = demoView;
     alphaTimer.start(1.2f, AnimationWrapMode.pingPong);
     alphaTimer.setPause(this.demoTracker.model.activePage != 0);
     wasOnPage1 = (this.demoTracker.model.activePage == 0);
+    syncPageShell(
+      this.demoTracker,
+      0,
+      page.getRootWidget(),
+      page.formatStatus()
+    );
   }
 
   invariant {
@@ -42,16 +56,22 @@ final class LayoutPainterPageController : DefaultController {
 
   override bool updateView() {
     page.update();
-    if (demoView !is null) {
-      demoView.updateStatusBar();
+    if (syncPageShell(
+        demoTracker,
+        0,
+        page.getRootWidget(),
+        page.formatStatus()
+      )) {
+      sendUpdate();
     }
     return true;
   }
 
   override bool update() {
+    const bool demoChanged = demoTracker.update();
     syncAlphaTimer();
     if (demoTracker.model.activePage != 0 || alphaTimer.isPaused()) {
-      return false;
+      return demoChanged;
     }
 
     const float dt = alphaDeltaTimer.step();
@@ -59,7 +79,7 @@ final class LayoutPainterPageController : DefaultController {
     auto model = tracker.edit();
     model.alphaValue = alphaTimer.map(0.2f, 1.0f);
     tracker.commit(model);
-    return tracker.update();
+    return tracker.update() || demoChanged;
   }
 
   override HandleResult handleEvent(AppEvent ev) {
@@ -141,7 +161,6 @@ private:
   ModelTracker!DemoModel demoTracker;
   ModelTracker!LayoutPainterPageModel tracker;
   LayoutPainterPage page;
-  DemoView demoView;
   AnimationTimer alphaTimer;
   DeltaTimer alphaDeltaTimer;
   bool wasOnPage1 = true;

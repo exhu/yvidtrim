@@ -3,36 +3,71 @@
  */
 module guidemo.pages.tabcontrol_controller;
 
-import guidemo.model : TabControlPageModel;
+import guidemo.common : syncPageShell;
+import guidemo.model : DemoModel, TabControlPageModel;
 import guidemo.pages.tabcontrol_page : TabControlPage, dynamicTabSwitchEvent,
   page5AddTabEvent, page5NarrowViewportEvent, page5RemoveTabEvent,
   page5ResetTabsEvent, page5WidenViewportEvent, pageTabSwitchEvent,
   verticalTabSwitchEvent;
-import guidemo.view : DemoView;
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker;
 import yguilib.uisystem : UiSystem;
+import yguilib.widget : Widget;
 
 /// Controller handling Page 5 tab switch and dynamic tab mutation events.
 final class TabControlPageController : DefaultController {
-  this(UiSystem ui, TabControlPage page, DemoView demoView = null) {
+  this(
+    UiSystem ui,
+    ref ModelTracker!DemoModel demoTracker,
+    Widget parent
+  ) {
+    assert(ui !is null, "ui must not be null");
+    assert(parent !is null, "parent must not be null");
+    this(ui, demoTracker, new TabControlPage(ui, parent, ui));
+  }
+
+  this(
+    UiSystem ui,
+    ref ModelTracker!DemoModel demoTracker,
+    TabControlPage page
+  ) {
     assert(ui !is null, "ui must not be null");
     assert(page !is null, "page must not be null");
     super(ui);
+    this.demoTracker = ModelTracker!DemoModel.from(demoTracker);
     this.page = page;
     this.tracker = ModelTracker!TabControlPageModel.from(page.getTracker());
-    this.demoView = demoView;
+    syncPageShell(
+      this.demoTracker,
+      4,
+      page.getRootWidget(),
+      page.formatStatus()
+    );
+  }
+
+  this(UiSystem ui, TabControlPage page) {
+    auto dm = ModelTracker!DemoModel(new DemoModel());
+    this(ui, dm, page);
   }
 
   invariant {
     assert(page !is null);
   }
 
+  override bool update() {
+    return demoTracker.update();
+  }
+
   override bool updateView() {
     page.update();
-    if (demoView !is null) {
-      demoView.updateStatusBar();
+    if (syncPageShell(
+        demoTracker,
+        4,
+        page.getRootWidget(),
+        page.formatStatus()
+      )) {
+      sendUpdate();
     }
     return true;
   }
@@ -104,9 +139,9 @@ private:
     return handled;
   }
 
+  ModelTracker!DemoModel demoTracker;
   ModelTracker!TabControlPageModel tracker;
   TabControlPage page;
-  DemoView demoView;
 }
 
 unittest {
