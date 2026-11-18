@@ -38,6 +38,10 @@ meson setup _build .        # Setup (or --reconfigure)
   `source/yvidtrim/` or `yvidtrim-clibs/`.
 - GUI changes, graphics api access is allowed only on main thread, only message passing
 between threads via sendAppEvent.
+- **Controller Event Delegation**: Subclasses of `DefaultController` that
+  override `handleEvent(AppEvent ev)` must return `super.handleEvent(ev)` for
+  unhandled events (or explicitly handle `AppEvent.Kind.update` and lifecycle
+  events) so `update()` and `updateView()` are not silently skipped.
 - ARCHITECTURE.md: The system's conceptual and structural reality (module
   dependencies, invariants, topologies, and patterns, data flow).
 - Keep ARCHITECTURE.md updated whenever adding new modules, altering directory

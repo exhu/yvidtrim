@@ -55,6 +55,11 @@ interface Controller {
   void onWidgetReleased(Widget w);
 }
 
+/// Base controller implementing default quit, redraw, and update handling.
+///
+/// Subclasses overriding `handleEvent` must call `super.handleEvent(ev)` for
+/// unhandled events (or handle `AppEvent.Kind.update` and lifecycle events
+/// themselves) so `update()` and `updateView()` are not silently skipped.
 class DefaultController : Controller {
 
   @disable this();
