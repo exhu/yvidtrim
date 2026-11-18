@@ -4,7 +4,7 @@
 module guidemo.pages.scrollbars_controller;
 
 import guidemo.common : syncPageShell;
-import guidemo.model : DemoModel, ScrollbarsPageModel;
+import guidemo.model : DemoModel, DemoPage, ScrollbarsPageModel;
 import guidemo.pages.scrollbars_page : ScrollbarsPage, page6HScrollEvent,
   page6LiveScrollEvent, page6NarrowBarEvent, page6PlaygroundScrollEvent,
   page6RangeToggleEvent, page6ReleaseScrollEvent, page6ResetBarEvent,
@@ -40,7 +40,7 @@ final class ScrollbarsPageController : DefaultController {
     this.tracker = ModelTracker!ScrollbarsPageModel.from(page.getTracker());
     syncPageShell(
       this.demoTracker,
-      5,
+      DemoPage.scrollbars,
       page.getRootWidget(),
       page.formatStatus()
     );
@@ -63,7 +63,7 @@ final class ScrollbarsPageController : DefaultController {
     page.update();
     if (syncPageShell(
         demoTracker,
-        5,
+        DemoPage.scrollbars,
         page.getRootWidget(),
         page.formatStatus()
       )) {

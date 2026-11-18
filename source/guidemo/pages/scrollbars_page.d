@@ -142,8 +142,7 @@ final class ScrollbarsPage {
 
     const auto m = tracker.model;
     return format(
-      "[Tab/1-6] Page 6: Scrollbars | Viewport: (%d,%d) | Live: %d (%d) | " ~
-        "Rel: %d (%d) | [Q/Esc] Quit",
+      "Viewport: (%d,%d) | Live: %d (%d) | Rel: %d (%d)",
       m.hScroll,
       m.vScroll,
       m.liveValue,

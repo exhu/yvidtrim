@@ -4,7 +4,8 @@
 module guidemo.pages.layout_painter_controller;
 
 import guidemo.common : isKey, syncPageShell;
-import guidemo.model : DemoModel, LayoutPainterPageModel;
+import guidemo.demo_model_helpers : isPageActive;
+import guidemo.model : DemoModel, DemoPage, LayoutPainterPageModel;
 import guidemo.pages.layout_painter_page : LayoutPainterPage;
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
@@ -40,11 +41,15 @@ final class LayoutPainterPageController : DefaultController {
     this.page = page;
     this.tracker = ModelTracker!LayoutPainterPageModel.from(page.getTracker());
     alphaTimer.start(1.2f, AnimationWrapMode.pingPong);
-    alphaTimer.setPause(this.demoTracker.model.activePage != 0);
-    wasOnPage1 = (this.demoTracker.model.activePage == 0);
+    const bool onPage = isPageActive(
+      this.demoTracker.model,
+      DemoPage.layoutPainter
+    );
+    alphaTimer.setPause(!onPage);
+    wasOnPage1 = onPage;
     syncPageShell(
       this.demoTracker,
-      0,
+      DemoPage.layoutPainter,
       page.getRootWidget(),
       page.formatStatus()
     );
@@ -58,7 +63,7 @@ final class LayoutPainterPageController : DefaultController {
     page.update();
     if (syncPageShell(
         demoTracker,
-        0,
+        DemoPage.layoutPainter,
         page.getRootWidget(),
         page.formatStatus()
       )) {
@@ -70,7 +75,8 @@ final class LayoutPainterPageController : DefaultController {
   override bool update() {
     const bool demoChanged = demoTracker.update();
     syncAlphaTimer();
-    if (demoTracker.model.activePage != 0 || alphaTimer.isPaused()) {
+    if (!isPageActive(demoTracker.model, DemoPage.layoutPainter) ||
+        alphaTimer.isPaused()) {
       return demoChanged;
     }
 
@@ -84,7 +90,10 @@ final class LayoutPainterPageController : DefaultController {
 
   override HandleResult handleEvent(AppEvent ev) {
     syncAlphaTimer();
-    const bool onPage1 = (demoTracker.model.activePage == 0);
+    const bool onPage1 = isPageActive(
+      demoTracker.model,
+      DemoPage.layoutPainter
+    );
 
     if (ev.kind == AppEvent.Kind.keyDown && onPage1) {
       if (handlePageKey(ev)) {
@@ -143,7 +152,10 @@ private:
   }
 
   void syncAlphaTimer() {
-    const bool onPage1 = (demoTracker.model.activePage == 0);
+    const bool onPage1 = isPageActive(
+      demoTracker.model,
+      DemoPage.layoutPainter
+    );
     if (onPage1 != wasOnPage1) {
       alphaDeltaTimer.reset();
       alphaTimer.setPause(!onPage1);
@@ -152,7 +164,8 @@ private:
   }
 
   int animationTimeoutMs() {
-    if (demoTracker.model.activePage == 0 && !alphaTimer.isPaused()) {
+    if (isPageActive(demoTracker.model, DemoPage.layoutPainter) &&
+        !alphaTimer.isPaused()) {
       return 16;
     }
     return -1;

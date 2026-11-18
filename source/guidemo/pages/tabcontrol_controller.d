@@ -4,7 +4,7 @@
 module guidemo.pages.tabcontrol_controller;
 
 import guidemo.common : syncPageShell;
-import guidemo.model : DemoModel, TabControlPageModel;
+import guidemo.model : DemoModel, DemoPage, TabControlPageModel;
 import guidemo.pages.tabcontrol_page : TabControlPage, dynamicTabSwitchEvent,
   page5AddTabEvent, page5NarrowViewportEvent, page5RemoveTabEvent,
   page5ResetTabsEvent, page5WidenViewportEvent, pageTabSwitchEvent,
@@ -40,7 +40,7 @@ final class TabControlPageController : DefaultController {
     this.tracker = ModelTracker!TabControlPageModel.from(page.getTracker());
     syncPageShell(
       this.demoTracker,
-      4,
+      DemoPage.tabControl,
       page.getRootWidget(),
       page.formatStatus()
     );
@@ -63,7 +63,7 @@ final class TabControlPageController : DefaultController {
     page.update();
     if (syncPageShell(
         demoTracker,
-        4,
+        DemoPage.tabControl,
         page.getRootWidget(),
         page.formatStatus()
       )) {

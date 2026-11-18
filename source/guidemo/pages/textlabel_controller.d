@@ -4,7 +4,8 @@
 module guidemo.pages.textlabel_controller;
 
 import guidemo.common : isKey, syncPageShell;
-import guidemo.model : DemoModel, TextLabelPageModel;
+import guidemo.demo_model_helpers : isPageActive;
+import guidemo.model : DemoModel, DemoPage, TextLabelPageModel;
 import guidemo.pages.textlabel_page : TextLabelPage;
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
@@ -39,7 +40,7 @@ final class TextLabelPageController : DefaultController {
     this.tracker = ModelTracker!TextLabelPageModel.from(page.getTracker());
     syncPageShell(
       this.demoTracker,
-      1,
+      DemoPage.textLabel,
       page.getRootWidget(),
       page.formatStatus()
     );
@@ -57,7 +58,7 @@ final class TextLabelPageController : DefaultController {
     page.update();
     if (syncPageShell(
         demoTracker,
-        1,
+        DemoPage.textLabel,
         page.getRootWidget(),
         page.formatStatus()
       )) {
@@ -67,7 +68,8 @@ final class TextLabelPageController : DefaultController {
   }
 
   override HandleResult handleEvent(AppEvent ev) {
-    if (ev.kind == AppEvent.Kind.keyDown && demoTracker.model.activePage == 1) {
+    if (ev.kind == AppEvent.Kind.keyDown &&
+        isPageActive(demoTracker.model, DemoPage.textLabel)) {
       if (handlePageKey(ev)) {
         return HandleResult(HandleResult.Result.updateView, true);
       }

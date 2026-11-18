@@ -123,8 +123,7 @@ final class TabControlPage {
 
     const auto m = tracker.model;
     return format(
-      "[Tab/1-6] Page 5: TabControl | SubTab: %d | VertTab: %d | " ~
-        "DynTabs: %d | LastEv: %s(%d) | [Q/Esc] Quit",
+      "SubTab: %d | VertTab: %d | DynTabs: %d | LastEv: %s(%d)",
       m.subTab,
       m.verticalTab,
       m.dynamicTabCount,

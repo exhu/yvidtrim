@@ -5,7 +5,7 @@ module guidemo.pages.button_controller;
 
 import guidemo.common : syncPageShell;
 import guidemo.hover_button : HoverButtonController;
-import guidemo.model : ButtonPageModel, DemoModel;
+import guidemo.model : ButtonPageModel, DemoModel, DemoPage;
 import guidemo.pages.button_page : ButtonPage, btnCountActionEvent,
   btnCountResetEvent;
 import yguilib.controller : DefaultController, HandleResult;
@@ -44,7 +44,7 @@ final class ButtonPageController : DefaultController {
     this.tracker = ModelTracker!ButtonPageModel.from(page.getTracker());
     syncPageShell(
       this.demoTracker,
-      2,
+      DemoPage.button,
       page.getRootWidget(),
       page.formatStatus()
     );
@@ -67,7 +67,7 @@ final class ButtonPageController : DefaultController {
     page.update();
     if (syncPageShell(
         demoTracker,
-        2,
+        DemoPage.button,
         page.getRootWidget(),
         page.formatStatus()
       )) {

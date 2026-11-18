@@ -10,6 +10,7 @@ import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.model : ModelTracker;
 
 import guidemo.common : isKey;
+import guidemo.demo_model_helpers : pageCount;
 import guidemo.model : DebugDrawMode, DemoModel;
 import guidemo.tabcontrol : TabsModel;
 import guidemo.view : DemoView, createHeaderTabsModel, headerTabSwitchEvent;
@@ -80,7 +81,7 @@ private:
     auto model = tracker.edit();
     const size_t prevPage = model.activePage;
     const size_t idx = cast(size_t) ev.view.value[0];
-    if (idx < 6) {
+    if (idx < pageCount()) {
       model.activePage = idx;
     }
     const size_t newPage = model.activePage;
@@ -104,26 +105,29 @@ private:
       return true;
     }
     if (isKey(ev, Keycode.tab, Scancode.tab)) {
-      model.activePage = (model.activePage + 1) % 6;
+      model.activePage = (model.activePage + 1) % pageCount();
       consumed = true;
-    } else if (isKey(ev, Keycode.key1, Scancode.key1)) {
-      model.activePage = 0;
-      consumed = true;
-    } else if (isKey(ev, Keycode.key2, Scancode.key2)) {
-      model.activePage = 1;
-      consumed = true;
-    } else if (isKey(ev, Keycode.key3, Scancode.key3)) {
-      model.activePage = 2;
-      consumed = true;
-    } else if (isKey(ev, Keycode.key4, Scancode.key4)) {
-      model.activePage = 3;
-      consumed = true;
-    } else if (isKey(ev, Keycode.key5, Scancode.key5)) {
-      model.activePage = 4;
-      consumed = true;
-    } else if (isKey(ev, Keycode.key6, Scancode.key6)) {
-      model.activePage = 5;
-      consumed = true;
+    } else {
+      static immutable Keycode[9] keycodes = [
+        Keycode.key1, Keycode.key2, Keycode.key3,
+        Keycode.key4, Keycode.key5, Keycode.key6,
+        Keycode.key7, Keycode.key8, Keycode.key9,
+      ];
+      static immutable Scancode[9] scancodes = [
+        Scancode.key1, Scancode.key2, Scancode.key3,
+        Scancode.key4, Scancode.key5, Scancode.key6,
+        Scancode.key7, Scancode.key8, Scancode.key9,
+      ];
+      const size_t count = pageCount() < keycodes.length
+        ? pageCount()
+        : keycodes.length;
+      foreach (i; 0 .. count) {
+        if (isKey(ev, keycodes[i], scancodes[i])) {
+          model.activePage = i;
+          consumed = true;
+          break;
+        }
+      }
     }
 
     const size_t newPage = model.activePage;

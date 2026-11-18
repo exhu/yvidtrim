@@ -4,7 +4,7 @@
 module guidemo.pages.button_system_controller;
 
 import guidemo.common : syncPageShell;
-import guidemo.model : ButtonSystemPageModel, DemoModel;
+import guidemo.model : ButtonSystemPageModel, DemoModel, DemoPage;
 import guidemo.pages.button_system_page : ButtonSystemPage,
   sysBtnCountActionEvent, sysBtnCountResetEvent;
 import yguilib.controller : DefaultController, HandleResult;
@@ -38,7 +38,7 @@ final class ButtonSystemPageController : DefaultController {
     this.tracker = ModelTracker!ButtonSystemPageModel.from(page.getTracker());
     syncPageShell(
       this.demoTracker,
-      3,
+      DemoPage.buttonSystem,
       page.getRootWidget(),
       page.formatStatus()
     );
@@ -61,7 +61,7 @@ final class ButtonSystemPageController : DefaultController {
     page.update();
     if (syncPageShell(
         demoTracker,
-        3,
+        DemoPage.buttonSystem,
         page.getRootWidget(),
         page.formatStatus()
       )) {

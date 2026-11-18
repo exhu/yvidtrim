@@ -123,9 +123,8 @@ final class LayoutPainterPage {
     string visStr = m.child2Visible ? "visible" : "hidden";
 
     return format(
-      "[Tab/1-6] Page 1: Layout | [D] Dir: %s | [J] Justify: %s | " ~
-      "[A] Align: %s | [G] Gap: %.0f | [V] Box B: %s | [T] Text: %d | " ~
-      "[Q/Esc] Quit",
+      "[D] Dir: %s | [J] Justify: %s | [A] Align: %s | " ~
+      "[G] Gap: %.0f | [V] Box B: %s | [T] Text: %d",
       dirStr, justStr, alignStr, m.gap, visStr, m.textSampleIndex + 1
     );
   }

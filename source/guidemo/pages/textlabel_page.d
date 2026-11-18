@@ -71,8 +71,8 @@ final class TextLabelPage {
     const auto m = tracker.model;
     string alignStr = alignmentToString(m.labelAlignment);
     return format(
-      "[Tab/1-6] Page 2: TextLabel | [M] Multiline: %s | " ~
-      "[E] Ellipsis: %s | [L] Align: %s | [T] Sample: %d/3 | [Q/Esc] Quit",
+      "[M] Multiline: %s | [E] Ellipsis: %s | [L] Align: %s | " ~
+      "[T] Sample: %d/3",
       m.labelMultiline ? "ON" : "OFF",
       m.labelEllipsis ? "ON" : "OFF",
       alignStr,
@@ -497,6 +497,9 @@ private:
   }
 
   void buildPlaygroundHint(Widget card) {
+    import guidemo.demo_model_helpers : pageCount;
+    import std.format : format;
+
     WidgetBuilder.make(ui)
       .parent(card)
       .name("interactiveHintLabel")
@@ -508,8 +511,12 @@ private:
       .border(ColorF(0.25f, 0.28f, 0.35f, 1.0f))
       .borderWidth(1.0f)
       .textComponent(new TextLabel(
-        "[M] Toggle multiline | [E] Toggle ellipsis | [L] Cycle alignment\n" ~
-          "[T] Cycle sample text | [Tab] or [1]/[2] Switch demo pages",
+        format(
+          "[M] Toggle multiline | [E] Toggle ellipsis | " ~
+            "[L] Cycle alignment\n" ~
+            "[T] Cycle sample text | [Tab] or [1-%d] Switch demo pages",
+          pageCount()
+        ),
         ColorF(0.65f, 0.72f, 0.85f, 1.0f)
       ).withMultiline(true)
         .withFontSize(12.0f))

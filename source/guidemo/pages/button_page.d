@@ -60,10 +60,7 @@ final class ButtonPage {
   }
 
   string formatStatus() {
-    return format(
-      "[Tab/1-6] Page 3: Hover Buttons | Clicks: %d | [Q/Esc] Quit",
-      tracker.model.buttonClickCount
-    );
+    return format("Clicks: %d", tracker.model.buttonClickCount);
   }
 
   Widget getRootWidget() {

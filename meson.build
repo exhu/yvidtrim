@@ -28,6 +28,7 @@ executable(
 guidemo_lib_src = files(
   'source/guidemo/common.d',
   'source/guidemo/controller.d',
+  'source/guidemo/demo_model_helpers.d',
   'source/guidemo/hover_button.d',
   'source/guidemo/hover_button_system.d',
   'source/guidemo/model.d',

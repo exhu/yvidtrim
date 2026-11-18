@@ -17,6 +17,32 @@ enum DebugDrawMode {
   activePageWithHidden,
 }
 
+/// Canonical order of demo pages in guidemo.
+enum DemoPage : size_t {
+  layoutPainter,
+  textLabel,
+  button,
+  buttonSystem,
+  tabControl,
+  scrollbars,
+}
+
+/// Display metadata for a single guidemo page.
+struct DemoPageMeta {
+  string tabTitle;
+  string statusTitle;
+}
+
+/// Ordered metadata table indexed by DemoPage.
+immutable DemoPageMeta[DemoPage.max + 1] demoPages = [
+  DemoPage.layoutPainter: DemoPageMeta("Layout & Paint", "Layout"),
+  DemoPage.textLabel: DemoPageMeta("TextLabel Demo", "TextLabel"),
+  DemoPage.button: DemoPageMeta("Hover (Ctrl)", "Hover Buttons"),
+  DemoPage.buttonSystem: DemoPageMeta("Hover (System)", "Hover System"),
+  DemoPage.tabControl: DemoPageMeta("TabControl", "TabControl"),
+  DemoPage.scrollbars: DemoPageMeta("Scrollbars", "Scrollbars"),
+];
+
 /// Model holding shared global state for the demo.
 final class DemoModel : VersionedModel {
   size_t activePage = 0;

@@ -3,7 +3,8 @@
  */
 module guidemo.view;
 
-import guidemo.model : DebugDrawMode, DemoModel, defaultHeaderTabNames;
+import guidemo.demo_model_helpers : headerTabNames;
+import guidemo.model : DebugDrawMode, DemoModel;
 import guidemo.tabcontrol : TabControlBuilder, TabsModel;
 import yguilib.internal.uisystem_impl : UiSystemImpl;
 import yguilib.model : ModelTracker;
@@ -20,7 +21,7 @@ enum headerTabSwitchEvent = "headerTabSwitch";
 
 /// Factory creating a default TabsModel initialized with header tab names.
 TabsModel createHeaderTabsModel() {
-  return new TabsModel(defaultHeaderTabNames.dup, 0);
+  return new TabsModel(headerTabNames(), 0);
 }
 
 /// Shell view building and updating the shared demo frame (header and footer).
