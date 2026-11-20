@@ -95,7 +95,12 @@ without manual controller registration (see
 - Define `final class MyComponent : WidgetComponent`.
 - Attach via `WidgetBuilder.make(ui)...component(new MyComponent(...))`.
 - Process visible widgets with the component in a `WidgetSystem` across
-  `SystemPhase.event | SystemPhase.preLayout | SystemPhase.postLayout`.
+  `SystemPhase.event | SystemPhase.update | SystemPhase.preLayout |
+  SystemPhase.postLayout`.
+- For 60 FPS animations, register a timer via `host.startTimer(this, 16,
+  TimerMode.repeat)` in `SystemPhase.update`, stop it when idle, and never
+  request inline per-`mouseMotion` renders (latch sub-frame hover pulses if
+  hover-animated).
 
 ---
 

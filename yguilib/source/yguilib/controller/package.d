@@ -1,5 +1,6 @@
 module yguilib.controller;
 import yguilib.events : AppEvent;
+import yguilib.timers : TimerId, TimerMode, invalidTimerId;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget;
 
@@ -22,10 +23,6 @@ interface Controller {
     Result result = Result.nothing;
     /// this controller consumes the event
     bool consume;
-
-    /// wait for the next event no longer than (<0 = forever)
-    /// useful in case of active video playback
-    int timeoutMs = -1;
   }
 
   /// handleEvent may be called more than once before updateView or update,
@@ -38,9 +35,13 @@ interface Controller {
   /// Returns true if ui layer should be redrawn.
   bool updateView();
 
-  /// return true if the view needs update.
-  /// put heavy logic into update.
+  /// Called in Phase 2 when a model-sync update is requested (`Result.update`
+  /// or `sendUpdate()`). Returns true if the view needs updating.
   bool update();
+
+  /// Called in Phase 2 when a controller-bound timer fires with elapsed `dt`
+  /// seconds. Returns true if `updateView()` should run in Phase 3.
+  bool tick(float dt);
 
   void onPush();
   void onPop();
@@ -55,11 +56,7 @@ interface Controller {
   void onWidgetReleased(Widget w);
 }
 
-/// Base controller implementing default quit, redraw, and update handling.
-///
-/// Subclasses overriding `handleEvent` must call `super.handleEvent(ev)` for
-/// unhandled events (or handle `AppEvent.Kind.update` and lifecycle events
-/// themselves) so `update()` and `updateView()` are not silently skipped.
+/// Base controller implementing default quit and redraw handling.
 class DefaultController : Controller {
 
   @disable this();
@@ -72,19 +69,16 @@ class DefaultController : Controller {
     return false;
   }
 
+  override bool tick(float dt) {
+    return false;
+  }
+
   override HandleResult handleEvent(AppEvent ev) {
     if (ev.kind == AppEvent.Kind.windowClose ||
         ev.kind == AppEvent.Kind.appQuit)
       return HandleResult(HandleResult.Result.quit);
     if (ev.isWindowRedrawEvent())
       return HandleResult(HandleResult.Result.updateView);
-    if (ev.kind == AppEvent.Kind.update) {
-      return HandleResult(
-        update() ?
-          HandleResult.Result.updateView :
-          HandleResult.Result.nothing
-      );
-    }
 
     return HandleResult(HandleResult.Result.nothing);
   }
@@ -123,6 +117,23 @@ class DefaultController : Controller {
     sendAppEvent(AppEvent(AppEvent.Kind.appQuit));
   }
 protected:
+  TimerId startTickTimer(
+    uint intervalMs = 16,
+    TimerMode mode = TimerMode.repeat
+  ) {
+    if (uiSystem is null) {
+      return invalidTimerId;
+    }
+    return uiSystem.startTimer(this, intervalMs, mode);
+  }
+
+  void stopTickTimer(ref TimerId id) {
+    if (id != invalidTimerId && uiSystem !is null) {
+      uiSystem.stopTimer(id);
+    }
+    id = invalidTimerId;
+  }
+
   UiSystem uiSystem;
 private:
   bool isModal_ = false;

@@ -11,7 +11,8 @@ import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.model : ModelTracker;
-import yguilib.timers : AnimationTimer, AnimationWrapMode, DeltaTimer;
+import yguilib.timers : AnimationTimer, AnimationWrapMode, TimerId, TimerMode,
+  invalidTimerId;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
@@ -47,6 +48,7 @@ final class LayoutPainterPageController : DefaultController {
     );
     alphaTimer.setPause(!onPage);
     wasOnPage1 = onPage;
+    syncAlphaTimer();
     syncPageShell(
       this.demoTracker,
       DemoPage.layoutPainter,
@@ -57,6 +59,10 @@ final class LayoutPainterPageController : DefaultController {
 
   invariant {
     assert(page !is null);
+  }
+
+  override void onPop() {
+    stopTickTimer(alphaTimerId);
   }
 
   override bool updateView() {
@@ -75,21 +81,24 @@ final class LayoutPainterPageController : DefaultController {
   override bool update() {
     const bool demoChanged = demoTracker.update();
     syncAlphaTimer();
+    return demoChanged;
+  }
+
+  override bool tick(float dt) {
+    syncAlphaTimer();
     if (!isPageActive(demoTracker.model, DemoPage.layoutPainter) ||
         alphaTimer.isPaused()) {
-      return demoChanged;
+      return false;
     }
 
-    const float dt = alphaDeltaTimer.step();
     alphaTimer.update(dt);
     auto model = tracker.edit();
     model.alphaValue = alphaTimer.map(0.2f, 1.0f);
     tracker.commit(model);
-    return tracker.update() || demoChanged;
+    return tracker.update();
   }
 
   override HandleResult handleEvent(AppEvent ev) {
-    syncAlphaTimer();
     const bool onPage1 = isPageActive(
       demoTracker.model,
       DemoPage.layoutPainter
@@ -97,29 +106,11 @@ final class LayoutPainterPageController : DefaultController {
 
     if (ev.kind == AppEvent.Kind.keyDown && onPage1) {
       if (handlePageKey(ev)) {
-        HandleResult res;
-        res.result = HandleResult.Result.updateView;
-        res.consume = true;
-        res.timeoutMs = animationTimeoutMs();
-        return res;
+        return HandleResult(HandleResult.Result.updateView, true);
       }
     }
 
-    if (ev.kind == AppEvent.Kind.update) {
-      HandleResult res;
-      res.result = update()
-        ? HandleResult.Result.updateView
-        : HandleResult.Result.nothing;
-      res.consume = false;
-      res.timeoutMs = animationTimeoutMs();
-      return res;
-    }
-
-    HandleResult res;
-    res.result = isAnimating() && update() ? HandleResult.Result.updateView : HandleResult.Result.nothing;
-    res.consume = false;
-    res.timeoutMs = animationTimeoutMs();
-    return res;
+    return super.handleEvent(ev);
   }
 
 private:
@@ -157,29 +148,23 @@ private:
       DemoPage.layoutPainter
     );
     if (onPage1 != wasOnPage1) {
-      alphaDeltaTimer.reset();
       alphaTimer.setPause(!onPage1);
       wasOnPage1 = onPage1;
     }
-  }
-
-  bool isAnimating() {
-    return animationTimeoutMs() != -1;
-  }
-
-  int animationTimeoutMs() {
-    if (isPageActive(demoTracker.model, DemoPage.layoutPainter) &&
-        !alphaTimer.isPaused()) {
-      return 16;
+    if (onPage1 && !alphaTimer.isPaused()) {
+      if (alphaTimerId == invalidTimerId) {
+        alphaTimerId = startTickTimer(16, TimerMode.repeat);
+      }
+    } else {
+      stopTickTimer(alphaTimerId);
     }
-    return -1;
   }
 
   ModelTracker!DemoModel demoTracker;
   ModelTracker!LayoutPainterPageModel tracker;
   LayoutPainterPage page;
   AnimationTimer alphaTimer;
-  DeltaTimer alphaDeltaTimer;
+  TimerId alphaTimerId = invalidTimerId;
   bool wasOnPage1 = true;
 }
 
@@ -201,34 +186,43 @@ unittest {
     );
   }
 
+  assert(ui.isTimerActive(ctrl.alphaTimerId));
+
   // Page 1 active: [D] toggles FlexDirection and consumes event
   auto hrD = ctrl.handleEvent(makeKeyDown(Keycode.d, Scancode.d));
   assert(hrD.result == HandleResult.Result.updateView);
   assert(hrD.consume);
-  assert(hrD.timeoutMs == 16);
   assert(page.getTracker().model.direction == FlexDirection.column);
 
-  // Page 1 active: [M] is unrelated and must not be consumed
+  // Page 1 active: [M] is unrelated and must not be consumed or trigger update
   auto hrM = ctrl.handleEvent(makeKeyDown(Keycode.m, Scancode.m));
   assert(hrM.result == HandleResult.Result.nothing);
   assert(!hrM.consume);
 
-  // Page 1 alpha pulse animates on update event
+  // Page 1 alpha pulse animates on tick(dt)
   const float alphaBefore = page.getTracker().model.alphaValue;
-  auto hrTick = ctrl.handleEvent(AppEvent(AppEvent.Kind.update));
-  assert(hrTick.result == HandleResult.Result.updateView);
-  assert(!hrTick.consume);
-  assert(hrTick.timeoutMs == 16);
+  assert(ctrl.tick(0.016f));
   assert(page.getTracker().model.alphaValue != alphaBefore);
 
-  // Switch away from Page 1: shortcuts ignored and animation paused
+  // Switch away from Page 1: shortcuts ignored and timer stopped
   auto dm = demoTracker.edit();
   dm.activePage = 1;
   demoTracker.commit(dm);
+  assert(!ctrl.tick(0.016f));
+  assert(!ui.isTimerActive(ctrl.alphaTimerId));
 
   auto hrD2 = ctrl.handleEvent(makeKeyDown(Keycode.d, Scancode.d));
   assert(hrD2.result == HandleResult.Result.nothing);
   assert(!hrD2.consume);
-  assert(hrD2.timeoutMs == -1);
   assert(page.getTracker().model.direction == FlexDirection.column);
+
+  // Switch back to Page 1: update() restarts timer
+  dm = demoTracker.edit();
+  dm.activePage = 0;
+  demoTracker.commit(dm);
+  assert(ctrl.update());
+  assert(ui.isTimerActive(ctrl.alphaTimerId));
+
+  ctrl.onPop();
+  assert(!ui.isTimerActive(ctrl.alphaTimerId));
 }

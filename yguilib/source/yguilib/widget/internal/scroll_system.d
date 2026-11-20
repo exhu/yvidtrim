@@ -146,8 +146,10 @@ private:
 }
 
 version (unittest) {
+  import yguilib.controller : Controller;
   import yguilib.events : AppEvent;
   import yguilib.object_registry : ObjectRegistry;
+  import yguilib.timers : TimerCallback, TimerId, TimerMode, invalidTimerId;
   import yguilib.widget.layout_components : Insets, Size;
   import yguilib.widget.widget_view : WidgetView, WidgetViewController;
 
@@ -163,6 +165,36 @@ version (unittest) {
 
     override void sendAppEvent(AppEvent ev) {
       sentEvents ~= ev;
+    }
+
+    override TimerId startTimer(
+      uint intervalMs,
+      TimerMode mode,
+      TimerCallback callback
+    ) {
+      return invalidTimerId;
+    }
+
+    override TimerId startTimer(
+      Controller target,
+      uint intervalMs = 16,
+      TimerMode mode = TimerMode.repeat
+    ) {
+      return invalidTimerId;
+    }
+
+    override TimerId startTimer(
+      WidgetSystem target,
+      uint intervalMs = 16,
+      TimerMode mode = TimerMode.repeat
+    ) {
+      return invalidTimerId;
+    }
+
+    override void stopTimer(TimerId id) {}
+
+    override bool isTimerActive(TimerId id) const {
+      return false;
     }
 
     override @property

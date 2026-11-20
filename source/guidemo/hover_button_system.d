@@ -20,9 +20,9 @@
  *       AnimatedHoverButtonComponent attached directly.
  *     - No manual button registration: the system automatically processes
  *       any visible widget with the component during its pipeline phases.
- *     - Integrated into WidgetSystemPipeline across event, preLayout, and
- *       postLayout phases, driving 60 FPS animations when active and 0% CPU
- *       when idle.
+ *     - Integrated into WidgetSystemPipeline across event, update, and
+ *       postLayout phases, driving 60 FPS animations via TimerControl when
+ *       active and 0% CPU when idle.
  */
 module guidemo.hover_button_system;
 
@@ -31,7 +31,8 @@ import std.math : PI, sin;
 import yguilib.events : AppEvent;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, PointF, RectF;
-import yguilib.timers : AnimationTimer, AnimationWrapMode, DeltaTimer;
+import yguilib.timers : AnimationTimer, AnimationWrapMode, TimerId, TimerMode,
+  invalidTimerId;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
@@ -39,7 +40,7 @@ import yguilib.widget.component : WidgetComponent;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.layout_components : Anchor, Insets, Size;
 import yguilib.widget.system : SystemEventResult, SystemPhase, WidgetSystem,
-  WidgetSystemContext;
+  WidgetSystemContext, WidgetSystemHost;
 import yguilib.widget.visible : VisibleWidget, VisibleWidgets;
 
 /// Widget construction styling options.
@@ -85,6 +86,7 @@ final class AnimatedHoverButtonComponent : WidgetComponent {
   AnimationTimer gradTimer;
   bool isHovered = false;
   bool isPressed = false;
+  bool hoverPulsePending = false;
   float cursorNormX = 0.5f;
   float cursorNormY = 0.5f;
 
@@ -254,16 +256,29 @@ Widget createAnimatedHoverButton(
 
 /// Custom WidgetSystem processing widgets with AnimatedHoverButtonComponent.
 final class AnimatedHoverButtonSystem : WidgetSystem {
+  enum float hoverPulsePeak = 0.75f;
+
   this(int priority = defaultPriority) nothrow @safe {
     super(priority);
   }
 
   override @property SystemPhase phases() const nothrow @safe {
-    return SystemPhase.event | SystemPhase.preLayout | SystemPhase.postLayout;
+    return SystemPhase.event | SystemPhase.update | SystemPhase.postLayout;
   }
 
-  override @property int timeoutMs() const nothrow @safe {
-    return isAnyAnimating() ? 16 : -1;
+  override void onRegister(WidgetSystemHost newHost) {
+    if (host !is null && host !is newHost) {
+      stopAnimTimer();
+    }
+    if (newHost !is null) {
+      host = newHost;
+      ensureAnimTimer(host);
+    }
+  }
+
+  override void onUnregister() {
+    stopAnimTimer();
+    host = null;
   }
 
   override SystemEventResult handleEvent(
@@ -282,23 +297,17 @@ final class AnimatedHoverButtonSystem : WidgetSystem {
     if (event.kind == AppEvent.Kind.windowMouseLeave) {
       return handleWindowMouseLeave(ctx);
     }
-    if (event.kind == AppEvent.Kind.update) {
-      return handleUpdateTick();
-    }
-    return SystemEventResult(false, false, timeoutMs);
+    return SystemEventResult(false, false);
   }
 
-  override void preLayout(ref WidgetSystemContext ctx) {
-    if (!needsAnimationStep && !isAnyAnimating()) {
-      deltaTimer.reset();
+  override void update(ref WidgetSystemContext ctx, float dt) {
+    if (!isAnyAnimating()) {
+      stopAnimTimer();
       return;
     }
-    needsAnimationStep = false;
-
-    const float dt = deltaTimer.step();
     stepActiveButtons(dt);
     if (!isAnyAnimating()) {
-      deltaTimer.reset();
+      stopAnimTimer();
     }
   }
 
@@ -321,6 +330,9 @@ final class AnimatedHoverButtonSystem : WidgetSystem {
     if (pressedWidget is w) {
       pressedWidget = null;
     }
+    if (!isAnyAnimating()) {
+      stopAnimTimer();
+    }
   }
 
   bool isAnyAnimating() const nothrow @safe {
@@ -328,6 +340,22 @@ final class AnimatedHoverButtonSystem : WidgetSystem {
   }
 
 private:
+  void ensureAnimTimer(WidgetSystemHost fallbackHost = null) {
+    if (host is null && fallbackHost !is null) {
+      host = fallbackHost;
+    }
+    if (animTimerId == invalidTimerId && isAnyAnimating() && host !is null) {
+      animTimerId = host.startTimer(this, 16, TimerMode.repeat);
+    }
+  }
+
+  void stopAnimTimer() {
+    if (animTimerId != invalidTimerId && host !is null) {
+      host.stopTimer(animTimerId);
+    }
+    animTimerId = invalidTimerId;
+  }
+
   SystemEventResult handleMouseMotion(
     in AppEvent event,
     ref WidgetSystemContext ctx
@@ -351,11 +379,11 @@ private:
         if (comp !is null) {
           initColorsIfNeeded(hoveredWidget, comp);
           comp.isHovered = true;
+          comp.hoverPulsePending = true;
           updateCursorNorm(comp, hoveredWidget, ctx.visibleWidgets, p);
           trackActiveButton(hoveredWidget);
         }
       }
-      needsAnimationStep = true;
     } else if (hoveredWidget !is null) {
       auto comp = hoveredWidget.components.get!AnimatedHoverButtonComponent();
       if (comp !is null) {
@@ -367,8 +395,8 @@ private:
       }
     }
 
-    const bool anim = isAnyAnimating();
-    return SystemEventResult(false, anim, anim ? 16 : -1);
+    ensureAnimTimer(ctx.host);
+    return SystemEventResult(false, false);
   }
 
   SystemEventResult handleMouseButtonDown(
@@ -376,7 +404,7 @@ private:
     ref WidgetSystemContext ctx
   ) {
     if (event.mouse.button != 1) {
-      return SystemEventResult(false, false, timeoutMs);
+      return SystemEventResult(false, false);
     }
     const p = PointF(event.mouse.x, event.mouse.y);
     Widget hitWidget = findHitButton(ctx.visibleWidgets, p);
@@ -386,11 +414,10 @@ private:
         comp.isPressed = true;
         pressedWidget = hitWidget;
         trackActiveButton(hitWidget);
-        needsAnimationStep = true;
-        return SystemEventResult(false, true, 16);
+        ensureAnimTimer(ctx.host);
       }
     }
-    return SystemEventResult(false, false, timeoutMs);
+    return SystemEventResult(false, false);
   }
 
   SystemEventResult handleMouseButtonUp(
@@ -398,7 +425,7 @@ private:
     ref WidgetSystemContext ctx
   ) {
     if (event.mouse.button != 1 || pressedWidget is null) {
-      return SystemEventResult(false, false, timeoutMs);
+      return SystemEventResult(false, false);
     }
 
     Widget target = pressedWidget;
@@ -408,18 +435,16 @@ private:
     if (comp !is null) {
       comp.isPressed = false;
       trackActiveButton(target);
-      needsAnimationStep = true;
+      ensureAnimTimer(ctx.host);
 
       const p = PointF(event.mouse.x, event.mouse.y);
       Widget hitWidget = findHitButton(ctx.visibleWidgets, p);
       if (hitWidget is target && comp.animConfig.actionEvent.length > 0) {
         triggerAction(target, comp.animConfig.actionEvent, ctx);
       }
-      return SystemEventResult(false, true, 16);
     }
 
-    const bool anim = isAnyAnimating();
-    return SystemEventResult(false, anim, anim ? 16 : -1);
+    return SystemEventResult(false, false);
   }
 
   SystemEventResult handleWindowMouseLeave(ref WidgetSystemContext ctx) {
@@ -431,19 +456,9 @@ private:
         trackActiveButton(hoveredWidget);
       }
       hoveredWidget = null;
-      needsAnimationStep = true;
+      ensureAnimTimer(ctx.host);
     }
-    const bool anim = isAnyAnimating();
-    return SystemEventResult(false, anim, anim ? 16 : -1);
-  }
-
-  SystemEventResult handleUpdateTick() {
-    if (isAnyAnimating()) {
-      needsAnimationStep = true;
-      return SystemEventResult(false, true, 16);
-    }
-    deltaTimer.reset();
-    return SystemEventResult(false, false, -1);
+    return SystemEventResult(false, false);
   }
 
   void triggerAction(
@@ -480,6 +495,7 @@ private:
         if (comp !is null) {
           comp.isHovered = false;
           comp.isPressed = false;
+          comp.hoverPulsePending = false;
           comp.hoverTimer.stop();
           comp.pressTimer.stop();
           comp.hoverProgress = 0.0f;
@@ -497,6 +513,9 @@ private:
     }
     if (pressedWidget !is null && !isWidgetVisible(pressedWidget)) {
       pressedWidget = null;
+    }
+    if (!isAnyAnimating()) {
+      stopAnimTimer();
     }
   }
 
@@ -540,10 +559,18 @@ private:
   ) {
     bool visualDirty = false;
 
+    if (comp.hoverPulsePending && comp.hoverProgress >= hoverPulsePeak) {
+      comp.hoverPulsePending = false;
+    }
+    const bool hoverForward = comp.isHovered || comp.hoverPulsePending;
+
     // Hover progress transition
-    if (!comp.hoverTimer.isAtTarget(comp.isHovered)) {
-      comp.hoverTimer.stepTowards(dt, comp.isHovered);
+    if (!comp.hoverTimer.isAtTarget(hoverForward)) {
+      comp.hoverTimer.stepTowards(dt, hoverForward);
       comp.hoverProgress = comp.hoverTimer.getProgress();
+      if (comp.hoverPulsePending && comp.hoverProgress >= hoverPulsePeak) {
+        comp.hoverPulsePending = false;
+      }
       visualDirty = true;
     }
 
@@ -556,7 +583,8 @@ private:
 
     // Gradient play wave oscillation
     if (comp.animConfig.style == HoverAnimConfig.AnimStyle.gradientPlay &&
-        (comp.isHovered || comp.hoverProgress > 0.001f)) {
+        (comp.isHovered || comp.hoverPulsePending ||
+          comp.hoverProgress > 0.001f)) {
       comp.gradTimer.update(dt);
       comp.animPhase = comp.gradTimer.map(0.0f, 2.0f * PI);
       visualDirty = true;
@@ -567,11 +595,13 @@ private:
     }
 
     // Check if this component needs further animation steps
-    const bool isHoverBusy = !comp.hoverTimer.isAtTarget(comp.isHovered);
+    const bool isHoverBusy =
+      !comp.hoverTimer.isAtTarget(hoverForward) || comp.hoverPulsePending;
     const bool isPressBusy = !comp.pressTimer.isAtTarget(comp.isPressed);
     const bool isGradBusy =
       comp.animConfig.style == HoverAnimConfig.AnimStyle.gradientPlay &&
-      (comp.isHovered || comp.hoverProgress > 0.001f);
+      (comp.isHovered || comp.hoverPulsePending ||
+        comp.hoverProgress > 0.001f);
 
     return isHoverBusy || isPressBusy || isGradBusy;
   }
@@ -682,18 +712,22 @@ private:
   Widget hoveredWidget = null;
   Widget pressedWidget = null;
   Widget[] activeButtons;
-  DeltaTimer deltaTimer;
-  bool needsAnimationStep = false;
+  WidgetSystemHost host = null;
+  TimerId animTimerId = invalidTimerId;
 }
 
 // Unit tests for AnimatedHoverButtonComponent, Builder, and WidgetSystem
 unittest {
+  import yguilib.controller : Controller;
   import yguilib.object_registry : ObjectRegistry;
+  import yguilib.timers : TimerCallback;
   import yguilib.widget.system : WidgetSystemHost;
   import yguilib.widget.widget_view : WidgetView, WidgetViewController;
 
   class DummyHost : WidgetSystemHost {
     AppEvent[] sentEvents;
+    bool[TimerId] activeTimers;
+    TimerId nextTimerId = 1;
     ObjectRegistry!WidgetViewController dummyControllers;
     ObjectRegistry!WidgetView dummyViews;
 
@@ -704,6 +738,44 @@ unittest {
 
     override void sendAppEvent(AppEvent ev) {
       sentEvents ~= ev;
+    }
+
+    override TimerId startTimer(
+      uint intervalMs,
+      TimerMode mode,
+      TimerCallback callback
+    ) {
+      const TimerId id = nextTimerId++;
+      activeTimers[id] = true;
+      return id;
+    }
+
+    override TimerId startTimer(
+      Controller target,
+      uint intervalMs = 16,
+      TimerMode mode = TimerMode.repeat
+    ) {
+      const TimerId id = nextTimerId++;
+      activeTimers[id] = true;
+      return id;
+    }
+
+    override TimerId startTimer(
+      WidgetSystem target,
+      uint intervalMs = 16,
+      TimerMode mode = TimerMode.repeat
+    ) {
+      const TimerId id = nextTimerId++;
+      activeTimers[id] = true;
+      return id;
+    }
+
+    override void stopTimer(TimerId id) {
+      activeTimers.remove(id);
+    }
+
+    override bool isTimerActive(TimerId id) const {
+      return (id in activeTimers) !is null;
     }
 
     override @property
@@ -746,10 +818,11 @@ unittest {
 
   // Test 2: AnimatedHoverButtonSystem event handling and lifecycle
   auto sys = new AnimatedHoverButtonSystem();
+  sys.onRegister(host);
   assert((sys.phases & SystemPhase.event) != 0);
-  assert((sys.phases & SystemPhase.preLayout) != 0);
+  assert((sys.phases & SystemPhase.update) != 0);
   assert((sys.phases & SystemPhase.postLayout) != 0);
-  assert(sys.timeoutMs == -1);
+  assert(sys.animTimerId == invalidTimerId);
 
   WidgetSystemContext ctx;
   ctx.host = host;
@@ -764,6 +837,7 @@ unittest {
   motionOut.mouse.y = 0.0f;
   auto resOut = sys.handleEvent(motionOut, ctx);
   assert(!resOut.consumed);
+  assert(!resOut.requestUpdateView);
   assert(!comp.isHovered);
   assert(!sys.isAnyAnimating());
 
@@ -773,13 +847,13 @@ unittest {
   motionIn.mouse.x = 50.0f;
   motionIn.mouse.y = 20.0f;
   auto resIn = sys.handleEvent(motionIn, ctx);
-  assert(resIn.requestUpdateView);
+  assert(!resIn.requestUpdateView);
   assert(comp.isHovered);
   assert(sys.isAnyAnimating());
-  assert(sys.timeoutMs == 16);
+  assert(host.isTimerActive(sys.animTimerId));
 
-  // Run preLayout to step animation
-  sys.preLayout(ctx);
+  // Run update(ctx, dt) to step animation
+  sys.update(ctx, 0.016f);
   assert(comp.hoverProgress > 0.0f);
 
   // Mouse button down
@@ -789,7 +863,7 @@ unittest {
   mouseDown.mouse.y = 20.0f;
   mouseDown.mouse.button = 1;
   auto resDown = sys.handleEvent(mouseDown, ctx);
-  assert(resDown.requestUpdateView);
+  assert(!resDown.requestUpdateView);
   assert(comp.isPressed);
 
   // Mouse button up inside button (should trigger actionEvent)
@@ -800,7 +874,7 @@ unittest {
   mouseUp.mouse.y = 20.0f;
   mouseUp.mouse.button = 1;
   auto resUp = sys.handleEvent(mouseUp, ctx);
-  assert(resUp.requestUpdateView);
+  assert(!resUp.requestUpdateView);
   assert(!comp.isPressed);
   assert(host.sentEvents.length == 1);
   assert(host.sentEvents[0].view.eventName == "customAction");
@@ -814,11 +888,11 @@ unittest {
 
   // Step until animation settles
   foreach (_; 0 .. 50) {
-    sys.preLayout(ctx);
+    sys.update(ctx, 0.016f);
   }
   assert(comp.hoverProgress == 0.0f);
   assert(!sys.isAnyAnimating());
-  assert(sys.timeoutMs == -1);
+  assert(sys.animTimerId == invalidTimerId);
 
   // Test 3: Gradient play animation and cursor motion tracking
   HoverAnimConfig gradAnim;
@@ -848,13 +922,55 @@ unittest {
   sys.handleEvent(gradMotion, ctx);
   assert(gradComp.isHovered);
   assert(sys.isAnyAnimating());
-  assert(sys.timeoutMs == 16);
+  assert(host.isTimerActive(sys.animTimerId));
 
-  sys.preLayout(ctx);
+  sys.update(ctx, 0.016f);
   assert(gradComp.hoverProgress > 0.0f);
   assert(gradComp.animPhase > 0.0f);
 
   // Test onWidgetReleased
   sys.onWidgetReleased(gradBtn);
   assert(!sys.isAnyAnimating());
+  assert(sys.animTimerId == invalidTimerId);
+
+  // Test 4: Sub-frame curved sweep across 3 buttons latches hover pulses
+  Widget[3] sweepBtns;
+  AnimatedHoverButtonComponent[3] sweepComps;
+  VisibleWidget[] sweepVis;
+  foreach (i; 0 .. 3) {
+    AnimatedHoverButtonBuilder sb;
+    const RectF r = RectF(cast(float) (i * 100), 0, 80, 32);
+    sweepBtns[i] = sb.fixedSize(80, 32).build(testUi, null, r);
+    sweepComps[i] =
+      sweepBtns[i].components.get!AnimatedHoverButtonComponent();
+    sweepVis ~= VisibleWidget(sweepBtns[i], r, false, RectF.init);
+  }
+  ctx.visibleWidgets = sweepVis;
+
+  // Sweep across all 3 buttons and exit before any update() tick runs
+  float[4] sweepXs = [40.0f, 140.0f, 240.0f, 400.0f];
+  foreach (sx; sweepXs) {
+    AppEvent ev;
+    ev.kind = AppEvent.Kind.mouseMotion;
+    ev.mouse.x = sx;
+    ev.mouse.y = 16.0f;
+    sys.handleEvent(ev, ctx);
+  }
+  assert(host.isTimerActive(sys.animTimerId));
+
+  float[3] maxProg = [0.0f, 0.0f, 0.0f];
+  foreach (_; 0 .. 60) {
+    sys.update(ctx, 0.016f);
+    foreach (i; 0 .. 3) {
+      if (sweepComps[i].hoverProgress > maxProg[i]) {
+        maxProg[i] = sweepComps[i].hoverProgress;
+      }
+    }
+  }
+  foreach (i; 0 .. 3) {
+    assert(maxProg[i] >= AnimatedHoverButtonSystem.hoverPulsePeak);
+    assert(sweepComps[i].hoverProgress == 0.0f);
+  }
+  assert(!sys.isAnyAnimating());
+  assert(sys.animTimerId == invalidTimerId);
 }

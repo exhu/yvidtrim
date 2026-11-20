@@ -936,7 +936,7 @@ final class __NAME__System : WidgetSystem {
     in AppEvent event,
     ref WidgetSystemContext ctx
   ) {
-    return SystemEventResult(false, false, timeoutMs);
+    return SystemEventResult(false, false);
   }
 }
 

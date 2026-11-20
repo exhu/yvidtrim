@@ -133,9 +133,7 @@ unittest {
   dm.activePage = DemoPage.textLabel;
   demoTracker.commit(dm);
 
-  auto hrUpdate = ctrl.handleEvent(AppEvent(AppEvent.Kind.update));
-  assert(hrUpdate.result == HandleResult.Result.updateView);
-  assert(!hrUpdate.consume);
+  assert(ctrl.update());
   ctrl.updateView();
   assert(page.isVisible());
 

@@ -112,21 +112,6 @@ final class WidgetSystemPipeline {
     return fLastVisibleWidgets;
   }
 
-  /// Returns the minimum non-negative timeout requested across registered
-  /// systems, or -1 if no system requires a timeout.
-  @property int timeoutMs() const nothrow @safe {
-    int nextTimeout = -1;
-    foreach (s; systems) {
-      const int t = s.timeoutMs;
-      if (t >= 0) {
-        if (nextTimeout < 0 || t < nextTimeout) {
-          nextTimeout = t;
-        }
-      }
-    }
-    return nextTimeout;
-  }
-
   /// Dispatches an AppEvent through all SystemPhase.event systems in priority
   /// order. Stops early if a system sets `result.consumed = true`.
   /// Note: `window` is allowed to be null in headless unit tests.
@@ -139,17 +124,23 @@ final class WidgetSystemPipeline {
       if (res.requestUpdateView) {
         aggregate.requestUpdateView = true;
       }
-      if (res.timeoutMs >= 0) {
-        if (aggregate.timeoutMs < 0 || res.timeoutMs < aggregate.timeoutMs) {
-          aggregate.timeoutMs = res.timeoutMs;
-        }
-      }
       if (res.consumed) {
         aggregate.consumed = true;
         break;
       }
     }
     return aggregate;
+  }
+
+  /// Invokes `system.update(ctx, dt)` if `system` participates in
+  /// `SystemPhase.update`. `window` is allowed to be null in headless tests.
+  void runSystemUpdate(WidgetSystem system, Window window, float dt) {
+    assert(system !is null);
+    if ((system.phases & SystemPhase.update) == 0) {
+      return;
+    }
+    WidgetSystemContext ctx = makeContext(window);
+    system.update(ctx, dt);
   }
 
   /// Runs preLayout, layout (if tree layout is dirty), postLayout, and render
@@ -313,6 +304,7 @@ private:
 
   void rebuildPhaseLists() {
     eventSystems = filterByPhase(SystemPhase.event);
+    updateSystems = filterByPhase(SystemPhase.update);
     preLayoutSystems = filterByPhase(SystemPhase.preLayout);
     layoutSystems = filterByPhase(SystemPhase.layout);
     postLayoutSystems = filterByPhase(SystemPhase.postLayout);
@@ -337,6 +329,7 @@ private:
   WidgetSystem[] systems;
   // references to systems
   WidgetSystem[] eventSystems;
+  WidgetSystem[] updateSystems;
   WidgetSystem[] preLayoutSystems;
   WidgetSystem[] layoutSystems;
   WidgetSystem[] postLayoutSystems;
@@ -345,7 +338,9 @@ private:
 
 version (unittest) {
 private:
+  import yguilib.controller : Controller;
   import yguilib.object_registry : ObjectRegistry;
+  import yguilib.timers : TimerCallback, TimerId, TimerMode, invalidTimerId;
   import yguilib.widget.widget_view : WidgetView, WidgetViewController;
 
   class DummyHost : WidgetSystemHost {
@@ -360,6 +355,36 @@ private:
 
     override void sendAppEvent(AppEvent ev) {
       sentEvents ~= ev;
+    }
+
+    override TimerId startTimer(
+      uint intervalMs,
+      TimerMode mode,
+      TimerCallback callback
+    ) {
+      return invalidTimerId;
+    }
+
+    override TimerId startTimer(
+      Controller target,
+      uint intervalMs = 16,
+      TimerMode mode = TimerMode.repeat
+    ) {
+      return invalidTimerId;
+    }
+
+    override TimerId startTimer(
+      WidgetSystem target,
+      uint intervalMs = 16,
+      TimerMode mode = TimerMode.repeat
+    ) {
+      return invalidTimerId;
+    }
+
+    override void stopTimer(TimerId id) {}
+
+    override bool isTimerActive(TimerId id) const {
+      return false;
     }
 
     override @property
@@ -645,4 +670,50 @@ unittest {
   assert(pipeline.updateAndRenderTree(win));
   assert(largeContent.rect.x == -50.0f);
   assert(largeContent.rect.y == -80.0f);
+}
+
+// Verifies SystemPhase.update and WidgetSystemPipeline.runSystemUpdate.
+unittest {
+  import std.math.operations : isClose;
+
+  final class UpdateOnlySystem : WidgetSystem {
+    float lastDt = 0.0f;
+    int updateCalls = 0;
+
+    override @property SystemPhase phases() const nothrow @safe {
+      return SystemPhase.update;
+    }
+
+    override void update(ref WidgetSystemContext ctx, float dt) {
+      updateCalls++;
+      lastDt = dt;
+    }
+  }
+
+  final class NoUpdateSystem : WidgetSystem {
+    int updateCalls = 0;
+
+    override @property SystemPhase phases() const nothrow @safe {
+      return SystemPhase.preLayout;
+    }
+
+    override void update(ref WidgetSystemContext ctx, float dt) {
+      updateCalls++;
+    }
+  }
+
+  auto host = new DummyHost;
+  auto pipeline = new WidgetSystemPipeline(host);
+  auto updSys = new UpdateOnlySystem();
+  auto otherSys = new NoUpdateSystem();
+
+  pipeline.registerSystem(updSys);
+  pipeline.registerSystem(otherSys);
+
+  pipeline.runSystemUpdate(updSys, null, 0.016f);
+  assert(updSys.updateCalls == 1);
+  assert(isClose(updSys.lastDt, 0.016f));
+
+  pipeline.runSystemUpdate(otherSys, null, 0.016f);
+  assert(otherSys.updateCalls == 0);
 }

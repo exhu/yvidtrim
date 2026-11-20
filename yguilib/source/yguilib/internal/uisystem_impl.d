@@ -4,6 +4,7 @@ import glad2.gles2;
 import std.typecons : Nullable;
 import std.logger;
 import yguilib.clibs.sdl3;
+import yguilib.timers : TimerCallback, TimerId, TimerMode;
 import yguilib.uisystem;
 import yguilib.controller : Controller, DefaultController, HandleResult;
 import yguilib.controller.internal.controller_stack : ControllerStack;
@@ -27,6 +28,7 @@ import yguilib.widget.internal.data_system: DataSystem;
 import yguilib.widget.internal.scroll_system : ScrollSystem;
 import yguilib.widget.system : WidgetSystem;
 import yguilib.window : Window;
+import yguilib.internal.timer_service : TimerEntry, TimerService;
 import yguilib.internal.uisystem_controller;
 
 class UiSystemImpl : UiSystem {
@@ -61,6 +63,38 @@ class UiSystemImpl : UiSystem {
     messageBus.send(ev);
   }
 
+  override TimerId startTimer(
+    uint intervalMs,
+    TimerMode mode,
+    TimerCallback callback
+  ) {
+    return timerService.startCallbackTimer(intervalMs, mode, callback);
+  }
+
+  override TimerId startTimer(
+    Controller target,
+    uint intervalMs = 16,
+    TimerMode mode = TimerMode.repeat
+  ) {
+    return timerService.startControllerTimer(target, intervalMs, mode);
+  }
+
+  override TimerId startTimer(
+    WidgetSystem target,
+    uint intervalMs = 16,
+    TimerMode mode = TimerMode.repeat
+  ) {
+    return timerService.startSystemTimer(target, intervalMs, mode);
+  }
+
+  override void stopTimer(TimerId id) {
+    timerService.stopTimer(id);
+  }
+
+  override bool isTimerActive(TimerId id) const {
+    return timerService.isTimerActive(id);
+  }
+
   override void setEventStatsEnabled(bool enabled) {
     messageBus.setStatsEnabled(enabled);
   }
@@ -80,11 +114,20 @@ class UiSystemImpl : UiSystem {
 
   override void unregisterWidgetSystem(WidgetSystem system) {
     assert(system !is null);
+    timerService.stopTimersForSystem(system);
     pipeline.unregisterSystem(system);
   }
 
   package(yguilib) @property WidgetSystemPipeline systemPipeline() {
     return pipeline;
+  }
+
+  package(yguilib) void setTimerClock(long delegate() clock) {
+    timerService.setClock(clock);
+  }
+
+  package(yguilib) int nextWaitTimeoutMs() const {
+    return timerService.nextWaitTimeoutMs(timerService.nowNs());
   }
 
   protected override WidgetSystem findWidgetSystemByType(TypeInfo_Class type) {
@@ -100,6 +143,10 @@ class UiSystemImpl : UiSystem {
   }
 
   override void popController() {
+    Controller active = controllers.getActiveOrNull();
+    if (active !is null) {
+      timerService.stopTimersForController(active);
+    }
     controllers.pop();
   }
 
@@ -154,31 +201,34 @@ class UiSystemImpl : UiSystem {
 
   override void mainEventLoop() {
     yguilib_sdl3_init();
-    scope(exit) yguilib_sdl3_quit();
+    scope (exit) yguilib_sdl3_quit();
 
     if (fMainWindow !is null) {
       fMainWindow.create();
     }
-    scope(exit) {
+    scope (exit) {
       if (fMainWindow !is null) {
         fMainWindow.destroy();
       }
     }
 
-    pushController(new UiSystemController(this, pipeline));
-
-    // TODO remove?
-    auto initialController = getActiveControllerOrNull();
-    if (initialController !is null) {
-      updateAndRender(initialController);
+    auto sysCtrl = new UiSystemController(this, pipeline);
+    pushController(sysCtrl);
+    scope (exit) {
+      if (controllers.getActiveOrNull() is sysCtrl) {
+        popController();
+      } else {
+        timerService.stopTimersForController(sysCtrl);
+      }
     }
 
-    messageBus.ensureWake();
+    pipeline.updateAndRender(fMainWindow);
 
-    int currentTimeoutMs = -1;
+    messageBus.bindMainThread();
+    scope (exit) messageBus.unbindMainThread();
 
-    while (auto activeController = getActiveControllerOrNull()) {
-      if (!runEventLoopStep(activeController, currentTimeoutMs)) {
+    while (getActiveControllerOrNull() !is null) {
+      if (!runEventLoopStep()) {
         break;
       }
     }
@@ -252,16 +302,74 @@ class UiSystemImpl : UiSystem {
   }
 
 private:
-  int pollSdlEvent(int timeoutMs) {
-    yguilib_sdl3_Event sdlEv;
-    int res = yguilib_sdl3_wait_event(&sdlEv, timeoutMs);
-    if (res > 0) {
-      Nullable!AppEvent appEv = appEventFromSdlEvent(sdlEv);
-      if (!appEv.isNull) {
-        sendAppEvent(appEv.get());
+  struct ControllerDirtyList {
+    Controller[16] stackBuf;
+    size_t stackCount = 0;
+    Controller[] heapList;
+
+    void add(Controller c) {
+      if (c is null || contains(c)) {
+        return;
+      }
+      if (heapList.length > 0) {
+        heapList ~= c;
+      } else if (stackCount < stackBuf.length) {
+        stackBuf[stackCount++] = c;
+      } else {
+        heapList = stackBuf[].dup;
+        heapList ~= c;
       }
     }
-    return res;
+
+    bool contains(Controller c) const {
+      if (heapList.length > 0) {
+        foreach (item; heapList) {
+          if (item is c) {
+            return true;
+          }
+        }
+        return false;
+      }
+      foreach (item; stackBuf[0 .. stackCount]) {
+        if (item is c) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    @property bool empty() const {
+      return stackCount == 0 && heapList.length == 0;
+    }
+  }
+
+  void enqueueSdlEvent(in yguilib_sdl3_Event sdlEv) {
+    Nullable!AppEvent appEv = appEventFromSdlEvent(sdlEv);
+    if (!appEv.isNull) {
+      sendAppEvent(appEv.get());
+    }
+  }
+
+  void waitForEventsIfIdle() {
+    if (!messageBus.prepareToWait()) {
+      return;
+    }
+    const int waitMs = timerService.nextWaitTimeoutMs(timerService.nowNs());
+    if (waitMs == 0) {
+      return;
+    }
+    yguilib_sdl3_Event sdlEv;
+    const int res = yguilib_sdl3_wait_event(&sdlEv, waitMs);
+    if (res > 0) {
+      enqueueSdlEvent(sdlEv);
+    }
+  }
+
+  void drainSdlEvents() {
+    yguilib_sdl3_Event sdlEv;
+    while (yguilib_sdl3_poll_event(&sdlEv) > 0) {
+      enqueueSdlEvent(sdlEv);
+    }
   }
 
   /**
@@ -278,144 +386,172 @@ private:
     return controllers.getAll().dup;
   }
 
-  /**
-   * Applies timeout resolution rules:
-   * - If visited controllers specified a timeout, use minimum non-negative.
-   * - If all controllers in stack were visited without timeout, reset to -1.
-   * - If consumed early without timeout, preserve pending timeout for
-   *   unvisited controllers.
-   */
-  static void applyTimeout(
-    ref int currentTimeoutMs,
-    bool hasTimeout,
-    int nextTimeoutMs,
-    bool allControllersVisited
-  ) {
-    if (hasTimeout) {
-      currentTimeoutMs = nextTimeoutMs;
-    } else if (allControllersVisited) {
-      currentTimeoutMs = -1;
-    }
+  bool isMainWindowEvent(uint windowId) const {
+    return (windowId == 0 || fMainWindow.id == 0 ||
+      windowId == fMainWindow.id);
   }
 
-  void sendUpdateUiLayerEvent() {
-    sendAppEvent(AppEvent.makeNoRepeat(AppEvent.Kind.updateUiLayer));
-  }
-
-  /**
-   * Updates views in oldest-to-newest order (base views before overlays)
-   * and renders the frame at most once.
-   */
-  void applyViewUpdatesAndRender(Controller[] viewsToUpdate) {
-    uint updateUiLayerRequested = 0;
-    for (ptrdiff_t i = cast(ptrdiff_t)viewsToUpdate.length - 1; i >= 0; --i) {
-      updateUiLayerRequested += viewsToUpdate[i].updateView();
+  void handleMainWindowEvent(in AppEvent event, ref bool needRender) {
+    if (fMainWindow is null || !event.isWindowEvent()) {
+      return;
     }
-    if (viewsToUpdate.length > 0) {
-      if (updateUiLayerRequested > 0) {
-        trace("updateUiLayer ", updateUiLayerRequested);
-        sendUpdateUiLayerEvent();
+    if (isMainWindowEvent(event.window.windowId)) {
+      fMainWindow.handleWindowEvent(event);
+      if (fMainWindow.rootWidget !is null && event.isWindowRedrawEvent()) {
+        fMainWindow.rootWidget.update(WidgetUpdateScope.all);
+        needRender = true;
       }
     }
   }
 
   /**
-   * Dispatches an event through the controller stack from newest (active) to
-   * oldest, stopping early when consumed. Batches update and view renders.
+   * Dispatches a discrete event through the controller stack from newest
+   * (active) to oldest, stopping early when consumed.
    * Returns false if quit was requested.
    */
-  bool dispatchEvent(
+  bool dispatchDiscreteEvent(
     AppEvent event,
-    ref int currentTimeoutMs
+    ref ControllerDirtyList dirtyViews,
+    ref bool needModelUpdate,
+    ref bool needRender
   ) {
+    handleMainWindowEvent(event, needRender);
+
     Controller[16] stackBuf;
     Controller[] activeList = snapshotControllers(stackBuf);
 
-    bool needUpdate = false;
-    Controller[16] viewUpdateBuf;
-    size_t viewUpdateCount = 0;
-    bool allControllersVisited = true;
-
-    int nextTimeoutMs = -1;
-    bool hasTimeout = false;
-
-    // Pass unconsumed event from newest (active) to oldest controller.
-    for (ptrdiff_t i = cast(ptrdiff_t)activeList.length - 1; i >= 0; --i) {
+    for (ptrdiff_t i = cast(ptrdiff_t) activeList.length - 1; i >= 0; --i) {
       Controller c = activeList[i];
       if (c is null) {
         continue;
       }
 
       Controller.HandleResult result = c.handleEvent(event);
-
-      if (result.timeoutMs >= 0) {
-        if (!hasTimeout || result.timeoutMs < nextTimeoutMs) {
-          nextTimeoutMs = result.timeoutMs;
-          hasTimeout = true;
-        }
-      }
-
       final switch (result.result) {
       case Controller.HandleResult.Result.quit:
         return false;
       case Controller.HandleResult.Result.nothing:
         break;
       case Controller.HandleResult.Result.update:
-        needUpdate = true;
+        needModelUpdate = true;
         break;
       case Controller.HandleResult.Result.updateView:
-        if (viewUpdateCount < viewUpdateBuf.length) {
-          viewUpdateBuf[viewUpdateCount++] = c;
-        }
+        dirtyViews.add(c);
         break;
       }
 
       if (result.consume) {
-        allControllersVisited = (i == 0);
         break;
       }
     }
 
-    applyTimeout(currentTimeoutMs, hasTimeout, nextTimeoutMs,
-      allControllersVisited);
-    applyViewUpdatesAndRender(viewUpdateBuf[0 .. viewUpdateCount]);
-
-    if (needUpdate) {
-      sendAppEvent(AppEvent.makeNoRepeat(AppEvent.Kind.update));
-    }
-
     return true;
   }
 
-  bool runEventLoopStep(
-    Controller activeController,
-    ref int currentTimeoutMs
+  bool drainMessageBus(
+    ref ControllerDirtyList dirtyViews,
+    ref bool needModelUpdate,
+    ref bool needRender
   ) {
-    int waitRes = pollSdlEvent(currentTimeoutMs);
-
-    Nullable!AppEvent nullableEvent = getAppEvent();
-    if (!nullableEvent.isNull) {
+    enum size_t maxEventsPerStep = 256;
+    size_t processed = 0;
+    while (processed < maxEventsPerStep) {
+      if (processed > 0 && timerService.hasDueTimers(timerService.nowNs())) {
+        break;
+      }
+      Nullable!AppEvent nullableEvent = getAppEvent();
+      if (nullableEvent.isNull) {
+        break;
+      }
+      processed++;
       AppEvent event = nullableEvent.get();
-      if (!dispatchEvent(event, currentTimeoutMs)) {
+      if (event.kind == AppEvent.Kind.update) {
+        needModelUpdate = true;
+        continue;
+      }
+      if (!dispatchDiscreteEvent(
+          event, dirtyViews, needModelUpdate, needRender)) {
         return false;
       }
-    } else if (waitRes == 0 && currentTimeoutMs >= 0) {
-      if (!dispatchEvent(AppEvent(AppEvent.Kind.update), currentTimeoutMs)) {
-        return false;
-      }
-      updateAndRender(activeController);
     }
-
-    messageBus.ensureWake();
     return true;
   }
 
-  void updateAndRender(Controller controller) {
-    if (controller !is null) {
-      if (controller.updateView()) {
-        sendUpdateUiLayerEvent();
+  void runPhase2Updates(
+    ref ControllerDirtyList dirtyViews,
+    bool needModelUpdate,
+    ref bool needRender
+  ) {
+    if (needModelUpdate) {
+      Controller[16] stackBuf;
+      Controller[] activeList = snapshotControllers(stackBuf);
+      foreach_reverse (c; activeList) {
+        if (c !is null && c.update()) {
+          dirtyViews.add(c);
+        }
       }
     }
+
+    const long tickNowNs = timerService.nowNs();
+    timerService.fireDueTimers(tickNowNs, (TimerEntry entry, float dt) {
+      final switch (entry.targetKind) {
+      case TimerEntry.TargetKind.controller:
+        if (entry.controllerTarget !is null &&
+            entry.controllerTarget.tick(dt)) {
+          dirtyViews.add(entry.controllerTarget);
+        }
+        break;
+      case TimerEntry.TargetKind.widgetSystem:
+        if (entry.systemTarget !is null) {
+          pipeline.runSystemUpdate(entry.systemTarget, fMainWindow, dt);
+        }
+        break;
+      case TimerEntry.TargetKind.callback:
+        if (entry.callback !is null && entry.callback(entry.id, dt)) {
+          needRender = true;
+        }
+        break;
+      }
+    });
+  }
+
+  void runPhase3Render(in ControllerDirtyList dirtyViews, bool needRender) {
+    if (!dirtyViews.empty) {
+      Controller[16] stackBuf;
+      Controller[] activeList = snapshotControllers(stackBuf);
+      foreach (c; activeList) {
+        if (c !is null && dirtyViews.contains(c)) {
+          if (c.updateView()) {
+            needRender = true;
+          }
+        }
+      }
+    }
+
+    const bool treeNeedsRender = fMainWindow !is null &&
+      fMainWindow.rootWidget !is null &&
+      (fMainWindow.rootWidget.isTreeDirty() ||
+        fMainWindow.rootWidget.isTreeLayoutDirty());
+    if (needRender || treeNeedsRender) {
+      pipeline.updateAndRender(fMainWindow);
+    }
+  }
+
+  bool runEventLoopStep() {
+    waitForEventsIfIdle();
+    drainSdlEvents();
+
+    bool needModelUpdate = false;
+    bool needRender = fPendingRedraw;
+    fPendingRedraw = false;
+    ControllerDirtyList dirtyViews;
+
+    if (!drainMessageBus(dirtyViews, needModelUpdate, needRender)) {
+      return false;
+    }
+    runPhase2Updates(dirtyViews, needModelUpdate, needRender);
+    runPhase3Render(dirtyViews, needRender);
+    return true;
   }
 
   Controller getActiveControllerOrNull() {
@@ -433,7 +569,7 @@ private:
   void redraw() {
     if (fMainWindow !is null && fMainWindow.rootWidget !is null) {
       fMainWindow.rootWidget.update(WidgetUpdateScope.all);
-      sendUpdateUiLayerEvent();
+      fPendingRedraw = true;
     }
   }
 
@@ -481,11 +617,13 @@ private:
 
   ControllerStack controllers;
   MessageBus messageBus;
+  TimerService timerService;
   Window fMainWindow;
   WidgetSystemPipeline pipeline;
   ObjectRegistry!WidgetViewController fWidgetViewControllers;
   ObjectRegistry!WidgetView fWidgetViews;
   uint fNextWidgetId = 1;
+  bool fPendingRedraw = false;
 } // -UiSystem
 
 ////// TESTS /////
@@ -535,29 +673,39 @@ unittest {
   assert(ctrl.received[2].user.eventId == 999);
 }
 
-// Verifies timeout-driven periodic view updates in the main event loop.
+// Verifies timer-driven periodic tick and view updates in the main event loop.
 unittest {
   class TickController : DefaultController {
     UiSystemImpl ui;
-    int ticks = 0;
+    TimerId timerId = 0;
+    int tickCalls = 0;
+    int viewTicks = 0;
+
     this(UiSystemImpl ui) {
-      super(null);
+      super(ui);
       this.ui = ui;
+    }
+
+    override void onPush() {
+      timerId = startTickTimer(10, TimerMode.repeat);
     }
 
     override HandleResult handleEvent(in AppEvent ev) {
       if (ev.kind == AppEvent.Kind.appQuit) {
         return HandleResult(HandleResult.Result.quit);
       }
-      HandleResult res;
-      res.result = HandleResult.Result.updateView;
-      res.timeoutMs = 10;
-      return res;
+      return HandleResult(HandleResult.Result.nothing);
+    }
+
+    override bool tick(float dt) {
+      tickCalls++;
+      return true;
     }
 
     override bool updateView() {
-      ticks++;
-      if (ticks >= 2) {
+      viewTicks++;
+      if (viewTicks >= 2) {
+        stopTickTimer(timerId);
         ui.sendAppEvent(AppEvent(AppEvent.Kind.appQuit));
       }
       return true;
@@ -568,17 +716,17 @@ unittest {
   auto uiTick = new UiSystemImpl(window);
   auto tickCtrl = new TickController(uiTick);
   uiTick.pushController(tickCtrl);
-  uiTick.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(1)));
 
   uiTick.mainEventLoop();
-  assert(tickCtrl.ticks >= 2);
+  assert(tickCtrl.tickCalls >= 2);
+  assert(tickCtrl.viewTicks >= 2);
 }
 
 // Verifies window resize event handling and renderer viewport updates.
 unittest {
   class ResizeTestController : DefaultController {
-    this(Window window) {
-      super(null);
+    this(UiSystemImpl ui, Window window) {
+      super(ui);
       this.window = window;
     }
     Window window;
@@ -589,8 +737,12 @@ unittest {
     int viewportHeight = 0;
 
     override HandleResult handleEvent(AppEvent ev) {
-      received ~= ev;
-      if (ev.kind == AppEvent.Kind.windowResized) {
+      if (ev.kind == AppEvent.Kind.user && ev.user.eventId == 1) {
+        return HandleResult(HandleResult.Result.updateView);
+      }
+      if (ev.kind == AppEvent.Kind.windowResized &&
+          ev.window.width == 640 && ev.window.height == 480) {
+        received ~= ev;
         if (window.renderer !is null) {
           viewportWidth = window.renderer.getViewportWidth();
           viewportHeight = window.renderer.getViewportHeight();
@@ -598,6 +750,7 @@ unittest {
         return HandleResult(HandleResult.Result.updateView);
       }
       if (ev.kind == AppEvent.Kind.user && ev.user.eventId == 999) {
+        received ~= ev;
         return HandleResult(HandleResult.Result.quit);
       }
       return super.handleEvent(ev);
@@ -605,22 +758,26 @@ unittest {
 
     override bool updateView() {
       updateCount++;
+      if (updateCount == 1) {
+        sendAppEvent(
+          AppEvent.windowEvent(
+            AppEvent.Kind.windowResized,
+            AppEvent.WindowData(0, 640, 480)
+          )
+        );
+      } else if (received.length == 1) {
+        sendAppEvent(AppEvent.userEvent(AppEvent.UserData(999)));
+      }
       return true;
     }
   }
 
   auto window = new Window(320, 240, "test_resize_window");
   auto ui = new UiSystemImpl(window);
-  auto ctrl = new ResizeTestController(window);
+  auto ctrl = new ResizeTestController(ui, window);
   ui.pushController(ctrl);
 
-  ui.sendAppEvent(
-    AppEvent.windowEvent(
-      AppEvent.Kind.windowResized,
-      AppEvent.WindowData(0, 640, 480)
-    )
-  );
-  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(999)));
+  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(1)));
 
   ui.mainEventLoop();
 
@@ -639,36 +796,46 @@ unittest {
 // Verifies window expose event handling and controller notification.
 unittest {
   class ExposeTestController : DefaultController {
-    this() {
-      super(null);
+    this(UiSystemImpl ui) {
+      super(ui);
     }
     const(AppEvent)[] received;
     int updateCount = 0;
 
     override HandleResult handleEvent(AppEvent ev) {
-      received ~= ev;
+      if (ev.kind == AppEvent.Kind.windowExposed) {
+        if (!sawExposed) {
+          received ~= ev;
+          sawExposed = true;
+        }
+      }
       if (ev.kind == AppEvent.Kind.user && ev.user.eventId == 999) {
+        received ~= ev;
         return HandleResult(HandleResult.Result.quit);
       }
       return super.handleEvent(ev);
     }
 
+    bool sawExposed = false;
+
     override bool updateView() {
       updateCount++;
+      if (updateCount == 1) {
+        sendAppEvent(AppEvent.userEvent(AppEvent.UserData(999)));
+      }
       return true;
     }
   }
 
   auto window = new Window(320, 240, "test_expose_window");
   auto ui = new UiSystemImpl(window);
-  auto ctrl = new ExposeTestController();
+  auto ctrl = new ExposeTestController(ui);
   ui.pushController(ctrl);
 
   ui.sendAppEvent(AppEvent.windowEvent(
     AppEvent.Kind.windowExposed,
     AppEvent.WindowData(0, 320, 240)
   ));
-  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(999)));
 
   ui.mainEventLoop();
 
@@ -788,10 +955,12 @@ unittest {
   class ViewOrderTestController : DefaultController {
     string name;
     string[]* log;
-    this(string name, string[]* log) {
-      super(null);
+    bool quitAfterUpdate;
+    this(string name, string[]* log, UiSystem ui, bool quitAfterUpdate) {
+      super(ui);
       this.name = name;
       this.log = log;
+      this.quitAfterUpdate = quitAfterUpdate;
     }
 
     override HandleResult handleEvent(AppEvent ev) {
@@ -809,6 +978,9 @@ unittest {
 
     override bool updateView() {
       *log ~= name ~ ":updateView";
+      if (quitAfterUpdate) {
+        sendAppEvent(AppEvent.userEvent(AppEvent.UserData(999)));
+      }
       return true;
     }
   }
@@ -817,14 +989,13 @@ unittest {
   auto window = new Window(100, 100, "test_view_order");
   auto ui = new UiSystemImpl(window);
 
-  auto cOldest = new ViewOrderTestController("oldest", &log);
-  auto cNewest = new ViewOrderTestController("newest", &log);
+  auto cOldest = new ViewOrderTestController("oldest", &log, ui, false);
+  auto cNewest = new ViewOrderTestController("newest", &log, ui, true);
 
   ui.pushController(cOldest);
   ui.pushController(cNewest);
 
   ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(42)));
-  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(999)));
 
   ui.mainEventLoop();
 
@@ -835,15 +1006,23 @@ unittest {
   ]);
 }
 
-// Verifies multiple Result.update returns send only one AppEvent.Kind.update.
+// Verifies multiple Result.update returns trigger a single Phase 2 update().
 unittest {
   class MultiUpdateTestController : DefaultController {
     UiSystemImpl ui;
-    int* updateEventCount;
+    int* updateCount;
     this(UiSystemImpl ui, int* count) {
-      super(null);
+      super(ui);
       this.ui = ui;
-      this.updateEventCount = count;
+      this.updateCount = count;
+    }
+
+    override bool update() {
+      (*updateCount)++;
+      if (*updateCount >= 2) {
+        ui.sendAppEvent(AppEvent(AppEvent.Kind.appQuit));
+      }
+      return false;
     }
 
     override HandleResult handleEvent(AppEvent ev) {
@@ -853,13 +1032,6 @@ unittest {
         res.consume = false;
         return res;
       }
-      if (ev.kind == AppEvent.Kind.update) {
-        (*updateEventCount)++;
-        if (*updateEventCount >= 2) {
-          ui.sendAppEvent(AppEvent(AppEvent.Kind.appQuit));
-        }
-        return HandleResult(HandleResult.Result.nothing);
-      }
       if (ev.kind == AppEvent.Kind.appQuit) {
         return HandleResult(HandleResult.Result.quit);
       }
@@ -867,12 +1039,12 @@ unittest {
     }
   }
 
-  int updateEventCount = 0;
+  int updateCount = 0;
   auto window = new Window(100, 100, "test_multi_update");
   auto ui = new UiSystemImpl(window);
 
-  auto cOldest = new MultiUpdateTestController(ui, &updateEventCount);
-  auto cNewest = new MultiUpdateTestController(ui, &updateEventCount);
+  auto cOldest = new MultiUpdateTestController(ui, &updateCount);
+  auto cNewest = new MultiUpdateTestController(ui, &updateCount);
 
   ui.pushController(cOldest);
   ui.pushController(cNewest);
@@ -882,9 +1054,8 @@ unittest {
   ui.mainEventLoop();
 
   // Both controllers handled event 42 and returned Result.update.
-  // UiSystemImpl sent exactly ONE AppEvent.Kind.update.
-  // Both controllers received that single update event (1 increment each).
-  assert(updateEventCount == 2);
+  // Phase 2 invoked update() once on each controller (1 increment each).
+  assert(updateCount == 2);
 }
 
 // Verifies Result.quit immediately terminates event loop without propagation.
@@ -925,63 +1096,158 @@ unittest {
   assert(log == ["newest:handleEvent"]);
 }
 
-// Verifies timeout resolution across multiple controllers in stack.
+// Verifies timer auto-cleanup, idle sleep (-1), and non-merged curved
+// mouseMotion flood without timer starvation or multi-render stalls.
 unittest {
-  class TimeoutTestController : DefaultController {
-    int myTimeout;
-    bool shouldConsume;
-    this(int timeout, bool shouldConsume = false) {
-      super(null);
-      this.myTimeout = timeout;
-      this.shouldConsume = shouldConsume;
+  import yguilib.render.render_types : PointF, RectF;
+  import yguilib.timers : TimerId, TimerMode;
+  import yguilib.widget.system : SystemPhase, WidgetSystemContext;
+
+  final class FloodController : DefaultController {
+    PointF[] motionPoints;
+    int tickCount = 0;
+    int viewCount = 0;
+
+    this(UiSystem ui) {
+      super(ui);
     }
 
     override HandleResult handleEvent(AppEvent ev) {
-      HandleResult res;
-      res.result = HandleResult.Result.nothing;
-      res.timeoutMs = myTimeout;
-      res.consume = shouldConsume;
-      return res;
+      if (ev.kind == AppEvent.Kind.mouseMotion) {
+        motionPoints ~= PointF(ev.mouse.x, ev.mouse.y);
+        return HandleResult(HandleResult.Result.nothing, true);
+      }
+      return super.handleEvent(ev);
+    }
+
+    override bool tick(float dt) {
+      tickCount++;
+      return true;
+    }
+
+    override bool updateView() {
+      viewCount++;
+      return true;
     }
   }
 
-  auto window = new Window(100, 100, "test_timeout");
-  auto ui = new UiSystemImpl(window);
+  final class RenderCountSystem : WidgetSystem {
+    int updateCount = 0;
+    int renderCount = 0;
 
-  auto cOldest = new TimeoutTestController(100, false);
-  auto cNewest = new TimeoutTestController(20, false);
+    override @property SystemPhase phases() const nothrow @safe {
+      return SystemPhase.update | SystemPhase.render;
+    }
 
-  ui.pushController(cOldest);
-  ui.pushController(cNewest);
+    override void update(ref WidgetSystemContext ctx, float dt) {
+      updateCount++;
+      if (ctx.root !is null) {
+        ctx.root.update(WidgetUpdateScope.visuals);
+      }
+    }
 
-  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(1)));
+    override void render(ref WidgetSystemContext ctx) {
+      renderCount++;
+    }
+  }
 
-  int timeoutMs = -1;
-  // Step 1: Unconsumed event visited both controllers.
-  // Minimum timeout between 100 and 20 is 20.
-  bool cont = ui.runEventLoopStep(cNewest, timeoutMs);
-  assert(cont);
-  assert(timeoutMs == 20);
+  yguilib_sdl3_init();
+  scope (exit) yguilib_sdl3_quit();
 
-  // Step 2: cNewest consumes event with timeout -1.
-  // cOldest's pending timeout of 20 should be preserved because cOldest
-  // was not visited.
-  cNewest.myTimeout = -1;
-  cNewest.shouldConsume = true;
-  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(2)));
-  cont = ui.runEventLoopStep(cNewest, timeoutMs);
-  assert(cont);
-  assert(timeoutMs == 20);
+  auto win = new Window(200, 200, "test_flood_timers");
+  win.create();
+  scope (exit) win.destroy();
 
-  // Step 3: cNewest does not consume event with timeout -1, and cOldest
-  // also returns -1.
-  // All controllers visited and none requested timeout => reset to -1.
-  cNewest.shouldConsume = false;
-  cOldest.myTimeout = -1;
-  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(3)));
-  cont = ui.runEventLoopStep(cNewest, timeoutMs);
-  assert(cont);
-  assert(timeoutMs == -1);
+  auto ui = new UiSystemImpl(win);
+  long fakeNowNs = 1_000_000_000L;
+  ui.setTimerClock(() => fakeNowNs);
+
+  auto root = new Widget(ui.nextWidgetId());
+  root.rect = RectF(0, 0, 200, 200);
+  win.rootWidget = root;
+  ui.systemPipeline.updateAndRender(win);
+
+  // Flush any OS window-creation events (e.g. initial Expose) before testing.
+  yguilib_sdl3_Event discardEv;
+  while (yguilib_sdl3_poll_event(&discardEv) > 0) {}
+
+  auto sys = new RenderCountSystem();
+  ui.registerWidgetSystem(sys);
+
+  auto ctrl = new FloodController(ui);
+  ui.pushController(ctrl);
+
+  // Idle when no timers active
+  assert(ui.nextWaitTimeoutMs() == -1);
+
+  const TimerId cTimer = ui.startTimer(ctrl, 16, TimerMode.repeat);
+  const TimerId sTimer = ui.startTimer(sys, 16, TimerMode.repeat);
+  assert(ui.isTimerActive(cTimer));
+  assert(ui.isTimerActive(sTimer));
+  assert(ui.nextWaitTimeoutMs() == 16);
+
+  // Queue 200 curved mouseMotion waypoints across a 16 ms window
+  foreach (i; 0 .. 200) {
+    const float fx = cast(float) i;
+    const float fy = cast(float) ((i * 7) % 100);
+    ui.sendAppEvent(AppEvent.mouseEvent(
+      AppEvent.Kind.mouseMotion,
+      AppEvent.MouseData(1, fx, fy)
+    ));
+  }
+
+  // Advance clock by 16 ms so timer is already due at start of flood:
+  // Step 1 processes 1 event, yields Phase 1 to fire due timers without
+  // starvation, and renders once.
+  fakeNowNs += 16_000_000L;
+  assert(ui.runEventLoopStep());
+  assert(ctrl.motionPoints.length == 1);
+  assert(ctrl.tickCount == 1);
+  assert(ctrl.viewCount == 1);
+  assert(sys.updateCount == 1);
+  assert(sys.renderCount == 1);
+
+  // Step 2 drains all remaining 199 queued mouseMotion events immediately
+  // without waiting for next deadline (16 ms still remaining).
+  assert(ui.runEventLoopStep());
+  assert(ctrl.motionPoints.length == 200);
+  foreach (i; 0 .. 200) {
+    assert(ctrl.motionPoints[i].x == cast(float) i);
+    assert(ctrl.motionPoints[i].y == cast(float) ((i * 7) % 100));
+  }
+  assert(ctrl.tickCount == 1);
+  assert(sys.renderCount == 1);
+
+  // Queue another 200 curved waypoints before deadline -> all 200 drain in one
+  // step, and advancing clock fires timers once with a single render pass.
+  ctrl.motionPoints = null;
+  foreach (i; 0 .. 200) {
+    const float fx = cast(float) (200 - i);
+    const float fy = cast(float) ((i * 5) % 80);
+    ui.sendAppEvent(AppEvent.mouseEvent(
+      AppEvent.Kind.mouseMotion,
+      AppEvent.MouseData(1, fx, fy)
+    ));
+  }
+  fakeNowNs += 8_000_000L;
+  assert(ui.runEventLoopStep());
+  assert(ctrl.motionPoints.length == 200);
+  assert(ctrl.tickCount == 1);
+  assert(sys.renderCount == 1);
+
+  fakeNowNs += 8_000_000L;
+  assert(ui.runEventLoopStep());
+  assert(ctrl.tickCount == 2);
+  assert(ctrl.viewCount == 2);
+  assert(sys.updateCount == 2);
+  assert(sys.renderCount == 2);
+
+  // Pop controller & unregister system -> timers auto-cancelled, idle = -1
+  ui.popController();
+  assert(!ui.isTimerActive(cTimer));
+  ui.unregisterWidgetSystem(sys);
+  assert(!ui.isTimerActive(sTimer));
+  assert(ui.nextWaitTimeoutMs() == -1);
 }
 
 // Verifies dirty flag optimization gating in updateAndRender.

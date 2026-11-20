@@ -3,6 +3,20 @@ import core.time : MonoTime, ticksToNSecs;
 import std.algorithm.comparison : clamp;
 import std.math.remainder : fmod;
 
+/// Controls whether a registered UiSystem timer fires once or repeats.
+enum TimerMode {
+  oneShot,
+  repeat,
+}
+
+/// Opaque identifier for a registered timer (0 = invalid / inactive).
+alias TimerId = uint;
+enum TimerId invalidTimerId = 0;
+
+/// Callback invoked on the main thread during Phase 2 when a timer expires.
+/// Returns true if a UI render pass should be requested.
+alias TimerCallback = bool delegate(TimerId id, float dt);
+
 
 /// Controls how AnimationTimer behaves when elapsed reaches duration.
 enum AnimationWrapMode {
@@ -230,7 +244,7 @@ struct DeltaTimer {
   /// clamped to [minStep, maxStep].
   /// On the first call (or after reset), returns initialStep.
   float step(
-    float minStep = 0.001f,
+    float minStep = 0.0f,
     float maxStep = 0.1f,
     float initialStep = 1.0f / 60.0f
   ) {
@@ -422,14 +436,18 @@ unittest {
   import std.math.operations : isClose;
 
   DeltaTimer dt;
-  const float first = dt.step(0.001f, 0.1f, 0.016f);
+  const float first = dt.step(0.0f, 0.1f, 0.016f);
   assert(isClose(first, 0.016f));
 
+  // Sub-millisecond immediate step must not be inflated to 1 ms by default.
+  const float immediate = dt.step();
+  assert(immediate >= 0.0f && immediate < 0.001f);
+
   Thread.sleep(5.msecs);
-  const float second = dt.step(0.001f, 0.1f, 0.016f);
-  assert(second >= 0.001f && second <= 0.1f);
+  const float second = dt.step(0.0f, 0.1f, 0.016f);
+  assert(second >= 0.0f && second <= 0.1f);
 
   dt.reset();
-  const float afterReset = dt.step(0.001f, 0.1f, 0.02f);
+  const float afterReset = dt.step(0.0f, 0.1f, 0.02f);
   assert(isClose(afterReset, 0.02f));
 }

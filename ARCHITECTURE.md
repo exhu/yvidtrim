@@ -40,7 +40,7 @@ yvidtrim/
 │   │   ├── events/        # AppEvent, builder, and thread-safe MessageBus
 │   │   ├── render/        # Hardware Renderer, FontManager, shader pipelines
 │   │   ├── widget/        # Widget entity, components, builder, WidgetSystem
-│   │   └── internal/      # UiSystemImpl, UiSystemController, logger
+│   │   └── internal/      # UiSystemImpl, TimerService, UiSystemController
 │   ├── yguilib-clibs/     # Private C wrappers around SDL3 and SDL3_ttf
 │   └── assets/            # Embedded resources (fonts, shaders) via import("")
 ├── yvidtrim-clibs/        # Private C wrappers for editor (SDL3, FFmpeg future)
@@ -58,8 +58,10 @@ yvidtrim/
     strictly restricted to the main thread.
   - Background threads (playback decode, export) communicate exclusively via
     message passing by calling `UiSystem.sendAppEvent(AppEvent)`.
-  - `MessageBus.send()` is thread-safe (`synchronized`) and signals the SDL
-    event queue (`yguilib_sdl3_send_wake_event()`) to wake the main loop.
+  - `MessageBus.send()` is a thread-safe ring buffer (`synchronized`) that
+    signals `yguilib_sdl3_send_wake_event()` from background threads when the
+    main thread is waiting, and preserves raw `mouseMotion` samples without
+    merging.
 - Memory & Safety Enforcements:
   - Event dispatch uses stack buffers (`Controller[16]`) to eliminate GC churn.
   - GC is permitted for widget graph construction, models, and UI event strings.
@@ -73,54 +75,41 @@ yvidtrim/
 
 ## Primary Data Flows
 
-### 1. Main Event Loop & Input Dispatch
+### 1. Phased Main Event Loop & Input Dispatch
 ```
 [SDL3 Event / Background Thread Wake]
   │
-  ▼
-UiSystemImpl.pollSdlEvent() ──► MessageBus.send(AppEvent)
-  │
-  ▼
-UiSystemImpl.dispatchEvent()
-  │ (top-to-bottom through ControllerStack)
+  ▼ (wait_event if idle, then drain SDL via poll_event -> MessageBus)
+Phase 1: UiSystemImpl.drainMessageBus()
+  │ (top-to-bottom through ControllerStack; bounded batch, no rendering)
   ├─► User Controllers (e.g. DemoController, MainController)
-  │     └─► handleEvent() ──► if consumed, stop propagation
+  │     └─► handleEvent() ──► collects dirtyViews & needModelUpdate
   │
   └─► UiSystemController
-        │
-        ├─► WidgetSystemPipeline.handleEvent()
-        │     ├─► FocusSystem (priority -100)
-        │     └─► InputSystem (priority 0) ──► bubbles MouseEvent through
-        │           ViewComponent.renameEvents ──► UiSystem.sendAppEvent()
-        └─► Returns HandleResult.Result.updateView
+        └─► WidgetSystemPipeline.handleEvent()
+              ├─► FocusSystem (priority -100)
+              └─► InputSystem (priority 0) ──► bubbles MouseEvent through
+                    ViewComponent.renameEvents ──► UiSystem.sendAppEvent()
 ```
 
-### 2. State Mutation & Model-View-Controller Loop
+### 2. Phase 2 Sync, Timers & Model-View-Controller Loop
 ```
-User Action / Event
+Phase 2: UiSystemImpl.runPhase2Updates()
+  │
+  ├─► Model Sync (if Result.update / Kind.update): Controller.update()
+  ├─► Due Timers (TimerService):
+  │     ├─► Controller timer   ──► Controller.tick(dt)
+  │     ├─► WidgetSystem timer ──► SystemPhase.update: system.update(ctx, dt)
+  │     └─► Callback timer     ──► TimerCallback(id, dt)
   │
   ▼
-Controller: tracker.edit() ──► mutate Model fields ──► tracker.commit()
-  │
-  ▼
-Controller returns HandleResult(Result.update)
-  │
-  ▼
-UiSystem invokes Controller.update() ──► returns updateView flag
-  │
-  ▼
-Controller.updateView() ──► View.update()
-  │
-  ├─► tracker.update() checks if modelVersion changed
-  └─► View mutates widget components ──► widget.update(WidgetUpdateScope)
+Phase 3: dirty Controller.updateView() (oldest-to-newest) ──► View.update()
+  └─► tracker.update() / view mutates widgets ──► widget.update(scope)
 ```
 
 ### 3. Layout & Render Pipeline Pass
 ```
-AppEvent.Kind.updateUiLayer received by UiSystemController
-  │
-  ▼
-UiSystemController.updateView() ──► WidgetSystemPipeline.updateAndRender()
+Phase 3 (if dirty): UiSystemImpl ──► WidgetSystemPipeline.updateAndRender()
   │
   ├─► 1. PreLayout Phase: preLayoutSystems.preLayout(ctx)
   │
@@ -135,16 +124,17 @@ UiSystemController.updateView() ──► WidgetSystemPipeline.updateAndRender()
   │     ├─► WidgetPainterSystem draws backgrounds, borders, text, customDraw
   │     └─► DebugDrawSystem (debug only) draws unclipped outlines & labels
   │
-  └─► 4. Buffer Swap: Window.swapBuffers()
+  └─► 4. Buffer Swap: Window.swapBuffers() (at most once per frame tick)
 ```
 
 ## Idiomatic Patterns
 - Null Safety: Non-null references by default. Missing checks are flagged by
   tooling. Constructor arguments enforce `assert(arg !is null)` and structs/
   classes assert invariants `invariant { assert(field !is null); }`.
-- Zero-CPU Idle Sleep: `WidgetSystem.timeoutMs` and `HandleResult.timeoutMs`
-  return `16` (~60 FPS) during active animations and `-1` when idle, allowing
-  `yguilib_sdl3_wait_event()` to block without spinning.
+- Zero-CPU Idle Sleep: Controllers and `WidgetSystem`s register wall-clock
+  timers via `UiSystem.startTimer` (`TimerControl`) during active animations
+  and stop them when settled (`TimerService` returns `-1` when idle so
+  `yguilib_sdl3_wait_event()` blocks without spinning).
 - ECS-Style Widgets: `Widget` is an entity with geometry (`RectF`), hierarchy,
   and a `WidgetComponents` bag (`Background`, `Border`, `Size`, `FlexContainer`,
   `MouseEvent`, custom components via `components.set!C(...)`).

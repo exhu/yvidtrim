@@ -1,23 +1,3 @@
-- how active animations are updated? input events and animation updates conflict.
-
-runEventLoopStep() in uisystem_impl sends AppEvent.Kind.update if timeout.
-However Controller.update is called only via handleEvent when there's
-Kind.update event received, and this will not be received while there are other
-events in the queue, e.g. massive mouse movement saturates the queue and
-animation is not going forward, or becomes lagging. Returning Result.update to
-any input event will fill the queue with updates and now the app is not
-responsive to input events. So Controller.handleEvent is the only point where
-timers and animation model can be updated either via AppEvent.Kind.update, or
-just via calling update() and Result.updateView. This problem is visible in
-`guidemo/pages/layout_painter_controller.d` maybe support timers as new events
-in MessageBus to wake the system instead of uninterrupted loop of result updates
-in handleEvent, so that any controller can forget about timeOut value for event,
-which then will be set by UiSystem based on the nearest timer to fire?
-Another option is to have a priority queue in MessageBus, where some events (e.g. update) may
-have precedence over other events in a defined proportion, e.g. if there's an event with
-a timeout field not -1, then make sure it gets handled earlier than current queue up to that event.
-
-
 - decide on view-controller architecture, View should be created before the controller
 and passed to it instead of creating a view inside one.
 

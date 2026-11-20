@@ -19,6 +19,7 @@ yguilib_src = files(
   'source/yguilib/events/package.d',
   'source/yguilib/internal/assets.d',
   'source/yguilib/internal/logger.d',
+  'source/yguilib/internal/timer_service.d',
   'source/yguilib/internal/uisystem_impl.d',
   'source/yguilib/internal/uisystem_controller.d',
   'source/yguilib/model.d',

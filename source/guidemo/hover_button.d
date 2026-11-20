@@ -36,14 +36,14 @@
  * 7. HoverButtonController matches event.view.viewWidget against its managed
  *    button list and drives smooth visual animations.
  *
- * NON-MODAL CONTROLLER TIMEOUT LIFECYCLE
- * --------------------------------------
+ * NON-MODAL CONTROLLER TIMER LIFECYCLE
+ * ------------------------------------
  * HoverButtonController is a non-modal controller that can service one or
  * multiple buttons concurrently. During active transitions (e.g. fading or
- * gradient play), it returns timeoutMs = 16 to keep the event loop stepping
- * at ~60 FPS. Once all buttons reach their resting state (idle or fully
- * hovered/pressed), it returns timeoutMs = -1, allowing the application to
- * sleep and consume 0% idle CPU.
+ * gradient play), it runs a 16 ms controller timer via `startTickTimer` to
+ * step animations in `tick(dt)`. Once all buttons reach their resting state
+ * (idle or fully hovered/pressed), it stops the timer, allowing the
+ * application to sleep at 0% idle CPU.
  */
 module guidemo.hover_button;
 
@@ -53,7 +53,8 @@ import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, RectF;
-import yguilib.timers : AnimationTimer, AnimationWrapMode, DeltaTimer;
+import yguilib.timers : AnimationTimer, AnimationWrapMode, TimerId, TimerMode,
+  invalidTimerId;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : ViewComponent, Widget;
 import yguilib.widget.builder : WidgetBuilder;
@@ -256,9 +257,13 @@ final class HoverButtonController : DefaultController {
     AnimationTimer gradTimer;
     bool isHovered = false;
     bool isPressed = false;
+    bool hoverPulsePending = false;
+    bool visualDirty = false;
     float cursorNormX = 0.5f;
     float cursorNormY = 0.5f;
   }
+
+  enum float hoverPulsePeak = 0.75f;
 
   this(
     UiSystem ui,
@@ -329,6 +334,13 @@ final class HoverButtonController : DefaultController {
     entries = entries.remove!(
       e => e.viewWidget is button || e.visualWidget is button
     );
+    if (!isAnyAnimating()) {
+      stopTickTimer(animTimerId);
+    }
+  }
+
+  override void onPop() {
+    stopTickTimer(animTimerId);
   }
 
   override void onWidgetReleased(Widget w) {
@@ -342,31 +354,35 @@ final class HoverButtonController : DefaultController {
         return handleButtonEvent(entries[idx], ev);
       }
     }
+    return super.handleEvent(ev);
+  }
 
-    if (ev.kind == AppEvent.Kind.update) {
-      if (isAnyAnimating()) {
-        return HandleResult(HandleResult.Result.updateView, false, 16);
-      } else {
-        deltaTimer.reset();
-        return HandleResult(HandleResult.Result.nothing, false, -1);
-      }
+  override bool tick(float dt) {
+    const bool anyChanged = stepAnimation(dt);
+    if (!isAnyAnimating()) {
+      stopTickTimer(animTimerId);
     }
-
-    // Keep timeout alive on other events (e.g. updateUiLayer or input)
-    // while animating, without requesting updateView recursion!
-    HandleResult res = super.handleEvent(ev);
-    if (isAnyAnimating()) {
-      res.timeoutMs = 16;
-    }
-    return res;
+    return anyChanged;
   }
 
   override bool updateView() {
-    const float dt = deltaTimer.step();
-    return stepAnimation(dt);
+    bool anyUpdated = false;
+    foreach (ref entry; entries) {
+      if (entry.visualDirty) {
+        entry.visualDirty = false;
+        applyVisualState(entry);
+        anyUpdated = true;
+      }
+    }
+    return anyUpdated;
   }
 
 private:
+  void ensureAnimTimer() {
+    if (animTimerId == invalidTimerId && isAnyAnimating()) {
+      animTimerId = startTickTimer(16, TimerMode.repeat);
+    }
+  }
   ptrdiff_t findEntryIndex(Widget viewWidget) const {
     if (viewWidget is null) {
       return -1;
@@ -381,6 +397,9 @@ private:
 
   bool isAnyAnimating() const {
     foreach (const ref e; entries) {
+      if (e.hoverPulsePending) {
+        return true;
+      }
       const float targetHover = e.isHovered ? 1.0f : 0.0f;
       const float targetPress = e.isPressed ? 1.0f : 0.0f;
       if (abs(e.hoverProgress - targetHover) > 0.001f ||
@@ -415,6 +434,7 @@ private:
     switch (ev.view.eventName) {
     case "hoverBtn.enter":
       entry.isHovered = true;
+      entry.hoverPulsePending = true;
       updateCursorNorm(entry, ev);
       consumed = true;
       break;
@@ -438,7 +458,7 @@ private:
       updateCursorNorm(entry, ev);
       if (entry.animConfig.style == HoverAnimConfig.AnimStyle.gradientPlay &&
           entry.hoverProgress > 0.01f) {
-        applyVisualState(entry);
+        entry.visualDirty = true;
       }
       consumed = true;
       break;
@@ -447,20 +467,16 @@ private:
     }
 
     if (consumed) {
+      ensureAnimTimer();
       HandleResult res;
-      res.result = isAnyAnimating()
+      res.result = entry.visualDirty
         ? HandleResult.Result.updateView
         : HandleResult.Result.nothing;
       res.consume = true;
-      res.timeoutMs = isAnyAnimating() ? 16 : -1;
       return res;
     }
 
-    HandleResult res = super.handleEvent(ev);
-    if (isAnyAnimating()) {
-      res.timeoutMs = 16;
-    }
-    return res;
+    return super.handleEvent(ev);
   }
 
   void triggerAction(ref ButtonEntry entry) {
@@ -478,10 +494,19 @@ private:
     foreach (ref entry; entries) {
       bool buttonVisualDirty = false;
 
+      if (entry.hoverPulsePending && entry.hoverProgress >= hoverPulsePeak) {
+        entry.hoverPulsePending = false;
+      }
+      const bool hoverForward = entry.isHovered || entry.hoverPulsePending;
+
       // Hover progress transition
-      if (!entry.hoverTimer.isAtTarget(entry.isHovered)) {
-        entry.hoverTimer.stepTowards(dt, entry.isHovered);
+      if (!entry.hoverTimer.isAtTarget(hoverForward)) {
+        entry.hoverTimer.stepTowards(dt, hoverForward);
         entry.hoverProgress = entry.hoverTimer.getProgress();
+        if (entry.hoverPulsePending &&
+            entry.hoverProgress >= hoverPulsePeak) {
+          entry.hoverPulsePending = false;
+        }
         buttonVisualDirty = true;
       }
 
@@ -494,14 +519,15 @@ private:
 
       // Gradient play oscillation while hovered or fading out
       if (entry.animConfig.style == HoverAnimConfig.AnimStyle.gradientPlay &&
-          (entry.isHovered || entry.hoverProgress > 0.001f)) {
+          (entry.isHovered || entry.hoverPulsePending ||
+            entry.hoverProgress > 0.001f)) {
         entry.gradTimer.update(dt);
         entry.animPhase = entry.gradTimer.map(0.0f, 2.0f * PI);
         buttonVisualDirty = true;
       }
 
       if (buttonVisualDirty) {
-        applyVisualState(entry);
+        entry.visualDirty = true;
         anyChanged = true;
       }
     }
@@ -559,21 +585,58 @@ private:
   }
 
   ButtonEntry[] entries;
-  DeltaTimer deltaTimer;
+  TimerId animTimerId = invalidTimerId;
 }
 
 // Unit tests verifying HoverButtonBuilder, View event renaming, and controller.
 unittest {
   import yguilib.controller : Controller;
   import yguilib.object_registry : ObjectRegistry;
+  import yguilib.timers : TimerCallback;
   import yguilib.widget.widget_view : WidgetViewController, WidgetView;
   import yguilib.widget.system : WidgetSystem;
   import yguilib.window : Window;
 
   class TestUiSystem : UiSystem {
     AppEvent[] sentEvents;
+    bool[TimerId] activeTimers;
+    TimerId nextTimerId = 1;
+
     override void sendAppEvent(AppEvent ev) {
       sentEvents ~= ev;
+    }
+    override TimerId startTimer(
+      uint intervalMs,
+      TimerMode mode,
+      TimerCallback callback
+    ) {
+      const TimerId id = nextTimerId++;
+      activeTimers[id] = true;
+      return id;
+    }
+    override TimerId startTimer(
+      Controller target,
+      uint intervalMs = 16,
+      TimerMode mode = TimerMode.repeat
+    ) {
+      const TimerId id = nextTimerId++;
+      activeTimers[id] = true;
+      return id;
+    }
+    override TimerId startTimer(
+      WidgetSystem target,
+      uint intervalMs = 16,
+      TimerMode mode = TimerMode.repeat
+    ) {
+      const TimerId id = nextTimerId++;
+      activeTimers[id] = true;
+      return id;
+    }
+    override void stopTimer(TimerId id) {
+      activeTimers.remove(id);
+    }
+    override bool isTimerActive(TimerId id) const {
+      return (id in activeTimers) !is null;
     }
     override @property
     ObjectRegistry!WidgetViewController widgetViewControllers() {
@@ -668,14 +731,15 @@ unittest {
     .viewWidget(btnRoot)
     .build();
   auto res = controller.handleEvent(enterEv);
-  assert(res.result == HandleResult.Result.updateView);
-  assert(res.timeoutMs == 16);
+  assert(res.result == HandleResult.Result.nothing);
+  assert(res.consume);
   assert(controller.entries[0].isHovered);
+  assert(testUi.isTimerActive(controller.animTimerId));
 
-  // Advance animation step
-  bool updated = controller.updateView();
-  assert(updated);
+  // Advance animation step and sync view
+  assert(controller.tick(0.016f));
   assert(controller.entries[0].hoverProgress > 0.0f);
+  assert(controller.updateView());
 
   // Dispatch leave event
   auto leaveEv = ViewAppEventBuilder("hoverBtn.leave")
@@ -717,8 +781,8 @@ unittest {
 
   gradController.handleEvent(enterEv);
   assert(gradController.isAnyAnimating());
-  bool gradUpdated = gradController.updateView();
-  assert(gradUpdated);
+  assert(gradController.tick(0.016f));
+  assert(gradController.updateView());
   assert(gradController.entries[0].animPhase > 0.0f);
 
   // Test mouseMove with cursor coordinate calculation
@@ -730,9 +794,49 @@ unittest {
     .build();
   auto moveRes = gradController.handleEvent(moveEv);
   assert(moveRes.result == HandleResult.Result.updateView);
-  assert(moveRes.timeoutMs == 16);
+  assert(moveRes.consume);
+
+  // Test 5: Sub-frame curved sweep (enter + leave before tick) latches hover
+  // pulse on all 3 touched buttons so every button visibly lights up and fades.
+  Widget[3] sweepBtns;
+  foreach (i; 0 .. 3) {
+    HoverButtonBuilder sb;
+    sweepBtns[i] = sb.fixedSize(80, 32).build(
+      testUi,
+      null,
+      RectF(cast(float) (i * 90), 0, 80, 32)
+    );
+  }
+  auto sweepCtrl = new HoverButtonController(testUi, sweepBtns[]);
+  foreach (btn; sweepBtns) {
+    sweepCtrl.handleEvent(ViewAppEventBuilder("hoverBtn.enter")
+      .widget(btn.children[0])
+      .viewWidget(btn)
+      .build());
+    sweepCtrl.handleEvent(ViewAppEventBuilder("hoverBtn.leave")
+      .widget(btn.children[0])
+      .viewWidget(btn)
+      .build());
+  }
+  assert(testUi.isTimerActive(sweepCtrl.animTimerId));
+  float[3] maxProgress = [0.0f, 0.0f, 0.0f];
+  foreach (_; 0 .. 60) {
+    sweepCtrl.tick(0.016f);
+    sweepCtrl.updateView();
+    foreach (i; 0 .. 3) {
+      if (sweepCtrl.entries[i].hoverProgress > maxProgress[i]) {
+        maxProgress[i] = sweepCtrl.entries[i].hoverProgress;
+      }
+    }
+  }
+  foreach (i; 0 .. 3) {
+    assert(maxProgress[i] >= HoverButtonController.hoverPulsePeak);
+    assert(sweepCtrl.entries[i].hoverProgress == 0.0f);
+  }
+  assert(!testUi.isTimerActive(sweepCtrl.animTimerId));
 
   // Test onWidgetReleased removes button from controller
   gradController.onWidgetReleased(btnRoot);
   assert(gradController.entries.length == 0);
+  assert(!testUi.isTimerActive(gradController.animTimerId));
 }

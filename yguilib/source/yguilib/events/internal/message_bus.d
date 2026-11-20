@@ -2,6 +2,8 @@ module yguilib.events.internal.message_bus;
 
 package(yguilib):
 
+import core.lifetime : move;
+import core.thread : Thread, ThreadID;
 import std.typecons : Nullable;
 import yguilib.clibs.sdl3;
 import yguilib.events : AppEvent;
@@ -19,11 +21,12 @@ struct EventQueueStats {
 }
 
 /**
- * Thread-safe FIFO event queue for cross-thread communication with the UI.
+ * Thread-safe ring-buffer FIFO event queue for UI event dispatch.
  *
  * Allows background threads to post $(D AppEvent) instances to the main UI
- * event loop. Whenever an event is enqueued, an SDL wake event is sent to wake
- * the main thread if it is blocked waiting for events.
+ * event loop. Background-thread sends post a single SDL wake event when the
+ * main thread is idle or waiting; main-thread sends never emit wake events.
+ * Raw input events (including $(D AppEvent.Kind.mouseMotion)) are never merged.
  */
 struct MessageBus {
   @disable this();
@@ -37,6 +40,7 @@ struct MessageBus {
   this(Object lockObj) {
     assert(lockObj !is null);
     this.lock = lockObj;
+    this.buffer = new AppEvent[initialCapacity];
     if (fStatsEnabled) {
       fTotalWatch.start();
       fWindowWatch.start();
@@ -47,25 +51,51 @@ struct MessageBus {
     assert(lock !is null);
   }
 
+  /// Marks the calling thread as the main UI loop thread so main-thread
+  /// sends do not emit redundant SDL_WAKE events.
+  void bindMainThread() {
+    const ThreadID tid = Thread.getThis().id;
+    synchronized (lock) {
+      mainThreadId = tid;
+      hasMainThread = true;
+    }
+  }
+
+  /// Clears main-thread binding on event loop exit.
+  void unbindMainThread() {
+    synchronized (lock) {
+      hasMainThread = false;
+    }
+  }
+
   /**
-   * Enqueues an event and signals the UI thread event loop.
-   *
-   * Posts an SDL wake event if a wake signal is not already in flight.
+   * Enqueues an event in strict FIFO order and signals the UI thread when
+   * called from a background thread.
    *
    * Params:
    *   ev = The event to enqueue.
    */
   void send(AppEvent ev) {
     bool needWake = false;
+    const ThreadID callerId = Thread.getThis().id;
     synchronized (lock) {
-      resetIfEmpty();
+      if (buffer.length == 0) {
+        buffer = new AppEvent[initialCapacity];
+      }
+      const bool isMain = hasMainThread && callerId == mainThreadId;
       bool allowedToSend = true;
-      if (ev.noRepeat && !isQueueEmpty() && (ev == events[head])) {
+      if (ev.noRepeat && isDuplicateNoRepeat(ev)) {
         allowedToSend = false;
       }
       if (allowedToSend) {
-        events ~= ev;
-        if (!wakeSent) {
+        if (count == buffer.length) {
+          grow();
+        }
+        const size_t tailIdx = (head + count) & (buffer.length - 1);
+        pendingKindCounts[ev.kind]++;
+        buffer[tailIdx] = move(ev);
+        count++;
+        if (!isMain && !wakeSent) {
           wakeSent = true;
           needWake = true;
         }
@@ -83,40 +113,47 @@ struct MessageBus {
    */
   Nullable!AppEvent get() {
     synchronized (lock) {
-      resetIfEmpty();
-      if (head >= events.length) {
+      if (count == 0) {
         return Nullable!AppEvent.init;
       }
-      auto ev = events[head++];
-      resetIfEmpty();
+      auto ev = move(buffer[head]);
+      assert(pendingKindCounts[ev.kind] > 0);
+      pendingKindCounts[ev.kind]--;
+      head = (head + 1) & (buffer.length - 1);
+      count--;
       return Nullable!AppEvent(ev);
     }
   }
 
-  /**
-   * Returns $(D true) if there are pending events awaiting retrieval.
-   */
+  /// Returns $(D true) if there are pending events awaiting retrieval.
   bool hasPending() {
     synchronized (lock) {
-      return head < events.length;
+      return count > 0;
     }
   }
 
-  /**
-   * Ensures an SDL wake event is sent if there are pending unconsumed events.
-   *
-   * Used to resume the UI event loop when events remain queued.
-   */
-  void ensureWake() {
-    bool needWake = false;
+  /// Atomically checks whether the queue is empty and arms wakeup signaling
+  /// before the main thread blocks in SDL_WaitEventTimeout.
+  /// Returns $(D true) if empty (safe to wait), $(D false) if events exist.
+  bool prepareToWait() {
     synchronized (lock) {
-      if (head < events.length) {
-        wakeSent = true;
-        needWake = true;
+      if (count > 0) {
+        return false;
       }
+      wakeSent = false;
+      return true;
     }
-    if (needWake) {
-      yguilib_sdl3_send_wake_event();
+  }
+
+  size_t length() {
+    synchronized (lock) {
+      return count;
+    }
+  }
+
+  size_t capacity() {
+    synchronized (lock) {
+      return buffer.length;
     }
   }
 
@@ -200,6 +237,40 @@ struct MessageBus {
   }
 
 private:
+  static bool isIdempotentNoRepeatKind(AppEvent.Kind k) {
+    return k == AppEvent.Kind.update || k == AppEvent.Kind.windowRedraw;
+  }
+
+  bool isDuplicateNoRepeat(in AppEvent ev) const {
+    if (count == 0) {
+      return false;
+    }
+    if (isIdempotentNoRepeatKind(ev.kind)) {
+      return pendingKindCounts[ev.kind] > 0;
+    }
+    const size_t mask = buffer.length - 1;
+    foreach (i; 0 .. count) {
+      const size_t idx = (head + i) & mask;
+      if (buffer[idx].equalsContent(ev)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void grow() {
+    const size_t newCap = buffer.length > 0
+      ? buffer.length * 2
+      : initialCapacity;
+    auto newBuf = new AppEvent[newCap];
+    const size_t mask = buffer.length - 1;
+    foreach (i; 0 .. count) {
+      newBuf[i] = move(buffer[(head + i) & mask]);
+    }
+    buffer = newBuf;
+    head = 0;
+  }
+
   void recordEventStats(bool posted) {
     if (!fStatsEnabled) {
       return;
@@ -224,21 +295,15 @@ private:
     }
     fCurrentWindowCount = 0;
   }
-  void resetIfEmpty() {
-    if (head >= events.length) {
-      events.length = 0;
-      head = 0;
-      wakeSent = false;
-    }
-  }
 
-  bool isQueueEmpty() {
-    return head >= events.length;
-  }
-
-  AppEvent[] events;
+  enum size_t initialCapacity = 64;
+  AppEvent[] buffer;
   size_t head = 0;
+  size_t count = 0;
+  size_t[AppEvent.Kind.max + 1] pendingKindCounts;
   bool wakeSent = false;
+  bool hasMainThread = false;
+  ThreadID mainThreadId;
   Object lock;
 
   enum long oneSecondNs = 1_000_000_000L;
@@ -255,7 +320,7 @@ private:
   StopWatchNs fWindowWatch;
 }
 
-// Verifies MessageBus event queueing, retrieval, and buffer reuse.
+// Verifies MessageBus event queueing, retrieval, and ring buffer reuse.
 unittest {
   MessageBus bus = MessageBus(new Object);
   assert(!bus.hasPending());
@@ -282,20 +347,104 @@ unittest {
   assert(!bus.hasPending());
 }
 
-// test noRepeat false
+// Verifies noRepeat false allows duplicates and noRepeat true deduplicates
+// across the entire ring buffer (even behind mouseMotion and mixed flags).
 unittest {
   MessageBus bus = MessageBus(new Object);
-  bus.send(AppEvent(AppEvent.Kind.updateUiLayer));
-  bus.send(AppEvent(AppEvent.Kind.updateUiLayer));
-  assert(bus.events.length == 2);
+  bus.send(AppEvent(AppEvent.Kind.windowRedraw));
+  bus.send(AppEvent(AppEvent.Kind.windowRedraw));
+  assert(bus.length == 2);
+
+  while (!bus.get().isNull) {}
+
+  // Send motion, then update (without noRepeat), then motion, then
+  // makeNoRepeat(update): must suppress the duplicate update!
+  bus.send(AppEvent.mouseEvent(
+    AppEvent.Kind.mouseMotion,
+    AppEvent.MouseData(1, 10.0f, 20.0f)
+  ));
+  bus.send(AppEvent(AppEvent.Kind.update));
+  bus.send(AppEvent.mouseEvent(
+    AppEvent.Kind.mouseMotion,
+    AppEvent.MouseData(1, 30.0f, 40.0f)
+  ));
+  bus.send(AppEvent.makeNoRepeat(AppEvent.Kind.update));
+  bus.send(AppEvent.makeNoRepeat(AppEvent.Kind.update));
+  assert(bus.length == 3);
+
+  // Payloaded noRepeat deduplication behind other events
+  bus.send(AppEvent.makeNoRepeat(AppEvent.Kind.windowRedraw));
+  bus.send(AppEvent.makeNoRepeat(AppEvent.Kind.windowRedraw));
+  assert(bus.length == 4);
 }
 
-// test noRepeat true
+// Verifies ring buffer constant capacity over sustained unmerged mouseMotion
+// traffic and strict FIFO preservation of curved coordinates.
 unittest {
   MessageBus bus = MessageBus(new Object);
-  bus.send(AppEvent.makeNoRepeat(AppEvent.Kind.updateUiLayer));
-  bus.send(AppEvent.makeNoRepeat(AppEvent.Kind.updateUiLayer));
-  assert(bus.events.length == 1);
+  const size_t initCap = bus.capacity();
+
+  // Seed 4 events so queue never empties during continuous traffic
+  foreach (i; 0 .. 4) {
+    bus.send(AppEvent.mouseEvent(
+      AppEvent.Kind.mouseMotion,
+      AppEvent.MouseData(1, cast(float) i, cast(float) (i * 2))
+    ));
+  }
+
+  foreach (i; 4 .. 10_004) {
+    auto popped = bus.get();
+    assert(!popped.isNull);
+    assert(popped.get().kind == AppEvent.Kind.mouseMotion);
+    assert(popped.get().mouse.x == cast(float) (i - 4));
+    assert(popped.get().mouse.y == cast(float) ((i - 4) * 2));
+
+    bus.send(AppEvent.mouseEvent(
+      AppEvent.Kind.mouseMotion,
+      AppEvent.MouseData(1, cast(float) i, cast(float) (i * 2))
+    ));
+  }
+
+  assert(bus.capacity() == initCap);
+  assert(bus.length == 4);
+}
+
+// Verifies grow() preserves FIFO order across wrap-around and prepareToWait().
+unittest {
+  MessageBus bus = MessageBus(new Object);
+  bus.bindMainThread();
+
+  // Main-thread send must not arm wakeSent
+  bus.send(AppEvent.userEvent(AppEvent.UserData(1)));
+  assert(!bus.wakeSent);
+  assert(!bus.prepareToWait());
+  assert(!bus.get().isNull);
+  assert(bus.prepareToWait());
+
+  // Unbound / background send arms wakeSent
+  bus.unbindMainThread();
+  bus.send(AppEvent.userEvent(AppEvent.UserData(2)));
+  assert(bus.wakeSent);
+  assert(!bus.prepareToWait());
+  assert(!bus.get().isNull);
+  assert(bus.prepareToWait());
+  assert(!bus.wakeSent);
+
+  // Force wrap-around and grow past initialCapacity
+  foreach (i; 0 .. 40) {
+    bus.send(AppEvent.userEvent(AppEvent.UserData(cast(uint) i)));
+    auto ev = bus.get();
+    assert(!ev.isNull && ev.get().user.eventId == i);
+  }
+  foreach (i; 0 .. 100) {
+    bus.send(AppEvent.userEvent(AppEvent.UserData(cast(uint) i)));
+  }
+  assert(bus.capacity() >= 128);
+  foreach (i; 0 .. 100) {
+    auto ev = bus.get();
+    assert(!ev.isNull && ev.get().user.eventId == i);
+  }
+  assert(!bus.hasPending());
 }
 
 // Verifies event queue stats counting, noRepeat suppression, and toggling.
@@ -304,8 +453,8 @@ unittest {
   bus.setStatsEnabled(true);
   assert(bus.statsEnabled);
 
-  bus.send(AppEvent.makeNoRepeat(AppEvent.Kind.updateUiLayer));
-  bus.send(AppEvent.makeNoRepeat(AppEvent.Kind.updateUiLayer));
+  bus.send(AppEvent.makeNoRepeat(AppEvent.Kind.update));
+  bus.send(AppEvent.makeNoRepeat(AppEvent.Kind.update));
   bus.send(AppEvent.userEvent(AppEvent.UserData(1)));
 
   auto stats = bus.getStats();

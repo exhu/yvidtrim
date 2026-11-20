@@ -38,10 +38,18 @@ meson setup _build .        # Setup (or --reconfigure)
   `source/yvidtrim/` or `yvidtrim-clibs/`.
 - GUI changes, graphics api access is allowed only on main thread, only message passing
 between threads via sendAppEvent.
-- **Controller Event Delegation**: Subclasses of `DefaultController` that
-  override `handleEvent(AppEvent ev)` must return `super.handleEvent(ev)` for
-  unhandled events (or explicitly handle `AppEvent.Kind.update` and lifecycle
-  events) so `update()` and `updateView()` are not silently skipped.
+- **Controller Event Delegation & Timers**: Subclasses of `DefaultController`
+  that override `handleEvent(AppEvent ev)` must return `super.handleEvent(ev)`
+  for unhandled events so quit and window redraw lifecycle events are not
+  skipped. Model-sync (`update()`) and timer-driven animations (`tick(float dt)`
+  or `WidgetSystem` `SystemPhase.update`) are invoked directly in Phase 2; use
+  `TimerControl` (`startTimer`/`stopTimer`/`startTickTimer`) for active
+  animations and stop timers when idle so `SDL_WaitEvent` sleeps at 0% CPU.
+- **Pointer Motion Fidelity**: Never merge or coalesce `mouseMotion` events
+  into a single vector or endpoint; curved cursor sweeps within one frame must
+  hit-test every waypoint in FIFO order, and hover-animated controls should
+  latch sub-frame `mouseEnter` + `mouseLeave` pulses without rendering per
+  motion packet.
 - ARCHITECTURE.md: The system's conceptual and structural reality (module
   dependencies, invariants, topologies, and patterns, data flow).
 - Keep ARCHITECTURE.md updated whenever adding new modules, altering directory

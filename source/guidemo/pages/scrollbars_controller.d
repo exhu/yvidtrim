@@ -165,7 +165,7 @@ unittest {
   assert(hrOther.result == HandleResult.Result.nothing);
   assert(!hrOther.consume);
 
-  // AppEvent.Kind.update syncs page visibility when activePage changes
+  // Phase 2 update() syncs page visibility when activePage changes
   auto demoTracker = ModelTracker!DemoModel(new DemoModel());
   auto page2 = new ScrollbarsPage(ui, root);
   auto ctrl2 = new ScrollbarsPageController(ui, demoTracker, page2);
@@ -173,9 +173,7 @@ unittest {
   auto dm = demoTracker.edit();
   dm.activePage = DemoPage.scrollbars;
   demoTracker.commit(dm);
-  auto hrUpdate = ctrl2.handleEvent(AppEvent(AppEvent.Kind.update));
-  assert(hrUpdate.result == HandleResult.Result.updateView);
-  assert(!hrUpdate.consume);
+  assert(ctrl2.update());
   ctrl2.updateView();
   assert(page2.isVisible());
 }

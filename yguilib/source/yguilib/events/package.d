@@ -7,17 +7,12 @@ import yguilib.widget : Widget;
 /// which propagated up the controller stack.
 struct AppEvent {
   enum Kind {
-    /// When this event is received controller should run update logic.
+    /// Triggers a Phase 2 Controller.update() model-sync pass.
     update,
     /// User defined global events.
     user,
     /// Events that are produced by uisystem controls.
     view,
-    /// Notify system ui controller to redraw/relayout widgets.
-    /// use with noRepeat = true
-    /// You should return Controller.HandleResult.Result.nothing
-    /// in any user controller's handleEvent method for that event!
-    updateUiLayer,
     /// Window close requested.
     windowClose,
     /// Window size changed.
@@ -425,6 +420,33 @@ struct AppEvent {
     auto ev = AppEvent(Kind.view);
     ev.payload.view = data;
     return ev;
+  }
+
+package(yguilib):
+  bool equalsContent(in AppEvent other) const {
+    if (kind != other.kind) {
+      return false;
+    }
+    final switch (kind) {
+    case Kind.update, Kind.appQuit:
+      return true;
+    case Kind.user:
+      return payload.user == other.payload.user;
+    case Kind.view:
+      return payload.view == other.payload.view;
+    case Kind.windowClose, Kind.windowResized, Kind.windowExposed,
+        Kind.windowDisplayScaleChanged, Kind.windowMouseEnter,
+        Kind.windowMouseLeave, Kind.windowRedraw:
+      return payload.window == other.payload.window;
+    case Kind.mouseMotion, Kind.mouseButtonDown, Kind.mouseButtonUp:
+      return payload.mouse == other.payload.mouse;
+    case Kind.mouseWheel:
+      return payload.wheel == other.payload.wheel;
+    case Kind.keyDown, Kind.keyUp:
+      return payload.keyData == other.payload.keyData;
+    case Kind.textEditing, Kind.textInput:
+      return payload.textData == other.payload.textData;
+    }
   }
 
 private:

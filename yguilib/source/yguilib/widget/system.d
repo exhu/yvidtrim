@@ -2,31 +2,31 @@ module yguilib.widget.system;
 
 import yguilib.events : AppEvent;
 import yguilib.render : Renderer;
-import yguilib.uisystem : EventControl, UiRegistry;
+import yguilib.uisystem : EventControl, TimerControl, UiRegistry;
 import yguilib.widget : Widget;
 import yguilib.widget.visible : VisibleWidget, VisibleWidgets;
 import yguilib.window : Window;
 
 /// Narrow host interface providing UI-system services needed by WidgetSystems.
-/// Exposes `sendAppEvent` via `EventControl`.
-interface WidgetSystemHost : EventControl, UiRegistry {
+/// Exposes `sendAppEvent` via `EventControl` and timers via `TimerControl`.
+interface WidgetSystemHost : EventControl, TimerControl, UiRegistry {
 }
 
 /// Flags indicating which pipeline phases a WidgetSystem participates in.
 enum SystemPhase : uint {
   none       = 0,
   event      = 1 << 0,
-  preLayout  = 1 << 1,
-  layout     = 1 << 2,
-  postLayout = 1 << 3,
-  render     = 1 << 4,
+  update     = 1 << 1,
+  preLayout  = 1 << 2,
+  layout     = 1 << 3,
+  postLayout = 1 << 4,
+  render     = 1 << 5,
 }
 
 /// Result of handling an AppEvent in a WidgetSystem.
 struct SystemEventResult {
   bool consumed;
   bool requestUpdateView;
-  int timeoutMs = -1;
 }
 
 /// Shared per-window context passed to WidgetSystem lifecycle methods.
@@ -81,11 +81,6 @@ abstract class WidgetSystem {
     return SystemPhase.none;
   }
 
-  /// Desired event loop timeout in milliseconds (< 0 = infinite/idle).
-  @property int timeoutMs() const nothrow @safe {
-    return -1;
-  }
-
   /// Called once when the system is registered with the pipeline.
   /// `host` is allowed to be null in isolated tests.
   void onRegister(WidgetSystemHost host) {}
@@ -108,7 +103,10 @@ abstract class WidgetSystem {
     return SystemEventResult(false, false);
   }
 
-  /// Phase 2: Pre-layout update (animations, bindings, state sync).
+  /// Phase 2: Time-stepped timer update (animations, continuous playback).
+  void update(ref WidgetSystemContext ctx, float dt) {}
+
+  /// Phase 3a: Pre-layout update (bindings, data array sync).
   void preLayout(ref WidgetSystemContext ctx) {}
 
   /// Phase 3: Layout calculation (sizing and positioning).
@@ -195,6 +193,7 @@ unittest {
   customSys.onWindowClosed(null);
   auto res = customSys.handleEvent(ev, ctx);
   assert(!res.consumed && !res.requestUpdateView);
+  customSys.update(ctx, 0.016f);
   customSys.preLayout(ctx);
   customSys.layout(ctx);
   customSys.postLayout(ctx);
