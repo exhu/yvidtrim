@@ -9,11 +9,15 @@
  *  - No inline visibility keywords (e.g. 'private void foo()')
  *  - Scoped imports for heavy Phobos modules
  *  - Function length <= 50 lines
+ *  - D: no default parameter values, no overloaded functions,
+ *    no consecutive capital letters in symbol names,
+ *    and constructor count / <= 3 parameter constraints
  */
 module check_style;
 
 import core.sys.posix.sys.stat : fstat, stat_t, S_ISFIFO, S_ISREG;
 import std.algorithm : canFind, countUntil;
+import std.ascii : isAlphaNum, isUpper;
 import std.conv : to;
 import std.file : dirEntries, exists, isDir, isFile, readText, SpanMode;
 import std.getopt : defaultGetoptPrinter, getopt, GetoptResult;
@@ -21,7 +25,8 @@ import std.path : baseName, extension;
 import std.process : execute;
 import std.regex : ctRegex, matchFirst;
 import std.stdio : stderr, stdin, writeln, writefln;
-import std.string : endsWith, indexOf, isNumeric, splitLines, startsWith, strip;
+import std.string : endsWith, indexOf, isNumeric, splitLines, startsWith,
+  strip;
 
 enum IssueLevel {
   warning,
@@ -116,6 +121,174 @@ bool isLineInSpans(size_t lineNo, const FileSpan[] spans) {
   return false;
 }
 
+struct ScopeState {
+  bool isTypeScope;
+  bool isConditional;
+  size_t ctorCount;
+  size_t[string] funcs;
+}
+
+bool hasConsecutiveCaps(string name) {
+  if (name.canFind('_')) {
+    return false;
+  }
+  bool prevUpper = false;
+  foreach (char c; name) {
+    if (isUpper(c)) {
+      if (prevUpper) {
+        return true;
+      }
+      prevUpper = true;
+    } else {
+      prevUpper = false;
+    }
+  }
+  return false;
+}
+
+bool isControlOrKeyword(string name) {
+  switch (name) {
+    case "if":
+    case "else":
+    case "while":
+    case "for":
+    case "foreach":
+    case "foreach_reverse":
+    case "switch":
+    case "catch":
+    case "assert":
+    case "return":
+    case "throw":
+    case "mixin":
+    case "pragma":
+    case "version":
+    case "debug":
+    case "synchronized":
+    case "with":
+    case "scope":
+    case "invariant":
+    case "unittest":
+    case "sizeof":
+    case "typeof":
+    case "cast":
+    case "new":
+    case "delete":
+    case "extern":
+    case "align":
+    case "deprecated":
+    case "inout":
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool isOverloadExempt(string name) {
+  return name == "visit" || name.startsWith("op") || name.startsWith("~");
+}
+
+void inspectParamList(
+  string paramStr,
+  out bool hasDefault,
+  out size_t paramCount
+) {
+  hasDefault = false;
+  paramCount = 0;
+  string inner = paramStr.strip();
+  if (inner.length == 0) {
+    return;
+  }
+
+  int depth = 0;
+  bool inStr = false;
+  char quote = 0;
+  size_t commas = 0;
+
+  for (size_t i = 0; i < inner.length; i++) {
+    char c = inner[i];
+    if (inStr) {
+      if (c == '\\' && i + 1 < inner.length) {
+        i++;
+      } else if (c == quote) {
+        inStr = false;
+      }
+      continue;
+    }
+    if (c == '"' || c == '\'' || c == '`') {
+      inStr = true;
+      quote = c;
+    } else if (c == '(' || c == '[' || c == '{') {
+      depth++;
+    } else if (c == ')' || c == ']' || c == '}') {
+      if (depth > 0) {
+        depth--;
+      }
+    } else if (depth == 0 && c == ',') {
+      commas++;
+    } else if (depth == 0 && c == '=') {
+      char prev = i > 0 ? inner[i - 1] : 0;
+      char next = i + 1 < inner.length ? inner[i + 1] : 0;
+      if (prev != '=' && prev != '!' && prev != '<' && prev != '>'
+        && next != '=' && next != '>') {
+        hasDefault = true;
+      }
+    }
+  }
+  paramCount = commas + 1;
+}
+
+string extractParenContent(
+  const string[] lines,
+  size_t startIdx,
+  size_t openCol,
+  out size_t endIdx
+) {
+  string acc = "";
+  int depth = 0;
+  bool inStr = false;
+  char quote = 0;
+  endIdx = startIdx;
+
+  for (size_t li = startIdx; li < lines.length; li++) {
+    string ln = lines[li];
+    size_t colStart = (li == startIdx) ? openCol : 0;
+    for (size_t ci = colStart; ci < ln.length; ci++) {
+      char c = ln[ci];
+      if (inStr) {
+        acc ~= c;
+        if (c == '\\' && ci + 1 < ln.length) {
+          ci++;
+          acc ~= ln[ci];
+        } else if (c == quote) {
+          inStr = false;
+        }
+        continue;
+      }
+      if (c == '"' || c == '\'' || c == '`') {
+        inStr = true;
+        quote = c;
+        acc ~= c;
+      } else if (c == '(') {
+        if (depth > 0) {
+          acc ~= c;
+        }
+        depth++;
+      } else if (c == ')') {
+        depth--;
+        if (depth == 0) {
+          endIdx = li;
+          return acc;
+        }
+        acc ~= c;
+      } else if (depth > 0) {
+        acc ~= c;
+      }
+    }
+    acc ~= ' ';
+  }
+  return acc;
+}
+
 /**
  * Scans a file for codestyle violations.
  */
@@ -140,6 +313,11 @@ void checkFileContent(
   // Visibility section tracking for D files
   // order: public (1) -> protected (2) -> private (3)
   int currentVisOrder = 0;
+  bool isClibBinding = filePath.canFind("/clibs/")
+    || filePath.startsWith("clibs/");
+  ScopeState[] scopes = [ScopeState(false, false, 0, null)];
+  bool inConditionalHeader = false;
+  bool nextBraceIsType = false;
 
   // Function length tracking
   int funcStartLine = -1;
@@ -157,6 +335,22 @@ void checkFileContent(
   auto blockStartRe = ctRegex!(
     r"^\s*(class|struct|interface|union|enum|if|while|for|foreach|"
     ~ r"switch|do|void|auto|override|final)\b"
+  );
+  auto typeDeclRe = ctRegex!(
+    r"^\s*(?:final\s+|abstract\s+|static\s+)*"
+    ~ r"(class|struct|interface|enum|union)\s+([A-Za-z_][A-Za-z0-9_]*)"
+  );
+  auto condBlockRe = ctRegex!(
+    r"^\s*(version|static\s+if|debug|unittest)\b"
+  );
+  auto funcDeclRe = ctRegex!(
+    r"^\s*(?:(?:override|final|static|abstract|nothrow|pure|@safe|"
+    ~ r"@trusted|@system|@nogc|@property|const|immutable|inout|shared)\s+)*"
+    ~ r"(?:[A-Za-z_~][A-Za-z0-9_.*\[\]!<>:, \t]*\s+)?"
+    ~ r"([A-Za-z_~][A-Za-z0-9_]*)\s*(?:\([^)]*\)\s*)?\("
+  );
+  auto ctorDeclRe = ctRegex!(
+    r"^\s*(@disable\s+)?this\s*\("
   );
 
   string prevNonEmptyLine = "";
@@ -270,11 +464,125 @@ void checkFileContent(
             ~ "' should be scoped inside functions if possible.");
         }
       }
+
+      // Check D type names, constructors, overloads, and default params
+      // only outside function bodies (module or type scope).
+      if (funcStartLine == -1) {
+        if (!matchFirst(trimmed, condBlockRe).empty
+          || trimmed.startsWith("else")) {
+          inConditionalHeader = true;
+        }
+        auto typeM = matchFirst(rawLine, typeDeclRe);
+        if (!typeM.empty) {
+          nextBraceIsType = true;
+          string typeName = typeM[2];
+          if (checkThisLine && !isClibBinding
+            && hasConsecutiveCaps(typeName)) {
+            issues ~= Issue(filePath, lineNo, 1, IssueLevel.warning,
+              "Symbol '" ~ typeName
+              ~ "' has consecutive capital letters (use PascalCase).");
+          }
+        } else {
+          auto ctorM = matchFirst(rawLine, ctorDeclRe);
+          if (!ctorM.empty) {
+            bool isDisabled = ctorM[1].length > 0;
+            size_t openCol = cast(size_t) rawLine.indexOf('(');
+            size_t endIdx = idx;
+            string paramStr = extractParenContent(lines, idx, openCol, endIdx);
+            bool hasDefault = false;
+            size_t paramCount = 0;
+            inspectParamList(paramStr, hasDefault, paramCount);
+
+            if (checkThisLine && hasDefault) {
+              issues ~= Issue(filePath, lineNo, 1, IssueLevel.error,
+                "Default parameter values are not allowed in constructors.");
+            }
+            if (!isDisabled) {
+              if (scopes.length > 0 && scopes[$ - 1].isTypeScope) {
+                scopes[$ - 1].ctorCount++;
+                if (checkThisLine && scopes[$ - 1].ctorCount > 1) {
+                  issues ~= Issue(filePath, lineNo, 1, IssueLevel.warning,
+                    "Multiple constructors; use a single this() or one "
+                    ~ "parameterized constructor.");
+                }
+              }
+              if (checkThisLine && paramCount > 3) {
+                issues ~= Issue(filePath, lineNo, 1, IssueLevel.warning,
+                  "Constructor has " ~ to!string(paramCount)
+                  ~ " parameters (recommended <= 3).");
+              }
+            }
+          } else {
+            auto fnM = matchFirst(rawLine, funcDeclRe);
+            if (!fnM.empty && !trimmed.startsWith("alias ")
+              && !trimmed.startsWith("return ")
+              && !trimmed.startsWith("assert(")
+              && !trimmed.startsWith("mixin(")) {
+              string fnName = fnM[1];
+              if (!isControlOrKeyword(fnName) && fnName != "this") {
+                size_t openCol = cast(size_t) rawLine.indexOf('(');
+                // If template params precede function params, find last '('
+                size_t namePos = cast(size_t) rawLine.indexOf(fnName);
+                size_t afterName = namePos + fnName.length;
+                auto pIdx = rawLine[afterName .. $].indexOf('(');
+                if (pIdx != -1) {
+                  openCol = afterName + cast(size_t) pIdx;
+                }
+                size_t endIdx = idx;
+                string paramStr = extractParenContent(
+                  lines, idx, openCol, endIdx
+                );
+                // Only treat as declaration if ends with '{' or ';' after ')'
+                string tail = lines[endIdx].strip();
+                if (tail.endsWith("{") || tail.endsWith(";")
+                  || tail.endsWith("const") || tail.endsWith("@safe")
+                  || tail.endsWith("nothrow") || tail.endsWith("@nogc")) {
+                  bool hasDefault = false;
+                  size_t paramCount = 0;
+                  inspectParamList(paramStr, hasDefault, paramCount);
+                  if (checkThisLine && hasDefault) {
+                    issues ~= Issue(filePath, lineNo, 1, IssueLevel.error,
+                      "Default parameter values are not allowed ('"
+                      ~ fnName ~ "').");
+                  }
+                  if (checkThisLine && !isClibBinding
+                    && hasConsecutiveCaps(fnName)) {
+                    issues ~= Issue(filePath, lineNo, 1, IssueLevel.warning,
+                      "Symbol '" ~ fnName
+                      ~ "' has consecutive capital letters.");
+                  }
+                  if (scopes.length > 0 && !scopes[$ - 1].isConditional
+                    && !isOverloadExempt(fnName)) {
+                    if (fnName in scopes[$ - 1].funcs) {
+                      if (checkThisLine) {
+                        issues ~= Issue(filePath, lineNo, 1,
+                          IssueLevel.warning,
+                          "Overloaded function '" ~ fnName
+                          ~ "' (previously declared on line "
+                          ~ to!string(scopes[$ - 1].funcs[fnName]) ~ ").");
+                      }
+                    } else {
+                      scopes[$ - 1].funcs[fnName] = lineNo;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
 
     // Track braces and function length
     foreach (char c; rawLine) {
       if (c == '{') {
+        if (isD) {
+          bool isCond = inConditionalHeader
+            || (scopes.length > 0 && scopes[$ - 1].isConditional);
+          scopes ~= ScopeState(nextBraceIsType, isCond, 0, null);
+          nextBraceIsType = false;
+          inConditionalHeader = false;
+        }
         if (braceDepth == 1 && funcStartLine == -1) {
           funcStartLine = cast(int) lineNo;
           funcBraceStart = braceDepth;
@@ -282,6 +590,9 @@ void checkFileContent(
         braceDepth++;
       } else if (c == '}') {
         braceDepth--;
+        if (isD && scopes.length > 1) {
+          scopes.length--;
+        }
         if (funcStartLine != -1 && braceDepth <= funcBraceStart) {
           size_t funcLength = lineNo - funcStartLine + 1;
           if (funcLength > maxFuncLines

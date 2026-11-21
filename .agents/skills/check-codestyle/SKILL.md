@@ -35,6 +35,19 @@ rdmd .agents/skills/check-codestyle/scripts/check_style.d [options] [files...]
    standard library packages (`std.algorithm`, `std.format`, `std.json`,
    `std.regex`) so they are scoped inside function or template bodies.
 6. **Function Length**: Warns when function bodies exceed 50 lines.
+7. **No Default Parameter Values (D)**: Errors when a D function, method, or
+   constructor declaration uses default parameter values (`=`).
+8. **No Overloaded Functions (D)**: Warns when the same function or method
+   name is declared multiple times in the same scope (excluding `this`,
+   `~this`, `op*` operators, `visit`, and conditional `version`/`static if`
+   blocks).
+9. **No Consecutive Capital Letters (D)**: Warns when D type or function names
+   contain consecutive uppercase ASCII letters (e.g., `ID`, `makeGUID`,
+   `colorRGB` instead of `Id`, `makeGuid`, `colorRgb`), excluding `clibs/`
+   bindings.
+10. **Constructor Constraints (D)**: Warns when a class/struct defines more
+    than one non-`@disable` `this(...)` constructor or a constructor has more
+    than 3 parameters.
 
 ## CLI Usage
 
