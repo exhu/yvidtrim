@@ -1,4 +1,19 @@
-- Dynamic lists are for another feature to implement.
+- Dynamic virtual list control is for another feature to implement.
+Implement a new page in guidemo that shows new virtual list
+composite control. Implement that control in a new module similar to
+`scrollbars.d`, `tabcontrol.d`. Virtual list control is a composite control
+that accepts a new interface similar how TabButtonsProvider works which
+provides new widgets to construct. However virtual list must support
+scrollbars, item selection (single optional (can be no item selected), single, or multiple, no selection possible),
+items may be of different kinds, e.g. a list may be constructed from
+different data that is represented by different composite widgets itself,
+e.g. a list of media data may represent each row differently based on
+type of media: video widget (animated thumbnail and info text), image (thumb and different set
+of controls, e.g. tags, exif data), generic file. So the factory interface
+should provide a reusable widget for a requested row type. All possible row types
+are identified with strings and passed to the virtual list model, which only
+guides the control: number of row types, selections, amount of items in the list etc. The real data model is
+not necessary for the widget, it's known implementation to the provider only, the factory methods (create and update) would accept the row type, selection state, index.
 
 
 - first devise reusable composite widgets in code (how to pass models, events,
