@@ -12,24 +12,11 @@ import yguilib.events : AppEvent;
 import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.model : ModelTracker;
 import yguilib.uisystem : UiSystem;
-import yguilib.widget : Widget;
 import yguilib.widget.drawing_components : TextLabel;
 
 /// Controller handling Page 2 keyboard shortcuts for TextLabel options.
 final class TextLabelPageController : DefaultController {
-  static TextLabelPageController createWithParent(
-    UiSystem ui,
-    ref ModelTracker!DemoModel demoTracker,
-    Widget parent
-  ) {
-    assert(ui !is null, "ui must not be null");
-    assert(parent !is null, "parent must not be null");
-    return new TextLabelPageController(
-      ui,
-      demoTracker,
-      new TextLabelPage(ui, parent)
-    );
-  }
+  @disable this();
 
   this(
     UiSystem ui,

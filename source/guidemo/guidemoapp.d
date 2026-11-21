@@ -50,82 +50,59 @@
 module guidemo.guidemoapp;
 
 import yguilib.app : App;
-import yguilib.window : Window;
+import yguilib.model : ModelTracker;
+import yguilib.uisystem : UiSystem;
+import yguilib.widget : Widget;
 
-import guidemo.controller : DemoController;
+import guidemo.controller : DemoController, DemoControllerParams;
 import guidemo.hover_button : HoverButtonController;
 import guidemo.hover_button_system : AnimatedHoverButtonSystem;
+import guidemo.model : DemoModel;
 import guidemo.pages.button_controller : ButtonPageController;
+import guidemo.pages.button_page : ButtonPage;
 import guidemo.pages.button_system_controller : ButtonSystemPageController;
+import guidemo.pages.button_system_page : ButtonSystemPage;
 import guidemo.pages.layout_painter_controller : LayoutPainterPageController;
+import guidemo.pages.layout_painter_page : LayoutPainterPage;
 import guidemo.pages.scrollbars_controller : ScrollbarsPageController;
+import guidemo.pages.scrollbars_page : ScrollbarsPage;
 import guidemo.pages.tabcontrol_controller : TabControlPageController;
+import guidemo.pages.tabcontrol_page : TabControlPage;
 import guidemo.pages.textlabel_controller : TextLabelPageController;
+import guidemo.pages.textlabel_page : TextLabelPage;
 import guidemo.scrollbars : registerScrollbars;
-import guidemo.tabcontrol : registerTabControl;
+import guidemo.tabcontrol : TabsModel, registerTabControl;
+import guidemo.view : DemoView, createHeaderTabsModel;
 
 void main() {
+  import std.logger : infof;
+
   auto app = App.makeAppWithTitleWh(
     "yguilib feature demo - guidemo", 1280, 720
   );
-  // register systems here
+  // Register systems and reusable composite widget controllers.
   app.ui.registerWidgetSystem(new AnimatedHoverButtonSystem());
-  // register reusable controllers for composite widgets here
-  auto tabControlController = registerTabControl(app.ui);
-  app.ui.pushController(tabControlController);
-  auto scrollbarController = registerScrollbars(app.ui);
-  app.ui.pushController(scrollbarController);
-  // now create the main app controller, and custom controllers
-  auto demoController = new DemoController(app);
-  auto rootWidget = app.ui.mainWindow().rootWidget;
+  app.ui.pushController(registerTabControl(app.ui));
+  app.ui.pushController(registerScrollbars(app.ui));
+  auto hoverBtnController = new HoverButtonController(app.ui);
+  app.ui.pushController(hoverBtnController);
 
-  auto hoverButtonController = new HoverButtonController(app.ui);
-  app.ui.pushController(hoverButtonController);
+  // Create models and shell view before DemoController.
+  auto demoTracker = ModelTracker!DemoModel(new DemoModel());
+  auto tabsTracker = ModelTracker!TabsModel(createHeaderTabsModel());
+  auto demoView = new DemoView(app.ui, demoTracker, tabsTracker);
+  auto rootWidget = demoView.getRootWidget();
+  app.ui.mainWindow().rootWidget = rootWidget;
 
-  app.ui.pushController(
-    LayoutPainterPageController.createWithParent(
-      app.ui,
-      demoController.getTracker(),
-      rootWidget
-    )
-  );
-  app.ui.pushController(
-    TextLabelPageController.createWithParent(
-      app.ui,
-      demoController.getTracker(),
-      rootWidget
-    )
-  );
-  app.ui.pushController(
-    ButtonPageController.createWithParent(
-      app.ui,
-      demoController.getTracker(),
-      rootWidget,
-      hoverButtonController
-    )
-  );
-  app.ui.pushController(
-    ButtonSystemPageController.createWithParent(
-      app.ui,
-      demoController.getTracker(),
-      rootWidget
-    )
-  );
-  app.ui.pushController(
-    TabControlPageController.createWithParent(
-      app.ui,
-      demoController.getTracker(),
-      rootWidget
-    )
-  );
-  app.ui.pushController(
-    ScrollbarsPageController.createWithParent(
-      app.ui,
-      demoController.getTracker(),
-      rootWidget
-    )
-  );
-  import std.logger : infof;
+  DemoControllerParams params;
+  params.withUi(app.ui)
+    .withTracker(demoTracker)
+    .withView(demoView)
+    .withTabsTracker(tabsTracker);
+  auto demoController = new DemoController(params);
+
+  registerDemoPages(app.ui, demoTracker, rootWidget, hoverBtnController);
+
   infof("ui = %s", app.ui.dumpInfo());
   infof("root = %s", app.ui.mainWindow.rootWidget.dumpTree(true));
   infof(
@@ -133,4 +110,48 @@ void main() {
     app.ui.mainWindow.rootWidget.dumpSimpleTree(true)
   );
   app.run(demoController);
+}
+
+private:
+
+void registerDemoPages(
+  UiSystem ui,
+  ref ModelTracker!DemoModel demoTracker,
+  Widget rootWidget,
+  HoverButtonController hoverBtnController
+) {
+  assert(ui !is null, "UiSystem must not be null");
+  assert(rootWidget !is null, "rootWidget must not be null");
+  assert(hoverBtnController !is null, "hoverBtnController must not be null");
+
+  auto layoutPage = new LayoutPainterPage(ui, rootWidget);
+  ui.pushController(
+    new LayoutPainterPageController(ui, demoTracker, layoutPage)
+  );
+
+  auto textPage = new TextLabelPage(ui, rootWidget);
+  ui.pushController(
+    new TextLabelPageController(ui, demoTracker, textPage)
+  );
+
+  auto buttonPage = new ButtonPage(ui, rootWidget);
+  buttonPage.registerWithController(hoverBtnController);
+  ui.pushController(
+    new ButtonPageController(ui, demoTracker, buttonPage)
+  );
+
+  auto buttonSysPage = new ButtonSystemPage(ui, rootWidget);
+  ui.pushController(
+    new ButtonSystemPageController(ui, demoTracker, buttonSysPage)
+  );
+
+  auto tabPage = new TabControlPage(ui, rootWidget, ui);
+  ui.pushController(
+    new TabControlPageController(ui, demoTracker, tabPage)
+  );
+
+  auto scrollPage = new ScrollbarsPage(ui, rootWidget, ui);
+  ui.pushController(
+    new ScrollbarsPageController(ui, demoTracker, scrollPage)
+  );
 }

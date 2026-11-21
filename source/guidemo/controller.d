@@ -3,29 +3,66 @@
  */
 module guidemo.controller;
 
-import yguilib.app : App;
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.model : ModelTracker;
+import yguilib.uisystem : UiSystem;
 
 import guidemo.common : isKey;
 import guidemo.demo_model_helpers : pageCount;
 import guidemo.model : DebugDrawMode, DemoModel;
 import guidemo.tabcontrol : TabsModel;
-import guidemo.view : DemoView, createHeaderTabsModel, headerTabSwitchEvent;
+import guidemo.view : DemoView, headerTabSwitchEvent;
+
+/// Parameters for constructing DemoController.
+struct DemoControllerParams {
+  UiSystem ui;
+  ModelTracker!DemoModel tracker;
+  DemoView view;
+  ModelTracker!TabsModel tabsTracker;
+
+  ref DemoControllerParams withUi(UiSystem ui) return {
+    this.ui = ui;
+    return this;
+  }
+
+  ref DemoControllerParams withTracker(
+    ref ModelTracker!DemoModel otherTracker
+  ) return {
+    this.tracker = ModelTracker!DemoModel.from(otherTracker);
+    return this;
+  }
+
+  ref DemoControllerParams withView(DemoView view) return {
+    this.view = view;
+    return this;
+  }
+
+  ref DemoControllerParams withTabsTracker(
+    ref ModelTracker!TabsModel otherTabsTracker
+  ) return {
+    this.tabsTracker = ModelTracker!TabsModel.from(otherTabsTracker);
+    return this;
+  }
+}
 
 /// Shared controller handling quit, F12 debug draw cycling, and page
 /// switching across guidemo.
 final class DemoController : DefaultController {
-  this(App app) {
-    assert(app !is null);
-    super(app.ui);
-    this.app = app;
-    tracker = ModelTracker!DemoModel(new DemoModel);
-    tabsTracker = ModelTracker!TabsModel(createHeaderTabsModel());
-    view = new DemoView(tracker, tabsTracker, app.ui);
-    app.ui.mainWindow().rootWidget = view.getRootWidget();
+  @disable this();
+
+  this(ref DemoControllerParams params) {
+    assert(params.ui !is null, "UiSystem must not be null");
+    assert(params.view !is null, "DemoView must not be null");
+    super(params.ui);
+    this.view = params.view;
+    this.tracker = ModelTracker!DemoModel.from(params.tracker);
+    this.tabsTracker = ModelTracker!TabsModel.from(params.tabsTracker);
+  }
+
+  invariant {
+    assert(view !is null);
   }
 
   override bool updateView() {
@@ -63,14 +100,6 @@ final class DemoController : DefaultController {
     }
 
     return super.handleEvent(ev);
-  }
-
-  ref ModelTracker!DemoModel getTracker() return {
-    return tracker;
-  }
-
-  DemoView getView() {
-    return view;
   }
 
 private:
@@ -153,17 +182,27 @@ private:
     }
   }
 
-  App app;
   DemoView view;
   ModelTracker!DemoModel tracker;
   ModelTracker!TabsModel tabsTracker;
 }
 
 unittest {
+  import guidemo.view : createHeaderTabsModel;
   import yguilib.events.builder : ViewAppEventBuilder;
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
 
-  auto app = App.makeAppWithTitleWh("test_demo_controller", 1280, 720);
-  auto demoCtrl = new DemoController(app);
+  auto ui = new UiSystemImpl(null);
+  auto demoTracker = ModelTracker!DemoModel(new DemoModel());
+  auto tabsTracker = ModelTracker!TabsModel(createHeaderTabsModel());
+  auto demoView = new DemoView(ui, demoTracker, tabsTracker);
+
+  DemoControllerParams params;
+  params.withUi(ui)
+    .withTracker(demoTracker)
+    .withView(demoView)
+    .withTabsTracker(tabsTracker);
+  auto demoCtrl = new DemoController(params);
 
   AppEvent makeKeyDown(Keycode k, Scancode sc) {
     return AppEvent.keyEvent(

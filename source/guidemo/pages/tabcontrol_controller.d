@@ -13,24 +13,9 @@ import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker;
 import yguilib.uisystem : UiSystem;
-import yguilib.widget : Widget;
 
 /// Controller handling Page 5 tab switch and dynamic tab mutation events.
 final class TabControlPageController : DefaultController {
-  static TabControlPageController createWithParent(
-    UiSystem ui,
-    ref ModelTracker!DemoModel demoTracker,
-    Widget parent
-  ) {
-    assert(ui !is null, "ui must not be null");
-    assert(parent !is null, "parent must not be null");
-    return new TabControlPageController(
-      ui,
-      demoTracker,
-      new TabControlPage(ui, parent, ui)
-    );
-  }
-
   static TabControlPageController createStandalone(
     UiSystem ui,
     TabControlPage page
@@ -38,6 +23,8 @@ final class TabControlPageController : DefaultController {
     auto dm = ModelTracker!DemoModel(new DemoModel());
     return new TabControlPageController(ui, dm, page);
   }
+
+  @disable this();
 
   this(
     UiSystem ui,

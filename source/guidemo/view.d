@@ -6,7 +6,6 @@ module guidemo.view;
 import guidemo.demo_model_helpers : headerTabNames;
 import guidemo.model : DebugDrawMode, DemoModel;
 import guidemo.tabcontrol : TabControlBuilder, TabsModel;
-import yguilib.internal.uisystem_impl : UiSystemImpl;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiRegistry, UiSystem;
@@ -26,13 +25,16 @@ TabsModel createHeaderTabsModel() {
 
 /// Shell view building and updating the shared demo frame (header and footer).
 final class DemoView {
-  /// Constructs DemoView. `ui` is allowed to be null in headless tests.
+  @disable this();
+
+  /// Constructs DemoView with non-null `ui` and external trackers.
   this(
+    UiSystem ui,
     ref ModelTracker!DemoModel modelTracker,
-    ref ModelTracker!TabsModel tabsModelTracker,
-    UiSystem ui
+    ref ModelTracker!TabsModel tabsModelTracker
   ) {
-    this.ui = (ui !is null) ? ui : new UiSystemImpl(null);
+    assert(ui !is null, "UiSystem must not be null");
+    this.ui = ui;
     tracker = ModelTracker!DemoModel.from(modelTracker);
     tabsTracker = ModelTracker!TabsModel.from(tabsModelTracker);
 
@@ -45,6 +47,13 @@ final class DemoView {
 
     buildHeader(this.ui);
     buildStatusBar();
+  }
+
+  invariant {
+    assert(ui !is null);
+    assert(view !is null);
+    assert(tabControl !is null);
+    assert(statusLabel !is null);
   }
 
   void update() {
@@ -201,11 +210,14 @@ private:
 
 // View header layout construction test
 unittest {
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+
+  auto ui = new UiSystemImpl(null);
   auto model = new DemoModel();
   auto tracker = ModelTracker!DemoModel(model);
   auto tabsModel = createHeaderTabsModel();
   auto tabsTracker = ModelTracker!TabsModel(tabsModel);
-  auto demoView = new DemoView(tracker, tabsTracker, null);
+  auto demoView = new DemoView(ui, tracker, tabsTracker);
 
   auto root = demoView.getRootWidget();
   assert(root !is null);

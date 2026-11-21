@@ -4,7 +4,6 @@
 module guidemo.pages.button_controller;
 
 import guidemo.common : syncPageShell;
-import guidemo.hover_button : HoverButtonController;
 import guidemo.model : ButtonPageModel, DemoModel, DemoPage;
 import guidemo.pages.button_page : ButtonPage, btnCountActionEvent,
   btnCountResetEvent;
@@ -12,25 +11,9 @@ import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker;
 import yguilib.uisystem : UiSystem;
-import yguilib.widget : Widget;
 
 /// Controller handling Page 3 button action and reset events.
 final class ButtonPageController : DefaultController {
-  static ButtonPageController createWithParent(
-    UiSystem ui,
-    ref ModelTracker!DemoModel demoTracker,
-    Widget parent,
-    HoverButtonController hoverController
-  ) {
-    assert(ui !is null, "ui must not be null");
-    assert(parent !is null, "parent must not be null");
-    auto page = new ButtonPage(ui, parent);
-    if (hoverController !is null) {
-      page.registerWithController(hoverController);
-    }
-    return new ButtonPageController(ui, demoTracker, page);
-  }
-
   static ButtonPageController createStandalone(
     UiSystem ui,
     ButtonPage page
@@ -38,6 +21,8 @@ final class ButtonPageController : DefaultController {
     auto dm = ModelTracker!DemoModel(new DemoModel());
     return new ButtonPageController(ui, dm, page);
   }
+
+  @disable this();
 
   this(
     UiSystem ui,

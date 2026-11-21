@@ -14,25 +14,12 @@ import yguilib.model : ModelTracker;
 import yguilib.timers : AnimationTimer, AnimationWrapMode, TimerId,
   TimerIntervalMs, TimerMode, invalidTimerId;
 import yguilib.uisystem : UiSystem;
-import yguilib.widget : Widget;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
   JustifyContent;
 
 /// Controller handling Page 1 keyboard shortcuts and alpha pulse animation.
 final class LayoutPainterPageController : DefaultController {
-  static LayoutPainterPageController createWithParent(
-    UiSystem ui,
-    ref ModelTracker!DemoModel demoTracker,
-    Widget parent
-  ) {
-    assert(ui !is null, "ui must not be null");
-    assert(parent !is null, "parent must not be null");
-    return new LayoutPainterPageController(
-      ui,
-      demoTracker,
-      new LayoutPainterPage(ui, parent)
-    );
-  }
+  @disable this();
 
   this(
     UiSystem ui,

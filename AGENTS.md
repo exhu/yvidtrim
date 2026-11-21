@@ -93,9 +93,10 @@ SDL_LOGGING=app=trace ./_build/yvidtrim
 Write plan to `plans` directory in multiple files per phase/stage that could be
 verified, where first file is an overview that references phase describing
 files, e.g. `plans/scrollbars.md` -- brief overview with references, detailed
-steps described in: `plans/scrollbars-ph01.md`, `plans/scrollbars-ph02.md`
-Launch new subagents to perform the phases with clear context given each only
-one that file with details for its phase.
+steps described in: `plans/scrollbars-ph01.md`, `plans/scrollbars-phNN.md`
+depending on number of phases necessary to not overload context.  Launch new
+subagents to perform the phases with clear context given each only one that file
+with details for its phase.
 
 Ask questions on missing information, confusing topics, available options.
 For multiple valid options propose a recommended one. Update TODO.md by removing

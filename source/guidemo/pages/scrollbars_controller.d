@@ -13,24 +13,9 @@ import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker;
 import yguilib.uisystem : UiSystem;
-import yguilib.widget : Widget;
 
 /// Controller handling Page 6 scrollbar position and playground events.
 final class ScrollbarsPageController : DefaultController {
-  static ScrollbarsPageController createWithParent(
-    UiSystem ui,
-    ref ModelTracker!DemoModel demoTracker,
-    Widget parent
-  ) {
-    assert(ui !is null, "ui must not be null");
-    assert(parent !is null, "parent must not be null");
-    return new ScrollbarsPageController(
-      ui,
-      demoTracker,
-      new ScrollbarsPage(ui, parent, ui)
-    );
-  }
-
   static ScrollbarsPageController createStandalone(
     UiSystem ui,
     ScrollbarsPage page
@@ -38,6 +23,8 @@ final class ScrollbarsPageController : DefaultController {
     auto dm = ModelTracker!DemoModel(new DemoModel());
     return new ScrollbarsPageController(ui, dm, page);
   }
+
+  @disable this();
 
   this(
     UiSystem ui,

@@ -11,24 +11,9 @@ import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker;
 import yguilib.uisystem : UiSystem;
-import yguilib.widget : Widget;
 
 /// Controller handling Page 4 system-driven button action and reset events.
 final class ButtonSystemPageController : DefaultController {
-  static ButtonSystemPageController createWithParent(
-    UiSystem ui,
-    ref ModelTracker!DemoModel demoTracker,
-    Widget parent
-  ) {
-    assert(ui !is null, "ui must not be null");
-    assert(parent !is null, "parent must not be null");
-    return new ButtonSystemPageController(
-      ui,
-      demoTracker,
-      new ButtonSystemPage(ui, parent)
-    );
-  }
-
   static ButtonSystemPageController createStandalone(
     UiSystem ui,
     ButtonSystemPage page
@@ -36,6 +21,8 @@ final class ButtonSystemPageController : DefaultController {
     auto dm = ModelTracker!DemoModel(new DemoModel());
     return new ButtonSystemPageController(ui, dm, page);
   }
+
+  @disable this();
 
   this(
     UiSystem ui,
