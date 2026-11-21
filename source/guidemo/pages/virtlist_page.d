@@ -817,7 +817,7 @@ final class VerticalMediaProvider : VirtListProvider {
           ? (4.0f + (st.trackWidth - 4.0f) * st.phase)
           : 4.0f;
         refs.videoProgressFill.rect.width = fillW;
-        refs.videoProgressFill.update(WidgetUpdateScope.visuals);
+        refs.videoProgressFill.update(WidgetUpdateScope.layout);
       }
     }
     return true;

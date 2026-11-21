@@ -140,13 +140,16 @@ follow these rules:
 4. **Use Correct `WidgetUpdateScope` When Mutating Widgets**:
    - `WidgetBuilder.build()` automatically calls
      `widget.update(WidgetUpdateScope.parentView)`.
-   - In `View.update()`:
+   - In `View.update()` or `tick(dt)` animations:
      - Use `Widget.setCaption(...)`, `setBackgroundColor(...)`,
        `setBorderColor(...)`, `setTextColor(...)` (which trigger the minimum
        required scope automatically).
-     - When toggling visibility (`setVisible(v)`) or changing layout properties
-       (`rect.width`, `flexContainer.alignItems`), call
-       `container.update(WidgetUpdateScope.layout)`.
+     - When toggling visibility (`setVisible(v)`) or changing geometry/layout
+       properties (`rect.x/y/width/height`, `flexContainer.alignItems`), call
+       `widget.update(WidgetUpdateScope.layout)`. Never use
+       `WidgetUpdateScope.visuals` after mutating `rect`: `visuals` does not
+       set `layoutDirty`, leaving cached `VisibleWidget.absRect` stale in
+       `WidgetSystemPipeline` until an unrelated layout pass (e.g. scrolling).
 
 5. **Threading & Null Safety**:
    - Never construct or mutate widgets outside the main thread.
