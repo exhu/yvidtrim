@@ -469,7 +469,10 @@ private:
     });
   }
 
-  void runPhase3Render(in ControllerDirtyList dirtyViews, bool needRender) {
+  void runPhase3Render(
+    ref const ControllerDirtyList dirtyViews,
+    bool needRender
+  ) {
     if (!dirtyViews.empty) {
       SmallBuffer!(Controller, 16) activeBuf;
       snapshotControllers(activeBuf);

@@ -109,7 +109,7 @@ struct MessageBus {
    */
   Nullable!AppEvent get() {
     synchronized (lock) {
-      Nullable!AppEvent ev = queue.tryPop();
+      Nullable!AppEvent ev = queue.tryPopFront();
       if (ev.isNull) {
         return ev;
       }

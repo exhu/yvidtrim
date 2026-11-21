@@ -67,8 +67,8 @@ final class InputSystem : WidgetSystem {
     if (w is null) {
       return;
     }
-    hoveredWidgets.compact((const ref e) => e.widget !is w);
-    hoverScratch.compact((const ref e) => e.widget !is w);
+    hoveredWidgets.compact((const ref HoverEntry e) => e.widget !is w);
+    hoverScratch.compact((const ref HoverEntry e) => e.widget !is w);
     foreach (ref pw; pressedWidgets) {
       if (pw is w) {
         pw = null;

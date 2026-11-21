@@ -130,7 +130,7 @@ private:
 
   static void detachReleasedItem(VirtListComponent vc, Widget w) {
     import std.algorithm.mutation : remove;
-    vc.fFreePool.compact((const ref item) => item !is w);
+    vc.fFreePool.compact((const ref Widget item) => item !is w);
     vc.fActiveItems = vc.fActiveItems.remove!(item => item.widget is w);
   }
 
@@ -718,7 +718,7 @@ private:
     }
     newlyBound = true;
     needsRebind = true;
-    auto reused = vc.fFreePool.tryPop();
+    auto reused = vc.fFreePool.tryPopBack();
     if (!reused.isNull) {
       return reused.get();
     }

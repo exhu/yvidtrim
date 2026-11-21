@@ -319,7 +319,7 @@ final class AnimatedHoverButtonSystem : WidgetSystem {
     if (w is null) {
       return;
     }
-    activeButtons.compact((const ref item) => item !is w);
+    activeButtons.compact((const ref Widget item) => item !is w);
     if (hoveredWidget is w) {
       hoveredWidget = null;
     }

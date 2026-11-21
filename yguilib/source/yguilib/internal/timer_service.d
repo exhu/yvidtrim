@@ -286,7 +286,7 @@ private:
     if (firingDepth > 0) {
       return;
     }
-    entries.compact((const ref e) => e.active);
+    entries.compact((const ref TimerEntry e) => e.active);
   }
 
   ReusableArray!TimerEntry entries;
