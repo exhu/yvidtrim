@@ -2,7 +2,6 @@ module yguilib.widget.internal.scroll_system;
 
 package(yguilib):
 
-import std.algorithm.comparison : max;
 import std.math.traits : isFinite;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : PointF, RectF;
@@ -15,8 +14,8 @@ import yguilib.widget.widget_view : passViewEvent;
 
 final class ScrollSystem : WidgetSystem {
   /// Constructs ScrollSystem. `host` is allowed to be null in isolated tests.
-  this(WidgetSystemHost host = null) nothrow @safe {
-    super(scrollSystemPriority);
+  this(WidgetSystemHost host) nothrow @safe {
+    setPriority(scrollSystemPriority);
     this.host = host;
   }
 
@@ -75,6 +74,7 @@ private:
       sa.fContentSize = PointF(child.rect.width, child.rect.height);
 
       if (sa.clampOffset) {
+                import std.algorithm.comparison : max;
         const float maxScrollX = max(
           0.0f,
           sa.fContentSize.x - sa.fViewportSize.x
@@ -127,7 +127,7 @@ private:
       );
       auto ev = ViewAppEventBuilder(sa.scrollChangedEvent)
         .widget(w)
-        .value(val)
+        .valueArray(val)
         .build();
       passViewEvent(activeHost, w, ev);
     }

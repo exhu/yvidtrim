@@ -65,7 +65,9 @@ import guidemo.scrollbars : registerScrollbars;
 import guidemo.tabcontrol : registerTabControl;
 
 void main() {
-  auto app = App.makeAppWithTitleWh("yguilib feature demo - guidemo", 1280, 720);
+  auto app = App.makeAppWithTitleWh(
+    "yguilib feature demo - guidemo", 1280, 720
+  );
   // register systems here
   app.ui.registerWidgetSystem(new AnimatedHoverButtonSystem());
   // register reusable controllers for composite widgets here
@@ -81,21 +83,21 @@ void main() {
   app.ui.pushController(hoverButtonController);
 
   app.ui.pushController(
-    new LayoutPainterPageController(
+    LayoutPainterPageController.createWithParent(
       app.ui,
       demoController.getTracker(),
       rootWidget
     )
   );
   app.ui.pushController(
-    new TextLabelPageController(
+    TextLabelPageController.createWithParent(
       app.ui,
       demoController.getTracker(),
       rootWidget
     )
   );
   app.ui.pushController(
-    new ButtonPageController(
+    ButtonPageController.createWithParent(
       app.ui,
       demoController.getTracker(),
       rootWidget,
@@ -103,21 +105,21 @@ void main() {
     )
   );
   app.ui.pushController(
-    new ButtonSystemPageController(
+    ButtonSystemPageController.createWithParent(
       app.ui,
       demoController.getTracker(),
       rootWidget
     )
   );
   app.ui.pushController(
-    new TabControlPageController(
+    TabControlPageController.createWithParent(
       app.ui,
       demoController.getTracker(),
       rootWidget
     )
   );
   app.ui.pushController(
-    new ScrollbarsPageController(
+    ScrollbarsPageController.createWithParent(
       app.ui,
       demoController.getTracker(),
       rootWidget
@@ -125,7 +127,10 @@ void main() {
   );
   import std.logger : infof;
   infof("ui = %s", app.ui.dumpInfo());
-  infof("root = %s", app.ui.mainWindow.rootWidget.dumpTree());
-  infof("root simple = %s", app.ui.mainWindow.rootWidget.dumpSimpleTree());
+  infof("root = %s", app.ui.mainWindow.rootWidget.dumpTree(true));
+  infof(
+    "root simple = %s",
+    app.ui.mainWindow.rootWidget.dumpSimpleTree(true)
+  );
   app.run(demoController);
 }

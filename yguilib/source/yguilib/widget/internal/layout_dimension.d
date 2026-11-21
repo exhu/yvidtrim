@@ -1,7 +1,6 @@
 module yguilib.widget.internal.layout_dimension;
 
 package(yguilib):
-import std.algorithm.comparison : max, min;
 import yguilib.widget.layout_components : Dimension, SizingMode;
 
 /// Resolves a dimension according to its sizing mode.

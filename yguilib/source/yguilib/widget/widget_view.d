@@ -16,8 +16,8 @@ import yguilib.uisystem : UiSystem;
     - Widget with ViewComponent
  */
 
-/// This reacts to top view events (after translation). Returns Result.updateView on AppEvent.update
-/// And calls WidgetView.update on
+/// This reacts to top view events (after translation). Returns
+/// Result.updateView on AppEvent.update and calls WidgetView.update.
 interface WidgetViewController {
   string getControllerName();
   void registerWidgetView(WidgetView v);
@@ -25,9 +25,11 @@ interface WidgetViewController {
   void unregisterViewWidget(Widget viewWidget);
 }
 
-abstract class WidgetViewControllerBase : DefaultController, WidgetViewController {
+abstract class WidgetViewControllerBase :
+  DefaultController, WidgetViewController {
   @disable this();
   this(UiSystem uiSystem) {
+    assert(uiSystem !is null, "uiSystem must not be null");
     super(uiSystem);
   }
   override void registerWidgetView(WidgetView view) {
@@ -68,6 +70,7 @@ protected:
 
 final class DefaultWidgetViewController : WidgetViewControllerBase {
   this(UiSystem uiSystem) {
+    assert(uiSystem !is null, "uiSystem must not be null");
     super(uiSystem);
   }
 
@@ -87,16 +90,54 @@ interface WidgetView {
   /// called by the system if the event name is in renameEvents
   /// viewWidget = Widget with ViewComponent
   void translateEventForViewWidget(ref AppEvent sourceEvent, Widget viewWidget);
-  /// populate widgets with data, this must be called by any controller in its updateView method.
-  /// however Controller.updateView only called for the controller which handleEvent returned updateView result.
-  /// If one of the controllers returns Result.update the system sends AppEvent.update to all controllers.
-  /// See UiSystemImpl.dispatchEvent for events, controller updates and view updates.
+  /// Populate widgets with data; must be called by any controller in its
+  /// updateView method.
+  /// Controller.updateView is only called for the controller whose handleEvent
+  /// returned updateView result.
+  /// If a controller returns Result.update, the system sends AppEvent.update
+  /// to all controllers.
+  /// See UiSystemImpl.dispatchEvent for events, controller and view updates.
   bool update();
 }
 
-void renameViewWidgetEvent(ref AppEvent event, string newName, Widget viewWidget) {
+void renameViewWidgetEvent(
+  ref AppEvent event,
+  string newName,
+  Widget viewWidget
+) {
   event.view.eventName = newName;
   event.view.viewWidget = viewWidget;
+}
+
+abstract class WidgetViewBase : WidgetView {
+public:
+  override void registerViewWidget(Widget viewWidget) {
+    viewWidgets ~= viewWidget;
+  }
+  override void unregisterViewWidget(Widget viewWidget) {
+    import std.algorithm.mutation : remove;
+    viewWidgets = viewWidgets.remove!(a => a is viewWidget);
+  }
+
+  override bool isWidgetRegistered(Widget viewWidget) {
+    import std.algorithm.searching : canFind;
+    return canFind(viewWidgets, viewWidget);
+  }
+
+  override string getWidgetViewName() {
+    const fullName = typeid(this).name;
+    return objectName(fullName);
+  }
+
+  override void translateEventForViewWidget(ref AppEvent sourceEvent,
+                                            Widget viewWidget) {
+    renameViewWidgetEvent(sourceEvent,
+      viewWidget.components.view.renameEvents[sourceEvent.view.eventName],
+      viewWidget);
+  }
+
+protected:
+  Widget[] viewWidgets;
 }
 
 package(yguilib):
@@ -152,39 +193,6 @@ bool applyViewRenaming(
     }
   }
   return false;
-}
-
-public:
-
-abstract class WidgetViewBase : WidgetView {
-public:
-  override void registerViewWidget(Widget viewWidget) {
-    viewWidgets ~= viewWidget;
-  }
-  override void unregisterViewWidget(Widget viewWidget) {
-    import std.algorithm.mutation : remove;
-    viewWidgets = viewWidgets.remove!(a => a is viewWidget);
-  }
-
-  override bool isWidgetRegistered(Widget viewWidget) {
-    import std.algorithm.searching : canFind;
-    return canFind(viewWidgets, viewWidget);
-  }
-
-  override string getWidgetViewName() {
-    const fullName = typeid(this).name;
-    return objectName(fullName);
-  }
-
-  override void translateEventForViewWidget(ref AppEvent sourceEvent,
-                                            Widget viewWidget) {
-    renameViewWidgetEvent(sourceEvent,
-      viewWidget.components.view.renameEvents[sourceEvent.view.eventName],
-      viewWidget);
-  }
-
-protected:
-  Widget[] viewWidgets;
 }
 
 private:

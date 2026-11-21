@@ -21,7 +21,7 @@ import yguilib.widget.system : SystemPhase, WidgetSystem,
  */
 final class DebugDrawSystem : WidgetSystem {
   this() nothrow @safe {
-    super(debugDrawSystemPriority);
+    setPriority(debugDrawSystemPriority);
   }
 
   override @property SystemPhase phases() const nothrow @safe {
@@ -116,7 +116,7 @@ private:
     ColorF bgColor = w.visible ? comp.bgColor : comp.hiddenBgColor;
 
     if (w.visible) {
-      r.drawRect(absRect, 1.0f, fgColor);
+      r.drawRectWithWidth(absRect, 1.0f, fgColor);
     } else {
       r.drawRectDashed(absRect, 1.0f, 4.0f, 3.0f, fgColor);
     }
@@ -126,12 +126,12 @@ private:
       return;
     }
     const string label = formatLabel(w);
-    const PointF textExtent = r.measureText(label, font);
+    const PointF textExtent = r.measureTextWithFont(label, font);
     r.drawFillRect(
       RectF(absRect.x, absRect.y, textExtent.x, textExtent.y),
       bgColor
     );
-    r.drawText(label, PointF(absRect.x, absRect.y), fgColor, font);
+    r.drawTextWithFont(label, PointF(absRect.x, absRect.y), fgColor, font);
   }
 }
 
@@ -146,14 +146,14 @@ unittest {
   assert(sys.phases == SystemPhase.render);
 
   auto fix = new WidgetFixture();
-  auto root = fix.makeRoot(RectF(0, 0, 320, 240));
+  auto root = fix.makeRootWithRect(RectF(0, 0, 320, 240));
   root.name = "rootBox";
-  auto child = fix.makeChild(root, RectF(10, 20, 80, 40));
+  auto child = fix.makeChildWithRect(root, RectF(10, 20, 80, 40));
   child.name = "childBtn";
-  auto hidden = fix.makeChild(root, RectF(100, 20, 60, 30));
+  auto hidden = fix.makeChildWithRect(root, RectF(100, 20, 60, 30));
   hidden.name = "hiddenPanel";
   hidden.visible = false;
-  auto offscreen = fix.makeChild(root, RectF(500, 10, 50, 50));
+  auto offscreen = fix.makeChildWithRect(root, RectF(500, 10, 50, 50));
 
   assert(DebugDrawSystem.formatLabel(root) == "1 rootBox");
   assert(DebugDrawSystem.formatLabel(hidden) == "3 hiddenPanel [hidden]");
@@ -182,7 +182,7 @@ unittest {
   win.create();
   scope(exit) win.destroy();
 
-  auto renderer = new Renderer(320, 240);
+  auto renderer = new Renderer(320, 240, 1.0f);
   scope(exit) renderer.destroy();
 
   WidgetSystemContext ctx;

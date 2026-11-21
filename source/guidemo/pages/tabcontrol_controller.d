@@ -17,14 +17,26 @@ import yguilib.widget : Widget;
 
 /// Controller handling Page 5 tab switch and dynamic tab mutation events.
 final class TabControlPageController : DefaultController {
-  this(
+  static TabControlPageController createWithParent(
     UiSystem ui,
     ref ModelTracker!DemoModel demoTracker,
     Widget parent
   ) {
     assert(ui !is null, "ui must not be null");
     assert(parent !is null, "parent must not be null");
-    this(ui, demoTracker, new TabControlPage(ui, parent, ui));
+    return new TabControlPageController(
+      ui,
+      demoTracker,
+      new TabControlPage(ui, parent, ui)
+    );
+  }
+
+  static TabControlPageController createStandalone(
+    UiSystem ui,
+    TabControlPage page
+  ) {
+    auto dm = ModelTracker!DemoModel(new DemoModel());
+    return new TabControlPageController(ui, dm, page);
   }
 
   this(
@@ -44,11 +56,6 @@ final class TabControlPageController : DefaultController {
       page.getRootWidget(),
       page.formatStatus()
     );
-  }
-
-  this(UiSystem ui, TabControlPage page) {
-    auto dm = ModelTracker!DemoModel(new DemoModel());
-    this(ui, dm, page);
   }
 
   invariant {
@@ -151,8 +158,8 @@ unittest {
 
   auto ui = new UiSystemImpl(null);
   auto root = new Widget(ui.nextWidgetId());
-  auto page = new TabControlPage(ui, root);
-  auto ctrl = new TabControlPageController(ui, page);
+  auto page = new TabControlPage(ui, root, ui);
+  auto ctrl = TabControlPageController.createStandalone(ui, page);
 
   // Tab switch events must not be consumed so TabControlWidgetViewController
   // on the stack also receives them.
@@ -189,7 +196,7 @@ unittest {
 
   // Phase 2 update() syncs page visibility when activePage changes
   auto demoTracker = ModelTracker!DemoModel(new DemoModel());
-  auto page2 = new TabControlPage(ui, root);
+  auto page2 = new TabControlPage(ui, root, ui);
   auto ctrl2 = new TabControlPageController(ui, demoTracker, page2);
   assert(!page2.isVisible());
   auto dm = demoTracker.edit();

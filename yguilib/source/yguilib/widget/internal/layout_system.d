@@ -28,7 +28,7 @@ interface CustomLayout {
 
 final class LayoutSystem : TwoPassWidgetSystem {
   this() nothrow @safe {
-    super(layoutSystemPriority);
+    setPriority(layoutSystemPriority);
   }
 
   override @property SystemPhase phases() const nothrow @safe {
@@ -55,7 +55,7 @@ final class LayoutSystem : TwoPassWidgetSystem {
     ref WidgetSystemContext ctx
   ) {
     handleAnchorComp(vw);
-    handleFlexContainerComp(vw, ctx.renderer);
+    handleFlexContainerCompForVisible(vw, ctx.renderer);
   }
 
   /// expects visibleWidgets to include clipped children as well
@@ -142,12 +142,12 @@ private:
   }
 
   /// Arranges children for a visible widget's flex container component.
-  void handleFlexContainerComp(VisibleWidget vw, Renderer r = null) {
+  void handleFlexContainerCompForVisible(VisibleWidget vw, Renderer r) {
     handleFlexContainerComp(vw.widget, r);
   }
 
   /// Arranges children of a flex container widget according to flexbox rules.
-  package(yguilib) void handleFlexContainerComp(Widget w, Renderer r = null) {
+  package(yguilib) void handleFlexContainerComp(Widget w, Renderer r) {
     if (w is null) {
       return;
     }
@@ -156,13 +156,7 @@ private:
       return;
     }
 
-    childBuf.clear();
-    foreach (child; w.children) {
-      if (child.visible && child.components.anchor is null) {
-        childBuf ~= child;
-      }
-    }
-    Widget[] visibleChildren = childBuf[];
+    Widget[] visibleChildren = collectVisibleFlexChildren(w);
     if (visibleChildren.length == 0) {
       return;
     }
@@ -182,53 +176,61 @@ private:
       contentMainExtent,
       flexComp.gap
     );
-
-    if (isRow) {
-      if (r !is null) {
-        foreach (child; visibleChildren) {
-          updateFlexChildTextHeight(child, r);
-        }
-      }
-    } else {
-      if (flexComp.alignItems == AlignItems.stretch) {
-        foreach (child; visibleChildren) {
-          alignChildCrossAxis(
-            child,
-            isRow,
-            flexComp.alignItems,
-            contentCrossPos,
-            contentCrossExtent
-          );
-          if (r !is null) {
-            updateFlexChildTextHeight(child, r);
-          }
-        }
-      }
-    }
+    updateFlexChildrenCrossAndText(
+      visibleChildren, isRow, flexComp.alignItems,
+      contentCrossPos, contentCrossExtent, r
+    );
 
     float startOffset = 0.0f;
     float gapBetween = 0.0f;
     computeJustifyOffsets(
-      flexComp.justify,
-      visibleChildren,
-      isRow,
-      contentMainPos,
-      contentMainExtent,
-      flexComp.gap,
-      startOffset,
-      gapBetween
+      flexComp.justify, visibleChildren, isRow, contentMainPos,
+      contentMainExtent, flexComp.gap, startOffset, gapBetween
     );
 
     arrangeMainAxis(visibleChildren, isRow, startOffset, gapBetween);
 
     foreach (child; visibleChildren) {
       alignChildCrossAxis(
-        child,
-        isRow,
-        flexComp.alignItems,
-        contentCrossPos,
-        contentCrossExtent
+        child, isRow, flexComp.alignItems, contentCrossPos, contentCrossExtent
       );
+    }
+  }
+
+private:
+  Widget[] collectVisibleFlexChildren(Widget w) {
+    childBuf.clear();
+    foreach (child; w.children) {
+      if (child.visible && child.components.anchor is null) {
+        childBuf ~= child;
+      }
+    }
+    return childBuf[];
+  }
+
+  static void updateFlexChildrenCrossAndText(
+    Widget[] visibleChildren,
+    bool isRow,
+    AlignItems alignItems,
+    float contentCrossPos,
+    float contentCrossExtent,
+    Renderer r
+  ) {
+    if (isRow) {
+      if (r !is null) {
+        foreach (child; visibleChildren) {
+          updateFlexChildTextHeight(child, r);
+        }
+      }
+    } else if (alignItems == AlignItems.stretch) {
+      foreach (child; visibleChildren) {
+        alignChildCrossAxis(
+          child, isRow, alignItems, contentCrossPos, contentCrossExtent
+        );
+        if (r !is null) {
+          updateFlexChildTextHeight(child, r);
+        }
+      }
     }
   }
 }
@@ -239,7 +241,7 @@ unittest {
 
   auto fix = new WidgetFixture();
   auto ls = new LayoutSystem;
-  auto w = fix.makeRoot(RectF(10, 10, 50, 50));
+  auto w = fix.makeRootWithRect(RectF(10, 10, 50, 50));
 
   // No Size component -> rect remains untouched
   ls.handleSizeComp(w);
@@ -263,7 +265,7 @@ unittest {
 
   auto fix = new WidgetFixture();
   auto ls = new LayoutSystem;
-  auto w = fix.makeRoot(RectF(0, 0, 0, 0));
+  auto w = fix.makeRootWithRect(RectF(0, 0, 0, 0));
 
   auto sz = new Size;
   sz.width = Dimension(0, SizingMode.auto_);
@@ -293,7 +295,7 @@ unittest {
 
   auto fix = new WidgetFixture();
   auto ls = new LayoutSystem;
-  auto w = fix.makeRoot(RectF(0, 0, 0, 0));
+  auto w = fix.makeRootWithRect(RectF(0, 0, 0, 0));
 
   auto sz = new Size;
   sz.width = Dimension(20, SizingMode.fixed);
@@ -334,7 +336,7 @@ unittest {
 
   auto fix = new WidgetFixture();
   auto ls = new LayoutSystem;
-  auto parent = fix.makeRoot(RectF(0, 0, 0, 0));
+  auto parent = fix.makeRootWithRect(RectF(0, 0, 0, 0));
 
   auto parentSz = new Size;
   parentSz.width = Dimension(0, SizingMode.auto_);
@@ -346,9 +348,9 @@ unittest {
   flex.gap = 10;
   parent.components.flexContainer = flex;
 
-  auto c1 = fix.makeChild(parent, RectF(0, 0, 40, 25));
-  auto c2 = fix.makeChild(parent, RectF(0, 0, 60, 35));
-  auto cHidden = fix.makeChild(parent, RectF(0, 0, 100, 100));
+  auto c1 = fix.makeChildWithRect(parent, RectF(0, 0, 40, 25));
+  auto c2 = fix.makeChildWithRect(parent, RectF(0, 0, 60, 35));
+  auto cHidden = fix.makeChildWithRect(parent, RectF(0, 0, 100, 100));
   cHidden.visible = false;
 
   // Row: width = 40 + 60 + 10 = 110, height = max(25, 35) = 35
@@ -369,15 +371,17 @@ unittest {
 
   auto fix = new WidgetFixture();
   auto ls = new LayoutSystem;
-  auto parent = fix.makeRoot(RectF(0, 0, 0, 0));
+  auto parent = fix.makeRootWithRect(RectF(0, 0, 0, 0));
 
   auto sz = new Size;
   sz.width = Dimension(0, SizingMode.auto_);
   sz.height = Dimension(0, SizingMode.auto_);
   parent.components.size = sz;
 
-  auto c1 = fix.makeChild(parent, RectF(10, 5, 40, 20)); // right=50, bottom=25
-  auto c2 = fix.makeChild(parent, RectF(20, 15, 60, 30)); // right=80, bottom=45
+  // right=50, bottom=25
+  auto c1 = fix.makeChildWithRect(parent, RectF(10, 5, 40, 20));
+  // right=80, bottom=45
+  auto c2 = fix.makeChildWithRect(parent, RectF(20, 15, 60, 30));
 
   ls.handleSizeComp(parent);
   assert(parent.rect.width == 80);
@@ -398,14 +402,14 @@ unittest {
   win.create();
   scope(exit) win.destroy();
 
-  auto r = new Renderer(320, 240);
+  auto r = new Renderer(320, 240, 1.0f);
   scope(exit) r.destroy();
 
   auto fix = new WidgetFixture();
   auto ls = new LayoutSystem;
   auto collector = new VisibleWidgetsCollector;
 
-  auto labelWidget = fix.makeRoot(RectF(0, 0, 10, 10));
+  auto labelWidget = fix.makeRootWithRect(RectF(0, 0, 10, 10));
   auto labelSz = new Size;
   labelSz.width = Dimension(0, SizingMode.auto_);
   labelSz.height = Dimension(0, SizingMode.auto_);
@@ -413,18 +417,18 @@ unittest {
   labelWidget.components.size = labelSz;
   labelWidget.components.textLabel = new TextLabel("Test", ColorF(1, 1, 1, 1));
 
-  PointF textDims = r.measureText("Test");
+  PointF textDims = r.measureTextWithFont("Test", null);
   assert(textDims.x > 0);
   assert(textDims.y > 0);
 
-  auto visible = collector.collectVisible(labelWidget, r, true);
+  auto visible = collector.collectVisibleWithRenderer(labelWidget, r, true);
   ls.layoutTree(labelWidget, r, visible);
 
   assert(labelWidget.rect.width == textDims.x + 8);
   assert(labelWidget.rect.height == textDims.y + 4);
 
   // Test TextLabel with custom fontSize (24pt)
-  auto bigLabelWidget = fix.makeRoot(RectF(0, 0, 10, 10));
+  auto bigLabelWidget = fix.makeRootWithRect(RectF(0, 0, 10, 10));
   auto bigLabelSz = new Size;
   bigLabelSz.width = Dimension(0, SizingMode.auto_);
   bigLabelSz.height = Dimension(0, SizingMode.auto_);
@@ -434,11 +438,13 @@ unittest {
     new TextLabel("Test", ColorF(1, 1, 1, 1));
   bigLabelWidget.components.textLabel.fontSize = 24.0f;
 
-  PointF bigTextDims = r.measureText("Test", 24.0f);
+  PointF bigTextDims = r.measureTextWithFontName("Test", 24.0f, null);
   assert(bigTextDims.x > textDims.x);
   assert(bigTextDims.y > textDims.y);
 
-  auto bigVisible = collector.collectVisible(bigLabelWidget, r, true);
+  auto bigVisible = collector.collectVisibleWithRenderer(
+    bigLabelWidget, r, true
+  );
   ls.layoutTree(bigLabelWidget, r, bigVisible);
 
   assert(labelWidget.rect.width == textDims.x + 8);
@@ -452,7 +458,7 @@ unittest {
 
   auto fix = new WidgetFixture();
   auto ls = new LayoutSystem;
-  auto parent = fix.makeRoot(RectF(0, 0, 200, 100));
+  auto parent = fix.makeRootWithRect(RectF(0, 0, 200, 100));
 
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.row;
@@ -460,18 +466,18 @@ unittest {
   parent.components.flexContainer = flex;
 
   // Regular flex children
-  auto c1 = fix.makeChild(parent, RectF(0, 0, 40, 20));
-  auto c2 = fix.makeChild(parent, RectF(0, 0, 50, 20));
+  auto c1 = fix.makeChildWithRect(parent, RectF(0, 0, 40, 20));
+  auto c2 = fix.makeChildWithRect(parent, RectF(0, 0, 50, 20));
 
   // Anchored child positioned at bottom-right
-  auto anchorChild = fix.makeChild(parent, RectF(0, 0, 30, 30));
+  auto anchorChild = fix.makeChildWithRect(parent, RectF(0, 0, 30, 30));
   auto a = new Anchor;
   a.right = 0.0f;
   a.bottom = 0.0f;
   anchorChild.components.anchor = a;
 
   ls.handleAnchorComp(anchorChild);
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
 
   // Flex children are laid out sequentially along main axis ignoring
   // the out-of-flow anchorChild.
@@ -497,7 +503,7 @@ unittest {
   win.create();
   scope(exit) win.destroy();
 
-  auto r = new Renderer(320, 240);
+  auto r = new Renderer(320, 240, 1.0f);
   scope(exit) r.destroy();
 
   auto fix = new WidgetFixture();
@@ -505,7 +511,7 @@ unittest {
   auto collector = new VisibleWidgetsCollector;
 
   // Single line TextLabel with newline when multiline is false
-  auto sWidget = fix.makeRoot(RectF(0, 0, 10, 10));
+  auto sWidget = fix.makeRootWithRect(RectF(0, 0, 10, 10));
   auto sSize = new Size;
   sSize.width = Dimension(0, SizingMode.auto_);
   sSize.height = Dimension(0, SizingMode.auto_);
@@ -515,14 +521,14 @@ unittest {
     ColorF(1, 1, 1, 1)
   );
 
-  auto sVisible = collector.collectVisible(sWidget, r, true);
+  auto sVisible = collector.collectVisibleWithRenderer(sWidget, r, true);
   ls.layoutTree(sWidget, r, sVisible);
-  PointF expectedSingle = r.measureText("Hello World");
+  PointF expectedSingle = r.measureTextWithFont("Hello World", null);
   assert(sWidget.rect.width == expectedSingle.x);
   assert(sWidget.rect.height == expectedSingle.y);
 
   // Multiline TextLabel with explicit breaks
-  auto mWidget = fix.makeRoot(RectF(0, 0, 10, 10));
+  auto mWidget = fix.makeRootWithRect(RectF(0, 0, 10, 10));
   auto mSize = new Size;
   mSize.width = Dimension(0, SizingMode.auto_);
   mSize.height = Dimension(0, SizingMode.auto_);
@@ -531,14 +537,14 @@ unittest {
   mLabel.multiline = true;
   mWidget.components.textLabel = mLabel;
 
-  auto mVisible = collector.collectVisible(mWidget, r, true);
+  auto mVisible = collector.collectVisibleWithRenderer(mWidget, r, true);
   ls.layoutTree(mWidget, r, mVisible);
   assert(mWidget.rect.height > expectedSingle.y);
 
   // Multiline TextLabel with fixed width and auto height (wrapping)
-  auto wrapWidget = fix.makeRoot(RectF(0, 0, 10, 10));
+  auto wrapWidget = fix.makeRootWithRect(RectF(0, 0, 10, 10));
   auto wrapSize = new Size;
-  float line1W = r.measureText("Word one word two").x;
+  float line1W = r.measureTextWithFont("Word one word two", null).x;
   wrapSize.width = Dimension(line1W + 5.0f, SizingMode.fixed);
   wrapSize.height = Dimension(0, SizingMode.auto_);
   wrapWidget.components.size = wrapSize;
@@ -549,7 +555,7 @@ unittest {
   wrapLabel.multiline = true;
   wrapWidget.components.textLabel = wrapLabel;
 
-  auto wrapVisible = collector.collectVisible(wrapWidget, r, true);
+  auto wrapVisible = collector.collectVisibleWithRenderer(wrapWidget, r, true);
   ls.layoutTree(wrapWidget, r, wrapVisible);
   assert(wrapWidget.rect.width == line1W + 5.0f);
   assert(wrapWidget.rect.height > expectedSingle.y);
@@ -569,7 +575,7 @@ unittest {
   win.create();
   scope(exit) win.destroy();
 
-  auto r = new Renderer(320, 240);
+  auto r = new Renderer(320, 240, 1.0f);
   scope(exit) r.destroy();
 
   auto fix = new WidgetFixture();
@@ -577,11 +583,13 @@ unittest {
   auto collector = new VisibleWidgetsCollector;
 
   // Single-line with Size.maxWidth and ellipsis
-  auto singleW = fix.makeRoot(RectF(0, 0, 10, 10));
+  auto singleW = fix.makeRootWithRect(RectF(0, 0, 10, 10));
   auto singleSz = new Size;
   singleSz.width = Dimension(0, SizingMode.auto_);
   singleSz.height = Dimension(0, SizingMode.auto_);
-  const float fullW = r.measureText("A very long text that must truncate").x;
+  const float fullW = r.measureTextWithFont(
+    "A very long text that must truncate", null
+  ).x;
   singleSz.maxWidth = fullW * 0.5f;
   singleW.components.size = singleSz;
   auto singleLabel = new TextLabel(
@@ -591,16 +599,16 @@ unittest {
   singleLabel.overflowEllipsis = true;
   singleW.components.textLabel = singleLabel;
 
-  auto singleVis = collector.collectVisible(singleW, r, true);
+  auto singleVis = collector.collectVisibleWithRenderer(singleW, r, true);
   ls.layoutTree(singleW, r, singleVis);
   assert(singleW.rect.width <= singleSz.maxWidth);
 
   // Multiline with Size.maxWidth and auto width/height
-  auto multiW = fix.makeRoot(RectF(0, 0, 10, 10));
+  auto multiW = fix.makeRootWithRect(RectF(0, 0, 10, 10));
   auto multiSz = new Size;
   multiSz.width = Dimension(0, SizingMode.auto_);
   multiSz.height = Dimension(0, SizingMode.auto_);
-  const float twoWordsW = r.measureText("Word one word two").x;
+  const float twoWordsW = r.measureTextWithFont("Word one word two", null).x;
   multiSz.maxWidth = twoWordsW + 5.0f;
   multiW.components.size = multiSz;
   auto multiLabel = new TextLabel(
@@ -610,14 +618,14 @@ unittest {
   multiLabel.multiline = true;
   multiW.components.textLabel = multiLabel;
 
-  auto multiVis = collector.collectVisible(multiW, r, true);
+  auto multiVis = collector.collectVisibleWithRenderer(multiW, r, true);
   ls.layoutTree(multiW, r, multiVis);
   assert(multiW.rect.width <= multiSz.maxWidth);
-  const float singleH = r.measureText("Word").y;
+  const float singleH = r.measureTextWithFont("Word", null).y;
   assert(multiW.rect.height > singleH);
 
   // Flex column with stretch and multiline text child
-  auto colParent = fix.makeRoot(RectF(0, 0, twoWordsW + 10.0f, 300));
+  auto colParent = fix.makeRootWithRect(RectF(0, 0, twoWordsW + 10.0f, 300));
   auto colSz = new Size;
   colSz.width = Dimension(twoWordsW + 10.0f, SizingMode.fixed);
   colSz.height = Dimension(300, SizingMode.fixed);
@@ -629,7 +637,7 @@ unittest {
   flex.gap = 5.0f;
   colParent.components.flexContainer = flex;
 
-  auto textChild = fix.makeChild(colParent, RectF(0, 0, 10, 10));
+  auto textChild = fix.makeChildWithRect(colParent, RectF(0, 0, 10, 10));
   auto textSz = new Size;
   textSz.width = Dimension(0, SizingMode.auto_);
   textSz.height = Dimension(0, SizingMode.auto_);
@@ -641,13 +649,13 @@ unittest {
   label.multiline = true;
   textChild.components.textLabel = label;
 
-  auto secondChild = fix.makeChild(colParent, RectF(0, 0, 10, 20));
+  auto secondChild = fix.makeChildWithRect(colParent, RectF(0, 0, 10, 20));
   auto secondSz = new Size;
   secondSz.width = Dimension(0, SizingMode.auto_);
   secondSz.height = Dimension(20, SizingMode.fixed);
   secondChild.components.size = secondSz;
 
-  auto colVis = collector.collectVisible(colParent, r, true);
+  auto colVis = collector.collectVisibleWithRenderer(colParent, r, true);
   ls.layoutTree(colParent, r, colVis);
 
   assert(textChild.rect.width == twoWordsW + 10.0f);

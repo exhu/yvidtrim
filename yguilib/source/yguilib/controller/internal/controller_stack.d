@@ -7,14 +7,14 @@ import yguilib.controller : Controller, DefaultController;
 struct ControllerStack {
   void push(Controller c) {
     assert(c !is null);
-    c.isModal = false;
+    c.setModal(false);
     stack ~= c;
     c.onPush();
   }
 
   void pushModal(Controller c) {
     assert(c !is null);
-    c.isModal = true;
+    c.setModal(true);
     auto active = getActiveOrNull();
     if (active !is null) {
       active.onSuspendByModal();
@@ -76,14 +76,35 @@ private:
 
 // Verifies ControllerStack push, modal push, and pop lifecycle transitions.
 unittest {
-  class ModalTrackController : DefaultController {
+  import yguilib.events : AppEvent;
+  import yguilib.controller : HandleResult;
+  import yguilib.widget : Widget;
+
+  class ModalTrackController : Controller {
     string[]* log;
     string name;
+    bool modalFlag = false;
 
     this(string name, string[]* log) {
-      super(null);
+      assert(log !is null);
       this.name = name;
       this.log = log;
+    }
+
+    override HandleResult handleEvent(AppEvent ev) {
+      return HandleResult(HandleResult.Result.nothing);
+    }
+
+    override bool updateView() {
+      return false;
+    }
+
+    override bool update() {
+      return false;
+    }
+
+    override bool tick(float dt) {
+      return false;
     }
 
     override void onPush() {
@@ -100,6 +121,20 @@ unittest {
 
     override void onResumeByModal() {
       *log ~= name ~ ":onResume";
+    }
+
+    @property override bool isModal() const {
+      return modalFlag;
+    }
+
+    override void setModal(bool value) {
+      modalFlag = value;
+    }
+
+    override void sendAppEvent(AppEvent ev) {
+    }
+
+    override void onWidgetReleased(Widget w) {
     }
   }
 

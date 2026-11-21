@@ -83,7 +83,9 @@ unittest {
   RectF r1 = RectF(10, 10, 50, 50);
   RectF r2 = RectF(20, 30, 60, 40);
   RectF inter = intersectRects(r1, r2);
-  assert(inter.x == 20 && inter.y == 30 && inter.width == 40 && inter.height == 30);
+  assert(
+    inter.x == 20 && inter.y == 30 && inter.width == 40 && inter.height == 30
+  );
 
   // Disjoint rects
   RectF r3 = RectF(100, 100, 10, 10);

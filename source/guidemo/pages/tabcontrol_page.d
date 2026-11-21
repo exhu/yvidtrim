@@ -31,7 +31,7 @@ enum page5WidenViewportEvent = "page5WidenViewport";
 final class TabControlPage {
   /// Constructs TabControlPage. `registry` is allowed to be null in headless
   /// tests.
-  this(UiSystem ui, Widget parent, UiRegistry registry = null) {
+  this(UiSystem ui, Widget parent, UiRegistry registry) {
     assert(ui !is null, "UiSystem must not be null");
     assert(parent !is null, "parent must not be null");
     this.ui = ui;
@@ -304,7 +304,7 @@ private:
 
     TabControlBuilder b;
     b.name("subTabControl")
-      .model(subTabsTracker)
+      .modelTracker(subTabsTracker)
       .event("pageTabSwitch")
       .buttonSize(160.0f, 30.0f)
       .gap(10.0f)
@@ -422,7 +422,7 @@ private:
     TabControlBuilder b;
     dynamicTabControl = b
       .name("dynamicTabControl")
-      .model(dynamicTabsTracker)
+      .modelTracker(dynamicTabsTracker)
       .event("dynamicTabSwitch")
       .buttonSize(108.0f, 30.0f)
       .gap(8.0f)
@@ -602,7 +602,7 @@ private:
 
     TabControlBuilder b;
     b.name("verticalTabControl")
-      .model(verticalTabsTracker)
+      .modelTracker(verticalTabsTracker)
       .event("verticalTabSwitch")
       .direction(FlexDirection.column)
       .alignItems(AlignItems.start)

@@ -34,7 +34,7 @@ public:
     assert(fc !is null);
     fc.alignItems = tracker.model.alignItems;
 
-    infof("tree = %s", widgets.root.dumpTree());
+    infof("tree = %s", widgets.root.dumpTree(true));
   }
 
   void update() {

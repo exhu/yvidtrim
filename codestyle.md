@@ -14,7 +14,10 @@
     `makeGUID`, `colorRGB`).
 - **No overloaded functions:** Do not add overloaded functions or methods
   (except for visitor patterns or serialization/conversion). Name each
-  function to convey the arguments it accepts:
+  function to convey the return value and the arguments it accepts using
+  `<returnMeaning>From<ArgMeaning>` (e.g., `pixelsFromLogicPoint`) or
+  `<action>With<ArgMeaning>` (e.g., `drawLineWithPoints`,
+  `drawLineWithCoords`):
   ```D
   // GOOD
   TimerId startCallbackTimer(

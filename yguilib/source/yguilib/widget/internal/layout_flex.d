@@ -1,7 +1,6 @@
 module yguilib.widget.internal.layout_flex;
 
 package(yguilib):
-import std.algorithm.comparison : max;
 import std.math : round;
 import yguilib.render : Renderer;
 import yguilib.render.render_types : PointF, RectF;
@@ -30,6 +29,7 @@ void updateFlexChildTextHeight(Widget child, Renderer r) {
   }
 
   const PointF padBorder = calcPaddingAndBorder(sz, child.components.border);
+    import std.algorithm.comparison : max;
   const float availW = max(0.0f, child.rect.width - padBorder.x);
   const float availH = (sz.maxHeight < float.infinity && sz.maxHeight > 0.0f)
     ? max(0.0f, sz.maxHeight - padBorder.y)
@@ -84,6 +84,7 @@ void resolveFractionSizes(
   const float totalGaps = children.length > 1
     ? gap * (children.length - 1)
     : 0.0f;
+    import std.algorithm.comparison : max;
   const float freeSpace = max(
     0.0f,
     contentMainExtent - fixedSum - totalGaps
@@ -142,11 +143,13 @@ void computeJustifyOffsets(
     break;
 
   case JustifyContent.end:
+        import std.algorithm.comparison : max;
     startOffset = contentMainPos + max(0.0f, freeSpace);
     gapBetween = gap;
     break;
 
   case JustifyContent.center:
+        import std.algorithm.comparison : max;
     startOffset = contentMainPos + round(max(0.0f, freeSpace) * 0.5f);
     gapBetween = gap;
     break;
@@ -219,6 +222,7 @@ void alignChildCrossAxis(
       isRow,
       contentCrossPos + getCrossMarginStart(child, isRow)
     );
+        import std.algorithm.comparison : max;
     float targetSize = max(
       0.0f,
       contentCrossExtent - getCrossMarginStart(child, isRow)
@@ -243,19 +247,19 @@ unittest {
 
   auto fix = new WidgetFixture();
   auto ls = new LayoutSystem;
-  auto parent = fix.makeRoot(RectF(0, 0, 200, 100));
+  auto parent = fix.makeRootWithRect(RectF(0, 0, 200, 100));
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.row;
   flex.gap = 10;
   parent.components.flexContainer = flex;
 
-  auto c1 = fix.makeChild(parent, RectF(0, 0, 40, 20));
-  auto c2 = fix.makeChild(parent, RectF(0, 0, 50, 30));
+  auto c1 = fix.makeChildWithRect(parent, RectF(0, 0, 40, 20));
+  auto c2 = fix.makeChildWithRect(parent, RectF(0, 0, 50, 30));
 
   // JustifyContent.start
   flex.justify = JustifyContent.start;
   flex.alignItems = AlignItems.start;
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   assert(c1.rect.x == 0);
   assert(c1.rect.y == 0);
   assert(c2.rect.x == 50); // 40 + gap(10)
@@ -263,19 +267,19 @@ unittest {
 
   // JustifyContent.end: free space = 200 - (40 + 50 + 10) = 100
   flex.justify = JustifyContent.end;
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   assert(c1.rect.x == 100);
   assert(c2.rect.x == 150);
 
   // JustifyContent.center: offset = 100 * 0.5 = 50
   flex.justify = JustifyContent.center;
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   assert(c1.rect.x == 50);
   assert(c2.rect.x == 100);
 
   // JustifyContent.spaceBetween: gap = 10 + 100 / (2 - 1) = 110
   flex.justify = JustifyContent.spaceBetween;
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   assert(c1.rect.x == 0);
   assert(c2.rect.x == 150); // 200 - 50 = 150
 }
@@ -288,32 +292,32 @@ unittest {
 
   auto fix = new WidgetFixture();
   auto ls = new LayoutSystem;
-  auto parent = fix.makeRoot(RectF(0, 0, 200, 100));
+  auto parent = fix.makeRootWithRect(RectF(0, 0, 200, 100));
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.row;
   parent.components.flexContainer = flex;
 
-  auto c = fix.makeChild(parent, RectF(0, 0, 40, 20));
+  auto c = fix.makeChildWithRect(parent, RectF(0, 0, 40, 20));
 
   // AlignItems.start
   flex.alignItems = AlignItems.start;
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   assert(c.rect.y == 0);
   assert(c.rect.height == 20);
 
   // AlignItems.end
   flex.alignItems = AlignItems.end;
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   assert(c.rect.y == 80); // 100 - 20
 
   // AlignItems.center
   flex.alignItems = AlignItems.center;
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   assert(c.rect.y == 40); // (100 - 20) / 2
 
   // AlignItems.stretch
   flex.alignItems = AlignItems.stretch;
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   assert(c.rect.y == 0);
   assert(c.rect.height == 100);
 }
@@ -326,18 +330,18 @@ unittest {
 
   auto fix = new WidgetFixture();
   auto ls = new LayoutSystem;
-  auto parent = fix.makeRoot(RectF(0, 0, 100, 200));
+  auto parent = fix.makeRootWithRect(RectF(0, 0, 100, 200));
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.column;
   flex.gap = 10;
   parent.components.flexContainer = flex;
 
-  auto c1 = fix.makeChild(parent, RectF(0, 0, 30, 40));
-  auto c2 = fix.makeChild(parent, RectF(0, 0, 50, 50));
+  auto c1 = fix.makeChildWithRect(parent, RectF(0, 0, 30, 40));
+  auto c2 = fix.makeChildWithRect(parent, RectF(0, 0, 50, 50));
   // JustifyContent.start, AlignItems.center
   flex.justify = JustifyContent.start;
   flex.alignItems = AlignItems.center;
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   assert(c1.rect.y == 0);
   assert(c1.rect.x == 35); // (100 - 30) / 2
   assert(c2.rect.y == 50); // 40 + 10
@@ -346,7 +350,7 @@ unittest {
   // JustifyContent.spaceBetween: freeSpace = 200 - (40 + 50 + 10) = 100
   // total gap = 10 + 100 = 110
   flex.justify = JustifyContent.spaceBetween;
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   assert(c1.rect.y == 0);
   assert(c2.rect.y == 150); // 200 - 50
 }
@@ -360,26 +364,26 @@ unittest {
 
   auto fix = new WidgetFixture();
   auto ls = new LayoutSystem;
-  auto parent = fix.makeRoot(RectF(0, 0, 320, 100));
+  auto parent = fix.makeRootWithRect(RectF(0, 0, 320, 100));
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.row;
   flex.gap = 10;
   parent.components.flexContainer = flex;
 
   // Fixed child: 50
-  auto cFixed = fix.makeChild(parent, RectF(0, 0, 50, 40));
+  auto cFixed = fix.makeChildWithRect(parent, RectF(0, 0, 50, 40));
   auto szFixed = new Size;
   szFixed.width = Dimension(50, SizingMode.fixed);
   cFixed.components.size = szFixed;
 
   // Fraction child 1: weight 1
-  auto cFrac1 = fix.makeChild(parent, RectF(0, 0, 0, 40));
+  auto cFrac1 = fix.makeChildWithRect(parent, RectF(0, 0, 0, 40));
   auto szFrac1 = new Size;
   szFrac1.width = Dimension(1, SizingMode.fraction);
   cFrac1.components.size = szFrac1;
 
   // Fraction child 2: weight 2
-  auto cFrac2 = fix.makeChild(parent, RectF(0, 0, 0, 40));
+  auto cFrac2 = fix.makeChildWithRect(parent, RectF(0, 0, 0, 40));
   auto szFrac2 = new Size;
   szFrac2.width = Dimension(2, SizingMode.fraction);
   cFrac2.components.size = szFrac2;
@@ -388,7 +392,7 @@ unittest {
   // Total weight: 1 + 2 = 3
   // cFrac1: 250 * 1/3 = 83.333...
   // cFrac2: 250 * 2/3 = 166.666...
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   assert(cFixed.rect.width == 50);
   assert(isClose(cFrac1.rect.width, 250.0f / 3.0f, 0.01f));
   assert(isClose(cFrac2.rect.width, 500.0f / 3.0f, 0.01f));
@@ -405,18 +409,18 @@ unittest {
 
   auto fix = new WidgetFixture();
   auto ls = new LayoutSystem;
-  auto parent = fix.makeRoot(RectF(0, 0, 200, 100));
+  auto parent = fix.makeRootWithRect(RectF(0, 0, 200, 100));
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.row;
   flex.gap = 10;
   parent.components.flexContainer = flex;
 
-  auto c1 = fix.makeChild(parent, RectF(0, 0, 40, 20));
-  auto cHidden = fix.makeChild(parent, RectF(0, 0, 80, 20));
+  auto c1 = fix.makeChildWithRect(parent, RectF(0, 0, 40, 20));
+  auto cHidden = fix.makeChildWithRect(parent, RectF(0, 0, 80, 20));
   cHidden.visible = false;
-  auto c2 = fix.makeChild(parent, RectF(0, 0, 50, 30));
+  auto c2 = fix.makeChildWithRect(parent, RectF(0, 0, 50, 30));
 
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   assert(c1.rect.x == 0);
   // cHidden is skipped, so gap is only between c1 and c2
   assert(c2.rect.x == 50); // 40 + 10
@@ -431,7 +435,7 @@ unittest {
 
   auto fix = new WidgetFixture();
   auto ls = new LayoutSystem;
-  auto parent = fix.makeRoot(RectF(0, 0, 200, 100));
+  auto parent = fix.makeRootWithRect(RectF(0, 0, 200, 100));
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.row;
   parent.components.flexContainer = flex;
@@ -446,14 +450,14 @@ unittest {
   // Inset left = 25 + 5 = 30, inset top = 10 + 5 = 15
   // Content width = 200 - (30 + 15 + 5) = 150
   // Content height = 100 - (15 + 20 + 5) = 60
-  auto c = fix.makeChild(parent, RectF(0, 0, 50, 20));
-  ls.handleFlexContainerComp(parent);
+  auto c = fix.makeChildWithRect(parent, RectF(0, 0, 50, 20));
+  ls.handleFlexContainerComp(parent, null);
 
   assert(c.rect.x == 30);
   assert(c.rect.y == 15);
 
   flex.alignItems = AlignItems.stretch;
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   assert(c.rect.height == 60);
 }
 
@@ -465,23 +469,23 @@ unittest {
 
   auto fix = new WidgetFixture();
   auto ls = new LayoutSystem;
-  auto parent = fix.makeRoot(RectF(0, 0, 200, 100));
+  auto parent = fix.makeRootWithRect(RectF(0, 0, 200, 100));
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.row;
   flex.gap = 10;
   parent.components.flexContainer = flex;
 
-  auto c1 = fix.makeChild(parent, RectF(0, 0, 40, 20));
+  auto c1 = fix.makeChildWithRect(parent, RectF(0, 0, 40, 20));
   auto sz1 = new Size;
   sz1.margin = Insets(0, 15, 0, 5); // left=5, right=15
   c1.components.size = sz1;
 
-  auto c2 = fix.makeChild(parent, RectF(0, 0, 50, 30));
+  auto c2 = fix.makeChildWithRect(parent, RectF(0, 0, 50, 30));
   auto sz2 = new Size;
   sz2.margin = Insets(0, 20, 0, 10); // left=10, right=20
   c2.components.size = sz2;
 
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   // c1: x = 0 + left_margin(5) = 5
   assert(c1.rect.x == 5);
   assert(c1.rect.width == 40);
@@ -498,25 +502,25 @@ unittest {
 
   auto fix = new WidgetFixture();
   auto ls = new LayoutSystem;
-  auto parent = fix.makeRoot(RectF(0, 0, 200, 100));
+  auto parent = fix.makeRootWithRect(RectF(0, 0, 200, 100));
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.row;
   parent.components.flexContainer = flex;
 
-  auto c = fix.makeChild(parent, RectF(0, 0, 40, 20));
+  auto c = fix.makeChildWithRect(parent, RectF(0, 0, 40, 20));
   auto sz = new Size;
   sz.margin = Insets(10, 0, 20, 0); // top=10, bottom=20
   c.components.size = sz;
 
   // AlignItems.start: top margin offset
   flex.alignItems = AlignItems.start;
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   assert(c.rect.y == 10);
   assert(c.rect.height == 20);
 
   // AlignItems.end: bottom margin offset (100 - 20(margin) - 20(height) = 60)
   flex.alignItems = AlignItems.end;
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   assert(c.rect.y == 60);
 
   // AlignItems.center:
@@ -524,13 +528,13 @@ unittest {
   // offset = (70 - 20) / 2 = 25
   // y = 10 + 25 = 35
   flex.alignItems = AlignItems.center;
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   assert(c.rect.y == 35);
 
   // AlignItems.stretch:
   // y = 10, height = 100 - 10 - 20 = 70
   flex.alignItems = AlignItems.stretch;
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   assert(c.rect.y == 10);
   assert(c.rect.height == 70);
 }
@@ -543,19 +547,19 @@ unittest {
 
   auto fix = new WidgetFixture();
   auto ls = new LayoutSystem;
-  auto parent = fix.makeRoot(RectF(0, 0, 320, 100));
+  auto parent = fix.makeRootWithRect(RectF(0, 0, 320, 100));
   auto flex = new FlexContainer;
   flex.direction = FlexDirection.row;
   flex.gap = 10;
   parent.components.flexContainer = flex;
 
-  auto cFixed = fix.makeChild(parent, RectF(0, 0, 50, 40));
+  auto cFixed = fix.makeChildWithRect(parent, RectF(0, 0, 50, 40));
   auto szFixed = new Size;
   szFixed.width = Dimension(50, SizingMode.fixed);
   szFixed.margin = Insets(0, 10, 0, 10); // outer width = 10 + 50 + 10 = 70
   cFixed.components.size = szFixed;
 
-  auto cFrac = fix.makeChild(parent, RectF(0, 0, 0, 40));
+  auto cFrac = fix.makeChildWithRect(parent, RectF(0, 0, 0, 40));
   auto szFrac = new Size;
   szFrac.width = Dimension(1, SizingMode.fraction);
   szFrac.margin = Insets(0, 5, 0, 5);
@@ -563,7 +567,7 @@ unittest {
 
   // Free space = 320 - outerFixed(70) - gap(10) = 240
   // cFrac width = 240
-  ls.handleFlexContainerComp(parent);
+  ls.handleFlexContainerComp(parent, null);
   assert(cFixed.rect.x == 10);
   assert(cFixed.rect.width == 50);
   assert(cFrac.rect.width == 240);
@@ -579,7 +583,7 @@ unittest {
 
   auto fix = new WidgetFixture();
   auto ls = new LayoutSystem;
-  auto parent = fix.makeRoot(RectF(0, 0, 0, 0));
+  auto parent = fix.makeRootWithRect(RectF(0, 0, 0, 0));
 
   auto parentSz = new Size;
   parentSz.width = Dimension(0, SizingMode.auto_);
@@ -591,12 +595,12 @@ unittest {
   flex.gap = 10;
   parent.components.flexContainer = flex;
 
-  auto c1 = fix.makeChild(parent, RectF(0, 0, 40, 20));
+  auto c1 = fix.makeChildWithRect(parent, RectF(0, 0, 40, 20));
   auto sz1 = new Size;
   sz1.margin = Insets(5, 10, 15, 20); // top=5, right=10, bottom=15, left=20
   c1.components.size = sz1;
 
-  auto c2 = fix.makeChild(parent, RectF(0, 0, 50, 30));
+  auto c2 = fix.makeChildWithRect(parent, RectF(0, 0, 50, 30));
   auto sz2 = new Size;
   sz2.margin = Insets(10, 5, 5, 15); // top=10, right=5, bottom=5, left=15
   c2.components.size = sz2;

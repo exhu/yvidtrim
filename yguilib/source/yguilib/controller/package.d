@@ -30,7 +30,8 @@ interface Controller {
   /// Move complex event handling to `update` method.
   HandleResult handleEvent(AppEvent ev);
 
-  /// Called once, and then uisystem is called to recheck models and update if true.
+  /// Called once, and then uisystem is called to recheck models and update if
+  /// true.
   /// Put view model update code (or calls to ui) there.
   /// Returns true if ui layer should be redrawn.
   bool updateView();
@@ -48,7 +49,7 @@ interface Controller {
   void onSuspendByModal();
   void onResumeByModal();
   @property bool isModal() const;
-  @property void isModal(bool value);
+  void setModal(bool value);
 
   void sendAppEvent(AppEvent ev);
 
@@ -62,6 +63,7 @@ class DefaultController : Controller {
   @disable this();
 
   this(UiSystem uiSystem) {
+    assert(uiSystem !is null, "uiSystem must not be null");
     this.uiSystem = uiSystem;
   }
 
@@ -96,7 +98,7 @@ class DefaultController : Controller {
   @property override bool isModal() const {
     return isModal_;
   }
-  @property override void isModal(bool value) {
+  override void setModal(bool value) {
     isModal_ = value;
   }
 

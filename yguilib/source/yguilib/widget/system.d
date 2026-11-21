@@ -65,10 +65,8 @@ abstract class WidgetSystem {
   /// Default priority for user-defined systems when not specified.
   enum int defaultPriority = 0;
 
-  /// Constructs a WidgetSystem with the given execution priority.
-  /// Lower priority values run earlier within the same phase.
-  this(int priority = defaultPriority) nothrow @safe {
-    fPriority = priority;
+  /// Constructs a WidgetSystem with default execution priority.
+  this() nothrow @safe {
   }
 
   /// Read-only priority within a phase (lower runs earlier).
@@ -119,6 +117,11 @@ abstract class WidgetSystem {
   void render(ref WidgetSystemContext ctx) {}
 
 protected:
+  /// Sets execution priority within a phase (lower runs earlier).
+  void setPriority(int priority) nothrow @safe {
+    fPriority = priority;
+  }
+
   /// Helper: Root-to-leaf (back-to-front) iteration over a widget list.
   static void traverseRootToLeaf(alias Fn)(VisibleWidgets widgets) {
     foreach (ref vw; widgets) {
@@ -140,8 +143,7 @@ private:
 /// Convenience base class for systems that perform a bottom-up (leaf-to-root)
 /// pass followed by a top-down (root-to-leaf) pass over `VisibleWidgets`.
 abstract class TwoPassWidgetSystem : WidgetSystem {
-  this(int priority = defaultPriority) nothrow @safe {
-    super(priority);
+  this() nothrow @safe {
   }
 
   void beginPass(ref WidgetSystemContext ctx) {}
@@ -168,8 +170,8 @@ protected:
 // Verifies WidgetSystem default priorities and lifecycle no-op defaults.
 unittest {
   final class TestSystem : WidgetSystem {
-    this(int priority = defaultPriority) nothrow @safe {
-      super(priority);
+    this(int priority) nothrow @safe {
+      setPriority(priority);
     }
   }
 
@@ -179,7 +181,7 @@ unittest {
   assert(WidgetSystem.painterSystemPriority == 0);
   assert(WidgetSystem.defaultPriority == 0);
 
-  auto defSys = new TestSystem();
+  auto defSys = new TestSystem(WidgetSystem.defaultPriority);
   assert(defSys.priority == 0);
   assert(defSys.phases == SystemPhase.none);
 

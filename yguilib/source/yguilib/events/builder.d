@@ -42,7 +42,7 @@ struct ViewAppEventBuilder {
   }
 
   /// Sets the full opaque payload array.
-  ref ViewAppEventBuilder value(
+  ref ViewAppEventBuilder valueArray(
     in ulong[AppEvent.ViewData.valueSize] val
   ) return {
     viewData.value = val;
@@ -57,7 +57,7 @@ struct ViewAppEventBuilder {
   ///             Allowed to be null.
   ref ViewAppEventBuilder data(
     Object obj,
-    void delegate(in AppEvent.ViewData) release = null
+    void delegate(in AppEvent.ViewData) release
   ) return {
     viewData.data = obj;
     viewData.releaseData = release;
@@ -161,7 +161,7 @@ unittest {
   bool separateReleased = false;
   {
     auto ev5 = ViewAppEventBuilder("separateRelease")
-      .data(new TestPayload(888))
+      .data(new TestPayload(888), null)
       .releaseData((in AppEvent.ViewData vd) {
         separateReleased = true;
       })
@@ -175,7 +175,7 @@ unittest {
   // Test 6: Setting full value array
   ulong[AppEvent.ViewData.valueSize] fullVal = [10, 20, 30, 40];
   auto ev6 = ViewAppEventBuilder("fullVal")
-    .value(fullVal)
+    .valueArray(fullVal)
     .build();
   assert(ev6.view.value == fullVal);
 }

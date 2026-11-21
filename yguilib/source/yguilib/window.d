@@ -112,7 +112,7 @@ package(yguilib):
         "Failed to load OpenGL ES functions via glad for window: " ~ title
       );
     }
-    clear();
+    clearWithColor(0.15f, 0.15f, 0.18f, 1.0f);
     swapBuffers();
 
     int pw = width;
@@ -180,7 +180,7 @@ package(yguilib):
     }
   }
 
-  void setTextInputArea(int x, int y, int w, int h, int cursor = 0) {
+  void setTextInputArea(int x, int y, int w, int h, int cursor) {
     if (handle !is null) {
       yguilib_sdl3_Rect rect = yguilib_sdl3_Rect(x, y, w, h);
       yguilib_sdl3_set_text_input_area(handle, &rect, cursor);
@@ -210,17 +210,12 @@ private:
         renderer !is null) {
       renderer.clearCanvas(rootWidget.components.background.color);
     } else {
-      clear();
+      clearWithColor(0.15f, 0.15f, 0.18f, 1.0f);
     }
     swapBuffers();
   }
 
-  void clear(
-    float r = 0.15f,
-    float g = 0.15f,
-    float b = 0.18f,
-    float a = 1.0f
-  ) {
+  void clearWithColor(float r, float g, float b, float a) {
     if (handle !is null && glContext !is null) {
       glClearColor(r, g, b, a);
       glClear(GL_COLOR_BUFFER_BIT);

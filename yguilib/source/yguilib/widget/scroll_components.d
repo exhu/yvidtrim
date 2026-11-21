@@ -56,7 +56,7 @@ final class ScrollableArea : WidgetComponent {
     return this;
   }
 
-  ScrollableArea withOffset(float x, float y) {
+  ScrollableArea withOffsetCoords(float x, float y) {
     this.offset = PointF(x, y);
     return this;
   }

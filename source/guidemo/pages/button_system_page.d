@@ -4,7 +4,6 @@
  */
 module guidemo.pages.button_system_page;
 
-import std.format : format;
 import guidemo.common : makeSectionCard;
 import guidemo.hover_button_system : AnimatedHoverButtonBuilder,
   HoverAnimConfig, HoverButtonConfig;
@@ -45,6 +44,8 @@ final class ButtonSystemPage {
   }
 
   void update() {
+    import std.format : format;
+
     if (!tracker.update()) {
       return;
     }
@@ -60,6 +61,8 @@ final class ButtonSystemPage {
   }
 
   string formatStatus() {
+    import std.format : format;
+
     return format("Clicks: %d", tracker.model.buttonClickCount);
   }
 
@@ -108,61 +111,52 @@ private:
       .alignItems(AlignItems.center)
       .build();
 
-    // Button 1: Slate Neutral
+    buildFadingButtons(btnRow);
+    buildFadingNoteBox(card);
+  }
+
+  void buildFadingButtons(Widget btnRow) {
     HoverAnimConfig cfg1;
     cfg1.style = HoverAnimConfig.AnimStyle.fade;
     cfg1.hoverBg = ColorF(0.28f, 0.38f, 0.55f, 1.0f);
     cfg1.pressBg = ColorF(0.12f, 0.18f, 0.30f, 1.0f);
     cfg1.hoverBorder = ColorF(0.50f, 0.70f, 1.0f, 1.0f);
     cfg1.actionEvent = sysBtnCountActionEvent;
-
     AnimatedHoverButtonBuilder b1;
-    b1.name("sysFadeSlateBtn")
-      .text("Slate Button")
+    b1.name("sysFadeSlateBtn").text("Slate Button")
       .bg(ColorF(0.18f, 0.20f, 0.25f, 1.0f))
       .border(ColorF(0.30f, 0.35f, 0.45f, 1.0f), 1.0f)
-      .radius(6.0f)
-      .fixedSize(140.0f, 38.0f)
-      .anim(cfg1)
+      .radius(6.0f).fixedSize(140.0f, 38.0f).anim(cfg1)
       .build(ui, btnRow, RectF(0, 0, 140, 38));
 
-    // Button 2: Emerald Success
     HoverAnimConfig cfg2;
     cfg2.style = HoverAnimConfig.AnimStyle.fade;
     cfg2.hoverBg = ColorF(0.18f, 0.55f, 0.35f, 1.0f);
     cfg2.pressBg = ColorF(0.08f, 0.35f, 0.20f, 1.0f);
     cfg2.hoverBorder = ColorF(0.35f, 0.85f, 0.55f, 1.0f);
     cfg2.actionEvent = sysBtnCountActionEvent;
-
     AnimatedHoverButtonBuilder b2;
-    b2.name("sysFadeEmeraldBtn")
-      .text("Emerald Confirm")
+    b2.name("sysFadeEmeraldBtn").text("Emerald Confirm")
       .bg(ColorF(0.12f, 0.24f, 0.18f, 1.0f))
       .border(ColorF(0.20f, 0.45f, 0.30f, 1.0f), 1.0f)
-      .radius(6.0f)
-      .fixedSize(150.0f, 38.0f)
-      .anim(cfg2)
+      .radius(6.0f).fixedSize(150.0f, 38.0f).anim(cfg2)
       .build(ui, btnRow, RectF(0, 0, 150, 38));
 
-    // Button 3: Crimson Danger
     HoverAnimConfig cfg3;
     cfg3.style = HoverAnimConfig.AnimStyle.fade;
     cfg3.hoverBg = ColorF(0.65f, 0.20f, 0.25f, 1.0f);
     cfg3.pressBg = ColorF(0.40f, 0.10f, 0.15f, 1.0f);
     cfg3.hoverBorder = ColorF(0.95f, 0.40f, 0.45f, 1.0f);
     cfg3.actionEvent = sysBtnCountActionEvent;
-
     AnimatedHoverButtonBuilder b3;
-    b3.name("sysFadeCrimsonBtn")
-      .text("Crimson Delete")
+    b3.name("sysFadeCrimsonBtn").text("Crimson Delete")
       .bg(ColorF(0.26f, 0.12f, 0.14f, 1.0f))
       .border(ColorF(0.48f, 0.20f, 0.24f, 1.0f), 1.0f)
-      .radius(6.0f)
-      .fixedSize(140.0f, 38.0f)
-      .anim(cfg3)
+      .radius(6.0f).fixedSize(140.0f, 38.0f).anim(cfg3)
       .build(ui, btnRow, RectF(0, 0, 140, 38));
+  }
 
-    // Note card
+  void buildFadingNoteBox(Widget card) {
     auto noteBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("sysFadingNoteBox")
@@ -228,7 +222,11 @@ private:
       .alignItems(AlignItems.center)
       .build();
 
-    // Button 1: Neon Cyan Wave
+    buildGradientButtons(btnRow);
+    buildGradientNoteBox(card);
+  }
+
+  void buildGradientButtons(Widget btnRow) {
     HoverAnimConfig cfg1;
     cfg1.style = HoverAnimConfig.AnimStyle.gradientPlay;
     cfg1.hoverBg = ColorF(0.12f, 0.42f, 0.78f, 1.0f);
@@ -236,18 +234,13 @@ private:
     cfg1.pressBg = ColorF(0.06f, 0.22f, 0.42f, 1.0f);
     cfg1.hoverBorder = ColorF(0.40f, 0.90f, 1.0f, 1.0f);
     cfg1.actionEvent = sysBtnCountActionEvent;
-
     AnimatedHoverButtonBuilder b1;
-    b1.name("sysGradCyanBtn")
-      .text("Cyan Wave")
+    b1.name("sysGradCyanBtn").text("Cyan Wave")
       .bg(ColorF(0.10f, 0.20f, 0.28f, 1.0f))
       .border(ColorF(0.20f, 0.45f, 0.65f, 1.0f), 1.0f)
-      .radius(6.0f)
-      .fixedSize(140.0f, 38.0f)
-      .anim(cfg1)
+      .radius(6.0f).fixedSize(140.0f, 38.0f).anim(cfg1)
       .build(ui, btnRow, RectF(0, 0, 140, 38));
 
-    // Button 2: Gold Sunset Pulse
     HoverAnimConfig cfg2;
     cfg2.style = HoverAnimConfig.AnimStyle.gradientPlay;
     cfg2.hoverBg = ColorF(0.78f, 0.35f, 0.12f, 1.0f);
@@ -255,18 +248,13 @@ private:
     cfg2.pressBg = ColorF(0.45f, 0.18f, 0.06f, 1.0f);
     cfg2.hoverBorder = ColorF(1.0f, 0.88f, 0.35f, 1.0f);
     cfg2.actionEvent = sysBtnCountActionEvent;
-
     AnimatedHoverButtonBuilder b2;
-    b2.name("sysGradSunsetBtn")
-      .text("Sunset Glow")
+    b2.name("sysGradSunsetBtn").text("Sunset Glow")
       .bg(ColorF(0.26f, 0.20f, 0.10f, 1.0f))
       .border(ColorF(0.50f, 0.38f, 0.18f, 1.0f), 1.0f)
-      .radius(6.0f)
-      .fixedSize(145.0f, 38.0f)
-      .anim(cfg2)
+      .radius(6.0f).fixedSize(145.0f, 38.0f).anim(cfg2)
       .build(ui, btnRow, RectF(0, 0, 145, 38));
 
-    // Button 3: Purple Aurora
     HoverAnimConfig cfg3;
     cfg3.style = HoverAnimConfig.AnimStyle.gradientPlay;
     cfg3.hoverBg = ColorF(0.45f, 0.18f, 0.75f, 1.0f);
@@ -274,18 +262,15 @@ private:
     cfg3.pressBg = ColorF(0.28f, 0.10f, 0.42f, 1.0f);
     cfg3.hoverBorder = ColorF(0.90f, 0.55f, 1.0f, 1.0f);
     cfg3.actionEvent = sysBtnCountActionEvent;
-
     AnimatedHoverButtonBuilder b3;
-    b3.name("sysGradAuroraBtn")
-      .text("Purple Aurora")
+    b3.name("sysGradAuroraBtn").text("Purple Aurora")
       .bg(ColorF(0.22f, 0.12f, 0.28f, 1.0f))
       .border(ColorF(0.42f, 0.22f, 0.55f, 1.0f), 1.0f)
-      .radius(6.0f)
-      .fixedSize(145.0f, 38.0f)
-      .anim(cfg3)
+      .radius(6.0f).fixedSize(145.0f, 38.0f).anim(cfg3)
       .build(ui, btnRow, RectF(0, 0, 145, 38));
+  }
 
-    // Note card
+  void buildGradientNoteBox(Widget card) {
     auto noteBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("sysGradientNoteBox")
@@ -351,43 +336,39 @@ private:
       .alignItems(AlignItems.center)
       .build();
 
-    // Primary action trigger
+    buildActionButtons(actionRow);
+    buildCounterHudBox(card);
+  }
+
+  void buildActionButtons(Widget actionRow) {
     HoverAnimConfig cfg1;
     cfg1.style = HoverAnimConfig.AnimStyle.fade;
     cfg1.hoverBg = ColorF(0.25f, 0.45f, 0.80f, 1.0f);
     cfg1.pressBg = ColorF(0.10f, 0.22f, 0.45f, 1.0f);
     cfg1.hoverBorder = ColorF(0.60f, 0.85f, 1.0f, 1.0f);
     cfg1.actionEvent = sysBtnCountActionEvent;
-
     AnimatedHoverButtonBuilder b1;
-    b1.name("sysIncrementBtn")
-      .text("+ Click Increment")
+    b1.name("sysIncrementBtn").text("+ Click Increment")
       .bg(ColorF(0.15f, 0.30f, 0.55f, 1.0f))
       .border(ColorF(0.30f, 0.55f, 0.95f, 1.0f), 1.5f)
-      .radius(8.0f)
-      .fixedSize(180.0f, 42.0f)
-      .anim(cfg1)
+      .radius(8.0f).fixedSize(180.0f, 42.0f).anim(cfg1)
       .build(ui, actionRow, RectF(0, 0, 180, 42));
 
-    // Reset action trigger
     HoverAnimConfig cfg2;
     cfg2.style = HoverAnimConfig.AnimStyle.fade;
     cfg2.hoverBg = ColorF(0.30f, 0.34f, 0.40f, 1.0f);
     cfg2.pressBg = ColorF(0.14f, 0.16f, 0.18f, 1.0f);
     cfg2.hoverBorder = ColorF(0.55f, 0.60f, 0.70f, 1.0f);
     cfg2.actionEvent = sysBtnCountResetEvent;
-
     AnimatedHoverButtonBuilder b2;
-    b2.name("sysResetCounterBtn")
-      .text("Reset Counter")
+    b2.name("sysResetCounterBtn").text("Reset Counter")
       .bg(ColorF(0.20f, 0.22f, 0.26f, 1.0f))
       .border(ColorF(0.35f, 0.38f, 0.45f, 1.0f), 1.0f)
-      .radius(8.0f)
-      .fixedSize(140.0f, 42.0f)
-      .anim(cfg2)
+      .radius(8.0f).fixedSize(140.0f, 42.0f).anim(cfg2)
       .build(ui, actionRow, RectF(0, 0, 140, 42));
+  }
 
-    // HUD Counter Display Box
+  void buildCounterHudBox(Widget card) {
     auto hudBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("sysCounterHudBox")
@@ -455,25 +436,24 @@ private:
       .alignItems(AlignItems.center)
       .build();
 
-    // Pill Button 1
+    buildPillButtons(pillRow);
+    buildArchBox(card);
+  }
+
+  void buildPillButtons(Widget pillRow) {
     HoverAnimConfig pillCfg1;
     pillCfg1.style = HoverAnimConfig.AnimStyle.fade;
     pillCfg1.hoverBg = ColorF(0.40f, 0.28f, 0.60f, 1.0f);
     pillCfg1.pressBg = ColorF(0.18f, 0.12f, 0.26f, 1.0f);
     pillCfg1.hoverBorder = ColorF(0.75f, 0.55f, 1.0f, 1.0f);
     pillCfg1.actionEvent = sysBtnCountActionEvent;
-
     AnimatedHoverButtonBuilder p1;
-    p1.name("sysPillFadeBtn")
-      .text("Pill Button (r=18)")
+    p1.name("sysPillFadeBtn").text("Pill Button (r=18)")
       .bg(ColorF(0.22f, 0.16f, 0.32f, 1.0f))
       .border(ColorF(0.45f, 0.32f, 0.65f, 1.5f), 1.5f)
-      .radius(18.0f)
-      .fixedSize(170.0f, 36.0f)
-      .anim(pillCfg1)
+      .radius(18.0f).fixedSize(170.0f, 36.0f).anim(pillCfg1)
       .build(ui, pillRow, RectF(0, 0, 170, 36));
 
-    // Pill Button 2 with gradient play
     HoverAnimConfig pillCfg2;
     pillCfg2.style = HoverAnimConfig.AnimStyle.gradientPlay;
     pillCfg2.hoverBg = ColorF(0.15f, 0.50f, 0.35f, 1.0f);
@@ -481,18 +461,15 @@ private:
     pillCfg2.pressBg = ColorF(0.08f, 0.30f, 0.20f, 1.0f);
     pillCfg2.hoverBorder = ColorF(0.45f, 0.98f, 0.75f, 1.0f);
     pillCfg2.actionEvent = sysBtnCountActionEvent;
-
     AnimatedHoverButtonBuilder p2;
-    p2.name("sysPillWaveBtn")
-      .text("Pill Wave (r=18)")
+    p2.name("sysPillWaveBtn").text("Pill Wave (r=18)")
       .bg(ColorF(0.14f, 0.26f, 0.24f, 1.0f))
       .border(ColorF(0.28f, 0.55f, 0.50f, 1.5f), 1.5f)
-      .radius(18.0f)
-      .fixedSize(170.0f, 36.0f)
-      .anim(pillCfg2)
+      .radius(18.0f).fixedSize(170.0f, 36.0f).anim(pillCfg2)
       .build(ui, pillRow, RectF(0, 0, 170, 36));
+  }
 
-    // Explanatory code summary box
+  void buildArchBox(Widget card) {
     auto archBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("sysArchBox")

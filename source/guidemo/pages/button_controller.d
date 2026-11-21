@@ -16,11 +16,11 @@ import yguilib.widget : Widget;
 
 /// Controller handling Page 3 button action and reset events.
 final class ButtonPageController : DefaultController {
-  this(
+  static ButtonPageController createWithParent(
     UiSystem ui,
     ref ModelTracker!DemoModel demoTracker,
     Widget parent,
-    HoverButtonController hoverController = null
+    HoverButtonController hoverController
   ) {
     assert(ui !is null, "ui must not be null");
     assert(parent !is null, "parent must not be null");
@@ -28,7 +28,15 @@ final class ButtonPageController : DefaultController {
     if (hoverController !is null) {
       page.registerWithController(hoverController);
     }
-    this(ui, demoTracker, page);
+    return new ButtonPageController(ui, demoTracker, page);
+  }
+
+  static ButtonPageController createStandalone(
+    UiSystem ui,
+    ButtonPage page
+  ) {
+    auto dm = ModelTracker!DemoModel(new DemoModel());
+    return new ButtonPageController(ui, dm, page);
   }
 
   this(
@@ -48,11 +56,6 @@ final class ButtonPageController : DefaultController {
       page.getRootWidget(),
       page.formatStatus()
     );
-  }
-
-  this(UiSystem ui, ButtonPage page) {
-    auto dm = ModelTracker!DemoModel(new DemoModel());
-    this(ui, dm, page);
   }
 
   invariant {
@@ -111,7 +114,7 @@ unittest {
   auto ui = new UiSystemImpl(null);
   auto root = new Widget(ui.nextWidgetId());
   auto page = new ButtonPage(ui, root);
-  auto ctrl = new ButtonPageController(ui, page);
+  auto ctrl = ButtonPageController.createStandalone(ui, page);
 
   auto evInc = ViewAppEventBuilder(btnCountActionEvent).build();
   auto hrInc = ctrl.handleEvent(evInc);

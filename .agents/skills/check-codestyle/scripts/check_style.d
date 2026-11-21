@@ -177,6 +177,11 @@ bool isControlOrKeyword(string name) {
     case "align":
     case "deprecated":
     case "inout":
+    case "import":
+    case "package":
+    case "const":
+    case "immutable":
+    case "shared":
       return true;
     default:
       return false;
@@ -330,14 +335,15 @@ void checkFileContent(
     ~ r"char|auto|class|struct|interface|enum|alias)\s+"
   );
   auto heavyImportRe = ctRegex!(
-    r"^\s*import\s+std\.(algorithm|format|json|regex|datetime)"
+    r"^\s*import\s+std\.(algorithm|format|regex|datetime)"
   );
   auto blockStartRe = ctRegex!(
     r"^\s*(class|struct|interface|union|enum|if|while|for|foreach|"
     ~ r"switch|do|void|auto|override|final)\b"
   );
   auto typeDeclRe = ctRegex!(
-    r"^\s*(?:final\s+|abstract\s+|static\s+)*"
+    r"^\s*(?:private\s+|public\s+|protected\s+|package(?:\([^)]*\))?\s+)?"
+    ~ r"(?:final\s+|abstract\s+|static\s+)*"
     ~ r"(class|struct|interface|enum|union)\s+([A-Za-z_][A-Za-z0-9_]*)"
   );
   auto condBlockRe = ctRegex!(
@@ -514,7 +520,10 @@ void checkFileContent(
             }
           } else {
             auto fnM = matchFirst(rawLine, funcDeclRe);
-            if (!fnM.empty && !trimmed.startsWith("alias ")
+            bool inDeclScope = scopes.length == 1
+              || scopes[$ - 1].isTypeScope
+              || scopes[$ - 1].isConditional;
+            if (inDeclScope && !fnM.empty && !trimmed.startsWith("alias ")
               && !trimmed.startsWith("return ")
               && !trimmed.startsWith("assert(")
               && !trimmed.startsWith("mixin(")) {
@@ -576,14 +585,18 @@ void checkFileContent(
     // Track braces and function length
     foreach (char c; rawLine) {
       if (c == '{') {
+        bool wasTypeOrCond = nextBraceIsType || inConditionalHeader;
         if (isD) {
           bool isCond = inConditionalHeader
             || (scopes.length > 0 && scopes[$ - 1].isConditional);
+          if (nextBraceIsType) {
+            currentVisOrder = 0;
+          }
           scopes ~= ScopeState(nextBraceIsType, isCond, 0, null);
           nextBraceIsType = false;
           inConditionalHeader = false;
         }
-        if (braceDepth == 1 && funcStartLine == -1) {
+        if (braceDepth == 1 && funcStartLine == -1 && !wasTypeOrCond) {
           funcStartLine = cast(int) lineNo;
           funcBraceStart = braceDepth;
         }

@@ -26,7 +26,6 @@
  */
 module guidemo.hover_button_system;
 
-import std.algorithm.comparison : clamp;
 import std.math : PI, sin;
 import yguilib.events : AppEvent;
 import yguilib.events.builder : ViewAppEventBuilder;
@@ -90,7 +89,7 @@ final class AnimatedHoverButtonComponent : WidgetComponent {
   float cursorNormX = 0.5f;
   float cursorNormY = 0.5f;
 
-  this(in HoverAnimConfig animConfig = HoverAnimConfig()) {
+  this(in HoverAnimConfig animConfig) {
     this.animConfig = animConfig;
     const float speed = animConfig.fadeSpeed > 0.0f
       ? animConfig.fadeSpeed
@@ -125,10 +124,7 @@ struct AnimatedHoverButtonBuilder {
     return this;
   }
 
-  ref AnimatedHoverButtonBuilder border(
-    ColorF color,
-    float width = 1.0f
-  ) return {
+  ref AnimatedHoverButtonBuilder border(ColorF color, float width) return {
     config.borderColor = color;
     config.borderWidth = width;
     return this;
@@ -208,7 +204,20 @@ struct AnimatedHoverButtonBuilder {
     }
 
     b.padding(config.padding);
+    applyVisualStyle(b);
 
+    auto comp = new AnimatedHoverButtonComponent(animConfig);
+    comp.normalBg = config.normalBg;
+    comp.normalBorder = config.borderColor;
+    comp.colorsInitialized = true;
+    b.component(comp);
+    b.inputEnabled(true);
+
+    return b.build();
+  }
+
+private:
+  void applyVisualStyle(ref WidgetBuilder b) {
     if (config.cornerRadius > 0.0f) {
       b.roundBg(config.normalBg).bgRadius(config.cornerRadius);
     } else {
@@ -228,15 +237,6 @@ struct AnimatedHoverButtonBuilder {
       .textColor(config.textColor)
       .fontSize(config.fontSize)
       .textAlign(TextLabel.Alignment.center);
-
-    auto comp = new AnimatedHoverButtonComponent(animConfig);
-    comp.normalBg = config.normalBg;
-    comp.normalBorder = config.borderColor;
-    comp.colorsInitialized = true;
-    b.component(comp);
-    b.inputEnabled(true);
-
-    return b.build();
   }
 }
 
@@ -245,8 +245,8 @@ Widget createAnimatedHoverButton(
   UiSystem ui,
   Widget parent,
   RectF rect,
-  in HoverButtonConfig config = HoverButtonConfig(),
-  in HoverAnimConfig animConfig = HoverAnimConfig()
+  in HoverButtonConfig config,
+  in HoverAnimConfig animConfig
 ) {
   AnimatedHoverButtonBuilder b;
   b.config = config;
@@ -258,8 +258,7 @@ Widget createAnimatedHoverButton(
 final class AnimatedHoverButtonSystem : WidgetSystem {
   enum float hoverPulsePeak = 0.75f;
 
-  this(int priority = defaultPriority) nothrow @safe {
-    super(priority);
+  this() nothrow @safe {
   }
 
   override @property SystemPhase phases() const nothrow @safe {
@@ -340,7 +339,7 @@ final class AnimatedHoverButtonSystem : WidgetSystem {
   }
 
 private:
-  void ensureAnimTimer(WidgetSystemHost fallbackHost = null) {
+  void ensureAnimTimer(WidgetSystemHost fallbackHost) {
     if (host is null && fallbackHost !is null) {
       host = fallbackHost;
     }
@@ -669,6 +668,7 @@ private:
   }
 
   static ColorF lerpColor(in ColorF a, in ColorF b, float t) {
+    import std.algorithm.comparison : clamp;
     const float f = clamp(t, 0.0f, 1.0f);
     return ColorF(
       a.r + (b.r - a.r) * f,
@@ -701,6 +701,7 @@ private:
     foreach (ref VisibleWidget vw; widgets) {
       if (vw.widget is target) {
         if (vw.absRect.width > 0.0f && vw.absRect.height > 0.0f) {
+          import std.algorithm.comparison : clamp;
           comp.cursorNormX = clamp(
             (p.x - vw.absRect.x) / vw.absRect.width, 0.0f, 1.0f
           );

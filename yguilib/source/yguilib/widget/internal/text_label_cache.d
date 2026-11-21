@@ -154,7 +154,7 @@ FormattedTextLine[] getLayoutLines(
   bool overflowEllipsis,
   TextAlignment alignment,
   float availableWidth,
-  float availableHeight = 0.0f
+  float availableHeight
 ) {
   if (r is null || font is null) {
     return [];
@@ -199,8 +199,8 @@ PointF getTextContentSize(
   string caption,
   bool multiline,
   bool overflowEllipsis,
-  float availableWidth = 0.0f,
-  float availableHeight = 0.0f
+  float availableWidth,
+  float availableHeight
 ) {
   if (r is null || font is null) {
     return PointF(0.0f, 0.0f);

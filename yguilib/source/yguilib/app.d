@@ -8,6 +8,7 @@ import yguilib.internal.logger : setupSdlLogger;
 import yguilib.internal.uisystem_impl : UiSystemImpl;
 import yguilib.uisystem : UiSystem;
 import yguilib.window : Window;
+import std.logger : LogLevel;
 
 /** The only object you need to run a gui app with a window.
 
@@ -23,12 +24,13 @@ void main() {
 }
  */
 final class App {
-  static App makeAppWithTitleWh(string title, int width = 1280, int height = 720) {
+  static App makeAppWithTitleWh(string title, int width, int height) {
     return new App(new Window(width, height, title));
   }
 
   /// entry point
   void run(Controller mainController) {
+    assert(mainController !is null, "mainController must not be null");
     ui.pushController(mainController);
     ui.mainEventLoop();
     ui.popController();
@@ -41,7 +43,8 @@ final class App {
 package(yguilib):
   /// Use makeApp* static factory functions.
   this(Window w) {
-    setupSdlLogger();
+    assert(w !is null, "w must not be null");
+    setupSdlLogger(LogLevel.trace);
     fUi = new UiSystemImpl(w);
   }
 

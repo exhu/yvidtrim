@@ -252,8 +252,6 @@ class UiSystemImpl : UiSystem {
     root["type"] = JSONValue("UiSystem");
 
     JSONValue[string] fields;
-
-    // Controller stack
     JSONValue[] controllerList;
     foreach (ctrl; controllers) {
       JSONValue[string] ctrlJson;
@@ -263,45 +261,44 @@ class UiSystemImpl : UiSystem {
     }
     fields["controllers"] = JSONValue(controllerList);
 
-    // Registered views
     JSONValue[string] viewsJson;
     foreach (name, view; fWidgetViews) {
       viewsJson[name] = JSONValue(shortTypeName(view));
     }
     fields["widgetViews"] = JSONValue(viewsJson);
 
-    // Registered view controllers
     JSONValue[string] viewControllersJson;
     foreach (name, ctrl; fWidgetViewControllers) {
       viewControllersJson[name] = JSONValue(shortTypeName(ctrl));
     }
     fields["widgetViewControllers"] = JSONValue(viewControllersJson);
-
-    // Window
-    if (fMainWindow !is null) {
-      JSONValue[string] winJson;
-      winJson["title"] = JSONValue(fMainWindow.title);
-      winJson["width"] = JSONValue(fMainWindow.width);
-      winJson["height"] = JSONValue(fMainWindow.height);
-
-      if (fMainWindow.rootWidget !is null) {
-        JSONValue[string] rootWidgetJson;
-        rootWidgetJson["name"] = JSONValue(fMainWindow.rootWidget.name);
-        rootWidgetJson["uId"] = JSONValue(fMainWindow.rootWidget.uId);
-        winJson["rootWidget"] = JSONValue(rootWidgetJson);
-      } else {
-        winJson["rootWidget"] = JSONValue(null);
-      }
-      fields["window"] = JSONValue(winJson);
-    } else {
-      fields["window"] = JSONValue(null);
-    }
+    fields["window"] = dumpWindowInfoJson();
 
     root["fields"] = JSONValue(fields);
-    return serializeToJson(JSONValue(root));
+    return serializeToJson(JSONValue(root), true);
   }
 
 private:
+  auto dumpWindowInfoJson() {
+    import std.json : JSONValue;
+    if (fMainWindow is null) {
+      return JSONValue(null);
+    }
+    JSONValue[string] winJson;
+    winJson["title"] = JSONValue(fMainWindow.title);
+    winJson["width"] = JSONValue(fMainWindow.width);
+    winJson["height"] = JSONValue(fMainWindow.height);
+
+    if (fMainWindow.rootWidget !is null) {
+      JSONValue[string] rootWidgetJson;
+      rootWidgetJson["name"] = JSONValue(fMainWindow.rootWidget.name);
+      rootWidgetJson["uId"] = JSONValue(fMainWindow.rootWidget.uId);
+      winJson["rootWidget"] = JSONValue(rootWidgetJson);
+    } else {
+      winJson["rootWidget"] = JSONValue(null);
+    }
+    return JSONValue(winJson);
+  }
   struct ControllerDirtyList {
     Controller[16] stackBuf;
     size_t stackCount = 0;
@@ -634,8 +631,9 @@ unittest {
   import core.time;
 
   class ThreadTestController : DefaultController {
-    this() {
-      super(null);
+    this(UiSystem ui) {
+      assert(ui !is null);
+      super(ui);
     }
     const(AppEvent)[] received;
 
@@ -652,7 +650,7 @@ unittest {
 
   auto window = new Window(100, 100, "aaa");
   auto ui = new UiSystemImpl(window);
-  auto ctrl = new ThreadTestController;
+  auto ctrl = new ThreadTestController(ui);
   ui.pushController(ctrl);
 
   auto worker = new Thread({
@@ -682,6 +680,7 @@ unittest {
     int viewTicks = 0;
 
     this(UiSystemImpl ui) {
+      assert(ui !is null);
       super(ui);
       this.ui = ui;
     }
@@ -726,6 +725,8 @@ unittest {
 unittest {
   class ResizeTestController : DefaultController {
     this(UiSystemImpl ui, Window window) {
+      assert(ui !is null);
+      assert(window !is null);
       super(ui);
       this.window = window;
     }
@@ -797,6 +798,7 @@ unittest {
 unittest {
   class ExposeTestController : DefaultController {
     this(UiSystemImpl ui) {
+      assert(ui !is null);
       super(ui);
     }
     const(AppEvent)[] received;
@@ -864,11 +866,12 @@ unittest {
     string name;
     string[]* log;
     bool shouldConsume;
-    this(string name, string[]* log, bool shouldConsume = false) {
-      super(null);
+    this(UiSystem ui, string name, string[]* log) {
+      assert(ui !is null);
+      assert(log !is null);
+      super(ui);
       this.name = name;
       this.log = log;
-      this.shouldConsume = shouldConsume;
     }
 
     override HandleResult handleEvent(AppEvent ev) {
@@ -890,8 +893,8 @@ unittest {
   auto window = new Window(100, 100, "test_prop");
   auto ui = new UiSystemImpl(window);
 
-  auto cOldest = new PropagationTestController("oldest", &log, false);
-  auto cNewest = new PropagationTestController("newest", &log, false);
+  auto cOldest = new PropagationTestController(ui, "oldest", &log);
+  auto cNewest = new PropagationTestController(ui, "newest", &log);
 
   ui.pushController(cOldest);
   ui.pushController(cNewest);
@@ -910,11 +913,12 @@ unittest {
     string name;
     string[]* log;
     bool shouldConsume;
-    this(string name, string[]* log, bool shouldConsume) {
-      super(null);
+    this(UiSystem ui, string name, string[]* log) {
+      assert(ui !is null);
+      assert(log !is null);
+      super(ui);
       this.name = name;
       this.log = log;
-      this.shouldConsume = shouldConsume;
     }
 
     override HandleResult handleEvent(AppEvent ev) {
@@ -936,8 +940,9 @@ unittest {
   auto window = new Window(100, 100, "test_consume");
   auto ui = new UiSystemImpl(window);
 
-  auto cOldest = new ConsumeTestController("oldest", &log, false);
-  auto cNewest = new ConsumeTestController("newest", &log, true);
+  auto cOldest = new ConsumeTestController(ui, "oldest", &log);
+  auto cNewest = new ConsumeTestController(ui, "newest", &log);
+  cNewest.shouldConsume = true;
 
   ui.pushController(cOldest);
   ui.pushController(cNewest);
@@ -956,11 +961,12 @@ unittest {
     string name;
     string[]* log;
     bool quitAfterUpdate;
-    this(string name, string[]* log, UiSystem ui, bool quitAfterUpdate) {
+    this(UiSystem ui, string name, string[]* log) {
+      assert(ui !is null);
+      assert(log !is null);
       super(ui);
       this.name = name;
       this.log = log;
-      this.quitAfterUpdate = quitAfterUpdate;
     }
 
     override HandleResult handleEvent(AppEvent ev) {
@@ -989,8 +995,9 @@ unittest {
   auto window = new Window(100, 100, "test_view_order");
   auto ui = new UiSystemImpl(window);
 
-  auto cOldest = new ViewOrderTestController("oldest", &log, ui, false);
-  auto cNewest = new ViewOrderTestController("newest", &log, ui, true);
+  auto cOldest = new ViewOrderTestController(ui, "oldest", &log);
+  auto cNewest = new ViewOrderTestController(ui, "newest", &log);
+  cNewest.quitAfterUpdate = true;
 
   ui.pushController(cOldest);
   ui.pushController(cNewest);
@@ -1012,6 +1019,8 @@ unittest {
     UiSystemImpl ui;
     int* updateCount;
     this(UiSystemImpl ui, int* count) {
+      assert(ui !is null);
+      assert(count !is null);
       super(ui);
       this.ui = ui;
       this.updateCount = count;
@@ -1064,11 +1073,12 @@ unittest {
     string name;
     string[]* log;
     bool shouldQuit;
-    this(string name, string[]* log, bool shouldQuit) {
-      super(null);
+    this(UiSystem ui, string name, string[]* log) {
+      assert(ui !is null);
+      assert(log !is null);
+      super(ui);
       this.name = name;
       this.log = log;
-      this.shouldQuit = shouldQuit;
     }
 
     override HandleResult handleEvent(AppEvent ev) {
@@ -1084,8 +1094,9 @@ unittest {
   auto window = new Window(100, 100, "test_quit");
   auto ui = new UiSystemImpl(window);
 
-  auto cOldest = new QuitTestController("oldest", &log, false);
-  auto cNewest = new QuitTestController("newest", &log, true);
+  auto cOldest = new QuitTestController(ui, "oldest", &log);
+  auto cNewest = new QuitTestController(ui, "newest", &log);
+  cNewest.shouldQuit = true;
 
   ui.pushController(cOldest);
   ui.pushController(cNewest);
@@ -1109,6 +1120,7 @@ unittest {
     int viewCount = 0;
 
     this(UiSystem ui) {
+      assert(ui !is null);
       super(ui);
     }
 
@@ -1273,7 +1285,7 @@ unittest {
   auto ui = new UiSystemImpl(win);
   auto root = new Widget(ui.nextWidgetId());
   root.rect = RectF(0, 0, 320, 240);
-  root.components.background = new Background(ColorF(0.1f, 0.1f, 0.1f, 1.0f));
+  root.components.background = Background.rect(ColorF(0.1f, 0.1f, 0.1f, 1.0f));
   win.rootWidget = root;
 
   assert(root.isTreeLayoutDirty());
@@ -1315,7 +1327,7 @@ unittest {
 
   final class CounterSystem : WidgetSystem {
     this() nothrow @safe {
-      super(10);
+      setPriority(10);
     }
 
     override @property SystemPhase phases() const nothrow @safe {
@@ -1493,6 +1505,7 @@ unittest {
 
   class DumpTestViewController : WidgetViewControllerBase {
     this(UiSystem ui) {
+      assert(ui !is null);
       super(ui);
     }
     override string getControllerName() {

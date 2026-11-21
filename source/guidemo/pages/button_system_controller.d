@@ -15,14 +15,26 @@ import yguilib.widget : Widget;
 
 /// Controller handling Page 4 system-driven button action and reset events.
 final class ButtonSystemPageController : DefaultController {
-  this(
+  static ButtonSystemPageController createWithParent(
     UiSystem ui,
     ref ModelTracker!DemoModel demoTracker,
     Widget parent
   ) {
     assert(ui !is null, "ui must not be null");
     assert(parent !is null, "parent must not be null");
-    this(ui, demoTracker, new ButtonSystemPage(ui, parent));
+    return new ButtonSystemPageController(
+      ui,
+      demoTracker,
+      new ButtonSystemPage(ui, parent)
+    );
+  }
+
+  static ButtonSystemPageController createStandalone(
+    UiSystem ui,
+    ButtonSystemPage page
+  ) {
+    auto dm = ModelTracker!DemoModel(new DemoModel());
+    return new ButtonSystemPageController(ui, dm, page);
   }
 
   this(
@@ -42,11 +54,6 @@ final class ButtonSystemPageController : DefaultController {
       page.getRootWidget(),
       page.formatStatus()
     );
-  }
-
-  this(UiSystem ui, ButtonSystemPage page) {
-    auto dm = ModelTracker!DemoModel(new DemoModel());
-    this(ui, dm, page);
   }
 
   invariant {
@@ -105,7 +112,7 @@ unittest {
   auto ui = new UiSystemImpl(null);
   auto root = new Widget(ui.nextWidgetId());
   auto page = new ButtonSystemPage(ui, root);
-  auto ctrl = new ButtonSystemPageController(ui, page);
+  auto ctrl = ButtonSystemPageController.createStandalone(ui, page);
 
   auto evInc = ViewAppEventBuilder(sysBtnCountActionEvent).build();
   auto hrInc = ctrl.handleEvent(evInc);

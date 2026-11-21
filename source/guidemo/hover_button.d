@@ -47,7 +47,6 @@
  */
 module guidemo.hover_button;
 
-import std.algorithm.comparison : clamp;
 import std.math : PI, abs, sin;
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
@@ -98,7 +97,7 @@ struct HoverButtonBuilder {
     return this;
   }
 
-  ref HoverButtonBuilder border(ColorF color, float width = 1.0f) return {
+  ref HoverButtonBuilder border(ColorF color, float width) return {
     config.borderColor = color;
     config.borderWidth = width;
     return this;
@@ -176,49 +175,59 @@ struct HoverButtonBuilder {
     }
 
     rootBuilder.child((WidgetBuilder cb) {
-      cb.name(rootName ~ "Label")
-        .rect(RectF(0, 0, initW, initH))
-        .fixedSize(initW, initH)
-        .padding(config.padding);
-
-      if (config.cornerRadius > 0.0f) {
-        cb.roundBg(config.normalBg).bgRadius(config.cornerRadius);
-      } else {
-        cb.bg(config.normalBg);
-      }
-
-      if (config.borderWidth > 0.0f) {
-        cb.border(config.borderColor)
-          .borderWidth(config.borderWidth)
-          .borderStyle(
-            config.cornerRadius > 0.0f
-              ? Border.Style.round
-              : Border.Style.rect
-          )
-          .borderRadius(config.cornerRadius);
-      }
-
-      cb.text(config.text)
-        .textColor(config.textColor)
-        .fontSize(config.fontSize)
-        .textAlign(TextLabel.Alignment.center)
-        .onMouseEnter("mouseEnter")
-        .onMouseLeave("mouseLeave")
-        .onMouseDown("mouseDown")
-        .onMouseUp("mouseUp")
-        .onMouseMove("mouseMove");
+      buildVisualChild(cb, initW, initH, rootName);
     });
 
     return rootBuilder.build();
   }
+
+private:
+  void buildVisualChild(
+    WidgetBuilder cb,
+    float initW,
+    float initH,
+    string rootName
+  ) {
+    cb.name(rootName ~ "Label")
+      .rect(RectF(0, 0, initW, initH))
+      .fixedSize(initW, initH)
+      .padding(config.padding);
+
+    if (config.cornerRadius > 0.0f) {
+      cb.roundBg(config.normalBg).bgRadius(config.cornerRadius);
+    } else {
+      cb.bg(config.normalBg);
+    }
+
+    if (config.borderWidth > 0.0f) {
+      cb.border(config.borderColor)
+        .borderWidth(config.borderWidth)
+        .borderStyle(
+          config.cornerRadius > 0.0f
+            ? Border.Style.round
+            : Border.Style.rect
+        )
+        .borderRadius(config.cornerRadius);
+    }
+
+    cb.text(config.text)
+      .textColor(config.textColor)
+      .fontSize(config.fontSize)
+      .textAlign(TextLabel.Alignment.center)
+      .onMouseEnter("mouseEnter")
+      .onMouseLeave("mouseLeave")
+      .onMouseDown("mouseDown")
+      .onMouseUp("mouseUp")
+      .onMouseMove("mouseMove");
+  }
 }
 
-/// Convenience helper to create a hover button using default configuration.
+/// Convenience helper to create a hover button using explicit configuration.
 Widget createHoverButton(
   UiSystem ui,
   Widget parent,
   RectF rect,
-  in HoverButtonConfig config = HoverButtonConfig()
+  in HoverButtonConfig config
 ) {
   HoverButtonBuilder b;
   b.config = config;
@@ -265,21 +274,12 @@ final class HoverButtonController : DefaultController {
 
   enum float hoverPulsePeak = 0.75f;
 
-  this(
-    UiSystem ui,
-    Widget[] buttonViews = null,
-    in HoverAnimConfig[] animConfigs = null
-  ) {
+  this(UiSystem ui) {
+    assert(ui !is null, "ui must not be null");
     super(ui);
-    if (buttonViews.length > 0) {
-      addButtons(buttonViews, animConfigs);
-    }
   }
 
-  void addButton(
-    Widget buttonView,
-    in HoverAnimConfig animConfig = HoverAnimConfig()
-  ) {
+  void addButton(Widget buttonView, in HoverAnimConfig animConfig) {
     assert(buttonView !is null, "buttonView must not be null");
     assert(
       buttonView.children.length > 0,
@@ -316,7 +316,7 @@ final class HoverButtonController : DefaultController {
 
   void addButtons(
     Widget[] buttonViews,
-    in HoverAnimConfig[] animConfigs = null
+    in HoverAnimConfig[] animConfigs
   ) {
     foreach (i, view; buttonViews) {
       HoverAnimConfig cfg = (animConfigs !is null && i < animConfigs.length)
@@ -419,6 +419,7 @@ private:
     if (entry.visualWidget !is null &&
         entry.visualWidget.rect.width > 0.0f &&
         entry.visualWidget.rect.height > 0.0f) {
+      import std.algorithm.comparison : clamp;
       entry.cursorNormX = clamp(
         val.localX / entry.visualWidget.rect.width, 0.0f, 1.0f
       );
@@ -575,6 +576,7 @@ private:
   }
 
   static ColorF lerpColor(in ColorF a, in ColorF b, float t) {
+    import std.algorithm.comparison : clamp;
     const float f = clamp(t, 0.0f, 1.0f);
     return ColorF(
       a.r + (b.r - a.r) * f,
@@ -722,7 +724,8 @@ unittest {
   animCfg.hoverBg = ColorF(0.4f, 0.6f, 0.9f, 1.0f);
   animCfg.actionEvent = "customAction";
 
-  auto controller = new HoverButtonController(testUi, [btnRoot], [animCfg]);
+  auto controller = new HoverButtonController(testUi);
+  controller.addButtons([btnRoot], [animCfg]);
   assert(controller.entries.length == 1);
 
   // Dispatch enter event to controller
@@ -776,7 +779,8 @@ unittest {
   gradCfg.hoverBg = ColorF(0.2f, 0.4f, 0.8f, 1.0f);
   gradCfg.gradientAccentBg = ColorF(0.1f, 0.9f, 0.8f, 1.0f);
 
-  auto gradController = new HoverButtonController(testUi, [btnRoot], [gradCfg]);
+  auto gradController = new HoverButtonController(testUi);
+  gradController.addButtons([btnRoot], [gradCfg]);
   assert(gradController.entries.length == 1);
 
   gradController.handleEvent(enterEv);
@@ -786,11 +790,11 @@ unittest {
   assert(gradController.entries[0].animPhase > 0.0f);
 
   // Test mouseMove with cursor coordinate calculation
-  auto moveVal = MouseEvent.AppEventViewValue.pack(50.0f, 15.0f);
+  auto moveVal = MouseEvent.AppEventViewValue.packLocal(50.0f, 15.0f, 0, true);
   auto moveEv = ViewAppEventBuilder("hoverBtn.move")
     .widget(child)
     .viewWidget(btnRoot)
-    .value(moveVal.raw)
+    .valueArray(moveVal.raw)
     .build();
   auto moveRes = gradController.handleEvent(moveEv);
   assert(moveRes.result == HandleResult.Result.updateView);
@@ -807,7 +811,8 @@ unittest {
       RectF(cast(float) (i * 90), 0, 80, 32)
     );
   }
-  auto sweepCtrl = new HoverButtonController(testUi, sweepBtns[]);
+  auto sweepCtrl = new HoverButtonController(testUi);
+  sweepCtrl.addButtons(sweepBtns[], null);
   foreach (btn; sweepBtns) {
     sweepCtrl.handleEvent(ViewAppEventBuilder("hoverBtn.enter")
       .widget(btn.children[0])

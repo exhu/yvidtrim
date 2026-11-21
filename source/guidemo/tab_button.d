@@ -47,10 +47,10 @@ Widget createTabButton(
   Widget parent,
   string label,
   string eventName,
-  bool isActive = false,
-  float width = defaultTabButtonWidth,
-  float height = defaultTabButtonHeight,
-  string name = null
+  bool isActive,
+  float width,
+  float height,
+  string name
 ) {
   assert(parent !is null, "parent must not be null");
 
@@ -112,7 +112,10 @@ final class HeaderTabButtonsProvider : WidgetArrayProvider {
 
   override void addWidget(Widget parent) {
     assert(parent !is null, "parent must not be null");
-    createTabButton(ui, parent, null, null);
+    createTabButton(
+      ui, parent, null, null, false,
+      defaultTabButtonWidth, defaultTabButtonHeight, null
+    );
   }
 
   override void updateWidgetAt(Widget w, size_t index) {
@@ -141,7 +144,10 @@ unittest {
   root.rect = RectF(0, 0, 800, 600);
 
   // 1. Create active tab button
-  auto btnActive = createTabButton(ui, root, "Active Tab", "tabActive", true);
+  auto btnActive = createTabButton(
+    ui, root, "Active Tab", "tabActive", true,
+    defaultTabButtonWidth, defaultTabButtonHeight, null
+  );
   assert(btnActive !is null);
   assert(btnActive.rect.width == defaultTabButtonWidth);
   assert(btnActive.rect.height == defaultTabButtonHeight);
@@ -159,7 +165,10 @@ unittest {
     root,
     "Inactive Tab",
     "tabInactive",
-    false
+    false,
+    defaultTabButtonWidth,
+    defaultTabButtonHeight,
+    null
   );
   assert(btnInactive !is null);
   assert(btnInactive.components.background.color == tabInactiveBg);
@@ -195,8 +204,14 @@ unittest {
     .alignItems(AlignItems.center)
     .build();
 
-  auto b1 = createTabButton(ui, row, "Tab 1", "t1", true);
-  auto b2 = createTabButton(ui, row, "Tab 2", "t2", false);
+  auto b1 = createTabButton(
+    ui, row, "Tab 1", "t1", true,
+    defaultTabButtonWidth, defaultTabButtonHeight, null
+  );
+  auto b2 = createTabButton(
+    ui, row, "Tab 2", "t2", false,
+    defaultTabButtonWidth, defaultTabButtonHeight, null
+  );
 
   assert(row.children.length == 2);
   assert(row.children[0] is b1);

@@ -36,7 +36,7 @@ final class Font {
   static Font fromMemory(
     const(void)[] fontData,
     float ptSize,
-    float scale = 1.0f
+    float scale
   ) {
     assert(fontData.length > 0, "fontData must not be empty");
     assert(ptSize > 0.0f, "ptSize must be positive");
@@ -67,7 +67,7 @@ final class Font {
   static Font fromFile(
     string filePath,
     float ptSize,
-    float scale = 1.0f
+    float scale
   ) {
     assert(filePath.length > 0, "filePath must not be empty");
     assert(ptSize > 0.0f, "ptSize must be positive");
@@ -189,11 +189,15 @@ unittest {
   yguilib_sdl3_init();
   scope(exit) yguilib_sdl3_quit();
 
-  Font f1 = Font.fromMemory(cast(const(void)[])defaultTtfFontData, 12.0f);
+  Font f1 = Font.fromMemory(
+    cast(const(void)[])defaultTtfFontData, 12.0f, 1.0f
+  );
   scope(exit) f1.destroy();
   assert(f1.id != invalidFontId);
 
-  Font f2 = Font.fromMemory(cast(const(void)[])defaultTtfFontData, 14.0f);
+  Font f2 = Font.fromMemory(
+    cast(const(void)[])defaultTtfFontData, 14.0f, 1.0f
+  );
   scope(exit) f2.destroy();
   assert(f2.id != invalidFontId);
   assert(f1.id != f2.id);

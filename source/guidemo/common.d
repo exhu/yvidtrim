@@ -39,7 +39,7 @@ Widget makeSectionCard(
   Widget parent,
   RectF rect,
   string title,
-  string name = null
+  string name
 ) {
   const string cardName = (name.length > 0) ? name : "sectionCard";
   auto card = WidgetBuilder.make(ui)
@@ -66,9 +66,10 @@ Widget makeSectionCard(
 /// Updates DebugDrawComponent on `pageRoot` for per-page debug draw modes.
 void syncPageDebugDraw(Widget pageRoot, DebugDrawMode mode, bool isActive) {
   assert(pageRoot !is null, "pageRoot must not be null");
-  const bool wantDebugDraw = isActive &&
-    (mode == DebugDrawMode.activePageVisible ||
-     mode == DebugDrawMode.activePageWithHidden);
+  const bool wantDebugDraw = isActive && (
+    mode == DebugDrawMode.activePageVisible ||
+    mode == DebugDrawMode.activePageWithHidden
+  );
   const bool wantHidden = (mode == DebugDrawMode.activePageWithHidden);
 
   auto existing = pageRoot.components.debugDraw;

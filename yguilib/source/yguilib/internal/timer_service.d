@@ -3,7 +3,6 @@ module yguilib.internal.timer_service;
 package(yguilib):
 
 import core.time : MonoTime, ticksToNSecs;
-import std.algorithm.comparison : max, min;
 import yguilib.controller : Controller;
 import yguilib.timers : TimerCallback, TimerId, TimerIntervalMs, TimerMode,
   invalidTimerId;
@@ -148,6 +147,7 @@ struct TimerService {
     if (earliestNs <= now) {
       return 0;
     }
+    import std.algorithm.comparison : min;
     const long diffNs = earliestNs - now;
     const long ceilMs = (diffNs + 999_999L) / 1_000_000L;
     return cast(int) min(cast(long) int.max, ceilMs);
@@ -200,6 +200,7 @@ struct TimerService {
 
 private:
   TimerId addEntry(TimerEntry entry, uint intervalMs, TimerMode mode) {
+    import std.algorithm.comparison : max;
     const uint effectiveMs = (mode == TimerMode.repeat)
       ? max(1u, intervalMs)
       : intervalMs;
@@ -266,6 +267,7 @@ private:
       : 0;
     const float periodSec = cast(float) entries[idx].periodNs /
       1_000_000_000.0f;
+    import std.algorithm.comparison : max, min;
     const float maxDt = max(0.1f, periodSec * 2.0f);
     const float dt = min(maxDt, cast(float) diffNs / 1_000_000_000.0f);
 
@@ -394,13 +396,26 @@ unittest {
 
 // Verifies re-entrant stop/start and owner cleanup in TimerService.
 unittest {
-  import yguilib.controller : DefaultController;
+  import yguilib.controller : Controller, HandleResult;
+  import yguilib.events : AppEvent;
+  import yguilib.widget : Widget;
   import yguilib.widget.system : WidgetSystem;
 
-  final class DummyCtrl : DefaultController {
-    this() {
-      super(null);
+  final class DummyCtrl : Controller {
+    override HandleResult handleEvent(AppEvent ev) {
+      return HandleResult(HandleResult.Result.nothing);
     }
+    override bool updateView() { return false; }
+    override bool update() { return false; }
+    override bool tick(float dt) { return false; }
+    override void onPush() {}
+    override void onPop() {}
+    override void onSuspendByModal() {}
+    override void onResumeByModal() {}
+    @property override bool isModal() const { return false; }
+    override void setModal(bool value) {}
+    override void sendAppEvent(AppEvent ev) {}
+    override void onWidgetReleased(Widget w) {}
   }
   final class DummySys : WidgetSystem {
   }

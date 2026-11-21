@@ -8,7 +8,7 @@ import glad2.gles2;
  * Configures common 2D blending state: alpha blending enabled,
  * depth test and face culling disabled.
  */
-void setup2DBlendState() {
+void setupAlphaBlendState() {
   glDisable(GL_DEPTH_TEST);
   glDisable(GL_CULL_FACE);
   glEnable(GL_BLEND);

@@ -59,7 +59,7 @@ final class FontManager {
    * @param fontName Unique name identifying the font face.
    * @param fontData In-memory TTF data buffer (must remain valid).
    */
-  void registerFont(string fontName, const(void)[] fontData) {
+  void registerFontFromMemory(string fontName, const(void)[] fontData) {
     assert(fontName.length > 0, "fontName must not be empty");
     assert(fontData.length > 0, "fontData must not be empty");
     registry[fontName] = FontSource(
@@ -75,7 +75,7 @@ final class FontManager {
    * @param fontName Unique name identifying the font face.
    * @param filePath Path to the TTF font file.
    */
-  void registerFont(string fontName, string filePath) {
+  void registerFontFromFile(string fontName, string filePath) {
     assert(fontName.length > 0, "fontName must not be empty");
     assert(filePath.length > 0, "filePath must not be empty");
     registry[fontName] = FontSource(
@@ -117,9 +117,9 @@ final class FontManager {
    * @return The cached `Font` instance.
    */
   Font getFont(
-    float ptSize = defaultFontPtSize,
-    string fontName = null,
-    float totalScale = 1.0f
+    float ptSize,
+    string fontName,
+    float totalScale
   ) {
     const float sanitizedSize =
       (isFinite(ptSize) && ptSize > 0.0f) ? ptSize : defaultFontPtSize;
@@ -195,25 +195,25 @@ unittest {
   scope(exit) fm.destroy();
 
   // Verify default font lookup
-  Font f11 = fm.getFont(11.0f);
+  Font f11 = fm.getFont(11.0f, null, 1.0f);
   assert(f11 !is null);
   assert(f11.size == 11.0f);
 
   // Requesting the exact same font size reuses the cached instance
-  Font f11Again = fm.getFont(11.0f);
+  Font f11Again = fm.getFont(11.0f, null, 1.0f);
   assert(f11 is f11Again);
 
   // Requesting a different size returns a distinct Font instance
-  Font f24 = fm.getFont(24.0f);
+  Font f24 = fm.getFont(24.0f, null, 1.0f);
   assert(f24 !is null);
   assert(f24.size == 24.0f);
   assert(f24 !is f11);
 
   // Fallbacks for invalid sizes
-  assert(fm.getFont(0.0f).size == defaultFontPtSize);
-  assert(fm.getFont(-5.0f).size == defaultFontPtSize);
-  assert(fm.getFont(float.nan).size == defaultFontPtSize);
-  assert(fm.getFont(float.infinity).size == defaultFontPtSize);
+  assert(fm.getFont(0.0f, null, 1.0f).size == defaultFontPtSize);
+  assert(fm.getFont(-5.0f, null, 1.0f).size == defaultFontPtSize);
+  assert(fm.getFont(float.nan, null, 1.0f).size == defaultFontPtSize);
+  assert(fm.getFont(float.infinity, null, 1.0f).size == defaultFontPtSize);
 
   // Scaling update
   fm.setScaling(2.0f);

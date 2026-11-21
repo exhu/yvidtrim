@@ -44,9 +44,10 @@ class ViewComponent : WidgetComponent {
   /// Renames an event and changes event.view.viewWidget to the attached widget.
   /// An empty string value ("") prevents the event from going up the tree.
   string[string] renameEvents;
-  // The following is for when graphical WYSIWYG editor (but first building widget tree via
-  // json) phase of yguilib will be in development:
-  /// Add this widget to registered named WidgetViewController. Can be useful for composite widgets.
+  // The following is for when graphical WYSIWYG editor (first building
+  // widget tree via json) phase of yguilib will be in development:
+  /// Add this widget to registered named WidgetViewController. Useful for
+  /// composite widgets.
   /// E.g. an app needs to implement one hover button or a colour picker
   /// controller to monitor and animate Widgets, that controller gets registered
   /// by name and widgets are autowired to it.
@@ -58,9 +59,9 @@ class ViewComponent : WidgetComponent {
   string widgetViewName;
 
   // TODO parameters to that view, whose controller checks models on update.
-  // this is a design parameter, at runtime ModelTracker instances to be constructed.
-  // so need a named registry of model types and a factory, so that ModelTracker instances
-  // can be constructed at runtime via string parameters.
+  // This is a design parameter; at runtime ModelTracker instances are
+  // constructed. Need a named registry of model types and a factory so
+  // ModelTracker instances can be constructed at runtime via string params.
   string[string] trackedModels;
 }
 
@@ -292,7 +293,7 @@ final class Widget {
 
   /// Invalidates cached state and marks the widget for redraw and/or layout
   /// according to `scope_`.
-  void update(WidgetUpdateScope scope_ = WidgetUpdateScope.all) {
+  void update(WidgetUpdateScope scope_) {
     if (fReleased) {
       return;
     }
@@ -443,14 +444,14 @@ final class Widget {
 
   /// Dumps the widget (and optionally its children) as a human-readable
   /// pretty-formatted JSON string for debugging layout and widget state.
-  string dumpTree(bool withChildren = true) const {
+  string dumpTree(bool withChildren) const {
     import std.json : toJSON, JSONOptions;
     const JSONValue jv = dumpToJsonValue(withChildren);
     return toJSON(jv, true, JSONOptions.specialFloatLiterals);
   }
 
   /// Converts the widget to a JSONValue, including or excluding children.
-  JSONValue dumpToJsonValue(bool withChildren = true) const {
+  JSONValue dumpToJsonValue(bool withChildren) const {
     JSONValue[string] root;
     root["type"] = JSONValue("Widget");
 
@@ -494,7 +495,7 @@ final class Widget {
 
   /// Dumps essential widget info (and optionally its children) as a
   /// concise, human-readable JSON string.
-  string dumpSimpleTree(bool withChildren = true) const {
+  string dumpSimpleTree(bool withChildren) const {
     import std.array : Appender;
     Appender!string app;
     appendSimpleJson(app, 0, withChildren);
@@ -502,7 +503,7 @@ final class Widget {
   }
 
   /// Converts essential widget fields to a flat JSONValue.
-  JSONValue dumpSimpleToJsonValue(bool withChildren = true) const {
+  JSONValue dumpSimpleToJsonValue(bool withChildren) const {
     JSONValue[string] fields;
     fields["name"] = toJsonValue(name);
     fields["uId"] = toJsonValue(uId);
@@ -785,7 +786,7 @@ unittest {
   w.rect = RectF(10, 20, 100, 80);
   assert(w.getContentArea() == RectF(0, 0, 100, 80));
 
-  w.components.border = new Border(ColorF(1, 0, 0, 1));
+  w.components.border = Border.rect(ColorF(1, 0, 0, 1), 2.0f);
   w.components.border.width = 5.0f;
   assert(w.getContentArea() == RectF(5, 5, 90, 70));
 
@@ -877,7 +878,7 @@ unittest {
   child.layoutDirty = false;
   root.components.view = new ViewComponent;
   assert(child.parentView is null);
-  root.update();
+  root.update(WidgetUpdateScope.all);
   assert(root.dirty && root.layoutDirty);
   assert(child.dirty && child.layoutDirty);
   assert(child.parentView is root);
@@ -1295,7 +1296,7 @@ unittest {
   assert(parent.children.length == 2);
   assert(child1.parent is parent);
 
-  child1.components.background = new Background(ColorF(1, 0, 0, 1));
+  child1.components.background = Background.rect(ColorF(1, 0, 0, 1));
   assert(child1.components.background !is null);
 
   // release child1 (clears child1's own fields, detaches from parent)
@@ -1319,7 +1320,7 @@ unittest {
   assert(!child1.setVisible(true));
   assert(!child1.setScrollOffset(PointF(10, 10)));
   child1.dirty = false;
-  child1.update();
+  child1.update(WidgetUpdateScope.all);
   assert(!child1.dirty);
 
   // addChild with released widget fails assert

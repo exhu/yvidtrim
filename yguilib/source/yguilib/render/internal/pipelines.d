@@ -65,7 +65,7 @@ struct ColorPipeline {
     float vw,
     float vh
   ) {
-    setup2DBlendState();
+    setupAlphaBlendState();
     glUseProgram(program);
     glUniform2f(uResolutionLoc, vw, vh);
     glUniform4f(uColorLoc, color.r, color.g, color.b, color.a);
@@ -96,7 +96,7 @@ struct ColorPipeline {
     drawArrays(GL_TRIANGLES, vertices, color, vw, vh);
   }
 
-  void drawLine(
+  void drawThinLineWithPoints(
     in PointF point1,
     in PointF point2,
     in ColorF color,
@@ -111,7 +111,7 @@ struct ColorPipeline {
     drawArrays(GL_LINES, vertices, color, vw, vh);
   }
 
-  void drawLine(
+  void drawLineWithWidth(
     in PointF point1,
     in PointF point2,
     float lineWidth,
@@ -119,10 +119,12 @@ struct ColorPipeline {
     float vw,
     float vh
   ) {
-    drawLine(point1, point2, lineWidth, 0.0f, 0.0f, color, vw, vh);
+    drawDashedLineWithPoints(
+      point1, point2, lineWidth, 0.0f, 0.0f, color, vw, vh
+    );
   }
 
-  void drawLine(
+  void drawDashedLineWithPoints(
     in PointF point1,
     in PointF point2,
     float lineWidth,
@@ -137,79 +139,30 @@ struct ColorPipeline {
     }
 
     import std.math : sqrt;
-    float dx = point2.x - point1.x;
-    float dy = point2.y - point1.y;
-    float dist = sqrt(dx * dx + dy * dy);
+    const float dx = point2.x - point1.x;
+    const float dy = point2.y - point1.y;
+    const float dist = sqrt(dx * dx + dy * dy);
     if (dist <= 0.0f) {
       return;
     }
 
-    float invDist = 1.0f / dist;
-    float ux = dx * invDist;
-    float uy = dy * invDist;
-
-    // Normal vector perpendicular to line direction
-    float nx = -uy;
-    float ny = ux;
-
-    float halfWidth = lineWidth * 0.5f;
-    float ox = nx * halfWidth;
-    float oy = ny * halfWidth;
+    const float invDist = 1.0f / dist;
+    const float ux = dx * invDist;
+    const float uy = dy * invDist;
+    const float halfWidth = lineWidth * 0.5f;
+    const float ox = -uy * halfWidth;
+    const float oy = ux * halfWidth;
 
     if (dashLen <= 0.0f || gapLen <= 0.0f) {
-      // Solid thick line as a single quad (2 triangles)
-      float[12] vertices = [
-        point1.x + ox, point1.y + oy,
-        point1.x - ox, point1.y - oy,
-        point2.x - ox, point2.y - oy,
-
-        point1.x + ox, point1.y + oy,
-        point2.x - ox, point2.y - oy,
-        point2.x + ox, point2.y + oy,
-      ];
-      drawArrays(GL_TRIANGLES, vertices, color, vw, vh);
+      drawSolidThickLine(point1, point2, ox, oy, color, vw, vh);
       return;
     }
-
-    // Dashed line
-    import std.algorithm : min;
-    import std.array : Appender;
-
-    Appender!(float[]) vertices;
-    float period = dashLen + gapLen;
-    size_t estDashes = cast(size_t)(dist / period) + 1;
-    vertices.reserve(estDashes * 12);
-
-    float cur = 0.0f;
-    while (cur < dist) {
-      float dStart = cur;
-      float dEnd = min(cur + dashLen, dist);
-      if (dEnd > dStart) {
-        float sx = point1.x + ux * dStart;
-        float sy = point1.y + uy * dStart;
-        float ex = point1.x + ux * dEnd;
-        float ey = point1.y + uy * dEnd;
-
-        float[12] dashQuad = [
-          sx + ox, sy + oy,
-          sx - ox, sy - oy,
-          ex - ox, ey - oy,
-
-          sx + ox, sy + oy,
-          ex - ox, ey - oy,
-          ex + ox, ey + oy,
-        ];
-        vertices.put(dashQuad[]);
-      }
-      cur += period;
-    }
-
-    if (vertices.data.length > 0) {
-      drawArrays(GL_TRIANGLES, vertices.data, color, vw, vh);
-    }
+    drawDashedThickLine(
+      point1, ux, uy, dist, ox, oy, dashLen, gapLen, color, vw, vh
+    );
   }
 
-  void drawRect(
+  void drawRectWithWidth(
     in RectF rect,
     float lineWidth,
     in ColorF color,
@@ -255,8 +208,85 @@ struct ColorPipeline {
     drawArrays(GL_TRIANGLES, vertices, color, vw, vh);
   }
 
-  void drawRect(in RectF rect, in ColorF color, float vw, float vh) {
-    drawRect(rect, 1.0f, color, vw, vh);
+  void drawRectDefaultWidth(
+    in RectF rect,
+    in ColorF color,
+    float vw,
+    float vh
+  ) {
+    drawRectWithWidth(rect, 1.0f, color, vw, vh);
+  }
+
+private:
+  void drawSolidThickLine(
+    in PointF point1,
+    in PointF point2,
+    float ox,
+    float oy,
+    in ColorF color,
+    float vw,
+    float vh
+  ) {
+    float[12] vertices = [
+      point1.x + ox, point1.y + oy,
+      point1.x - ox, point1.y - oy,
+      point2.x - ox, point2.y - oy,
+
+      point1.x + ox, point1.y + oy,
+      point2.x - ox, point2.y - oy,
+      point2.x + ox, point2.y + oy,
+    ];
+    drawArrays(GL_TRIANGLES, vertices, color, vw, vh);
+  }
+
+  void drawDashedThickLine(
+    in PointF point1,
+    float ux,
+    float uy,
+    float dist,
+    float ox,
+    float oy,
+    float dashLen,
+    float gapLen,
+    in ColorF color,
+    float vw,
+    float vh
+  ) {
+    import std.algorithm : min;
+    import std.array : Appender;
+
+    Appender!(float[]) vertices;
+    const float period = dashLen + gapLen;
+    const size_t estDashes = cast(size_t)(dist / period) + 1;
+    vertices.reserve(estDashes * 12);
+
+    float cur = 0.0f;
+    while (cur < dist) {
+      const float dStart = cur;
+      const float dEnd = min(cur + dashLen, dist);
+      if (dEnd > dStart) {
+        const float sx = point1.x + ux * dStart;
+        const float sy = point1.y + uy * dStart;
+        const float ex = point1.x + ux * dEnd;
+        const float ey = point1.y + uy * dEnd;
+
+        float[12] dashQuad = [
+          sx + ox, sy + oy,
+          sx - ox, sy - oy,
+          ex - ox, ey - oy,
+
+          sx + ox, sy + oy,
+          ex - ox, ey - oy,
+          ex + ox, ey + oy,
+        ];
+        vertices.put(dashQuad[]);
+      }
+      cur += period;
+    }
+
+    if (vertices.data.length > 0) {
+      drawArrays(GL_TRIANGLES, vertices.data, color, vw, vh);
+    }
   }
 }
 
@@ -339,7 +369,7 @@ struct TexturePipeline {
       return;
     }
 
-    setup2DBlendState();
+    setupAlphaBlendState();
     glUseProgram(program);
     glUniform2f(uResolutionLoc, vw, vh);
     glUniform4f(uColorLoc, color.r, color.g, color.b, color.a);
@@ -489,7 +519,7 @@ struct RoundRectPipeline {
       qx1, qy1, lx1, ly1,
     ];
 
-    setup2DBlendState();
+    setupAlphaBlendState();
     glUseProgram(program);
     glUniform2f(uResolutionLoc, vw, vh);
     glUniform4f(uColorLoc, color.r, color.g, color.b, color.a);

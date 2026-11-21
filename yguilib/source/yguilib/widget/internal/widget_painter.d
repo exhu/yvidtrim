@@ -35,7 +35,7 @@ interface CustomWidgetPainter {
 /// TODO support CustomWidgetPainter
 final class WidgetPainterSystem : WidgetSystem {
   this() nothrow @safe {
-    super(painterSystemPriority);
+    setPriority(painterSystemPriority);
   }
 
   override @property SystemPhase phases() const nothrow @safe {
@@ -124,7 +124,7 @@ private:
     auto comp = w.components.border;
     final switch(comp.style) {
       case Border.Style.rect:
-        r.drawRect(absRect, comp.width, comp.color);
+        r.drawRectWithWidth(absRect, comp.width, comp.color);
         break;
       case Border.Style.dashed:
         r.drawRectDashed(
@@ -168,7 +168,7 @@ private:
       }
       const float lineX = absContentRect.x + line.xOffset;
       const float lineY = absContentRect.y + cast(float)i * lineStep;
-      r.drawText(line.text, PointF(lineX, lineY), comp.color, font);
+      r.drawTextWithFont(line.text, PointF(lineX, lineY), comp.color, font);
     }
   }
 }
@@ -189,13 +189,13 @@ unittest {
   win.create();
   scope(exit) win.destroy();
 
-  auto renderer = new Renderer(320, 240);
+  auto renderer = new Renderer(320, 240, 1.0f);
   scope(exit) renderer.destroy();
 
   auto w = new Widget(1);
   w.rect = RectF(10, 20, 100, 80);
-  w.components.background = new Background(ColorF(0.2f, 0.2f, 0.2f, 1.0f));
-  w.components.border = new Border(ColorF(1.0f, 0.0f, 0.0f, 1.0f));
+  w.components.background = Background.rect(ColorF(0.2f, 0.2f, 0.2f, 1.0f));
+  w.components.border = Border.rect(ColorF(1.0f, 0.0f, 0.0f, 1.0f), 2.0f);
   w.components.border.width = 2.0f;
   w.components.size = new Size();
   w.components.size.padding = Insets(5, 5, 5, 5);
@@ -206,7 +206,7 @@ unittest {
   w.clipContents = true;
 
   auto collector = new VisibleWidgetsCollector;
-  auto widgets = collector.collectVisible(w, 320.0f, 240.0f);
+  auto widgets = collector.collectVisibleWithViewport(w, 320.0f, 240.0f, false);
 
   auto painter = new WidgetPainterSystem;
   assert(painter.priority == WidgetSystem.painterSystemPriority);
@@ -218,36 +218,36 @@ unittest {
   // Test TextLabel with custom fontSize (default font is never mutated)
   w.components.textLabel.fontSize = 24.0f;
   w.dirty = true;
-  widgets = collector.collectVisible(w, 320.0f, 240.0f);
+  widgets = collector.collectVisibleWithViewport(w, 320.0f, 240.0f, false);
   painter.drawTree(widgets, renderer);
   assert(renderer.getDefaultFont().size == defaultFontPtSize);
-  assert(renderer.getFont(24.0f).size == 24.0f);
+  assert(renderer.getFont(24.0f, null).size == 24.0f);
 
   // Test fallback when fontSize is 0.0f
   w.components.textLabel.fontSize = 0.0f;
   w.dirty = true;
-  widgets = collector.collectVisible(w, 320.0f, 240.0f);
+  widgets = collector.collectVisibleWithViewport(w, 320.0f, 240.0f, false);
   painter.drawTree(widgets, renderer);
   assert(renderer.getDefaultFont().size == defaultFontPtSize);
 
   // Test fallback when fontSize is negative
   w.components.textLabel.fontSize = -5.0f;
   w.dirty = true;
-  widgets = collector.collectVisible(w, 320.0f, 240.0f);
+  widgets = collector.collectVisibleWithViewport(w, 320.0f, 240.0f, false);
   painter.drawTree(widgets, renderer);
   assert(renderer.getDefaultFont().size == defaultFontPtSize);
 
   // Test fallback when fontSize is infinity
   w.components.textLabel.fontSize = float.infinity;
   w.dirty = true;
-  widgets = collector.collectVisible(w, 320.0f, 240.0f);
+  widgets = collector.collectVisibleWithViewport(w, 320.0f, 240.0f, false);
   painter.drawTree(widgets, renderer);
   assert(renderer.getDefaultFont().size == defaultFontPtSize);
 
   // Test fallback when fontSize is NaN
   w.components.textLabel.fontSize = float.nan;
   w.dirty = true;
-  widgets = collector.collectVisible(w, 320.0f, 240.0f);
+  widgets = collector.collectVisibleWithViewport(w, 320.0f, 240.0f, false);
   painter.drawTree(widgets, renderer);
   assert(renderer.getDefaultFont().size == defaultFontPtSize);
 
@@ -266,7 +266,9 @@ unittest {
   child2.components.textLabel = new TextLabel("Subtitle", ColorF(1, 1, 1, 1));
   child2.components.textLabel.fontSize = 14.0f;
 
-  auto rootWidgets = collector.collectVisible(root, 320.0f, 240.0f);
+  auto rootWidgets = collector.collectVisibleWithViewport(
+    root, 320.0f, 240.0f, false
+  );
   painter.drawTree(rootWidgets, renderer);
   assert(!child1.dirty);
   assert(!child2.dirty);
@@ -278,7 +280,9 @@ unittest {
   multiTl.multiline = true;
   multiTl.alignment = TextLabel.Alignment.center;
   multiW.components.textLabel = multiTl;
-  auto multiWidgets = collector.collectVisible(multiW, 320.0f, 240.0f);
+  auto multiWidgets = collector.collectVisibleWithViewport(
+    multiW, 320.0f, 240.0f, false
+  );
   painter.drawTree(multiWidgets, renderer);
   assert(!multiW.dirty);
 
@@ -292,7 +296,9 @@ unittest {
   rightTl.alignment = TextLabel.Alignment.right;
   rightTl.overflowEllipsis = true;
   rightW.components.textLabel = rightTl;
-  auto rightWidgets = collector.collectVisible(rightW, 320.0f, 240.0f);
+  auto rightWidgets = collector.collectVisibleWithViewport(
+    rightW, 320.0f, 240.0f, false
+  );
   painter.drawTree(rightWidgets, renderer);
   assert(!rightW.dirty);
 }

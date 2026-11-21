@@ -58,7 +58,8 @@ struct AppEvent {
 
   bool isWindowRedrawEvent() const {
     switch (kind) {
-    case Kind.windowDisplayScaleChanged, Kind.windowExposed, Kind.windowRedraw, Kind.windowResized:
+      case Kind.windowDisplayScaleChanged, Kind.windowExposed,
+        Kind.windowRedraw, Kind.windowResized:
         return true;
       default:
         return false;
@@ -76,7 +77,8 @@ struct AppEvent {
 
   bool isMouseEvent() const {
     switch (kind) {
-      case Kind.mouseMotion, Kind.mouseButtonDown, Kind.mouseButtonUp, Kind.mouseWheel:
+      case Kind.mouseMotion, Kind.mouseButtonDown, Kind.mouseButtonUp,
+        Kind.mouseWheel:
         return true;
       default:
         return false;

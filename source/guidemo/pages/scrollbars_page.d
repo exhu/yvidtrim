@@ -19,8 +19,8 @@ import yguilib.widget.layout_components : AlignItems, FlexDirection,
   JustifyContent;
 
 /// View event names emitted by Page 6 scrollbars and playground controls.
-enum page6HScrollEvent = "page6HScroll";
-enum page6VScrollEvent = "page6VScroll";
+enum page6HorizScrollEvent = "page6HScroll";
+enum page6VertScrollEvent = "page6VScroll";
 enum page6LiveScrollEvent = "page6LiveScroll";
 enum page6ReleaseScrollEvent = "page6ReleaseScroll";
 enum page6PlaygroundScrollEvent = "page6PlaygroundScroll";
@@ -35,7 +35,7 @@ enum page6ResetBarEvent = "page6ResetBar";
 final class ScrollbarsPage {
   /// Constructs ScrollbarsPage. `registry` is allowed to be null in headless
   /// tests.
-  this(UiSystem ui, Widget parent, UiRegistry registry = null) {
+  this(UiSystem ui, Widget parent, UiRegistry registry) {
     assert(ui !is null, "UiSystem must not be null");
     assert(parent !is null, "parent must not be null");
     this.ui = ui;
@@ -47,19 +47,24 @@ final class ScrollbarsPage {
     parent.addChild(root);
 
     hScrollTracker = ModelTracker!ScrollbarModel(
-      new ScrollbarModel(0, 542, 0, 538, 36, false)
+      new ScrollbarModel().withRange(0, 542).withVisibleSize(538)
+        .withStepSize(36)
     );
     vScrollTracker = ModelTracker!ScrollbarModel(
-      new ScrollbarModel(0, 364, 0, 176, 24, false)
+      new ScrollbarModel().withRange(0, 364).withVisibleSize(176)
+        .withStepSize(24)
     );
     liveTracker = ModelTracker!ScrollbarModel(
-      new ScrollbarModel(0, 1000, 250, 150, 25, false)
+      new ScrollbarModel().withRange(0, 1000).withValue(250)
+        .withVisibleSize(150).withStepSize(25)
     );
     releaseTracker = ModelTracker!ScrollbarModel(
-      new ScrollbarModel(0, 1000, 250, 150, 25, true)
+      new ScrollbarModel().withRange(0, 1000).withValue(250)
+        .withVisibleSize(150).withStepSize(25).withReportOnReleaseOnly(true)
     );
     playgroundTracker = ModelTracker!ScrollbarModel(
-      new ScrollbarModel(0, 1000, 200, 200, 50, false)
+      new ScrollbarModel().withRange(0, 1000).withValue(200)
+        .withVisibleSize(200).withStepSize(50)
     );
 
     buildViewportSection();
@@ -119,22 +124,28 @@ final class ScrollbarsPage {
     }
 
     if (playgroundStatusLabel !is null) {
-      const auto pm = playgroundTracker.model;
-      const double ratio = cast(double) pm.visibleSize /
-        cast(double) ((pm.max - pm.min) + pm.visibleSize);
-      playgroundStatusLabel.setCaption(
-        format(
-          "Value: %d | Range: [%d..%d] | VisibleSize: %d\n" ~
-            "Container Width: %.0fpx | Thumb Ratio: %.1f%% (min 20px)",
-          m.playgroundValue,
-          pm.min,
-          pm.max,
-          pm.visibleSize,
-          getPlaygroundWidth(),
-          ratio * 100.0
-        )
-      );
+      updatePlaygroundStatus(m.playgroundValue);
     }
+  }
+
+  void updatePlaygroundStatus(long playgroundValue) {
+    import std.format : format;
+
+    const auto pm = playgroundTracker.model;
+    const double ratio = cast(double) pm.visibleSize /
+      cast(double) ((pm.max - pm.min) + pm.visibleSize);
+    playgroundStatusLabel.setCaption(
+      format(
+        "Value: %d | Range: [%d..%d] | VisibleSize: %d\n" ~
+          "Container Width: %.0fpx | Thumb Ratio: %.1f%% (min 20px)",
+        playgroundValue,
+        pm.min,
+        pm.max,
+        pm.visibleSize,
+        getPlaygroundWidth(),
+        ratio * 100.0
+      )
+    );
   }
 
   string formatStatus() {
@@ -272,15 +283,15 @@ private:
 
     ScrollbarBuilder vb;
     vb.name("sbViewportVBar")
-      .model(vScrollTracker)
-      .event(page6VScrollEvent)
+      .modelTracker(vScrollTracker)
+      .event(page6VertScrollEvent)
       .direction(FlexDirection.column)
       .build(ui, card, RectF(564, 40, 22, 178), registry);
 
     ScrollbarBuilder hb;
     hb.name("sbViewportHBar")
-      .model(hScrollTracker)
-      .event(page6HScrollEvent)
+      .modelTracker(hScrollTracker)
+      .event(page6HorizScrollEvent)
       .direction(FlexDirection.row)
       .build(ui, card, RectF(16, 224, 540, 22), registry);
 
@@ -365,7 +376,7 @@ private:
 
     ScrollbarBuilder lb;
     lb.name("sbLiveBar")
-      .model(liveTracker)
+      .modelTracker(liveTracker)
       .event(page6LiveScrollEvent)
       .direction(FlexDirection.row)
       .build(ui, card, RectF(16, 70, 580, 24), registry);
@@ -387,12 +398,16 @@ private:
 
     ScrollbarBuilder rb;
     rb.name("sbReleaseBar")
-      .model(releaseTracker)
+      .modelTracker(releaseTracker)
       .event(page6ReleaseScrollEvent)
       .direction(FlexDirection.row)
       .style(amberStyle)
       .build(ui, card, RectF(16, 142, 580, 24), registry);
 
+    buildReportingInfoBox(card);
+  }
+
+  void buildReportingInfoBox(Widget card) {
     auto infoBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("sbReportingInfoBox")
@@ -408,7 +423,8 @@ private:
       .name("sbReportingInfoBody")
       .rect(RectF(12, 10, 559, 60))
       .text(
-        "- Dragging the thumb captures the mouse cursor via SDL_CaptureMouse\n" ~
+        "- Dragging the thumb captures the mouse cursor via " ~
+          "SDL_CaptureMouse\n" ~
           "- Live bar emits position events continuously while dragging\n" ~
           "- On-Release bar moves thumb visually, emitting once on mouseUp"
       )
@@ -446,14 +462,17 @@ private:
     ScrollbarBuilder pb;
     playgroundScrollbar = pb
       .name("sbPlaygroundBar")
-      .model(playgroundTracker)
+      .modelTracker(playgroundTracker)
       .event(page6PlaygroundScrollEvent)
       .direction(FlexDirection.row)
       .style(emeraldStyle)
       .build(ui, card, RectF(16, 66, 570, 24), registry);
 
     buildPlaygroundButtons(card);
+    buildPlaygroundInfoBox(card);
+  }
 
+  void buildPlaygroundInfoBox(Widget card) {
     auto infoBox = WidgetBuilder.make(ui)
       .parent(card)
       .name("sbPlaygroundInfoBox")
@@ -481,7 +500,8 @@ private:
       .name("sbPlaygroundHelp")
       .rect(RectF(12, 58, 549, 42))
       .text(
-        "- Click track free area on either side of thumb to page +/- visibleSize\n" ~
+        "- Click track free area on either side of thumb to page +/- " ~
+          "visibleSize\n" ~
           "- Click < or > arrows to step +/- 50 units (disabled at bounds)"
       )
       .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
@@ -500,6 +520,11 @@ private:
       .alignItems(AlignItems.center)
       .build();
 
+    buildPlaygroundVisButtons(btnRow);
+    buildPlaygroundGeomButtons(btnRow);
+  }
+
+  void buildPlaygroundVisButtons(Widget btnRow) {
     makePlaygroundBtn(
       btnRow,
       "sbVisDecBtn",
@@ -530,6 +555,9 @@ private:
       ColorF(0.50f, 0.72f, 1.0f, 1.0f),
       "page6RangeToggle"
     );
+  }
+
+  void buildPlaygroundGeomButtons(Widget btnRow) {
     makePlaygroundBtn(
       btnRow,
       "sbNarrowBtn",
@@ -574,7 +602,12 @@ private:
   ) {
     HoverAnimConfig cfg;
     cfg.hoverBg = hoverBg;
-    cfg.pressBg = ColorF(hoverBg.r * 0.6f, hoverBg.g * 0.6f, hoverBg.b * 0.6f, 1);
+    cfg.pressBg = ColorF(
+      hoverBg.r * 0.6f,
+      hoverBg.g * 0.6f,
+      hoverBg.b * 0.6f,
+      1.0f
+    );
     cfg.hoverBorder = hoverBorder;
     cfg.actionEvent = actionEvent;
 
@@ -616,18 +649,29 @@ private:
       .fontSize(13.0f)
       .build();
 
+    buildArchBody(archBox);
+  }
+
+  void buildArchBody(Widget archBox) {
     WidgetBuilder.make(ui)
       .parent(archBox)
       .name("sbArchBody")
       .rect(RectF(14, 40, 555, 172))
       .text(
-        "1. Tree: Root Flex (View) -> DecBtn, Track (ScrollableArea), IncBtn;\n" ~
-          "   Track holds Thumb (Anchor + MouseEvent.mouseDrag + captureCursor).\n" ~
-          "2. Drag Capture: InputSystem tracks pressedWidgets across motion,\n" ~
-          "   calling yguilib_sdl3_capture_mouse() while captureCursor is set.\n" ~
-          "3. Sizing: Thumb ratio = visibleSize / ((max - min) + visibleSize),\n" ~
-          "   clamped to >= minThumbSize (20px) and recalculated on resize.\n" ~
-          "4. Controller: ScrollbarWidgetViewController translates clicks/drags\n" ~
+        "1. Tree: Root Flex (View) -> DecBtn, Track (ScrollableArea), " ~
+          "IncBtn;\n" ~
+          "   Track holds Thumb (Anchor + MouseEvent.mouseDrag + " ~
+          "captureCursor).\n" ~
+          "2. Drag Capture: InputSystem tracks pressedWidgets across " ~
+          "motion,\n" ~
+          "   calling yguilib_sdl3_capture_mouse() while captureCursor " ~
+          "is set.\n" ~
+          "3. Sizing: Thumb ratio = visibleSize / ((max - min) + " ~
+          "visibleSize),\n" ~
+          "   clamped to >= minThumbSize (20px) and recalculated on " ~
+          "resize.\n" ~
+          "4. Controller: ScrollbarWidgetViewController translates " ~
+          "clicks/drags\n" ~
           "   to ScrollbarModel updates and emits position change AppEvents."
       )
       .textColor(ColorF(0.75f, 0.80f, 0.88f, 1.0f))

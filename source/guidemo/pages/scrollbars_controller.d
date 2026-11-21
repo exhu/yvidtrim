@@ -5,10 +5,10 @@ module guidemo.pages.scrollbars_controller;
 
 import guidemo.common : syncPageShell;
 import guidemo.model : DemoModel, DemoPage, ScrollbarsPageModel;
-import guidemo.pages.scrollbars_page : ScrollbarsPage, page6HScrollEvent,
+import guidemo.pages.scrollbars_page : ScrollbarsPage, page6HorizScrollEvent,
   page6LiveScrollEvent, page6NarrowBarEvent, page6PlaygroundScrollEvent,
   page6RangeToggleEvent, page6ReleaseScrollEvent, page6ResetBarEvent,
-  page6VScrollEvent, page6VisDecEvent, page6VisIncEvent, page6WidenBarEvent;
+  page6VertScrollEvent, page6VisDecEvent, page6VisIncEvent, page6WidenBarEvent;
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker;
@@ -17,14 +17,26 @@ import yguilib.widget : Widget;
 
 /// Controller handling Page 6 scrollbar position and playground events.
 final class ScrollbarsPageController : DefaultController {
-  this(
+  static ScrollbarsPageController createWithParent(
     UiSystem ui,
     ref ModelTracker!DemoModel demoTracker,
     Widget parent
   ) {
     assert(ui !is null, "ui must not be null");
     assert(parent !is null, "parent must not be null");
-    this(ui, demoTracker, new ScrollbarsPage(ui, parent, ui));
+    return new ScrollbarsPageController(
+      ui,
+      demoTracker,
+      new ScrollbarsPage(ui, parent, ui)
+    );
+  }
+
+  static ScrollbarsPageController createStandalone(
+    UiSystem ui,
+    ScrollbarsPage page
+  ) {
+    auto dm = ModelTracker!DemoModel(new DemoModel());
+    return new ScrollbarsPageController(ui, dm, page);
   }
 
   this(
@@ -44,11 +56,6 @@ final class ScrollbarsPageController : DefaultController {
       page.getRootWidget(),
       page.formatStatus()
     );
-  }
-
-  this(UiSystem ui, ScrollbarsPage page) {
-    auto dm = ModelTracker!DemoModel(new DemoModel());
-    this(ui, dm, page);
   }
 
   invariant {
@@ -89,9 +96,9 @@ private:
   bool handleScrollEvent(string eventName, long val) {
     auto model = tracker.edit();
     bool handled = true;
-    if (eventName == page6HScrollEvent) {
+    if (eventName == page6HorizScrollEvent) {
       model.hScroll = val;
-    } else if (eventName == page6VScrollEvent) {
+    } else if (eventName == page6VertScrollEvent) {
       model.vScroll = val;
     } else if (eventName == page6LiveScrollEvent) {
       model.liveValue = val;
@@ -147,10 +154,12 @@ unittest {
 
   auto ui = new UiSystemImpl(null);
   auto root = new Widget(ui.nextWidgetId());
-  auto page = new ScrollbarsPage(ui, root);
-  auto ctrl = new ScrollbarsPageController(ui, page);
+  auto page = new ScrollbarsPage(ui, root, ui);
+  auto ctrl = ScrollbarsPageController.createStandalone(ui, page);
 
-  auto evHScroll = ViewAppEventBuilder(page6HScrollEvent).value(120).build();
+  auto evHScroll = ViewAppEventBuilder(page6HorizScrollEvent)
+    .value(120)
+    .build();
   assert(ctrl.handleEvent(evHScroll).consume);
   assert(page.getTracker().model.hScroll == 120);
 
@@ -167,7 +176,7 @@ unittest {
 
   // Phase 2 update() syncs page visibility when activePage changes
   auto demoTracker = ModelTracker!DemoModel(new DemoModel());
-  auto page2 = new ScrollbarsPage(ui, root);
+  auto page2 = new ScrollbarsPage(ui, root, ui);
   auto ctrl2 = new ScrollbarsPageController(ui, demoTracker, page2);
   assert(!page2.isVisible());
   auto dm = demoTracker.edit();

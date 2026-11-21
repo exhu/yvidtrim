@@ -152,13 +152,13 @@ class FlexContainer : WidgetComponent {
     return this;
   }
 
-  static FlexContainer row(float gap = 0) {
+  static FlexContainer row(float gap) {
     return new FlexContainer()
       .withDirection(FlexDirection.row)
       .withGap(gap);
   }
 
-  static FlexContainer column(float gap = 0) {
+  static FlexContainer column(float gap) {
     return new FlexContainer()
       .withDirection(FlexDirection.column)
       .withGap(gap);
@@ -198,13 +198,13 @@ class Size : WidgetComponent {
     return this;
   }
 
-  Size withMinSize(float minW, float minH = 0.0f) {
+  Size withMinSize(float minW, float minH) {
     this.minWidth = minW;
     this.minHeight = minH;
     return this;
   }
 
-  Size withMaxSize(float maxW, float maxH = float.infinity) {
+  Size withMaxSize(float maxW, float maxH) {
     this.maxWidth = maxW;
     this.maxHeight = maxH;
     return this;
@@ -224,7 +224,7 @@ class Size : WidgetComponent {
     return sz;
   }
 
-  static Size fraction(float wFr, float hFr = 0.0f) {
+  static Size fraction(float wFr, float hFr) {
     auto sz = new Size();
     sz.width = Dimension(wFr, SizingMode.fraction);
     sz.height = Dimension(
@@ -348,8 +348,8 @@ unittest {
   auto szFixed = Size.fixed(100.0f, 50.0f)
     .withPadding(Insets.all(4.0f))
     .withMargin(Insets.all(2.0f))
-    .withMinSize(80.0f)
-    .withMaxSize(200.0f);
+    .withMinSize(80.0f, 0.0f)
+    .withMaxSize(200.0f, float.infinity);
   assert(szFixed.width.mode == SizingMode.fixed);
   assert(szFixed.width.value == 100.0f);
   assert(szFixed.padding.top == 4.0f);
@@ -360,7 +360,7 @@ unittest {
   auto szAuto = Size.autoSize();
   assert(szAuto.width.mode == SizingMode.auto_);
 
-  auto szFrac = Size.fraction(1.0f);
+  auto szFrac = Size.fraction(1.0f, 0.0f);
   assert(szFrac.width.mode == SizingMode.fraction);
 
   // Anchor builder

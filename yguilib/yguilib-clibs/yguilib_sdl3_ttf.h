@@ -51,7 +51,7 @@ yguilib_sdl3_ttf_Font *yguilib_sdl3_ttf_open_font_from_mem(
 /**
  * Closes an opened font handle.
  *
- * @param font Font handle to close.
+ * @param font Font handle to close (NULL is ignored).
  */
 void yguilib_sdl3_ttf_close_font(yguilib_sdl3_ttf_Font *font);
 
@@ -70,7 +70,7 @@ int yguilib_sdl3_ttf_set_font_size(
 /**
  * Gets the total font height in pixels.
  *
- * @param font Font handle.
+ * @param font Font handle (must not be NULL).
  * @return Height in pixels, or 0 on error.
  */
 int yguilib_sdl3_ttf_get_font_height(const yguilib_sdl3_ttf_Font *font);
@@ -78,7 +78,7 @@ int yguilib_sdl3_ttf_get_font_height(const yguilib_sdl3_ttf_Font *font);
 /**
  * Gets the font ascent in pixels.
  *
- * @param font Font handle.
+ * @param font Font handle (must not be NULL).
  * @return Ascent in pixels, or 0 on error.
  */
 int yguilib_sdl3_ttf_get_font_ascent(const yguilib_sdl3_ttf_Font *font);
@@ -86,7 +86,7 @@ int yguilib_sdl3_ttf_get_font_ascent(const yguilib_sdl3_ttf_Font *font);
 /**
  * Gets the font descent in pixels.
  *
- * @param font Font handle.
+ * @param font Font handle (must not be NULL).
  * @return Descent in pixels, or 0 on error.
  */
 int yguilib_sdl3_ttf_get_font_descent(const yguilib_sdl3_ttf_Font *font);
@@ -94,7 +94,7 @@ int yguilib_sdl3_ttf_get_font_descent(const yguilib_sdl3_ttf_Font *font);
 /**
  * Gets the recommended line spacing in pixels.
  *
- * @param font Font handle.
+ * @param font Font handle (must not be NULL).
  * @return Line skip in pixels, or 0 on error.
  */
 int yguilib_sdl3_ttf_get_font_line_skip(const yguilib_sdl3_ttf_Font *font);
@@ -176,7 +176,7 @@ const void *yguilib_sdl3_ttf_get_surface_pixels(
 /**
  * Destroys a surface allocated by yguilib_sdl3_ttf_render_text_blended.
  *
- * @param surface Surface handle to destroy.
+ * @param surface Surface handle to destroy (NULL is ignored).
  */
 void yguilib_sdl3_ttf_destroy_surface(yguilib_sdl3_ttf_Surface *surface);
 

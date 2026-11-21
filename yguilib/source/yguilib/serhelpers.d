@@ -67,8 +67,8 @@ JSONValue toJsonValue(T)(auto ref const T value) {
   }
 }
 
-/// Serializes any struct or class instance into a pretty-formatted JSON string.
-string serializeToJson(T)(auto ref const T value, bool pretty = true) {
+/// Serializes any struct or class instance into a JSON string.
+string serializeToJson(T)(auto ref const T value, bool pretty) {
   const JSONValue jv = toJsonValue(value);
   if (pretty) {
     return toJSON(jv, true, JSONOptions.specialFloatLiterals);
@@ -99,10 +99,10 @@ private:
 /// Helper to serialize struct or class fields.
 JSONValue serializeStructOrClass(T)(auto ref const T value) {
   static if (__traits(hasMember, T, "toJsonValue") &&
-             !is(typeof(T.toJsonValue) == void)) {
+    !is(typeof(T.toJsonValue) == void)) {
     return value.toJsonValue();
   } else static if (__traits(hasMember, T, "isNull") &&
-                    __traits(hasMember, T, "get")) {
+    __traits(hasMember, T, "get")) {
     if (value.isNull) {
       return JSONValue(null);
     }
@@ -141,7 +141,7 @@ unittest {
   assert(jv["fields"]["x"].floating == 12.5);
   assert(jv["fields"]["y"].floating == -4.0);
 
-  string json = serializeToJson(pt);
+  string json = serializeToJson(pt, true);
   assert(json.length > 0);
 }
 
@@ -203,13 +203,13 @@ unittest {
 }
 
 unittest {
-  interface ITestItem {}
-  class TestDerived : ITestItem {}
+  interface TestItemInterface {}
+  class TestDerived : TestItemInterface {}
 
-  ITestItem item = new TestDerived();
+  TestItemInterface item = new TestDerived();
   assert(shortTypeName(item) == "TestDerived");
 
-  ITestItem nullItem = null;
+  TestItemInterface nullItem = null;
   assert(shortTypeName(nullItem) == "null");
 
   int val = 42;

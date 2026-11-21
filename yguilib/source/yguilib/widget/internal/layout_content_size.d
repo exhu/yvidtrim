@@ -1,7 +1,6 @@
 module yguilib.widget.internal.layout_content_size;
 
 package(yguilib):
-import std.algorithm.comparison : max, min;
 import yguilib.render : Renderer;
 import yguilib.render.font : Font;
 import yguilib.render.render_types : PointF;
@@ -14,6 +13,7 @@ import yguilib.widget.internal.layout_text : measureTextContentSize;
 import yguilib.widget.internal.text_label_cache : getTextContentSize;
 
 float getBorderWidth(const Border borderComp) {
+  import std.algorithm.comparison : max;
   if (borderComp !is null && borderComp.style != Border.Style.none) {
     return max(0.0f, borderComp.width);
   }
@@ -33,6 +33,7 @@ PointF calcPaddingAndBorder(
 }
 
 PointF calcContentSize(Widget w, Renderer r) {
+  import std.algorithm.comparison : max, min;
   PointF size = PointF(0.0f, 0.0f);
 
   if (w.components.scrollableArea !is null) {
@@ -88,7 +89,7 @@ PointF calcContentSize(Widget w, Renderer r) {
     }
   }
 
-  return calcTextContentSize(
+  return calcConstTextContentSize(
     w.components.textLabel,
     r,
     availableWidth,
@@ -101,6 +102,7 @@ bool tryCalcFlexContentSize(
   const FlexContainer flexComp,
   out PointF size
 ) {
+  import std.algorithm.comparison : max;
   if (w.children.length == 0) {
     return false;
   }
@@ -147,6 +149,7 @@ bool tryCalcChildrenBoundingBox(
     if (!child.visible || child.components.anchor !is null) {
       continue;
     }
+    import std.algorithm.comparison : max;
     boundingSize.x = max(boundingSize.x, child.rect.x + child.rect.width);
     boundingSize.y = max(boundingSize.y, child.rect.y + child.rect.height);
     visibleCount++;
@@ -163,8 +166,8 @@ bool tryCalcChildrenBoundingBox(
 PointF calcTextContentSize(
   TextLabel tl,
   Renderer r,
-  float availableWidth = 0.0f,
-  float availableHeight = 0.0f
+  float availableWidth,
+  float availableHeight
 ) {
   if (tl is null || r is null || tl.caption.length == 0) {
     return PointF(0.0f, 0.0f);
@@ -182,11 +185,11 @@ PointF calcTextContentSize(
   );
 }
 
-PointF calcTextContentSize(
+PointF calcConstTextContentSize(
   const TextLabel tl,
   Renderer r,
-  float availableWidth = 0.0f,
-  float availableHeight = 0.0f
+  float availableWidth,
+  float availableHeight
 ) {
   if (tl is null || r is null || tl.caption.length == 0) {
     return PointF(0.0f, 0.0f);

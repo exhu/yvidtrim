@@ -15,6 +15,7 @@ import yguilib.widget.layout_components : Dimension, Insets, Size, SizingMode;
 
 /// Page 2 container displaying TextLabel multiline, ellipsis, alignment demos.
 final class TextLabelPage {
+  /// Constructs TextLabelPage. `parent` is allowed to be null in tests.
   this(UiSystem ui, Widget parent) {
     assert(ui !is null, "UiSystem must not be null");
     this.ui = ui;
@@ -140,6 +141,31 @@ private:
     buildMultilineAlignment(card);
   }
 
+  Widget makeAlignBox(
+    Widget card,
+    string boxName,
+    RectF rect,
+    string text,
+    ColorF textCol,
+    TextLabel.Alignment alignment,
+    ColorF borderCol
+  ) {
+    return WidgetBuilder.make(ui)
+      .parent(card)
+      .name(boxName)
+      .rect(rect)
+      .fixedSize(rect.width, rect.height)
+      .padding(Insets(6, 10, 6, 10))
+      .roundBg(ColorF(0.10f, 0.12f, 0.15f, 1.0f))
+      .bgRadius(15.0f)
+      .borderComponent(Border.dashed(borderCol, 1.5f, 5.0f, 2.0f))
+      .text(text)
+      .textColor(textCol)
+      .fontSize(14.0f)
+      .textAlign(alignment)
+      .build();
+  }
+
   void buildSingleLineAlignment(Widget card) {
     WidgetBuilder.make(ui)
       .parent(card)
@@ -149,31 +175,8 @@ private:
       .textColor(ColorF(0.70f, 0.75f, 0.85f, 1.0f))
       .build();
 
-    Widget makeAlignBox(
-      string boxName,
-      RectF rect,
-      string text,
-      ColorF textCol,
-      TextLabel.Alignment alignment,
-      ColorF borderCol
-    ) {
-      return WidgetBuilder.make(ui)
-        .parent(card)
-        .name(boxName)
-        .rect(rect)
-        .fixedSize(rect.width, rect.height)
-        .padding(Insets(6, 10, 6, 10))
-        .roundBg(ColorF(0.10f, 0.12f, 0.15f, 1.0f))
-        .bgRadius(15.0f)
-        .borderComponent(Border.dashed(borderCol, 1.5f))
-        .text(text)
-        .textColor(textCol)
-        .fontSize(14.0f)
-        .textAlign(alignment)
-        .build();
-    }
-
     makeAlignBox(
+      card,
       "leftAlignBox",
       RectF(12, 54, 185, 48),
       "Left Aligned",
@@ -182,6 +185,7 @@ private:
       ColorF(0.30f, 0.50f, 0.75f, 1.0f)
     );
     makeAlignBox(
+      card,
       "centerAlignBox",
       RectF(205, 54, 185, 48),
       "Center Aligned",
@@ -190,6 +194,7 @@ private:
       ColorF(0.35f, 0.70f, 0.50f, 1.0f)
     );
     makeAlignBox(
+      card,
       "rightAlignBox",
       RectF(398, 54, 195, 48),
       "Right Aligned",
@@ -333,6 +338,10 @@ private:
       ).withMultiline(true).withEllipsis(true))
       .build();
 
+    buildMultiVertNoEllipsis(card);
+  }
+
+  void buildMultiVertNoEllipsis(Widget card) {
     auto multiVertNoEllipsis = WidgetBuilder.make(ui)
       .parent(card)
       .name("multiVertNoEllipsis")
@@ -434,7 +443,9 @@ private:
       .bgRadius(15.0f)
       .borderComponent(Border.dashed(
         ColorF(0.65f, 0.50f, 0.25f, 1.0f),
-        1.5f
+        1.5f,
+        5.0f,
+        2.0f
       ))
       .textComponent(new TextLabel(
         "Line 1\\nLine 2\\r\\nLine 3 (newlines sanitized into single spaces " ~
@@ -453,21 +464,7 @@ private:
       "labelPlaygroundCard"
     );
 
-    interactiveStatusWidget = WidgetBuilder.make(ui)
-      .parent(card)
-      .name("interactiveStatusLabel")
-      .rect(RectF(12, 34, 591, 30))
-      .fixedSize(591, 30)
-      .padding(Insets(4, 10, 4, 10))
-      .roundBg(ColorF(0.14f, 0.17f, 0.23f, 1.0f))
-      .bgRadius(4.0f)
-      .border(ColorF(0.35f, 0.45f, 0.65f, 1.0f))
-      .borderWidth(1.0f)
-      .text(
-        "[M] Multiline: ON | [E] Ellipsis: ON | [L] Align: left | Sample: 1/3"
-      )
-      .textColor(ColorF(0.95f, 0.95f, 0.40f, 1.0f))
-      .build();
+    buildPlaygroundStatusWidget(card);
 
     interactiveLabelWidget = WidgetBuilder.make(ui)
       .parent(card)
@@ -494,6 +491,24 @@ private:
       .build();
 
     buildPlaygroundHint(card);
+  }
+
+  void buildPlaygroundStatusWidget(Widget card) {
+    interactiveStatusWidget = WidgetBuilder.make(ui)
+      .parent(card)
+      .name("interactiveStatusLabel")
+      .rect(RectF(12, 34, 591, 30))
+      .fixedSize(591, 30)
+      .padding(Insets(4, 10, 4, 10))
+      .roundBg(ColorF(0.14f, 0.17f, 0.23f, 1.0f))
+      .bgRadius(4.0f)
+      .border(ColorF(0.35f, 0.45f, 0.65f, 1.0f))
+      .borderWidth(1.0f)
+      .text(
+        "[M] Multiline: ON | [E] Ellipsis: ON | [L] Align: left | Sample: 1/3"
+      )
+      .textColor(ColorF(0.95f, 0.95f, 0.40f, 1.0f))
+      .build();
   }
 
   void buildPlaygroundHint(Widget card) {

@@ -20,14 +20,18 @@ import yguilib.widget.layout_components : AlignItems, FlexDirection,
 
 /// Controller handling Page 1 keyboard shortcuts and alpha pulse animation.
 final class LayoutPainterPageController : DefaultController {
-  this(
+  static LayoutPainterPageController createWithParent(
     UiSystem ui,
     ref ModelTracker!DemoModel demoTracker,
     Widget parent
   ) {
     assert(ui !is null, "ui must not be null");
     assert(parent !is null, "parent must not be null");
-    this(ui, demoTracker, new LayoutPainterPage(ui, parent));
+    return new LayoutPainterPageController(
+      ui,
+      demoTracker,
+      new LayoutPainterPage(ui, parent)
+    );
   }
 
   this(

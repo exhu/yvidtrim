@@ -17,7 +17,7 @@ class Background : WidgetComponent {
     none,
   }
 
-  this(ColorF color, Style style = Style.rect, float cornerRadius = 15.0f) {
+  this(ColorF color, Style style, float cornerRadius) {
     this.color = color;
     this.style = style;
     this.cornerRadius = cornerRadius;
@@ -29,10 +29,10 @@ class Background : WidgetComponent {
   }
 
   static Background rect(ColorF color) {
-    return new Background(color, Style.rect);
+    return new Background(color, Style.rect, 15.0f);
   }
 
-  static Background round(ColorF color, float cornerRadius = 15.0f) {
+  static Background round(ColorF color, float cornerRadius) {
     return new Background(color, Style.round, cornerRadius);
   }
 
@@ -45,7 +45,7 @@ class TextLabel : WidgetComponent {
   // TODO RTL support
   alias Alignment = TextAlignment;
 
-  this(string caption, ColorF color = ColorF(1, 1, 1, 1)) {
+  this(string caption, ColorF color) {
     this.caption = caption;
     this.color = color;
   }
@@ -60,12 +60,12 @@ class TextLabel : WidgetComponent {
     return this;
   }
 
-  TextLabel withMultiline(bool multi = true) {
+  TextLabel withMultiline(bool multi) {
     this.multiline = multi;
     return this;
   }
 
-  TextLabel withEllipsis(bool ellipsis = true) {
+  TextLabel withEllipsis(bool ellipsis) {
     this.overflowEllipsis = ellipsis;
     return this;
   }
@@ -107,7 +107,7 @@ class Border : WidgetComponent {
     none,
   }
 
-  this(ColorF color, float width = 2.0f, Style style = Style.rect) {
+  this(ColorF color, float width, Style style) {
     this.color = color;
     this.width = width;
     this.style = style;
@@ -124,15 +124,11 @@ class Border : WidgetComponent {
     return this;
   }
 
-  static Border rect(ColorF color, float width = 1.0f) {
+  static Border rect(ColorF color, float width) {
     return new Border(color, width, Style.rect);
   }
 
-  static Border round(
-    ColorF color,
-    float cornerRadius = 10.0f,
-    float width = 1.0f
-  ) {
+  static Border round(ColorF color, float cornerRadius, float width) {
     auto b = new Border(color, width, Style.round);
     b.cornerRadius = cornerRadius;
     return b;
@@ -140,9 +136,9 @@ class Border : WidgetComponent {
 
   static Border dashed(
     ColorF color,
-    float width = 1.0f,
-    float dashLen = 5.0f,
-    float gap = 2.0f
+    float width,
+    float dashLen,
+    float gap
   ) {
     auto b = new Border(color, width, Style.dashed);
     b.dashLen = dashLen;
@@ -150,11 +146,7 @@ class Border : WidgetComponent {
     return b;
   }
 
-  static Border roundDashed(
-    ColorF color,
-    float cornerRadius = 10.0f,
-    float width = 1.0f
-  ) {
+  static Border roundDashed(ColorF color, float cornerRadius, float width) {
     auto b = new Border(color, width, Style.roundDashed);
     b.cornerRadius = cornerRadius;
     return b;
@@ -185,10 +177,14 @@ class DebugDrawComponent : WidgetComponent {
   /// text and frame color
   ColorF fgColor = colors.yellow;
   /// if widget is invisible use that color
-  ColorF hiddenFgColor = ColorF(colors.yellow.r, colors.yellow.g,colors.yellow.b, 0.4);
+  ColorF hiddenFgColor = ColorF(
+    colors.yellow.r, colors.yellow.g, colors.yellow.b, 0.4
+  );
   /// text background color
   ColorF bgColor = colors.black;
-  ColorF hiddenBgColor = ColorF(colors.black.r, colors.black.g,colors.black.b, 0.4);
+  ColorF hiddenBgColor = ColorF(
+    colors.black.r, colors.black.g, colors.black.b, 0.4
+  );
 }
 
 unittest {
@@ -208,7 +204,7 @@ unittest {
   win.create();
   scope(exit) win.destroy();
 
-  auto r = new Renderer(320, 240);
+  auto r = new Renderer(320, 240, 1.0f);
   scope(exit) r.destroy();
 
   auto font = r.getDefaultFont();
@@ -236,7 +232,9 @@ unittest {
   assert(linesNewlines[0].text == "Hello World");
 
   // Single line with overflowEllipsis == true
-  const float fullW = r.measureText("Long text that should overflow", font).x;
+  const float fullW = r.measureTextWithFont(
+    "Long text that should overflow", font
+  ).x;
   auto tlOverflow = new TextLabel(
     "Long text that should overflow",
     ColorF(1, 1, 1, 1)
@@ -302,7 +300,7 @@ unittest {
     ColorF(1, 1, 1, 1)
   );
   tlWrap.multiline = true;
-  const float wrapW = r.measureText("Word one word two", font).x + 5.0f;
+  const float wrapW = r.measureTextWithFont("Word one word two", font).x + 5.0f;
   auto linesWrap = getLayoutLines(
     tlWrap.layoutCache, r, font, tlWrap.font,
     tlWrap.caption, tlWrap.multiline, tlWrap.overflowEllipsis,
@@ -314,8 +312,10 @@ unittest {
   }
 
   // Multiline: vertical truncation with overflowEllipsis == true
-  float lineStep = r.toLogic(font.lineSkip > 0 ? font.lineSkip : font.height);
-  float firstLineH = r.measureText("A", font).y;
+  float lineStep = r.logicFromPixelsFloat(
+    font.lineSkip > 0 ? font.lineSkip : font.height
+  );
+  float firstLineH = r.measureTextWithFont("A", font).y;
   // Fit exactly 2 lines
   float limitH = lineStep + firstLineH + 2.0f;
   auto linesVertTrunc = getLayoutLines(

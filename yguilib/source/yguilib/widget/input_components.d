@@ -8,7 +8,8 @@ final class Focus : WidgetComponent {
   bool focused;
   /// does not participate in focus loop, cannot be focused
   bool skip;
-  /// focus is cycling between all the widgets from this root to the next in hierarchy
+  /// focus is cycling between all the widgets from this root to the next
+  /// in hierarchy
   bool focusRoot;
 }
 
@@ -68,16 +69,26 @@ final class MouseEvent : WidgetComponent {
       return val;
     }
 
+    /// Constructs from cursor coordinates and button state.
+    static AppEventViewValue packLocal(
+      float localX,
+      float localY,
+      ubyte buttons,
+      bool inside
+    ) {
+      return pack(localX, localY, buttons, inside, 0.0f, 0.0f, 0.0f, 0.0f);
+    }
+
     /// Constructs from cursor coordinates, button index, and inside flag.
     static AppEventViewValue pack(
       float localX,
       float localY,
-      ubyte buttons = 0,
-      bool inside = true,
-      float relX = 0.0f,
-      float relY = 0.0f,
-      float windowX = 0.0f,
-      float windowY = 0.0f
+      ubyte buttons,
+      bool inside,
+      float relX,
+      float relY,
+      float windowX,
+      float windowY
     ) {
       AppEventViewValue val;
       val.raw = 0;

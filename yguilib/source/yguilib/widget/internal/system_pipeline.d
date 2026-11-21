@@ -115,7 +115,7 @@ final class WidgetSystemPipeline {
   /// Dispatches an AppEvent through all SystemPhase.event systems in priority
   /// order. Stops early if a system sets `result.consumed = true`.
   /// Note: `window` is allowed to be null in headless unit tests.
-  SystemEventResult handleEvent(in AppEvent event, Window window = null) {
+  SystemEventResult handleEvent(in AppEvent event, Window window) {
     WidgetSystemContext ctx = makeContext(window);
     SystemEventResult aggregate;
 
@@ -179,7 +179,7 @@ private:
     assert(ctx.root !is null);
     assert(ctx.renderer !is null);
     if (fLastVisibleWidgets.length == 0 || ctx.root.isTreeLayoutDirty()) {
-      fLastVisibleWidgets = collector.collectVisible(
+      fLastVisibleWidgets = collector.collectVisibleWithRenderer(
         ctx.root,
         ctx.renderer,
         false
@@ -202,7 +202,7 @@ private:
       return;
     }
 
-    ctx.unclippedWidgets = collector.collectVisible(
+    ctx.unclippedWidgets = collector.collectVisibleWithRenderer(
       ctx.root,
       ctx.renderer,
       true
@@ -216,7 +216,7 @@ private:
 
     syncDirtyAfterLayout(ctx.root, ctx.unclippedWidgets);
 
-    fLastVisibleWidgets = collector.collectVisible(
+    fLastVisibleWidgets = collector.collectVisibleWithRenderer(
       ctx.root,
       ctx.renderer,
       false
@@ -402,7 +402,7 @@ private:
   class PriorityTestSystem : WidgetSystem {
     string name;
     this(string name, int priority) nothrow @safe {
-      super(priority);
+      setPriority(priority);
       this.name = name;
     }
 
@@ -460,7 +460,7 @@ unittest {
     bool wasCalled;
 
     this(int priority, bool consumed, bool requestUpdate) nothrow @safe {
-      super(priority);
+      setPriority(priority);
       this.consumed = consumed;
       this.requestUpdate = requestUpdate;
     }
@@ -490,7 +490,7 @@ unittest {
   pipeline.registerSystem(e3);
 
   AppEvent ev;
-  auto res = pipeline.handleEvent(ev);
+  auto res = pipeline.handleEvent(ev, null);
   assert(res.consumed);
   assert(res.requestUpdateView);
   assert(e1.wasCalled);
@@ -527,7 +527,7 @@ unittest {
 
   final class CustomPhaseSystem : WidgetSystem {
     this() nothrow @safe {
-      super(100);
+      setPriority(100);
     }
 
     override @property SystemPhase phases() const nothrow @safe {
@@ -567,11 +567,11 @@ unittest {
 
   auto root = new Widget(1);
   root.rect = RectF(0, 0, 320, 240);
-  root.components.background = new Background(ColorF(0.1f, 0.1f, 0.1f, 1.0f));
+  root.components.background = Background.rect(ColorF(0.1f, 0.1f, 0.1f, 1.0f));
   auto child = new Widget(2);
   child.rect = RectF(10, 10, 100, 50);
   root.addChild(child);
-  child.components.background = new Background(ColorF(1.0f, 0, 0, 1.0f));
+  child.components.background = Background.rect(ColorF(1.0f, 0, 0, 1.0f));
   win.rootWidget = root;
 
   // Initial state: root and child are dirty and layoutDirty
@@ -609,7 +609,7 @@ unittest {
       if (parent !is null) {
         parent.addChild(item);
       }
-      item.components.background = new Background(ColorF(0, 1, 0, 1));
+      item.components.background = Background.rect(ColorF(0, 1, 0, 1));
     }
 
     override void updateWidgetAt(Widget w, size_t index) {
@@ -657,7 +657,7 @@ unittest {
   auto largeContent = new Widget(6);
   largeContent.rect = RectF(0, 0, 400, 300);
   scrollContainer.addChild(largeContent);
-  largeContent.components.background = new Background(ColorF(0, 0, 1, 1));
+  largeContent.components.background = Background.rect(ColorF(0, 0, 1, 1));
 
   assert(pipeline.updateAndRenderTree(win));
   assert(scrollArea.viewportSize == PointF(100, 100));

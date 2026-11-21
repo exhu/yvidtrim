@@ -18,6 +18,7 @@ import yguilib.widget.layout_components : AlignItems, Anchor, Dimension,
 
 /// Page 1 widget container displaying Painter styles and layout features.
 final class LayoutPainterPage {
+  /// Constructs LayoutPainterPage. `parent` is allowed to be null in tests.
   this(UiSystem ui, Widget parent) {
     assert(ui !is null, "UiSystem must not be null");
     this.ui = ui;
@@ -266,7 +267,9 @@ private:
       .bgRadius(6.0f)
       .borderComponent(Border.dashed(
         ColorF(0.35f, 0.40f, 0.50f, 1.0f),
-        1.5f
+        1.5f,
+        5.0f,
+        2.0f
       ))
       .build();
 
@@ -444,7 +447,9 @@ private:
       .alignItems(AlignItems.center)
       .borderComponent(Border.dashed(
         ColorF(0.30f, 0.35f, 0.45f, 1.0f),
-        1.5f
+        1.5f,
+        5.0f,
+        2.0f
       ))
       .build();
 
@@ -513,41 +518,43 @@ private:
     populateCornerBadges(cornerBox);
   }
 
-  void populateCornerBadges(Widget cornerBox) {
-    void addCornerBadge(
-      string badgeName,
-      string text,
-      Nullable!float left,
-      Nullable!float top,
-      Nullable!float right,
-      Nullable!float bottom,
-      ColorF bgCol
-    ) {
-      auto b = WidgetBuilder.make(ui)
-        .parent(cornerBox)
-        .name(badgeName)
-        .rect(RectF(0, 0, 72, 28))
-        .padding(Insets(5, 8, 5, 8))
-        .roundBg(bgCol)
-        .bgRadius(15.0f)
-        .text(text)
-        .textColor(ColorF(1, 1, 1, 1));
-      if (!left.isNull) {
-        b.anchorLeft(left.get);
-      }
-      if (!top.isNull) {
-        b.anchorTop(top.get);
-      }
-      if (!right.isNull) {
-        b.anchorRight(right.get);
-      }
-      if (!bottom.isNull) {
-        b.anchorBottom(bottom.get);
-      }
-      b.build();
+  void addCornerBadge(
+    Widget cornerBox,
+    string badgeName,
+    string text,
+    Nullable!float left,
+    Nullable!float top,
+    Nullable!float right,
+    Nullable!float bottom,
+    ColorF bgCol
+  ) {
+    auto b = WidgetBuilder.make(ui)
+      .parent(cornerBox)
+      .name(badgeName)
+      .rect(RectF(0, 0, 72, 28))
+      .padding(Insets(5, 8, 5, 8))
+      .roundBg(bgCol)
+      .bgRadius(15.0f)
+      .text(text)
+      .textColor(ColorF(1, 1, 1, 1));
+    if (!left.isNull) {
+      b.anchorLeft(left.get);
     }
+    if (!top.isNull) {
+      b.anchorTop(top.get);
+    }
+    if (!right.isNull) {
+      b.anchorRight(right.get);
+    }
+    if (!bottom.isNull) {
+      b.anchorBottom(bottom.get);
+    }
+    b.build();
+  }
 
+  void populateCornerBadges(Widget cornerBox) {
     addCornerBadge(
+      cornerBox,
       "topLeftBadge",
       "Top-Left",
       nullable(6.0f),
@@ -557,6 +564,7 @@ private:
       ColorF(0.80f, 0.20f, 0.20f, 1.0f)
     );
     addCornerBadge(
+      cornerBox,
       "topRightBadge",
       "Top-Right",
       Nullable!float.init,
@@ -566,6 +574,7 @@ private:
       ColorF(0.20f, 0.70f, 0.30f, 1.0f)
     );
     addCornerBadge(
+      cornerBox,
       "bottomLeftBadge",
       "Bot-Left",
       nullable(6.0f),
@@ -575,6 +584,7 @@ private:
       ColorF(0.20f, 0.40f, 0.80f, 1.0f)
     );
     addCornerBadge(
+      cornerBox,
       "bottomRightBadge",
       "Bot-Right",
       Nullable!float.init,
@@ -600,6 +610,10 @@ private:
       .alignItems(AlignItems.stretch)
       .build();
 
+    populateFlexBoxWithAnchor(flexBoxWithAnchor);
+  }
+
+  void populateFlexBoxWithAnchor(Widget flexBoxWithAnchor) {
     WidgetBuilder.make(ui)
       .parent(flexBoxWithAnchor)
       .name("flexAnchorTitle")
@@ -670,11 +684,30 @@ private:
       .bgRadius(15.0f)
       .borderComponent(Border.dashed(
         ColorF(0.30f, 0.35f, 0.45f, 1.0f),
-        1.5f
+        1.5f,
+        5.0f,
+        2.0f
       ))
       .flexComponent(playgroundFlex)
       .build();
 
+    buildPlaygroundInitialBoxes();
+
+    WidgetBuilder.make(ui)
+      .parent(playgroundContainer)
+      .name("playgroundBoxC")
+      .rect(RectF(0, 0, 10, 10))
+      .fixedSize(110, 44)
+      .padding(Insets(6, 8, 6, 8))
+      .roundBg(ColorF(0.20f, 0.50f, 0.30f, 1.0f))
+      .bgRadius(15.0f)
+      .border(ColorF(0.45f, 0.90f, 0.55f, 1.0f))
+      .borderWidth(2.0f)
+      .text("Box C (110x44)")
+      .build();
+  }
+
+  void buildPlaygroundInitialBoxes() {
     WidgetBuilder.make(ui)
       .parent(playgroundContainer)
       .name("playgroundBoxA")
@@ -699,19 +732,6 @@ private:
       .border(ColorF(0.95f, 0.50f, 0.65f, 1.0f))
       .borderWidth(2.0f)
       .text("Box B [V to hide]")
-      .build();
-
-    WidgetBuilder.make(ui)
-      .parent(playgroundContainer)
-      .name("playgroundBoxC")
-      .rect(RectF(0, 0, 10, 10))
-      .fixedSize(110, 44)
-      .padding(Insets(6, 8, 6, 8))
-      .roundBg(ColorF(0.20f, 0.50f, 0.30f, 1.0f))
-      .bgRadius(15.0f)
-      .border(ColorF(0.45f, 0.90f, 0.55f, 1.0f))
-      .borderWidth(2.0f)
-      .text("Box C (110x44)")
       .build();
   }
 

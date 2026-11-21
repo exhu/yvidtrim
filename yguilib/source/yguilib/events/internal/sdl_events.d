@@ -13,54 +13,12 @@ Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
       return Nullable!AppEvent(AppEvent(AppEvent.Kind.appQuit));
 
     case yguilib_sdl3_EventType.windowClose:
-      return Nullable!AppEvent(AppEvent.windowEvent(
-        AppEvent.Kind.windowClose,
-        AppEvent.WindowData(sdlEv.window.windowId)
-      ));
-
     case yguilib_sdl3_EventType.windowResized:
-      return Nullable!AppEvent(AppEvent.windowEvent(
-        AppEvent.Kind.windowResized,
-        AppEvent.WindowData(
-          sdlEv.window.windowId,
-          sdlEv.window.width,
-          sdlEv.window.height,
-          sdlEv.window.scale
-        )
-      ));
-
     case yguilib_sdl3_EventType.windowExposed:
-      return Nullable!AppEvent(AppEvent.windowEvent(
-        AppEvent.Kind.windowExposed,
-        AppEvent.WindowData(
-          sdlEv.window.windowId,
-          sdlEv.window.width,
-          sdlEv.window.height
-        )
-      ));
-
     case yguilib_sdl3_EventType.windowDisplayScaleChanged:
-      return Nullable!AppEvent(AppEvent.windowEvent(
-        AppEvent.Kind.windowDisplayScaleChanged,
-        AppEvent.WindowData(
-          sdlEv.window.windowId,
-          sdlEv.window.width,
-          sdlEv.window.height,
-          sdlEv.window.scale
-        )
-      ));
-
     case yguilib_sdl3_EventType.windowMouseEnter:
-      return Nullable!AppEvent(AppEvent.windowEvent(
-        AppEvent.Kind.windowMouseEnter,
-        AppEvent.WindowData(sdlEv.window.windowId)
-      ));
-
     case yguilib_sdl3_EventType.windowMouseLeave:
-      return Nullable!AppEvent(AppEvent.windowEvent(
-        AppEvent.Kind.windowMouseLeave,
-        AppEvent.WindowData(sdlEv.window.windowId)
-      ));
+      return Nullable!AppEvent(makeWindowEvent(sdlEv));
 
     case yguilib_sdl3_EventType.mouseMotion:
     case yguilib_sdl3_EventType.mouseButtonDown:
@@ -77,18 +35,7 @@ Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
     }
 
     case yguilib_sdl3_EventType.mouseWheel:
-      return Nullable!AppEvent(AppEvent.wheelEvent(
-        AppEvent.WheelData(
-          sdlEv.wheel.windowId,
-          sdlEv.wheel.x,
-          sdlEv.wheel.y,
-          sdlEv.wheel.mouseX,
-          sdlEv.wheel.mouseY,
-          sdlEv.wheel.direction,
-          sdlEv.wheel.integerX,
-          sdlEv.wheel.integerY
-        )
-      ));
+      return Nullable!AppEvent(makeWheelEvent(sdlEv));
 
     case yguilib_sdl3_EventType.keyDown:
       return Nullable!AppEvent(makeKeyEvent(AppEvent.Kind.keyDown, sdlEv));
@@ -97,24 +44,8 @@ Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
       return Nullable!AppEvent(makeKeyEvent(AppEvent.Kind.keyUp, sdlEv));
 
     case yguilib_sdl3_EventType.textEditing:
-      return Nullable!AppEvent(AppEvent.textEvent(
-        AppEvent.Kind.textEditing,
-        AppEvent.TextData(
-          sdlEv.textEditing.windowId,
-          fromCStr(sdlEv.textEditing.text),
-          sdlEv.textEditing.start,
-          sdlEv.textEditing.length
-        )
-      ));
-
     case yguilib_sdl3_EventType.textInput:
-      return Nullable!AppEvent(AppEvent.textEvent(
-        AppEvent.Kind.textInput,
-        AppEvent.TextData(
-          sdlEv.textInput.windowId,
-          fromCStr(sdlEv.textInput.text)
-        )
-      ));
+      return Nullable!AppEvent(makeTextEvent(sdlEv));
 
     default:
       return Nullable!AppEvent.init;
@@ -123,7 +54,92 @@ Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
 
 private:
 
-string fromCStr(const(char)* s) {
+AppEvent makeTextEvent(in yguilib_sdl3_Event sdlEv) {
+  if (sdlEv.type == yguilib_sdl3_EventType.textEditing) {
+    return AppEvent.textEvent(
+      AppEvent.Kind.textEditing,
+      AppEvent.TextData(
+        sdlEv.textEditing.windowId,
+        stringFromCstr(sdlEv.textEditing.text),
+        sdlEv.textEditing.start,
+        sdlEv.textEditing.length
+      )
+    );
+  }
+  return AppEvent.textEvent(
+    AppEvent.Kind.textInput,
+    AppEvent.TextData(
+      sdlEv.textInput.windowId,
+      stringFromCstr(sdlEv.textInput.text)
+    )
+  );
+}
+
+AppEvent makeWindowEvent(in yguilib_sdl3_Event sdlEv) {
+  switch (sdlEv.type) {
+    case yguilib_sdl3_EventType.windowClose:
+      return AppEvent.windowEvent(
+        AppEvent.Kind.windowClose,
+        AppEvent.WindowData(sdlEv.window.windowId)
+      );
+    case yguilib_sdl3_EventType.windowResized:
+      return AppEvent.windowEvent(
+        AppEvent.Kind.windowResized,
+        AppEvent.WindowData(
+          sdlEv.window.windowId,
+          sdlEv.window.width,
+          sdlEv.window.height,
+          sdlEv.window.scale
+        )
+      );
+    case yguilib_sdl3_EventType.windowExposed:
+      return AppEvent.windowEvent(
+        AppEvent.Kind.windowExposed,
+        AppEvent.WindowData(
+          sdlEv.window.windowId,
+          sdlEv.window.width,
+          sdlEv.window.height
+        )
+      );
+    case yguilib_sdl3_EventType.windowDisplayScaleChanged:
+      return AppEvent.windowEvent(
+        AppEvent.Kind.windowDisplayScaleChanged,
+        AppEvent.WindowData(
+          sdlEv.window.windowId,
+          sdlEv.window.width,
+          sdlEv.window.height,
+          sdlEv.window.scale
+        )
+      );
+    case yguilib_sdl3_EventType.windowMouseEnter:
+      return AppEvent.windowEvent(
+        AppEvent.Kind.windowMouseEnter,
+        AppEvent.WindowData(sdlEv.window.windowId)
+      );
+    default:
+      return AppEvent.windowEvent(
+        AppEvent.Kind.windowMouseLeave,
+        AppEvent.WindowData(sdlEv.window.windowId)
+      );
+  }
+}
+
+AppEvent makeWheelEvent(in yguilib_sdl3_Event sdlEv) {
+  return AppEvent.wheelEvent(
+    AppEvent.WheelData(
+      sdlEv.wheel.windowId,
+      sdlEv.wheel.x,
+      sdlEv.wheel.y,
+      sdlEv.wheel.mouseX,
+      sdlEv.wheel.mouseY,
+      sdlEv.wheel.direction,
+      sdlEv.wheel.integerX,
+      sdlEv.wheel.integerY
+    )
+  );
+}
+
+string stringFromCstr(const(char)* s) {
   if (s is null) {
     return null;
   }

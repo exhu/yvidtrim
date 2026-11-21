@@ -142,7 +142,7 @@ int yguilib_sdl3_send_wake_event(void);
  * If timeout_ms < 0, blocks indefinitely until an event arrives.
  * If timeout_ms >= 0, waits up to timeout_ms milliseconds.
  *
- * @param event Pointer to destination event structure to populate.
+ * @param event Pointer to destination event structure (must not be NULL).
  * @param timeout_ms Maximum time to wait in ms (<0 for infinite).
  * @return 1 if an event was retrieved, 0 if timeout elapsed with no event,
  *         or -1 on error.
@@ -152,7 +152,7 @@ int yguilib_sdl3_wait_event(yguilib_sdl3_Event *event, int timeout_ms);
 /**
  * Polls for pending SDL events without blocking.
  *
- * @param event Pointer to destination event structure to populate.
+ * @param event Pointer to destination event structure (must not be NULL).
  * @return 1 if an event was retrieved, 0 if no event is pending,
  *         or -1 on error.
  */
@@ -181,14 +181,14 @@ yguilib_sdl3_Window *yguilib_sdl3_create_window(
 /**
  * Destroys an SDL window created by yguilib_sdl3_create_window.
  *
- * @param window Pointer to the window handle to destroy.
+ * @param window Pointer to the window handle to destroy (NULL is ignored).
  */
 void yguilib_sdl3_destroy_window(yguilib_sdl3_Window *window);
 
 /**
  * Gets the SDL window ID for the given window.
  *
- * @param window Pointer to the window handle.
+ * @param window Pointer to the window handle (NULL returns 0).
  * @return Window ID, or 0 on error.
  */
 uint32_t yguilib_sdl3_get_window_id(const yguilib_sdl3_Window *window);
@@ -224,7 +224,7 @@ int yguilib_sdl3_get_window_size_in_pixels(
 /**
  * Gets the display scale factor for the given window.
  *
- * @param window Pointer to the window handle.
+ * @param window Pointer to the window handle (NULL returns 0.0f).
  * @return Display scale factor (e.g. 1.0 for 100%, 2.0 for 200%), or
  *         0.0f on failure.
  */
@@ -233,7 +233,7 @@ float yguilib_sdl3_get_window_display_scale(const yguilib_sdl3_Window *window);
 /**
  * Creates an OpenGL ES 3.0 context for the given window.
  *
- * @param window Pointer to the window handle.
+ * @param window Pointer to the window handle (must not be NULL).
  * @return Pointer to yguilib_sdl3_GLContext on success, or NULL on failure.
  */
 yguilib_sdl3_GLContext *yguilib_sdl3_gl_create_context(
@@ -243,15 +243,15 @@ yguilib_sdl3_GLContext *yguilib_sdl3_gl_create_context(
 /**
  * Destroys an OpenGL context created by yguilib_sdl3_gl_create_context.
  *
- * @param context Pointer to the context handle to destroy.
+ * @param context Pointer to the context handle to destroy (NULL is ignored).
  */
 void yguilib_sdl3_gl_destroy_context(yguilib_sdl3_GLContext *context);
 
 /**
  * Makes the specified OpenGL context current on the given window.
  *
- * @param window Pointer to the window handle.
- * @param context Pointer to the GL context handle.
+ * @param window Pointer to the window handle (must not be NULL).
+ * @param context Pointer to the GL context handle (must not be NULL).
  * @return 0 on success, or -1 on failure.
  */
 int yguilib_sdl3_gl_make_current(
@@ -262,7 +262,7 @@ int yguilib_sdl3_gl_make_current(
 /**
  * Swaps the OpenGL display buffers for the specified window.
  *
- * @param window Pointer to the window handle.
+ * @param window Pointer to the window handle (must not be NULL).
  * @return 0 on success, or -1 on failure.
  */
 int yguilib_sdl3_gl_swap_window(yguilib_sdl3_Window *window);
@@ -291,7 +291,7 @@ typedef enum yguilib_sdl3_LogPriority {
 /**
  * Logs a message using SDL_Log.
  *
- * @param message Null-terminated UTF-8 message.
+ * @param message Null-terminated UTF-8 message (NULL is ignored).
  */
 void yguilib_sdl3_log(const char *message);
 
@@ -299,7 +299,7 @@ void yguilib_sdl3_log(const char *message);
  * Logs a message with specified priority using SDL_LogMessage.
  *
  * @param priority Log priority level.
- * @param message Null-terminated UTF-8 message.
+ * @param message Null-terminated UTF-8 message (NULL is ignored).
  */
 void yguilib_sdl3_log_priority(
   yguilib_sdl3_LogPriority priority,
@@ -309,7 +309,7 @@ void yguilib_sdl3_log_priority(
 /**
  * Starts accepting Unicode text input in the given window.
  *
- * @param window Pointer to the window handle.
+ * @param window Pointer to the window handle (must not be NULL).
  * @return 0 on success, or -1 on failure.
  */
 int yguilib_sdl3_start_text_input(yguilib_sdl3_Window *window);
@@ -317,7 +317,7 @@ int yguilib_sdl3_start_text_input(yguilib_sdl3_Window *window);
 /**
  * Stops accepting Unicode text input in the given window.
  *
- * @param window Pointer to the window handle.
+ * @param window Pointer to the window handle (must not be NULL).
  * @return 0 on success, or -1 on failure.
  */
 int yguilib_sdl3_stop_text_input(yguilib_sdl3_Window *window);
@@ -362,7 +362,7 @@ const char *yguilib_sdl3_get_key_name(uint32_t key);
 /**
  * Gets a key code from a human-readable name.
  *
- * @param name UTF-8 key name.
+ * @param name UTF-8 key name (must not be NULL).
  * @return Key code, or 0 if not recognized.
  */
 uint32_t yguilib_sdl3_get_key_from_name(const char *name);
@@ -370,7 +370,7 @@ uint32_t yguilib_sdl3_get_key_from_name(const char *name);
 /**
  * Gets a scancode from a human-readable name.
  *
- * @param name UTF-8 scancode name.
+ * @param name UTF-8 scancode name (must not be NULL).
  * @return Scancode value, or 0 if not recognized.
  */
 uint32_t yguilib_sdl3_get_scancode_from_name(const char *name);

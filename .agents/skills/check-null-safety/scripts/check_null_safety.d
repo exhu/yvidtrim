@@ -58,9 +58,13 @@ bool isValueType(string typeName) {
     case "RectF":
     case "LayoutBox":
     case "LayoutDimensions":
+    case "Kind":
+    case "LogLevel":
+    case "Style":
+    case "HoverAnimConfig":
       return true;
     default:
-      return false;
+      return typeName.startsWith("ModelTracker");
   }
 }
 
@@ -79,8 +83,25 @@ void checkDNullSafety(
   auto assertRe = ctRegex!(r"assert\s*\(\s*([a-zA-Z0-9_]+)\s*!\s*is\s*null");
 
   // Track constructors and assertions
+  bool inBlockComment = false;
   for (size_t i = 0; i < lines.length; i++) {
     string line = lines[i];
+    string trimmed = line.strip();
+    if (inBlockComment) {
+      if (trimmed.canFind("*/")) {
+        inBlockComment = false;
+      }
+      continue;
+    }
+    if (trimmed.startsWith("/*")) {
+      if (!trimmed.canFind("*/")) {
+        inBlockComment = true;
+      }
+      continue;
+    }
+    if (trimmed.startsWith("//")) {
+      continue;
+    }
     auto ctorMatch = matchFirst(line, ctorRe);
     if (!ctorMatch.empty) {
       string paramsStr = ctorMatch[2].strip();
@@ -118,7 +139,7 @@ void checkDNullSafety(
           trimmedP = trimmedP[0 .. eqIdx].strip();
         }
         string[] parts = trimmedP.split(" ");
-        if (parts.length >= 2) {
+        if (parts.length >= 2 && !parts.canFind("ref")) {
           string pType = parts[$ - 2].strip();
           string pName = parts[$ - 1].strip();
           if (pType.endsWith("*") || (!isValueType(pType)
@@ -191,6 +212,9 @@ void checkCHeaderNullDoc(
 
   for (size_t i = 0; i < lines.length; i++) {
     string line = lines[i].strip();
+    if (line.startsWith("typedef ")) {
+      continue;
+    }
     auto m = matchFirst(line, cFuncRe);
     if (!m.empty) {
       string funcName = m[1];

@@ -91,10 +91,10 @@ unittest {
   assert(registry.getByName("first") is obj2);
 
   // Test with interface
-  interface IDummy {
+  interface DummyInterface {
     int id();
   }
-  static class Impl : IDummy {
+  static class Impl : DummyInterface {
     int _id;
     this(int id) {
       _id = id;
@@ -104,9 +104,9 @@ unittest {
     }
   }
 
-  auto ifaceRegistry = new ObjectRegistry!IDummy();
-  IDummy iface1 = new Impl(10);
-  IDummy iface2 = new Impl(20);
+  auto ifaceRegistry = new ObjectRegistry!DummyInterface();
+  DummyInterface iface1 = new Impl(10);
+  DummyInterface iface2 = new Impl(20);
 
   assert(ifaceRegistry.register("first", iface1));
   assert(ifaceRegistry.getByName("first") is iface1);

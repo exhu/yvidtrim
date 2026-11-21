@@ -13,7 +13,7 @@ import yguilib.assets : defaultTtfFontData;
 
 /// Managed by Window class.
 final class Renderer {
-  this(int width = 0, int height = 0, float displayScaling = 1.0f) {
+  this(int width, int height, float displayScaling) {
     viewportPixelWidth = width;
     viewportPixelHeight = height;
     this.displayScaling = displayScaling > 0.0f ? displayScaling : 1.0f;
@@ -95,43 +95,46 @@ final class Renderer {
     return displayScaling * unitsScaling;
   }
 
-  float toPixels(float logicUnits) const {
+  float pixelsFromLogicFloat(float logicUnits) const {
     return logicUnits * (displayScaling * unitsScaling);
   }
 
-  float toLogic(float pixels) const {
-    float totalScale = displayScaling * unitsScaling;
+  float logicFromPixelsFloat(float pixels) const {
+    const float totalScale = displayScaling * unitsScaling;
     return totalScale > 0.0f ? (pixels / totalScale) : pixels;
   }
 
-  PointF toPixels(in PointF logicPoint) const {
-    return PointF(toPixels(logicPoint.x), toPixels(logicPoint.y));
-  }
-
-  PointF toLogic(in PointF pixelPoint) const {
-    return PointF(toLogic(pixelPoint.x), toLogic(pixelPoint.y));
-  }
-
-  RectF toPixels(in RectF logicRect) const {
-    return RectF(
-      toPixels(logicRect.x),
-      toPixels(logicRect.y),
-      toPixels(logicRect.width),
-      toPixels(logicRect.height)
+  PointF pixelsFromLogicPoint(in PointF logicPoint) const {
+    return PointF(
+      pixelsFromLogicFloat(logicPoint.x),
+      pixelsFromLogicFloat(logicPoint.y)
     );
   }
 
-  RectF toLogic(in RectF pixelRect) const {
-    return RectF(
-      toLogic(pixelRect.x),
-      toLogic(pixelRect.y),
-      toLogic(pixelRect.width),
-      toLogic(pixelRect.height)
+  PointF logicFromPixelsPoint(in PointF pixelPoint) const {
+    return PointF(
+      logicFromPixelsFloat(pixelPoint.x),
+      logicFromPixelsFloat(pixelPoint.y)
     );
   }
 
-  alias logicToPixels = toPixels;
-  alias pixelsToLogic = toLogic;
+  RectF pixelsFromLogicRect(in RectF logicRect) const {
+    return RectF(
+      pixelsFromLogicFloat(logicRect.x),
+      pixelsFromLogicFloat(logicRect.y),
+      pixelsFromLogicFloat(logicRect.width),
+      pixelsFromLogicFloat(logicRect.height)
+    );
+  }
+
+  RectF logicFromPixelsRect(in RectF pixelRect) const {
+    return RectF(
+      logicFromPixelsFloat(pixelRect.x),
+      logicFromPixelsFloat(pixelRect.y),
+      logicFromPixelsFloat(pixelRect.width),
+      logicFromPixelsFloat(pixelRect.height)
+    );
+  }
 
   int getPixelWidth() const {
     return viewportPixelWidth;
@@ -142,11 +145,11 @@ final class Renderer {
   }
 
   float getLogicWidth() const {
-    return toLogic(cast(float)viewportPixelWidth);
+    return logicFromPixelsFloat(cast(float)viewportPixelWidth);
   }
 
   float getLogicHeight() const {
-    return toLogic(cast(float)viewportPixelHeight);
+    return logicFromPixelsFloat(cast(float)viewportPixelHeight);
   }
 
   int getViewportWidth() const {
@@ -158,7 +161,7 @@ final class Renderer {
   }
 
   bool isOnScreen(in RectF rect) const {
-    return isOnScreen(rect, getLogicWidth(), getLogicHeight());
+    return isOnScreenWithViewport(rect, getLogicWidth(), getLogicHeight());
   }
 
   /**
@@ -170,7 +173,7 @@ final class Renderer {
    *   vh = Viewport height in logical units.
    * Returns: true if rectangle has positive size and intersects the viewport.
    */
-  static bool isOnScreen(in RectF rect, float vw, float vh) {
+  static bool isOnScreenWithViewport(in RectF rect, float vw, float vh) {
     return rect.width > 0.0f && rect.height > 0.0f
       && rect.x < vw && rect.y < vh
       && (rect.x + rect.width) > 0.0f
@@ -178,16 +181,16 @@ final class Renderer {
   }
 
   PointF coordinatesFromEvent(in AppEvent event) const {
-    return coordinatesFromEvent(event.mouse.x, event.mouse.y);
+    return coordinatesFromCoords(event.mouse.x, event.mouse.y);
   }
 
-  PointF coordinatesFromEvent(float x, float y) const {
-    float factor = unitsScaling > 0.0f ? (1.0f / unitsScaling) : 1.0f;
+  PointF coordinatesFromCoords(float x, float y) const {
+    const float factor = unitsScaling > 0.0f ? (1.0f / unitsScaling) : 1.0f;
     return PointF(x * factor, y * factor);
   }
 
-  PointF coordinatesFromEvent(in PointF point) const {
-    return coordinatesFromEvent(point.x, point.y);
+  PointF coordinatesFromPoint(in PointF point) const {
+    return coordinatesFromCoords(point.x, point.y);
   }
 
   void clearCanvas(ColorF color) {
@@ -214,11 +217,11 @@ final class Renderer {
    * @param point2 End point in logic-space units.
    * @param color Line color.
    */
-  void drawLine(PointF point1, PointF point2, ColorF color) {
+  void drawThinLineWithPoints(PointF point1, PointF point2, ColorF color) {
     if (!initialized) {
       return;
     }
-    colorPipeline.drawLine(
+    colorPipeline.drawThinLineWithPoints(
       point1,
       point2,
       color,
@@ -235,46 +238,13 @@ final class Renderer {
    * @param lineWidth Line thickness in logic-space units.
    * @param color Line color.
    */
-  void drawLine(
+  void drawLineWithPoints(
     PointF point1,
     PointF point2,
     float lineWidth,
     ColorF color
   ) {
-    drawLine(point1, point2, lineWidth, 0.0f, 0.0f, color);
-  }
-
-  /**
-   * Draws a dashed line with configurable thickness and dash pattern.
-   *
-   * @param point1 Start point in logic-space units.
-   * @param point2 End point in logic-space units.
-   * @param lineWidth Line thickness in logic-space units.
-   * @param dashLen Length of each visible dash segment.
-   * @param gapLen Length of each gap between dashes.
-   * @param color Line color.
-   */
-  void drawLine(
-    PointF point1,
-    PointF point2,
-    float lineWidth,
-    float dashLen,
-    float gapLen,
-    ColorF color
-  ) {
-    if (!initialized) {
-      return;
-    }
-    colorPipeline.drawLine(
-      point1,
-      point2,
-      lineWidth,
-      dashLen,
-      gapLen,
-      color,
-      getLogicWidth(),
-      getLogicHeight()
-    );
+    drawLineDashed(point1, point2, lineWidth, 0.0f, 0.0f, color);
   }
 
   /**
@@ -295,7 +265,19 @@ final class Renderer {
     float gapLen,
     ColorF color
   ) {
-    drawLine(point1, point2, lineWidth, dashLen, gapLen, color);
+    if (!initialized) {
+      return;
+    }
+    colorPipeline.drawDashedLineWithPoints(
+      point1,
+      point2,
+      lineWidth,
+      dashLen,
+      gapLen,
+      color,
+      getLogicWidth(),
+      getLogicHeight()
+    );
   }
 
   /**
@@ -306,11 +288,11 @@ final class Renderer {
    * lineWidth grows inside, i.e. rect is always outer boundary.
    * @param color Outline color.
    */
-  void drawRect(RectF rect, float lineWidth, ColorF color) {
+  void drawRectWithWidth(RectF rect, float lineWidth, ColorF color) {
     if (!initialized) {
       return;
     }
-    colorPipeline.drawRect(
+    colorPipeline.drawRectWithWidth(
       rect,
       lineWidth,
       color,
@@ -326,7 +308,7 @@ final class Renderer {
    * @param color Outline color.
    */
   void drawRect(RectF rect, ColorF color) {
-    drawRect(rect, 1.0f, color);
+    drawRectWithWidth(rect, 1.0f, color);
   }
 
   /**
@@ -501,10 +483,7 @@ final class Renderer {
    * @param fontName Registered font name, or null/empty for default font.
    * @return A cached Font instance, or null if FontManager is not initialized.
    */
-  Font getFont(
-    float ptSize = defaultFontPtSize,
-    string fontName = null
-  ) {
+  Font getFont(float ptSize, string fontName) {
     if (fontManager !is null) {
       return fontManager.getFont(ptSize, fontName, getTotalScaling());
     }
@@ -524,7 +503,7 @@ final class Renderer {
     if (defaultFont_ !is null) {
       return defaultFont_;
     }
-    return getFont(defaultFontPtSize);
+    return getFont(defaultFontPtSize, null);
   }
 
   /**
@@ -536,9 +515,9 @@ final class Renderer {
    * @param fontName Unique name identifying the font face.
    * @param fontData In-memory TTF data buffer.
    */
-  void registerFont(string fontName, const(void)[] fontData) {
+  void registerFontFromMemory(string fontName, const(void)[] fontData) {
     if (fontManager !is null) {
-      fontManager.registerFont(fontName, fontData);
+      fontManager.registerFontFromMemory(fontName, fontData);
     }
   }
 
@@ -551,9 +530,9 @@ final class Renderer {
    * @param fontName Unique name identifying the font face.
    * @param filePath Path to the TTF font file.
    */
-  void registerFont(string fontName, string filePath) {
+  void registerFontFromFile(string fontName, string filePath) {
     if (fontManager !is null) {
-      fontManager.registerFont(fontName, filePath);
+      fontManager.registerFontFromFile(fontName, filePath);
     }
   }
 
@@ -578,7 +557,7 @@ final class Renderer {
    * @param ptSize Unscaled logical point size in user space.
    * @return A newly allocated Font instance.
    */
-  Font createFont(const(void)[] fontData, float ptSize) {
+  Font createFontFromMemory(const(void)[] fontData, float ptSize) {
     return Font.fromMemory(fontData, ptSize, getTotalScaling());
   }
 
@@ -593,7 +572,7 @@ final class Renderer {
    * @param ptSize Unscaled logical point size in user space.
    * @return A newly allocated Font instance.
    */
-  Font createFont(string filePath, float ptSize) {
+  Font createFontFromFile(string filePath, float ptSize) {
     return Font.fromFile(filePath, ptSize, getTotalScaling());
   }
 
@@ -636,11 +615,11 @@ final class Renderer {
    * @param color Text color (defaults to opaque white).
    * @param font Optional font instance (defaults to null for default font).
    */
-  void drawText(
+  void drawTextWithFont(
     string text,
     PointF pos,
-    ColorF color = ColorF(1.0f, 1.0f, 1.0f, 1.0f),
-    Font font = null
+    ColorF color,
+    Font font
   ) {
     Font f = font !is null ? font : getDefaultFont();
     if (f is null || text.length == 0 || textCache is null) {
@@ -664,15 +643,15 @@ final class Renderer {
    * @param ptSize Logical point size in user space.
    * @param fontName Registered font name, or null/empty for default font.
    */
-  void drawText(
+  void drawTextWithFontName(
     string text,
     PointF pos,
     ColorF color,
     float ptSize,
-    string fontName = null
+    string fontName
   ) {
     Font f = getFont(ptSize, fontName);
-    drawText(text, pos, color, f);
+    drawTextWithFont(text, pos, color, f);
   }
 
   /**
@@ -682,15 +661,15 @@ final class Renderer {
    * is used. Returned dimensions are scaled to user logical units.
    *
    * @param text Text string to measure.
-   * @param font Optional font instance (defaults to null for default font).
+   * @param font Optional font instance (null uses default font).
    * @return Dimensions of the measured text in logical units.
    */
-  PointF measureText(string text, Font font = null) {
+  PointF measureTextWithFont(string text, Font font) {
     Font f = font !is null ? font : getDefaultFont();
     if (f is null || text.length == 0) {
       return PointF(0.0f, 0.0f);
     }
-    return toLogic(f.measureText(text));
+    return logicFromPixelsPoint(f.measureText(text));
   }
 
   /**
@@ -704,13 +683,13 @@ final class Renderer {
    * @param fontName Registered font name, or null/empty for default font.
    * @return Dimensions of the measured text in logical units.
    */
-  PointF measureText(
+  PointF measureTextWithFontName(
     string text,
     float ptSize,
-    string fontName = null
+    string fontName
   ) {
     Font f = getFont(ptSize, fontName);
-    return measureText(text, f);
+    return measureTextWithFont(text, f);
   }
 
 private:
@@ -722,7 +701,7 @@ private:
     colorPipeline.initialize();
     texPipeline.initialize();
     rrPipeline.initialize();
-    textCache = new TextCache();
+    textCache = new TextCache(TextCache.maxCacheEntries);
     fontManager = new FontManager();
 
     initialized = true;
@@ -738,22 +717,22 @@ private:
   void drawTextTexture(
     in TextTexture tex,
     PointF pos,
-    ColorF color = ColorF(1.0f, 1.0f, 1.0f, 1.0f)
+    ColorF color
   ) {
     if (!tex.isValid()) {
       return;
     }
     import std.math : round;
 
-    float screenX = round(toPixels(pos.x));
-    float screenY = round(toPixels(pos.y));
-    float screenW = cast(float)tex.width;
-    float screenH = cast(float)tex.height;
+    const float screenX = round(pixelsFromLogicFloat(pos.x));
+    const float screenY = round(pixelsFromLogicFloat(pos.y));
+    const float screenW = cast(float)tex.width;
+    const float screenH = cast(float)tex.height;
 
-    float logicX0 = toLogic(screenX);
-    float logicY0 = toLogic(screenY);
-    float logicX1 = toLogic(screenX + screenW);
-    float logicY1 = toLogic(screenY + screenH);
+    const float logicX0 = logicFromPixelsFloat(screenX);
+    const float logicY0 = logicFromPixelsFloat(screenY);
+    const float logicX1 = logicFromPixelsFloat(screenX + screenW);
+    const float logicY1 = logicFromPixelsFloat(screenY + screenH);
 
     drawTexture(
       tex.textureId,
@@ -790,10 +769,9 @@ private:
   RoundRectPipeline rrPipeline;
   ClipStack clipStack;
   TextCache textCache;
-  private FontManager fontManager;
-
-  private Font defaultFont_;
-  private bool ownsDefaultFont_;
+  FontManager fontManager;
+  Font defaultFont_;
+  bool ownsDefaultFont_;
   bool initialized;
 }
 
@@ -803,24 +781,24 @@ unittest {
   const float vh = 480.0f;
 
   // Fully inside
-  assert(Renderer.isOnScreen(RectF(10, 10, 100, 100), vw, vh));
+  assert(Renderer.isOnScreenWithViewport(RectF(10, 10, 100, 100), vw, vh));
 
   // Intersecting edges
-  assert(Renderer.isOnScreen(RectF(-50, 10, 100, 100), vw, vh));
-  assert(Renderer.isOnScreen(RectF(10, -50, 100, 100), vw, vh));
-  assert(Renderer.isOnScreen(RectF(600, 10, 100, 100), vw, vh));
-  assert(Renderer.isOnScreen(RectF(10, 450, 100, 100), vw, vh));
+  assert(Renderer.isOnScreenWithViewport(RectF(-50, 10, 100, 100), vw, vh));
+  assert(Renderer.isOnScreenWithViewport(RectF(10, -50, 100, 100), vw, vh));
+  assert(Renderer.isOnScreenWithViewport(RectF(600, 10, 100, 100), vw, vh));
+  assert(Renderer.isOnScreenWithViewport(RectF(10, 450, 100, 100), vw, vh));
 
   // Fully outside
-  assert(!Renderer.isOnScreen(RectF(-150, 10, 100, 100), vw, vh));
-  assert(!Renderer.isOnScreen(RectF(10, -150, 100, 100), vw, vh));
-  assert(!Renderer.isOnScreen(RectF(700, 10, 100, 100), vw, vh));
-  assert(!Renderer.isOnScreen(RectF(10, 500, 100, 100), vw, vh));
+  assert(!Renderer.isOnScreenWithViewport(RectF(-150, 10, 100, 100), vw, vh));
+  assert(!Renderer.isOnScreenWithViewport(RectF(10, -150, 100, 100), vw, vh));
+  assert(!Renderer.isOnScreenWithViewport(RectF(700, 10, 100, 100), vw, vh));
+  assert(!Renderer.isOnScreenWithViewport(RectF(10, 500, 100, 100), vw, vh));
 
   // Zero or negative size
-  assert(!Renderer.isOnScreen(RectF(10, 10, 0, 100), vw, vh));
-  assert(!Renderer.isOnScreen(RectF(10, 10, 100, 0), vw, vh));
-  assert(!Renderer.isOnScreen(RectF(10, 10, -10, 100), vw, vh));
+  assert(!Renderer.isOnScreenWithViewport(RectF(10, 10, 0, 100), vw, vh));
+  assert(!Renderer.isOnScreenWithViewport(RectF(10, 10, 100, 0), vw, vh));
+  assert(!Renderer.isOnScreenWithViewport(RectF(10, 10, -10, 100), vw, vh));
 }
 
 unittest {
@@ -888,7 +866,7 @@ unittest {
   assert(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0 && pixel[3] == 255);
 
   // 5. Draw line and outline rect
-  renderer.drawLine(
+  renderer.drawThinLineWithPoints(
     PointF(0.0f, 0.0f),
     PointF(319.0f, 239.0f),
     ColorF(1.0f, 1.0f, 0.0f, 1.0f)
@@ -904,29 +882,29 @@ unittest {
   assert(renderer.getDefaultScaling() == 1.0f);
   assert(renderer.getDisplayScaling() == 1.0f);
   assert(renderer.getUnitsScaling() == 1.0f);
-  assert(renderer.toPixels(10.0f) == 10.0f);
-  assert(renderer.toLogic(10.0f) == 10.0f);
+  assert(renderer.pixelsFromLogicFloat(10.0f) == 10.0f);
+  assert(renderer.logicFromPixelsFloat(10.0f) == 10.0f);
 
   renderer.setUnitsScaling(2.0f);
   assert(renderer.getUnitsScaling() == 2.0f);
-  assert(renderer.toPixels(10.0f) == 20.0f);
-  assert(renderer.toLogic(20.0f) == 10.0f);
-  assert(renderer.logicToPixels(15.0f) == 30.0f);
-  assert(renderer.pixelsToLogic(30.0f) == 15.0f);
+  assert(renderer.pixelsFromLogicFloat(10.0f) == 20.0f);
+  assert(renderer.logicFromPixelsFloat(20.0f) == 10.0f);
+  assert(renderer.pixelsFromLogicFloat(15.0f) == 30.0f);
+  assert(renderer.logicFromPixelsFloat(30.0f) == 15.0f);
 
   PointF lp = PointF(10.0f, 20.0f);
-  PointF pp = renderer.toPixels(lp);
+  PointF pp = renderer.pixelsFromLogicPoint(lp);
   assert(pp.x == 20.0f && pp.y == 40.0f);
-  PointF backLp = renderer.toLogic(pp);
+  PointF backLp = renderer.logicFromPixelsPoint(pp);
   assert(backLp.x == 10.0f && backLp.y == 20.0f);
 
   RectF lr = RectF(5.0f, 10.0f, 50.0f, 60.0f);
-  RectF pr = renderer.toPixels(lr);
+  RectF pr = renderer.pixelsFromLogicRect(lr);
   assert(
     pr.x == 10.0f && pr.y == 20.0f &&
     pr.width == 100.0f && pr.height == 120.0f
   );
-  RectF backLr = renderer.toLogic(pr);
+  RectF backLr = renderer.logicFromPixelsRect(pr);
   assert(
     backLr.x == 5.0f && backLr.y == 10.0f &&
     backLr.width == 50.0f && backLr.height == 60.0f
@@ -943,8 +921,8 @@ unittest {
   renderer.setUnitsScaling(1.5f);
   assert(renderer.getDisplayScaling() == 2.0f);
   assert(renderer.getUnitsScaling() == 1.5f);
-  assert(renderer.toPixels(10.0f) == 30.0f);
-  assert(renderer.toLogic(30.0f) == 10.0f);
+  assert(renderer.pixelsFromLogicFloat(10.0f) == 30.0f);
+  assert(renderer.logicFromPixelsFloat(30.0f) == 10.0f);
   assert(renderer.getViewportWidth() == 106);
   assert(renderer.getViewportHeight() == 80);
 
@@ -963,7 +941,7 @@ unittest {
   assert(converted.x == 100.0f);
   assert(converted.y == 50.0f);
 
-  PointF fromFloat = renderer.coordinatesFromEvent(100.0f, 50.0f);
+  PointF fromFloat = renderer.coordinatesFromCoords(100.0f, 50.0f);
   assert(fromFloat.x == 100.0f);
   assert(fromFloat.y == 50.0f);
 
@@ -1002,7 +980,8 @@ unittest {
 
   Font customFont = Font.fromMemory(
     cast(const(void)[])defaultTtfFontData,
-    16.0f
+    16.0f,
+    1.0f
   );
   scope(exit) customFont.destroy();
 
@@ -1011,21 +990,21 @@ unittest {
   assert(customFont.ascent > 0);
   assert(customFont.lineSkip > 0);
 
-  PointF mEmpty = renderer.measureText("", customFont);
+  PointF mEmpty = renderer.measureTextWithFont("", customFont);
   assert(mEmpty.x == 0.0f && mEmpty.y == 0.0f);
 
-  PointF mShort = renderer.measureText("Hi", customFont);
+  PointF mShort = renderer.measureTextWithFont("Hi", customFont);
   assert(mShort.x > 0.0f && mShort.y > 0.0f);
 
-  PointF mLong = renderer.measureText("Hello World!", customFont);
+  PointF mLong = renderer.measureTextWithFont("Hello World!", customFont);
   assert(mLong.x > mShort.x);
 
-  PointF mBySize = renderer.measureText("Hi", 16.0f);
+  PointF mBySize = renderer.measureTextWithFontName("Hi", 16.0f, null);
   assert(mBySize.x == mShort.x && mBySize.y == mShort.y);
 
   // Render text blended in white on black background
   renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawText(
+  renderer.drawTextWithFont(
     "ABC",
     PointF(20.0f, 30.0f),
     ColorF(1.0f, 1.0f, 1.0f, 1.0f),
@@ -1049,7 +1028,7 @@ unittest {
 
   // Render text in green color
   renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawText(
+  renderer.drawTextWithFont(
     "ABC",
     PointF(20.0f, 30.0f),
     ColorF(0.0f, 1.0f, 0.0f, 1.0f),
@@ -1068,10 +1047,11 @@ unittest {
 
   // Render using default font (embedded defaultTtfFontData)
   renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawText(
+  renderer.drawTextWithFont(
     "DefaultFont",
     PointF(10.0f, 10.0f),
-    ColorF(1.0f, 1.0f, 1.0f, 1.0f)
+    ColorF(1.0f, 1.0f, 1.0f, 1.0f),
+    null
   );
   assert(renderer.getDefaultFont() !is null);
   assert(renderer.getDefaultFont().height > 0);
@@ -1079,7 +1059,7 @@ unittest {
   // Text clipped outside clip rect
   renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.pushClipRect(RectF(0.0f, 0.0f, 10.0f, 10.0f));
-  renderer.drawText(
+  renderer.drawTextWithFont(
     "Clipped",
     PointF(50.0f, 50.0f),
     ColorF(1.0f, 1.0f, 1.0f, 1.0f),
@@ -1099,10 +1079,11 @@ unittest {
   renderer.setDisplayScaling(1.0f);
   renderer.setUnitsScaling(2.0f);
   renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawText(
+  renderer.drawTextWithFont(
     "ABC",
     PointF(10.0f, 10.0f),
-    ColorF(1.0f, 1.0f, 1.0f, 1.0f)
+    ColorF(1.0f, 1.0f, 1.0f, 1.0f),
+    null
   );
   litCount = 0;
   foreach (x; 20 .. 80) {
@@ -1120,10 +1101,11 @@ unittest {
   renderer.setDisplayScaling(1.5f);
   renderer.setUnitsScaling(1.0f);
   renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawText(
+  renderer.drawTextWithFont(
     "ABC",
     PointF(35.0f, 45.0f),
-    ColorF(1.0f, 1.0f, 1.0f, 1.0f)
+    ColorF(1.0f, 1.0f, 1.0f, 1.0f),
+    null
   );
   litCount = 0;
   // 35 * 1.5 = 52.5 -> snapped to 53
@@ -1166,7 +1148,7 @@ unittest {
 
   // Factory createFont automatically applies renderer's current scaling
   renderer.setDisplayScaling(2.0f);
-  Font factoryFont = renderer.createFont(
+  Font factoryFont = renderer.createFontFromMemory(
     cast(const(void)[])defaultTtfFontData,
     14.0f
   );
@@ -1181,14 +1163,14 @@ unittest {
   assert(factoryFont.scaledSize == 14.0f);
 
   // Managed fonts via getFont: distinct instances per size, cached on reuse
-  Font f14 = renderer.getFont(14.0f);
-  Font f20 = renderer.getFont(20.0f);
+  Font f14 = renderer.getFont(14.0f, null);
+  Font f20 = renderer.getFont(20.0f, null);
   assert(f14 !is null);
   assert(f20 !is null);
   assert(f14.size == 14.0f);
   assert(f20.size == 20.0f);
-  assert(renderer.getFont(14.0f) is f14);
-  assert(renderer.getFont(20.0f) is f20);
+  assert(renderer.getFont(14.0f, null) is f14);
+  assert(renderer.getFont(20.0f, null) is f20);
   assert(f14 !is f20);
 
   renderer.setDisplayScaling(1.0f);
@@ -1284,9 +1266,9 @@ unittest {
   renderer.setUnitsScaling(1.0f);
 
   // 11. drawRect with lineWidth, drawRectDashed, and small drawRoundRectDashed
-  // A. drawRect with lineWidth = 4 growing inside
+  // A. drawRectWithWidth with lineWidth = 4 growing inside
   renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawRect(
+  renderer.drawRectWithWidth(
     RectF(100.0f, 50.0f, 60.0f, 40.0f),
     4.0f,
     ColorF(0.0f, 1.0f, 0.0f, 1.0f)
@@ -1357,10 +1339,10 @@ unittest {
   }
   assert(smallBlue > 0);
 
-  // 12. drawLine overloads: thick solid line and dashed line
+  // 12. drawLine* variants: thick solid line and dashed line
   // A. Solid thick line: horizontal from (50, 100) to (150, 100), width = 6
   renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawLine(
+  renderer.drawLineWithPoints(
     PointF(50.0f, 100.0f),
     PointF(150.0f, 100.0f),
     6.0f,
@@ -1387,7 +1369,7 @@ unittest {
 
   // B. Dashed line: (50, 150) to (200, 150), width = 4, dash = 10, gap = 10
   renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawLine(
+  renderer.drawLineDashed(
     PointF(50.0f, 150.0f),
     PointF(200.0f, 150.0f),
     4.0f,
@@ -1421,9 +1403,15 @@ unittest {
   assert(pixel[2] == 0);
 
   // D. Degenerate and zero/negative width edge cases
-  renderer.drawLine(PointF(10, 10), PointF(10, 10), 5.0f, ColorF(1, 1, 1, 1));
-  renderer.drawLine(PointF(10, 10), PointF(50, 50), 0.0f, ColorF(1, 1, 1, 1));
-  renderer.drawLine(PointF(10, 10), PointF(50, 50), -2.0f, ColorF(1, 1, 1, 1));
+  renderer.drawLineWithPoints(
+    PointF(10, 10), PointF(10, 10), 5.0f, ColorF(1, 1, 1, 1)
+  );
+  renderer.drawLineWithPoints(
+    PointF(10, 10), PointF(50, 50), 0.0f, ColorF(1, 1, 1, 1)
+  );
+  renderer.drawLineWithPoints(
+    PointF(10, 10), PointF(50, 50), -2.0f, ColorF(1, 1, 1, 1)
+  );
 
   assert(glGetError() == GL_NO_ERROR);
 }

@@ -6,7 +6,7 @@ import std.logger;
 import yguilib.clibs.sdl3;
 // SDL_LOGGING=app=trace
 class SdlLogger : Logger {
-  this(LogLevel lv = LogLevel.info) @safe {
+  this(LogLevel lv) @safe {
     super(lv);
   }
 
@@ -34,13 +34,15 @@ class SdlLogger : Logger {
         break;
     }
     import std.string : toStringz;
-    import std.format;
-    auto logMsg = format("%s [%s] %s", payload.timestamp, payload.funcName, payload.msg);
+    import std.format : format;
+    const auto logMsg = format(
+      "%s [%s] %s", payload.timestamp, payload.funcName, payload.msg
+    );
     yguilib_sdl3_log_priority(prio, logMsg.toStringz);
   }
 }
 
-void setupSdlLogger(LogLevel lv = LogLevel.trace) {
+void setupSdlLogger(LogLevel lv) {
   sharedLog = cast(shared) new SdlLogger(lv);
 }
 

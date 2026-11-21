@@ -20,9 +20,8 @@ import yguilib.widget.scroll_components : ScrollableArea;
  * addChild refactoring, name fields).
  */
 class WidgetFixture {
-  /// Constructs a fixture with an explicit start ID.
-  this(uint startId = 1) {
-    fNextId = startId;
+  /// Constructs a fixture starting widget IDs at 1.
+  this() {
   }
 
   /// Binds the fixture to an existing UiSystem.
@@ -71,52 +70,49 @@ class WidgetFixture {
   }
 
   /// Creates a root or standalone Widget with no parent.
-  Widget makeWidget(RectF rect = RectF(0, 0, 100, 100)) {
+  Widget makeStandaloneWidget(RectF rect) {
     return makeWidget(null, rect);
   }
 
   /// Creates a root Widget with specified dimensions.
-  Widget makeRoot(RectF rect = RectF(0, 0, 800, 600)) {
+  Widget makeRootWithRect(RectF rect) {
     return makeWidget(null, rect);
   }
 
   /// Creates a root Widget with width and height.
-  Widget makeRoot(float width, float height) {
+  Widget makeRootWithSize(float width, float height) {
     return makeWidget(null, RectF(0, 0, width, height));
   }
 
   /// Creates a child Widget attached to parent.
-  Widget makeChild(Widget parent, RectF rect = RectF(0, 0, 50, 50)) {
+  Widget makeChildWithRect(Widget parent, RectF rect) {
     assert(parent !is null, "Parent widget must not be null for makeChild");
     return makeWidget(parent, rect);
   }
 
   /// Creates a child Widget with width and height.
-  Widget makeChild(Widget parent, float width, float height) {
-    return makeChild(parent, RectF(0, 0, width, height));
+  Widget makeChildWithSize(Widget parent, float width, float height) {
+    return makeChildWithRect(parent, RectF(0, 0, width, height));
   }
 
   /// Creates a child Widget with explicit coordinates and size.
-  Widget makeChild(
+  Widget makeChildWithBounds(
     Widget parent,
     float x,
     float y,
     float width,
     float height
   ) {
-    return makeChild(parent, RectF(x, y, width, height));
+    return makeChildWithRect(parent, RectF(x, y, width, height));
   }
 
   /// Creates a WidgetBuilder for a root or standalone widget.
-  WidgetBuilder builder(RectF rect = RectF(0, 0, 100, 100)) {
+  WidgetBuilder builder(RectF rect) {
     return WidgetBuilder.make(ui).rect(rect);
   }
 
   /// Creates a WidgetBuilder attached to `parent` (`parent` may be null).
-  WidgetBuilder childBuilder(
-    Widget parent,
-    RectF rect = RectF(0, 0, 100, 100)
-  ) {
+  WidgetBuilder childBuilder(Widget parent, RectF rect) {
     return WidgetBuilder.make(ui).parent(parent).rect(rect);
   }
 
@@ -124,8 +120,8 @@ class WidgetFixture {
   Widget withBackground(
     Widget w,
     ColorF color,
-    Background.Style style = Background.Style.rect,
-    float cornerRadius = 0.0f
+    Background.Style style,
+    float cornerRadius
   ) {
     assert(w !is null);
     w.components.background = new Background(color, style, cornerRadius);
@@ -133,22 +129,14 @@ class WidgetFixture {
   }
 
   /// Attaches a solid border component to widget and returns the widget.
-  Widget withBorder(
-    Widget w,
-    ColorF color,
-    float width = 1.0f
-  ) {
+  Widget withBorder(Widget w, ColorF color, float width) {
     assert(w !is null);
-    w.components.border = new Border(color, width);
+    w.components.border = new Border(color, width, Border.Style.rect);
     return w;
   }
 
   /// Attaches a TextLabel component to widget and returns the widget.
-  Widget withText(
-    Widget w,
-    string text,
-    ColorF color = ColorF(1, 1, 1, 1)
-  ) {
+  Widget withText(Widget w, string text, ColorF color) {
     assert(w !is null);
     w.components.textLabel = new TextLabel(text, color);
     return w;
@@ -162,7 +150,7 @@ class WidgetFixture {
   }
 
   /// Sets uniform padding on widget's Size component.
-  Widget withPadding(Widget w, float all) {
+  Widget withPaddingAll(Widget w, float all) {
     assert(w !is null);
     if (w.components.size is null) {
       w.components.size = new Size();
@@ -172,7 +160,7 @@ class WidgetFixture {
   }
 
   /// Sets vertical and horizontal padding on widget's Size component.
-  Widget withPadding(Widget w, float vertical, float horizontal) {
+  Widget withPaddingVertHoriz(Widget w, float vertical, float horizontal) {
     assert(w !is null);
     if (w.components.size is null) {
       w.components.size = new Size();
@@ -182,7 +170,7 @@ class WidgetFixture {
   }
 
   /// Sets explicit padding insets on widget's Size component.
-  Widget withPadding(
+  Widget withPaddingEdges(
     Widget w,
     float top,
     float right,
@@ -198,7 +186,7 @@ class WidgetFixture {
   }
 
   /// Sets uniform margin on widget's Size component.
-  Widget withMargin(Widget w, float all) {
+  Widget withMarginAll(Widget w, float all) {
     assert(w !is null);
     if (w.components.size is null) {
       w.components.size = new Size();
@@ -208,7 +196,7 @@ class WidgetFixture {
   }
 
   /// Sets vertical and horizontal margin on widget's Size component.
-  Widget withMargin(Widget w, float vertical, float horizontal) {
+  Widget withMarginVertHoriz(Widget w, float vertical, float horizontal) {
     assert(w !is null);
     if (w.components.size is null) {
       w.components.size = new Size();
@@ -218,7 +206,7 @@ class WidgetFixture {
   }
 
   /// Sets explicit margin insets on widget's Size component.
-  Widget withMargin(
+  Widget withMarginEdges(
     Widget w,
     float top,
     float right,
@@ -236,9 +224,9 @@ class WidgetFixture {
   /// Attaches a row FlexContainer component to widget and returns the widget.
   Widget withFlexRow(
     Widget w,
-    float gap = 0.0f,
-    JustifyContent justify = JustifyContent.start,
-    AlignItems align_ = AlignItems.stretch
+    float gap,
+    JustifyContent justify,
+    AlignItems align_
   ) {
     assert(w !is null);
     auto fc = FlexContainer.row(gap)
@@ -251,9 +239,9 @@ class WidgetFixture {
   /// Attaches a column FlexContainer component to widget.
   Widget withFlexColumn(
     Widget w,
-    float gap = 0.0f,
-    JustifyContent justify = JustifyContent.start,
-    AlignItems align_ = AlignItems.stretch
+    float gap,
+    JustifyContent justify,
+    AlignItems align_
   ) {
     assert(w !is null);
     auto fc = FlexContainer.column(gap)
@@ -273,7 +261,7 @@ class WidgetFixture {
   }
 
   /// Attaches a ViewComponent with optional event rename map.
-  Widget withView(Widget w, string[string] renameEvents = null) {
+  Widget withView(Widget w, string[string] renameEvents) {
     assert(w !is null);
     auto v = new ViewComponent();
     v.renameEvents = renameEvents;
@@ -358,23 +346,23 @@ unittest {
   assert(fix.nextId() == 1);
   assert(fix.nextId() == 2);
 
-  auto root = fix.makeRoot(RectF(0, 0, 800, 600));
+  auto root = fix.makeRootWithRect(RectF(0, 0, 800, 600));
   assert(root !is null);
   assert(root.uId == 3);
   assert(root.parent is null);
   assert(root.rect == RectF(0, 0, 800, 600));
 
-  auto child1 = fix.makeChild(root, RectF(10, 10, 100, 50));
+  auto child1 = fix.makeChildWithRect(root, RectF(10, 10, 100, 50));
   assert(child1.uId == 4);
   assert(child1.parent is root);
   assert(root.children.length == 1);
   assert(root.children[0] is child1);
 
-  auto child2 = fix.makeChild(root, 50, 60, 200, 100);
+  auto child2 = fix.makeChildWithBounds(root, 50, 60, 200, 100);
   assert(child2.uId == 5);
   assert(root.children.length == 2);
 
-  auto grandChild = fix.makeChild(child1, 5, 5, 20, 20);
+  auto grandChild = fix.makeChildWithBounds(child1, 5, 5, 20, 20);
   assert(grandChild.parent is child1);
   assert(child1.children.length == 1);
 
@@ -402,7 +390,9 @@ unittest {
   assert(!WidgetFixture.isChildOf(root, child1));
 
   // Component configuration helpers
-  fix.withBackground(child1, ColorF(0.2f, 0.4f, 0.6f, 1.0f));
+  fix.withBackground(
+    child1, ColorF(0.2f, 0.4f, 0.6f, 1.0f), Background.Style.rect, 0.0f
+  );
   assert(child1.components.background !is null);
   assert(child1.components.background.color == ColorF(0.2f, 0.4f, 0.6f, 1.0f));
 
@@ -410,7 +400,7 @@ unittest {
   assert(child1.components.border !is null);
   assert(child1.components.border.width == 2.0f);
 
-  fix.withText(child1, "Hello Fixture");
+  fix.withText(child1, "Hello Fixture", ColorF(1, 1, 1, 1));
   assert(child1.components.textLabel !is null);
   assert(child1.components.textLabel.caption == "Hello Fixture");
 
@@ -418,15 +408,17 @@ unittest {
   assert(child1.components.size !is null);
   assert(child1.components.size.width.value == 120);
 
-  fix.withPadding(child1, 8.0f);
+  fix.withPaddingAll(child1, 8.0f);
   assert(child1.components.size.padding.top == 8.0f);
   assert(child1.components.size.padding.left == 8.0f);
 
-  fix.withMargin(child1, 4.0f, 6.0f);
+  fix.withMarginVertHoriz(child1, 4.0f, 6.0f);
   assert(child1.components.size.margin.top == 4.0f);
   assert(child1.components.size.margin.left == 6.0f);
 
-  fix.withFlexRow(root, 10.0f);
+  fix.withFlexRow(
+    root, 10.0f, JustifyContent.start, AlignItems.stretch
+  );
   assert(root.components.flexContainer !is null);
   assert(root.components.flexContainer.direction == FlexDirection.row);
   assert(root.components.flexContainer.gap == 10.0f);
@@ -452,7 +444,7 @@ unittest {
   // UiSystem binding test
   auto uiFix = new WidgetFixture().withUi(fix.ui);
   assert(uiFix.ui !is null);
-  auto uiWidget = uiFix.makeWidget(RectF(0, 0, 10, 10));
+  auto uiWidget = uiFix.makeStandaloneWidget(RectF(0, 0, 10, 10));
   assert(uiWidget !is null);
   assert(uiWidget.uId >= 1);
 }

@@ -2,7 +2,6 @@ module yguilib.widget.internal.input_system;
 
 package(yguilib):
 
-import std.algorithm.searching : canFind;
 import yguilib.clibs.sdl3 : yguilib_sdl3_capture_mouse;
 import yguilib.widget.internal.focus_system;
 import yguilib.widget.system : SystemEventResult, SystemPhase,
@@ -28,7 +27,7 @@ struct HoverEntry {
 final class InputSystem : WidgetSystem {
   this(WidgetSystemHost host) {
     assert(host !is null);
-    super(inputSystemPriority);
+    setPriority(inputSystemPriority);
     this.host = host;
     this.focusSystem = new FocusSystem;
   }
@@ -368,7 +367,7 @@ private:
       return;
     auto ev = ViewAppEventBuilder(eventName)
       .widget(w)
-      .value(val)
+      .valueArray(val)
       .build();
     passViewEvent(host, w, ev);
   }
@@ -501,8 +500,8 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto rootNoView = fix.makeRoot(RectF(0, 0, 200, 200));
-  auto childNoView = fix.makeChild(rootNoView, RectF(0, 0, 50, 50));
+  auto rootNoView = fix.makeRootWithRect(RectF(0, 0, 200, 200));
+  auto childNoView = fix.makeChildWithRect(rootNoView, RectF(0, 0, 50, 50));
   auto ev1 = ViewAppEventBuilder("rawClick")
     .widget(childNoView)
     .value(1)
@@ -514,10 +513,10 @@ unittest {
   assert(testUi.sentEvents[0].view.viewWidget is null);
 
   testUi.sentEvents = null;
-  auto rootView = fix.makeRoot(RectF(0, 0, 200, 200));
+  auto rootView = fix.makeRootWithRect(RectF(0, 0, 200, 200));
   rootView.components.view = new ViewComponent;
   rootView.components.view.renameEvents["btnClick"] = "playVideo";
-  auto childBtn = fix.makeChild(rootView, RectF(0, 0, 50, 50));
+  auto childBtn = fix.makeChildWithRect(rootView, RectF(0, 0, 50, 50));
   auto ev2 = ViewAppEventBuilder("btnClick")
     .widget(childBtn)
     .value(1)
@@ -546,15 +545,15 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto outerView = fix.makeRoot(RectF(0, 0, 400, 400));
+  auto outerView = fix.makeRootWithRect(RectF(0, 0, 400, 400));
   outerView.components.view = new ViewComponent;
   outerView.components.view.renameEvents["itemSelected"] = "orderUpdated";
 
-  auto innerView = fix.makeChild(outerView, RectF(0, 0, 200, 200));
+  auto innerView = fix.makeChildWithRect(outerView, RectF(0, 0, 200, 200));
   innerView.components.view = new ViewComponent;
   innerView.components.view.renameEvents["click"] = "itemSelected";
 
-  auto nestedBtn = fix.makeChild(innerView, RectF(0, 0, 50, 50));
+  auto nestedBtn = fix.makeChildWithRect(innerView, RectF(0, 0, 50, 50));
   auto ev4 = ViewAppEventBuilder("click")
     .widget(nestedBtn)
     .value(1)
@@ -575,7 +574,7 @@ unittest {
   assert(testUi.sentEvents[0].view.eventName == "handledByOuter");
 
   testUi.sentEvents = null;
-  auto selfView = fix.makeRoot(RectF(0, 0, 100, 100));
+  auto selfView = fix.makeRootWithRect(RectF(0, 0, 100, 100));
   selfView.components.view = new ViewComponent;
   selfView.components.view.renameEvents["panelClick"] = "openPanel";
   auto ev6 = ViewAppEventBuilder("panelClick")
@@ -595,7 +594,7 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto btnWidget = fix.makeRoot(RectF(10, 10, 100, 50));
+  auto btnWidget = fix.makeRootWithRect(RectF(10, 10, 100, 50));
   btnWidget.inputEnabled = true;
   btnWidget.components.mouseEvent = new MouseEvent;
   btnWidget.components.mouseEvent.mouseDown = "btnDown";
@@ -651,7 +650,7 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto hoverWidget = fix.makeRoot(RectF(50, 50, 100, 100));
+  auto hoverWidget = fix.makeRootWithRect(RectF(50, 50, 100, 100));
   hoverWidget.inputEnabled = true;
   hoverWidget.components.mouseEvent = new MouseEvent;
   hoverWidget.components.mouseEvent.mouseEnter = "hoverEnter";
@@ -710,14 +709,14 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto parentBox = fix.makeRoot(RectF(0, 0, 200, 200));
+  auto parentBox = fix.makeRootWithRect(RectF(0, 0, 200, 200));
   parentBox.inputEnabled = true;
   parentBox.components.mouseEvent = new MouseEvent;
   parentBox.components.mouseEvent.mouseEnter = "parentEnter";
   parentBox.components.mouseEvent.mouseMove = "parentMove";
   parentBox.components.mouseEvent.mouseLeave = "parentLeave";
 
-  auto childBox = fix.makeChild(parentBox, RectF(50, 50, 50, 50));
+  auto childBox = fix.makeChildWithRect(parentBox, RectF(50, 50, 50, 50));
   childBox.inputEnabled = true;
   childBox.components.mouseEvent = new MouseEvent;
   childBox.components.mouseEvent.mouseEnter = "childEnter";
@@ -765,7 +764,7 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto clippedWidget = fix.makeRoot(RectF(0, 0, 100, 100));
+  auto clippedWidget = fix.makeRootWithRect(RectF(0, 0, 100, 100));
   clippedWidget.inputEnabled = true;
   clippedWidget.components.mouseEvent = new MouseEvent;
   clippedWidget.components.mouseEvent.mouseEnter = "clipEnter";
@@ -791,13 +790,13 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto underBtn = fix.makeRoot(RectF(0, 0, 100, 50));
+  auto underBtn = fix.makeRootWithRect(RectF(0, 0, 100, 50));
   underBtn.inputEnabled = true;
   underBtn.components.mouseEvent = new MouseEvent;
   underBtn.components.mouseEvent.mouseDown = "underDown";
   underBtn.components.mouseEvent.mouseUp = "underUp";
 
-  auto plainPanel = fix.makeRoot(RectF(0, 0, 100, 50));
+  auto plainPanel = fix.makeRootWithRect(RectF(0, 0, 100, 50));
   plainPanel.inputEnabled = true; // no *Event components
 
   VisibleWidgets visPanelOverBtn = [
@@ -815,7 +814,7 @@ unittest {
   assert(testUi.sentEvents.length == 0);
 
   // T14: Disabled MouseEvent over enabled button consumes silently
-  auto disabledBtn = fix.makeRoot(RectF(0, 0, 100, 50));
+  auto disabledBtn = fix.makeRootWithRect(RectF(0, 0, 100, 50));
   disabledBtn.inputEnabled = false;
   disabledBtn.components.mouseEvent = new MouseEvent;
   disabledBtn.components.mouseEvent.mouseDown = "disabledDown";
@@ -828,11 +827,11 @@ unittest {
   assert(testUi.sentEvents.length == 0);
 
   // T15: Transparent child label without components inside button
-  auto btnWithLabel = fix.makeRoot(RectF(0, 0, 100, 50));
+  auto btnWithLabel = fix.makeRootWithRect(RectF(0, 0, 100, 50));
   btnWithLabel.inputEnabled = true;
   btnWithLabel.components.mouseEvent = new MouseEvent;
   btnWithLabel.components.mouseEvent.mouseDown = "labelParentDown";
-  auto childLabel = fix.makeChild(btnWithLabel, RectF(10, 10, 30, 20));
+  auto childLabel = fix.makeChildWithRect(btnWithLabel, RectF(10, 10, 30, 20));
   childLabel.inputEnabled = false;
   VisibleWidgets visLabelInBtn = [
     VisibleWidget(btnWithLabel, RectF(0, 0, 100, 50), false, RectF.init),
@@ -875,13 +874,13 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto btnA = fix.makeRoot(RectF(0, 0, 50, 50));
+  auto btnA = fix.makeRootWithRect(RectF(0, 0, 50, 50));
   btnA.inputEnabled = true;
   btnA.components.mouseEvent = new MouseEvent;
   btnA.components.mouseEvent.mouseDown = "aDown";
   btnA.components.mouseEvent.mouseUp = "aUp";
 
-  auto btnB = fix.makeRoot(RectF(60, 0, 50, 50));
+  auto btnB = fix.makeRootWithRect(RectF(60, 0, 50, 50));
   btnB.inputEnabled = true;
   btnB.components.mouseEvent = new MouseEvent;
   btnB.components.mouseEvent.mouseDown = "bDown";
@@ -921,8 +920,8 @@ unittest {
   // T20: View attached after child creation + update(parentView) works
   testUi.sentEvents = null;
   auto fix2 = new WidgetFixture();
-  auto parentRoot = fix2.makeRoot(RectF(0, 0, 200, 200));
-  auto childW = fix2.makeChild(parentRoot, RectF(10, 10, 50, 50));
+  auto parentRoot = fix2.makeRootWithRect(RectF(0, 0, 200, 200));
+  auto childW = fix2.makeChildWithRect(parentRoot, RectF(10, 10, 50, 50));
   parentRoot.components.view = new ViewComponent;
   parentRoot.components.view.renameEvents["childClick"] = "renamedClick";
   parentRoot.update(WidgetUpdateScope.parentView);
@@ -945,7 +944,7 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto movingBtn = fix.makeRoot(RectF(0, 0, 100, 100));
+  auto movingBtn = fix.makeRootWithRect(RectF(0, 0, 100, 100));
   movingBtn.inputEnabled = true;
   movingBtn.components.mouseEvent = new MouseEvent;
   movingBtn.components.mouseEvent.mouseEnter = "btnEnter";
@@ -974,7 +973,7 @@ unittest {
 
   // T24: Transparent overlay passes hover through to underlying widget
   testUi.sentEvents = null;
-  auto overlay = fix.makeRoot(RectF(0, 0, 100, 100));
+  auto overlay = fix.makeRootWithRect(RectF(0, 0, 100, 100));
   overlay.inputEnabled = false; // transparent
   VisibleWidgets visOverlay = [
     VisibleWidget(movingBtn, RectF(0, 0, 100, 100), false, RectF.init),
@@ -986,7 +985,7 @@ unittest {
 
   // T25: KeyboardEvent-only widget over button passes clicks through
   testUi.sentEvents = null;
-  auto kbWidget = fix.makeRoot(RectF(0, 0, 100, 100));
+  auto kbWidget = fix.makeRootWithRect(RectF(0, 0, 100, 100));
   kbWidget.inputEnabled = true;
   kbWidget.components.keyboardEvent = new KeyboardEvent;
   movingBtn.components.mouseEvent.mouseDown = "btnDown";
@@ -1017,7 +1016,7 @@ unittest {
 
   WidgetSystemContext ctx;
   ctx.host = testUi;
-  auto btn = fix.makeRoot(RectF(0, 0, 100, 100));
+  auto btn = fix.makeRootWithRect(RectF(0, 0, 100, 100));
   btn.inputEnabled = true;
   ctx.visibleWidgets = [
     VisibleWidget(btn, RectF(0, 0, 100, 100), false, RectF.init)
@@ -1044,13 +1043,13 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto parentBox = fix.makeRoot(RectF(0, 0, 200, 200));
+  auto parentBox = fix.makeRootWithRect(RectF(0, 0, 200, 200));
   parentBox.inputEnabled = true;
   parentBox.components.mouseEvent = new MouseEvent;
   parentBox.components.mouseEvent.mouseEnter = "parentEnter";
   parentBox.components.mouseEvent.mouseLeave = "parentLeave";
 
-  auto childBox = fix.makeChild(parentBox, RectF(50, 50, 50, 50));
+  auto childBox = fix.makeChildWithRect(parentBox, RectF(50, 50, 50, 50));
   childBox.inputEnabled = true;
   childBox.components.mouseEvent = new MouseEvent;
   childBox.components.mouseEvent.mouseEnter = "childEnter";
@@ -1114,7 +1113,7 @@ unittest {
   auto testUi = new TestUiSystem;
   auto inputSys = new InputSystem(testUi);
 
-  auto dragBox = fix.makeRoot(RectF(20, 30, 80, 40));
+  auto dragBox = fix.makeRootWithRect(RectF(20, 30, 80, 40));
   dragBox.inputEnabled = true;
   dragBox.components.mouseEvent = new MouseEvent;
   dragBox.components.mouseEvent.mouseDown = "dragDown";

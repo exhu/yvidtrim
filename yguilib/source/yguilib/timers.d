@@ -1,6 +1,5 @@
 module yguilib.timers;
 import core.time : MonoTime, ticksToNSecs;
-import std.algorithm.comparison : clamp;
 import std.math.remainder : fmod;
 
 /// Controls whether a registered UiSystem timer fires once or repeats.
@@ -68,8 +67,7 @@ struct AnimationTimer {
     elapsed = 0;
   }
 
-  void start(float newDuration,
-      AnimationWrapMode newMode = AnimationWrapMode.loop) {
+  void start(float newDuration, AnimationWrapMode newMode) {
     duration = newDuration;
     mode = newMode;
     elapsed = 0;
@@ -132,6 +130,7 @@ struct AnimationTimer {
 
   /// returns [0..1]
   float getProgress() const nothrow @safe {
+    import std.algorithm.comparison : clamp;
     if (duration <= 0)
       return 0;
     if (mode == AnimationWrapMode.pingPong) {
@@ -248,11 +247,8 @@ struct DeltaTimer {
   /// Returns seconds elapsed since previous step,
   /// clamped to [minStep, maxStep].
   /// On the first call (or after reset), returns initialStep.
-  float step(
-    float minStep = 0.0f,
-    float maxStep = 0.1f,
-    float initialStep = 1.0f / 60.0f
-  ) {
+  float step(float minStep, float maxStep, float initialStep) {
+    import std.algorithm.comparison : clamp;
     const long now = currentTimeNs();
     if (!hasLastTime) {
       lastTimeNs = now;
@@ -445,7 +441,7 @@ unittest {
   assert(isClose(first, 0.016f));
 
   // Sub-millisecond immediate step must not be inflated to 1 ms by default.
-  const float immediate = dt.step();
+  const float immediate = dt.step(0.0f, 0.1f, 1.0f / 60.0f);
   assert(immediate >= 0.0f && immediate < 0.001f);
 
   Thread.sleep(5.msecs);

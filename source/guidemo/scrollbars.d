@@ -4,7 +4,6 @@
  */
 module guidemo.scrollbars;
 
-import std.algorithm.comparison : clamp, max, min;
 import std.math.rounding : round;
 import std.typecons : nullable;
 import yguilib.controller : HandleResult;
@@ -72,21 +71,42 @@ final class ScrollbarModel : VersionedModel {
   /// change event only after the mouse button is released.
   bool reportOnReleaseOnly = false;
 
-  /// Constructs a ScrollbarModel with clamped initial state.
-  this(
-    long min = 0,
-    long max = 100,
-    long value = 0,
-    long visibleSize = 20,
-    long stepSize = 5,
-    bool reportOnReleaseOnly = false
-  ) {
-    this.min = min;
-    this.max = (max < min) ? min : max;
-    this.value = clamp(value, this.min, this.max);
-    this.visibleSize = (visibleSize < 1) ? 1 : visibleSize;
-    this.stepSize = (stepSize < 1) ? 1 : stepSize;
-    this.reportOnReleaseOnly = reportOnReleaseOnly;
+  /// Constructs a ScrollbarModel with default state.
+  this() {
+  }
+
+  /// Sets [min, max] range and clamps `value`.
+  ScrollbarModel withRange(long minVal, long maxVal) {
+    import std.algorithm.comparison : clamp;
+    this.min = minVal;
+    this.max = (maxVal < minVal) ? minVal : maxVal;
+    this.value = clamp(this.value, this.min, this.max);
+    return this;
+  }
+
+  /// Sets and clamps `value` to [min, max].
+  ScrollbarModel withValue(long val) {
+    import std.algorithm.comparison : clamp;
+    this.value = clamp(val, this.min, this.max);
+    return this;
+  }
+
+  /// Sets visible window size (clamped >= 1).
+  ScrollbarModel withVisibleSize(long vis) {
+    this.visibleSize = (vis < 1) ? 1 : vis;
+    return this;
+  }
+
+  /// Sets arrow step increment (clamped >= 1).
+  ScrollbarModel withStepSize(long step) {
+    this.stepSize = (step < 1) ? 1 : step;
+    return this;
+  }
+
+  /// Sets whether drag events are emitted only on release.
+  ScrollbarModel withReportOnReleaseOnly(bool releaseOnly) {
+    this.reportOnReleaseOnly = releaseOnly;
+    return this;
   }
 }
 
@@ -160,9 +180,9 @@ final class ScrollbarWidgetView : WidgetViewBase {
     Widget track,
     Widget thumb,
     Widget incBtn,
-    in ScrollbarStyle style = ScrollbarStyle(),
-    FlexDirection direction = FlexDirection.row,
-    string eventName = defaultScrollbarEventName
+    in ScrollbarStyle style,
+    FlexDirection direction,
+    string eventName
   ) {
     assert(viewWidget !is null, "viewWidget must not be null");
     if (!isWidgetRegistered(viewWidget)) {
@@ -194,12 +214,15 @@ final class ScrollbarWidgetView : WidgetViewBase {
     } else {
       Widget decBtn, track, thumb, incBtn;
       findScrollbarParts(viewWidget, decBtn, track, thumb, incBtn);
-      registerScrollbar(viewWidget, tracker, decBtn, track, thumb, incBtn);
+      registerScrollbar(
+        viewWidget, tracker, decBtn, track, thumb, incBtn,
+        ScrollbarStyle(), FlexDirection.row, defaultScrollbarEventName
+      );
     }
   }
 
   /// Associates a `ScrollbarModel` instance with `viewWidget`.
-  void bindModel(Widget viewWidget, ScrollbarModel model) {
+  void bindModelWithModel(Widget viewWidget, ScrollbarModel model) {
     assert(viewWidget !is null, "viewWidget must not be null");
     assert(model !is null, "model must not be null");
     auto tracker = ModelTracker!ScrollbarModel(model);
@@ -264,6 +287,7 @@ final class ScrollbarWidgetView : WidgetViewBase {
     }
     auto entry = *pEntry;
     const auto m = entry.tracker.model;
+    import std.algorithm.comparison : max;
     const long step = max(1L, m.stepSize);
     return applyModelValue(entry, m.value - step, newValue);
   }
@@ -278,6 +302,7 @@ final class ScrollbarWidgetView : WidgetViewBase {
     }
     auto entry = *pEntry;
     const auto m = entry.tracker.model;
+    import std.algorithm.comparison : max;
     const long step = max(1L, m.stepSize);
     return applyModelValue(entry, m.value + step, newValue);
   }
@@ -297,6 +322,7 @@ final class ScrollbarWidgetView : WidgetViewBase {
     auto entry = *pEntry;
     const auto m = entry.tracker.model;
     const long effMin = m.min;
+    import std.algorithm.comparison : max;
     const long effMax = max(m.min, m.max);
     if (effMax <= effMin) {
       return false;
@@ -308,6 +334,7 @@ final class ScrollbarWidgetView : WidgetViewBase {
     const float clickInContent = clickLocal - (isRow ? ca.x : ca.y);
     const float thumbStart = entry.currentThumbOffset;
     const float thumbEnd = thumbStart + entry.currentThumbLen;
+    import std.algorithm.comparison : max;
     const long page = max(1L, m.visibleSize);
 
     if (clickInContent < thumbStart) {
@@ -331,6 +358,7 @@ final class ScrollbarWidgetView : WidgetViewBase {
     auto entry = *pEntry;
     const auto m = entry.tracker.model;
     const long effMin = m.min;
+    import std.algorithm.comparison : max;
     const long effMax = max(m.min, m.max);
     if (effMax <= effMin) {
       return false;
@@ -340,6 +368,7 @@ final class ScrollbarWidgetView : WidgetViewBase {
     entry.isDragging = true;
     entry.dragStartWindowPos = isRow ? mouseVal.windowX : mouseVal.windowY;
     entry.dragStartThumbOffset = entry.currentThumbOffset;
+    import std.algorithm.comparison : clamp;
     entry.dragStartValue = clamp(m.value, effMin, effMax);
     entry.pendingValue = entry.dragStartValue;
     updateThumbColors(entry, false);
@@ -362,6 +391,7 @@ final class ScrollbarWidgetView : WidgetViewBase {
     auto entry = *pEntry;
     const auto m = entry.tracker.model;
     const long effMin = m.min;
+    import std.algorithm.comparison : max;
     const long effMax = max(m.min, m.max);
     const long range = max(0L, effMax - effMin);
 
@@ -372,15 +402,10 @@ final class ScrollbarWidgetView : WidgetViewBase {
       m.visibleSize,
       entry.style.minThumbSize
     );
+    import std.algorithm.comparison : clamp, max;
     const float maxTravel = max(0.0f, trackLen - thumbLen);
-
-    const bool isRow = (entry.direction == FlexDirection.row);
-    const float curPos = isRow ? mouseVal.windowX : mouseVal.windowY;
-    const float deltaPx = curPos - entry.dragStartWindowPos;
-    const float draggedOffset = clamp(
-      entry.dragStartThumbOffset + deltaPx,
-      0.0f,
-      maxTravel
+    const float draggedOffset = computeDraggedOffset(
+      entry, mouseVal, maxTravel
     );
 
     long computedVal = effMin;
@@ -400,6 +425,19 @@ final class ScrollbarWidgetView : WidgetViewBase {
 
     const bool changed = applyModelValue(entry, computedVal, newValue);
     return changed;
+  }
+
+  float computeDraggedOffset(
+    const ref ScrollbarEntry entry,
+    const ref MouseEvent.AppEventViewValue mouseVal,
+    float maxTravel
+  ) {
+    import std.algorithm.comparison : clamp;
+
+    const bool isRow = (entry.direction == FlexDirection.row);
+    const float curPos = isRow ? mouseVal.windowX : mouseVal.windowY;
+    const float deltaPx = curPos - entry.dragStartWindowPos;
+    return clamp(entry.dragStartThumbOffset + deltaPx, 0.0f, maxTravel);
   }
 
   /// Ends a thumb drag interaction on `mouseUp`.
@@ -465,7 +503,9 @@ private:
   ) {
     auto m = entry.tracker.model;
     const long effMin = m.min;
+    import std.algorithm.comparison : max;
     const long effMax = max(m.min, m.max);
+    import std.algorithm.comparison : clamp;
     const long clamped = clamp(candidateVal, effMin, effMax);
     newValue = clamped;
     if (clamped == m.value) {
@@ -483,8 +523,10 @@ private:
   static void syncEntryVisuals(ScrollbarEntry entry) {
     const auto m = entry.tracker.model;
     const long effMin = m.min;
+    import std.algorithm.comparison : max;
     const long effMax = max(m.min, m.max);
     const long range = max(0L, effMax - effMin);
+    import std.algorithm.comparison : clamp;
     const long val = clamp(m.value, effMin, effMax);
 
     const float trackLen = getTrackMainLength(entry);
@@ -494,12 +536,14 @@ private:
       m.visibleSize,
       entry.style.minThumbSize
     );
+    import std.algorithm.comparison : max;
     const float maxTravel = max(0.0f, trackLen - thumbLen);
 
     float thumbOffset = 0.0f;
     if (range > 0 && maxTravel > 0.0f) {
       const double norm = cast(double) (val - effMin) / cast(double) range;
-      thumbOffset = clamp(cast(float) (maxTravel * norm), 0.0f, maxTravel);
+      import std.algorithm.comparison : clamp;
+    thumbOffset = clamp(cast(float) (maxTravel * norm), 0.0f, maxTravel);
     }
 
     applyThumbGeometry(entry, thumbLen, thumbOffset);
@@ -521,7 +565,9 @@ private:
       if (caLen > 0.0f) {
         return caLen;
       }
-      const float rawLen = isRow ? entry.track.rect.width : entry.track.rect.height;
+      const float rawLen = isRow
+        ? entry.track.rect.width
+        : entry.track.rect.height;
       if (rawLen > 0.0f) {
         return rawLen;
       }
@@ -541,6 +587,7 @@ private:
     if (range <= 0) {
       return trackLen;
     }
+    import std.algorithm.comparison : max, min;
     const long vis = max(1L, visibleSize);
     const double ratio = cast(double) vis / cast(double) (range + vis);
     float thumbLen = cast(float) (trackLen * ratio);
@@ -565,43 +612,9 @@ private:
       return;
     }
     const bool isRow = (entry.direction == FlexDirection.row);
-    bool changed = false;
-
-    if (entry.thumb.components.size !is null) {
-      if (isRow) {
-        if (entry.thumb.components.size.width.value != thumbLen) {
-          entry.thumb.components.size.width = Dimension(
-            thumbLen,
-            SizingMode.fixed
-          );
-          changed = true;
-        }
-      } else {
-        if (entry.thumb.components.size.height.value != thumbLen) {
-          entry.thumb.components.size.height = Dimension(
-            thumbLen,
-            SizingMode.fixed
-          );
-          changed = true;
-        }
-      }
-    }
-
-    if (entry.thumb.components.anchor !is null) {
-      if (isRow) {
-        if (entry.thumb.components.anchor.left.isNull ||
-            entry.thumb.components.anchor.left.get != thumbOffset) {
-          entry.thumb.components.anchor.left = nullable(thumbOffset);
-          changed = true;
-        }
-      } else {
-        if (entry.thumb.components.anchor.top.isNull ||
-            entry.thumb.components.anchor.top.get != thumbOffset) {
-          entry.thumb.components.anchor.top = nullable(thumbOffset);
-          changed = true;
-        }
-      }
-    }
+    const bool changed = applyThumbSizeAndAnchor(
+      entry, isRow, thumbLen, thumbOffset
+    );
 
     const RectF trackCa = (entry.track !is null)
       ? entry.track.getContentArea()
@@ -625,6 +638,36 @@ private:
     if (changed) {
       entry.thumb.update(WidgetUpdateScope.layout);
     }
+  }
+
+  static bool applyThumbSizeAndAnchor(
+    ScrollbarEntry entry,
+    bool isRow,
+    float thumbLen,
+    float thumbOffset
+  ) {
+    bool changed = false;
+    if (entry.thumb.components.size !is null) {
+      auto sz = entry.thumb.components.size;
+      if (isRow && sz.width.value != thumbLen) {
+        sz.width = Dimension(thumbLen, SizingMode.fixed);
+        changed = true;
+      } else if (!isRow && sz.height.value != thumbLen) {
+        sz.height = Dimension(thumbLen, SizingMode.fixed);
+        changed = true;
+      }
+    }
+    if (entry.thumb.components.anchor !is null) {
+      auto anc = entry.thumb.components.anchor;
+      if (isRow && (anc.left.isNull || anc.left.get != thumbOffset)) {
+        anc.left = nullable(thumbOffset);
+        changed = true;
+      } else if (!isRow && (anc.top.isNull || anc.top.get != thumbOffset)) {
+        anc.top = nullable(thumbOffset);
+        changed = true;
+      }
+    }
+    return changed;
   }
 
   static void updateThumbColors(ScrollbarEntry entry, bool disabled) {
@@ -821,7 +864,9 @@ struct ScrollbarBuilder {
     return this;
   }
 
-  ref ScrollbarBuilder model(ref ModelTracker!ScrollbarModel tracker) return {
+  ref ScrollbarBuilder modelTracker(
+    ref ModelTracker!ScrollbarModel tracker
+  ) return {
     sbTracker = ModelTracker!ScrollbarModel.from(tracker);
     hasModel = true;
     return this;
@@ -861,7 +906,7 @@ struct ScrollbarBuilder {
     UiSystem ui,
     Widget parent,
     RectF rect,
-    UiRegistry registry = null
+    UiRegistry registry
   ) {
     assert(ui !is null, "ui must not be null");
     if (registry is null) {
@@ -904,30 +949,90 @@ struct ScrollbarBuilder {
       .viewName(scrollbarWidgetViewName)
       .build();
 
-    auto decBtn = WidgetBuilder.make(ui)
+    buildAndRegisterParts(
+      ui, registry, root, rootName, rect, isRow, arrowW, arrowH, barThickness
+    );
+    return root;
+  }
+
+private:
+  void buildAndRegisterParts(
+    UiSystem ui,
+    UiRegistry registry,
+    Widget root,
+    string rootName,
+    RectF rect,
+    bool isRow,
+    float arrowW,
+    float arrowH,
+    float barThickness
+  ) {
+    auto decBtn = buildArrowBtn(
+      ui, root, rootName ~ "DecBtn", arrowW, arrowH,
+      isRow ? "<" : "^", scrollbarDecEvent
+    );
+    float estTrackW = 0.0f;
+    float estTrackH = 0.0f;
+    auto track = buildTrack(
+      ui, root, rootName, rect, isRow, arrowW, arrowH,
+      barThickness, estTrackW, estTrackH
+    );
+    auto thumb = buildThumb(ui, track, rootName, isRow, estTrackW, estTrackH);
+    auto incBtn = buildArrowBtn(
+      ui, root, rootName ~ "IncBtn", arrowW, arrowH,
+      isRow ? ">" : "v", scrollbarIncEvent
+    );
+
+    root.update(WidgetUpdateScope.parentView);
+    registerBuiltScrollbar(registry, root, decBtn, track, thumb, incBtn);
+  }
+  Widget buildArrowBtn(
+    UiSystem ui,
+    Widget root,
+    string name,
+    float w,
+    float h,
+    string label,
+    string eventName
+  ) {
+    return WidgetBuilder.make(ui)
       .parent(root)
-      .name(rootName ~ "DecBtn")
-      .rect(RectF(0, 0, arrowW, arrowH))
-      .fixedSize(arrowW, arrowH)
+      .name(name)
+      .rect(RectF(0, 0, w, h))
+      .fixedSize(w, h)
       .roundBg(cfg.arrowBg)
       .bgRadius(cfg.cornerRadius)
       .border(cfg.arrowBorder)
       .borderWidth(1.0f)
-      .text(isRow ? "<" : "^")
+      .text(label)
       .textColor(cfg.arrowText)
       .fontSize(cfg.fontSize)
       .textAlign(TextLabel.Alignment.center)
-      .onMouseDown(scrollbarDecEvent)
+      .onMouseDown(eventName)
       .build();
+  }
 
-    const float estTrackW = isRow
+  Widget buildTrack(
+    UiSystem ui,
+    Widget root,
+    string rootName,
+    RectF rect,
+    bool isRow,
+    float arrowW,
+    float arrowH,
+    float barThickness,
+    out float estTrackW,
+    out float estTrackH
+  ) {
+    import std.algorithm.comparison : max;
+    estTrackW = isRow
       ? max(1.0f, rect.width - 2.0f * (arrowW + cfg.gap))
       : barThickness;
-    const float estTrackH = isRow
+    estTrackH = isRow
       ? barThickness
       : max(1.0f, rect.height - 2.0f * (arrowH + cfg.gap));
 
-    auto track = WidgetBuilder.make(ui)
+    return WidgetBuilder.make(ui)
       .parent(root)
       .name(rootName ~ "Track")
       .rect(RectF(0, 0, estTrackW, estTrackH))
@@ -946,7 +1051,17 @@ struct ScrollbarBuilder {
       .onScrollChanged(scrollbarTrackChangedEvent)
       .onMouseDown(scrollbarTrackDownEvent)
       .build();
+  }
 
+  Widget buildThumb(
+    UiSystem ui,
+    Widget track,
+    string rootName,
+    bool isRow,
+    float estTrackW,
+    float estTrackH
+  ) {
+    import std.algorithm.comparison : max;
     auto thumbBuilder = WidgetBuilder.make(ui)
       .parent(track)
       .name(rootName ~ "Thumb")
@@ -981,47 +1096,30 @@ struct ScrollbarBuilder {
         .anchorLeft(0.0f)
         .anchorRight(0.0f);
     }
-    auto thumb = thumbBuilder.build();
+    return thumbBuilder.build();
+  }
 
-    auto incBtn = WidgetBuilder.make(ui)
-      .parent(root)
-      .name(rootName ~ "IncBtn")
-      .rect(RectF(0, 0, arrowW, arrowH))
-      .fixedSize(arrowW, arrowH)
-      .roundBg(cfg.arrowBg)
-      .bgRadius(cfg.cornerRadius)
-      .border(cfg.arrowBorder)
-      .borderWidth(1.0f)
-      .text(isRow ? ">" : "v")
-      .textColor(cfg.arrowText)
-      .fontSize(cfg.fontSize)
-      .textAlign(TextLabel.Alignment.center)
-      .onMouseDown(scrollbarIncEvent)
-      .build();
-
-    root.update(WidgetUpdateScope.parentView);
-
-    if (registry !is null) {
-      if (WidgetView wv = registry.widgetViews.getByName(
-            scrollbarWidgetViewName
-          )) {
-        if (auto sbv = cast(ScrollbarWidgetView) wv) {
-          sbv.registerScrollbar(
-            root,
-            sbTracker,
-            decBtn,
-            track,
-            thumb,
-            incBtn,
-            cfg,
-            flexDir,
-            eventName
-          );
-        }
+  void registerBuiltScrollbar(
+    UiRegistry registry,
+    Widget root,
+    Widget decBtn,
+    Widget track,
+    Widget thumb,
+    Widget incBtn
+  ) {
+    if (registry is null) {
+      return;
+    }
+    if (WidgetView wv = registry.widgetViews.getByName(
+        scrollbarWidgetViewName
+      )) {
+      if (auto sbv = cast(ScrollbarWidgetView) wv) {
+        sbv.registerScrollbar(
+          root, sbTracker, decBtn, track, thumb, incBtn,
+          cfg, flexDir, eventName
+        );
       }
     }
-
-    return root;
   }
 
 private:
@@ -1078,16 +1176,20 @@ unittest {
   );
 
   // 1. Horizontal scrollbar with min=0, max=100, value=0, visible=25, step=10
-  auto model = new ScrollbarModel(0, 100, 0, 25, 10, false);
+  auto model = new ScrollbarModel()
+    .withRange(0, 100)
+    .withValue(0)
+    .withVisibleSize(25)
+    .withStepSize(10);
   auto tracker = ModelTracker!ScrollbarModel(model);
 
   ScrollbarBuilder b;
   Widget sb = b
     .name("hScroll")
-    .model(tracker)
+    .modelTracker(tracker)
     .event("hScrollPos")
     .direction(FlexDirection.row)
-    .build(ui, null, RectF(0, 0, 248, 22));
+    .build(ui, null, RectF(0, 0, 248, 22), null);
 
   assert(sb !is null);
   assert(sbView.isWidgetRegistered(sb));
@@ -1104,7 +1206,9 @@ unittest {
   Widget track = sbView.getTrack(sb);
   Widget thumb = sbView.getThumb(sb);
   Widget incBtn = sbView.getIncButton(sb);
-  assert(decBtn !is null && track !is null && thumb !is null && incBtn !is null);
+  assert(
+    decBtn !is null && track !is null && thumb !is null && incBtn !is null
+  );
   assert(!decBtn.inputEnabled);
   assert(incBtn.inputEnabled);
 
@@ -1118,7 +1222,7 @@ unittest {
     sb,
     ViewAppEventBuilder(scrollbarTrackChangedEvent)
       .widget(track)
-      .value(
+      .valueArray(
         ScrollableArea.AppEventViewValue.pack(
           PointF(0, 0),
           PointF(200, 16),
@@ -1153,7 +1257,7 @@ unittest {
     sb,
     ViewAppEventBuilder(scrollbarTrackDownEvent)
       .widget(track)
-      .value(MouseEvent.AppEventViewValue.pack(150.0f, 8.0f, 1, true))
+      .valueArray(MouseEvent.AppEventViewValue.packLocal(150.0f, 8.0f, 1, true))
       .build()
   );
   ctrl.handleEvent(trackClickRight);
@@ -1166,7 +1270,7 @@ unittest {
     sb,
     ViewAppEventBuilder(scrollbarTrackDownEvent)
       .widget(track)
-      .value(MouseEvent.AppEventViewValue.pack(5.0f, 8.0f, 1, true))
+      .valueArray(MouseEvent.AppEventViewValue.packLocal(5.0f, 8.0f, 1, true))
       .build()
   );
   ctrl.handleEvent(trackClickLeft);
@@ -1180,7 +1284,7 @@ unittest {
       sb,
       ViewAppEventBuilder(scrollbarThumbDownEvent)
         .widget(thumb)
-        .value(
+        .valueArray(
           MouseEvent.AppEventViewValue.pack(10, 5, 1, true, 0, 0, 50.0f, 10.0f)
         )
         .build()
@@ -1193,7 +1297,7 @@ unittest {
       sb,
       ViewAppEventBuilder(scrollbarThumbDragEvent)
         .widget(thumb)
-        .value(
+        .valueArray(
           MouseEvent.AppEventViewValue.pack(
             90, 5, 1, false, 80, 0, 130.0f, 10.0f
           )
@@ -1211,7 +1315,7 @@ unittest {
       sb,
       ViewAppEventBuilder(scrollbarThumbUpEvent)
         .widget(thumb)
-        .value(
+        .valueArray(
           MouseEvent.AppEventViewValue.pack(
             90, 5, 1, false, 0, 0, 130.0f, 10.0f
           )
@@ -1221,14 +1325,19 @@ unittest {
   );
 
   // 5. Report-on-release-only mode suppresses drag events until mouseUp
-  auto relModel = new ScrollbarModel(0, 100, 0, 25, 10, true);
+  auto relModel = new ScrollbarModel()
+    .withRange(0, 100)
+    .withValue(0)
+    .withVisibleSize(25)
+    .withStepSize(10)
+    .withReportOnReleaseOnly(true);
   ScrollbarBuilder relBuilder;
   Widget relSb = relBuilder
     .name("relScroll")
     .model(relModel)
     .event("relScrollPos")
     .direction(FlexDirection.column)
-    .build(ui, null, RectF(0, 0, 22, 248));
+    .build(ui, null, RectF(0, 0, 22, 248), null);
   Widget relTrack = sbView.getTrack(relSb);
   Widget relThumb = sbView.getThumb(relSb);
 
@@ -1237,7 +1346,7 @@ unittest {
       relSb,
       ViewAppEventBuilder(scrollbarTrackChangedEvent)
         .widget(relTrack)
-        .value(
+        .valueArray(
           ScrollableArea.AppEventViewValue.pack(
             PointF(0, 0),
             PointF(16, 200),
@@ -1254,7 +1363,7 @@ unittest {
       relSb,
       ViewAppEventBuilder(scrollbarThumbDownEvent)
         .widget(relThumb)
-        .value(
+        .valueArray(
           MouseEvent.AppEventViewValue.pack(5, 10, 1, true, 0, 0, 10.0f, 30.0f)
         )
         .build()
@@ -1267,8 +1376,10 @@ unittest {
       relSb,
       ViewAppEventBuilder(scrollbarThumbDragEvent)
         .widget(relThumb)
-        .value(
-          MouseEvent.AppEventViewValue.pack(5, 90, 1, true, 0, 80, 10.0f, 110.0f)
+        .valueArray(
+          MouseEvent.AppEventViewValue.pack(
+            5, 90, 1, true, 0, 80, 10.0f, 110.0f
+          )
         )
         .build()
     )
@@ -1283,7 +1394,7 @@ unittest {
       relSb,
       ViewAppEventBuilder(scrollbarThumbUpEvent)
         .widget(relThumb)
-        .value(
+        .valueArray(
           MouseEvent.AppEventViewValue.pack(5, 90, 1, true, 0, 0, 10.0f, 110.0f)
         )
         .build()
@@ -1295,12 +1406,16 @@ unittest {
   assert(cast(long) ui.sentEvents[0].view.value[0] == 50);
 
   // 6. Minimum thumb size clamping when range is huge
-  auto hugeModel = new ScrollbarModel(0, 100000, 0, 10, 10, false);
+  auto hugeModel = new ScrollbarModel()
+    .withRange(0, 100000)
+    .withValue(0)
+    .withVisibleSize(10)
+    .withStepSize(10);
   ScrollbarBuilder hugeBuilder;
   Widget hugeSb = hugeBuilder
     .name("hugeScroll")
     .model(hugeModel)
-    .build(ui, null, RectF(0, 0, 248, 22));
+    .build(ui, null, RectF(0, 0, 248, 22), null);
   Widget hugeTrack = sbView.getTrack(hugeSb);
   Widget hugeThumb = sbView.getThumb(hugeSb);
   ctrl.handleEvent(
@@ -1308,7 +1423,7 @@ unittest {
       hugeSb,
       ViewAppEventBuilder(scrollbarTrackChangedEvent)
         .widget(hugeTrack)
-        .value(
+        .valueArray(
           ScrollableArea.AppEventViewValue.pack(
             PointF(0, 0),
             PointF(200, 16),

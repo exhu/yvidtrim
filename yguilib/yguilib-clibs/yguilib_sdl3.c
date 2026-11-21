@@ -14,66 +14,50 @@ struct yguilib_sdl3_GLContext {
 static int g_sdl_initialized = 0;
 static uint32_t g_wake_event_type = 0;
 
-static int convert_sdl_event(const SDL_Event *src, yguilib_sdl3_Event *dst) {
-  SDL_zerop(dst);
-  if (g_wake_event_type != 0 && src->type == g_wake_event_type) {
-    dst->type = YGUILIB_SDL3_EVENT_WAKE;
-    return 1;
+static void fill_window_size_and_scale(
+  uint32_t window_id,
+  int fallback_w,
+  int fallback_h,
+  yguilib_sdl3_Event *dst
+) {
+  int pw = fallback_w;
+  int ph = fallback_h;
+  float scale = 1.0f;
+  SDL_Window *const win = SDL_GetWindowFromID(window_id);
+  if (win) {
+    SDL_GetWindowSizeInPixels(win, &pw, &ph);
+    scale = SDL_GetWindowDisplayScale(win);
   }
+  dst->window.window_id = window_id;
+  dst->window.width = pw;
+  dst->window.height = ph;
+  dst->window.scale = scale;
+}
+
+static int convert_window_event(const SDL_Event *src, yguilib_sdl3_Event *dst) {
   switch (src->type) {
-    case SDL_EVENT_QUIT:
-      dst->type = YGUILIB_SDL3_EVENT_QUIT;
-      return 1;
     case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
       dst->type = YGUILIB_SDL3_EVENT_WINDOW_CLOSE;
       dst->window.window_id = src->window.windowID;
       return 1;
-    case SDL_EVENT_WINDOW_EXPOSED: {
+    case SDL_EVENT_WINDOW_EXPOSED:
       dst->type = YGUILIB_SDL3_EVENT_WINDOW_EXPOSED;
-      dst->window.window_id = src->window.windowID;
-      dst->window.scale = 1.0f;
-      int pw = 0;
-      int ph = 0;
-      SDL_Window *win = SDL_GetWindowFromID(src->window.windowID);
-      if (win) {
-        SDL_GetWindowSizeInPixels(win, &pw, &ph);
-        dst->window.scale = SDL_GetWindowDisplayScale(win);
-      }
-      dst->window.width = pw;
-      dst->window.height = ph;
+      fill_window_size_and_scale(src->window.windowID, 0, 0, dst);
       return 1;
-    }
     case SDL_EVENT_WINDOW_RESIZED:
-    case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: {
+    case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
       dst->type = YGUILIB_SDL3_EVENT_WINDOW_RESIZED;
-      dst->window.window_id = src->window.windowID;
-      dst->window.scale = 1.0f;
-      int pw = (int)src->window.data1;
-      int ph = (int)src->window.data2;
-      SDL_Window *win = SDL_GetWindowFromID(src->window.windowID);
-      if (win) {
-        SDL_GetWindowSizeInPixels(win, &pw, &ph);
-        dst->window.scale = SDL_GetWindowDisplayScale(win);
-      }
-      dst->window.width = pw;
-      dst->window.height = ph;
+      fill_window_size_and_scale(
+        src->window.windowID,
+        (int)src->window.data1,
+        (int)src->window.data2,
+        dst
+      );
       return 1;
-    }
-    case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED: {
+    case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
       dst->type = YGUILIB_SDL3_EVENT_WINDOW_DISPLAY_SCALE_CHANGED;
-      dst->window.window_id = src->window.windowID;
-      dst->window.scale = 1.0f;
-      SDL_Window *win = SDL_GetWindowFromID(src->window.windowID);
-      if (win) {
-        int pw = 0;
-        int ph = 0;
-        SDL_GetWindowSizeInPixels(win, &pw, &ph);
-        dst->window.width = pw;
-        dst->window.height = ph;
-        dst->window.scale = SDL_GetWindowDisplayScale(win);
-      }
+      fill_window_size_and_scale(src->window.windowID, 0, 0, dst);
       return 1;
-    }
     case SDL_EVENT_WINDOW_MOUSE_ENTER:
       dst->type = YGUILIB_SDL3_EVENT_WINDOW_MOUSE_ENTER;
       dst->window.window_id = src->window.windowID;
@@ -82,7 +66,14 @@ static int convert_sdl_event(const SDL_Event *src, yguilib_sdl3_Event *dst) {
       dst->type = YGUILIB_SDL3_EVENT_WINDOW_MOUSE_LEAVE;
       dst->window.window_id = src->window.windowID;
       return 1;
-    case SDL_EVENT_MOUSE_MOTION: {
+    default:
+      return 0;
+  }
+}
+
+static int convert_mouse_event(const SDL_Event *src, yguilib_sdl3_Event *dst) {
+  switch (src->type) {
+    case SDL_EVENT_MOUSE_MOTION:
       dst->type = YGUILIB_SDL3_EVENT_MOUSE_MOTION;
       dst->motion.window_id = src->motion.windowID;
       dst->motion.x = src->motion.x;
@@ -91,28 +82,19 @@ static int convert_sdl_event(const SDL_Event *src, yguilib_sdl3_Event *dst) {
       dst->motion.xrel = src->motion.xrel;
       dst->motion.yrel = src->motion.yrel;
       return 1;
-    }
-    case SDL_EVENT_MOUSE_BUTTON_DOWN: {
-      dst->type = YGUILIB_SDL3_EVENT_MOUSE_BUTTON_DOWN;
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP:
+      dst->type = (src->type == SDL_EVENT_MOUSE_BUTTON_DOWN)
+        ? YGUILIB_SDL3_EVENT_MOUSE_BUTTON_DOWN
+        : YGUILIB_SDL3_EVENT_MOUSE_BUTTON_UP;
       dst->button.window_id = src->button.windowID;
       dst->button.x = src->button.x;
       dst->button.y = src->button.y;
       dst->button.button = src->button.button;
-      dst->button.down = 1;
+      dst->button.down = (src->type == SDL_EVENT_MOUSE_BUTTON_DOWN) ? 1 : 0;
       dst->button.clicks = src->button.clicks;
       return 1;
-    }
-    case SDL_EVENT_MOUSE_BUTTON_UP: {
-      dst->type = YGUILIB_SDL3_EVENT_MOUSE_BUTTON_UP;
-      dst->button.window_id = src->button.windowID;
-      dst->button.x = src->button.x;
-      dst->button.y = src->button.y;
-      dst->button.button = src->button.button;
-      dst->button.down = 0;
-      dst->button.clicks = src->button.clicks;
-      return 1;
-    }
-    case SDL_EVENT_MOUSE_WHEEL: {
+    case SDL_EVENT_MOUSE_WHEEL:
       dst->type = YGUILIB_SDL3_EVENT_MOUSE_WHEEL;
       dst->wheel.window_id = src->wheel.windowID;
       dst->wheel.x = src->wheel.x;
@@ -123,9 +105,18 @@ static int convert_sdl_event(const SDL_Event *src, yguilib_sdl3_Event *dst) {
       dst->wheel.integer_x = src->wheel.integer_x;
       dst->wheel.integer_y = src->wheel.integer_y;
       return 1;
-    }
+    default:
+      return 0;
+  }
+}
+
+static int convert_key_text_event(
+  const SDL_Event *src,
+  yguilib_sdl3_Event *dst
+) {
+  switch (src->type) {
     case SDL_EVENT_KEY_DOWN:
-    case SDL_EVENT_KEY_UP: {
+    case SDL_EVENT_KEY_UP:
       dst->type = (src->type == SDL_EVENT_KEY_DOWN)
         ? YGUILIB_SDL3_EVENT_KEY_DOWN
         : YGUILIB_SDL3_EVENT_KEY_UP;
@@ -135,25 +126,39 @@ static int convert_sdl_event(const SDL_Event *src, yguilib_sdl3_Event *dst) {
       dst->key.mod = (uint16_t)src->key.mod;
       dst->key.repeat = src->key.repeat ? 1 : 0;
       return 1;
-    }
-    case SDL_EVENT_TEXT_EDITING: {
+    case SDL_EVENT_TEXT_EDITING:
       dst->type = YGUILIB_SDL3_EVENT_TEXT_EDITING;
       dst->text_editing.window_id = src->edit.windowID;
       dst->text_editing.text = src->edit.text;
       dst->text_editing.start = src->edit.start;
       dst->text_editing.length = src->edit.length;
       return 1;
-    }
-    case SDL_EVENT_TEXT_INPUT: {
+    case SDL_EVENT_TEXT_INPUT:
       dst->type = YGUILIB_SDL3_EVENT_TEXT_INPUT;
       dst->text_input.window_id = src->text.windowID;
       dst->text_input.text = src->text.text;
       return 1;
-    }
     default:
-      dst->type = YGUILIB_SDL3_EVENT_UNKNOWN;
-      return 1;
+      return 0;
   }
+}
+
+static int convert_sdl_event(const SDL_Event *src, yguilib_sdl3_Event *dst) {
+  SDL_zerop(dst);
+  if (g_wake_event_type != 0 && src->type == g_wake_event_type) {
+    dst->type = YGUILIB_SDL3_EVENT_WAKE;
+    return 1;
+  }
+  if (src->type == SDL_EVENT_QUIT) {
+    dst->type = YGUILIB_SDL3_EVENT_QUIT;
+    return 1;
+  }
+  if (convert_window_event(src, dst) || convert_mouse_event(src, dst)
+    || convert_key_text_event(src, dst)) {
+    return 1;
+  }
+  dst->type = YGUILIB_SDL3_EVENT_UNKNOWN;
+  return 1;
 }
 
 uint32_t yguilib_sdl3_register_wake_event(void) {

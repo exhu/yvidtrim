@@ -44,31 +44,31 @@ final class WidgetBuilder {
   }
 
   /// Sets widget visibility.
-  WidgetBuilder visible(bool v = true) {
+  WidgetBuilder visible(bool v) {
     fWidget.visible = v;
     return this;
   }
 
   /// Enables or disables input handling on this widget.
-  WidgetBuilder inputEnabled(bool enabled = true) {
+  WidgetBuilder inputEnabled(bool enabled) {
     fWidget.inputEnabled = enabled;
     return this;
   }
 
   /// Sets whether this widget intercepts raw input events.
-  WidgetBuilder handleInput(bool handle = true) {
+  WidgetBuilder handleInput(bool handle) {
     fWidget.handleInput = handle;
     return this;
   }
 
   /// Enables or disables clipping of this widget's own drawn content.
-  WidgetBuilder clipContents(bool clip = true) {
+  WidgetBuilder clipContents(bool clip) {
     fWidget.clipContents = clip;
     return this;
   }
 
   /// Enables or disables clipping of child widgets to content bounds.
-  WidgetBuilder clipChildren(bool clip = true) {
+  WidgetBuilder clipChildren(bool clip) {
     fWidget.clipChildren = clip;
     return this;
   }
@@ -383,7 +383,7 @@ final class WidgetBuilder {
 
   /// Sets the background color (creating a rect Background if absent).
   WidgetBuilder bg(ColorF color) {
-    ensureBg().color = color;
+    ensureBg(Background.Style.rect, 0.0f).color = color;
     return this;
   }
 
@@ -397,13 +397,13 @@ final class WidgetBuilder {
 
   /// Sets the background style.
   WidgetBuilder bgStyle(Background.Style style) {
-    ensureBg().style = style;
+    ensureBg(Background.Style.rect, 0.0f).style = style;
     return this;
   }
 
   /// Sets the background corner radius.
   WidgetBuilder bgRadius(float cornerRadius) {
-    ensureBg().cornerRadius = cornerRadius;
+    ensureBg(Background.Style.rect, 0.0f).cornerRadius = cornerRadius;
     return this;
   }
 
@@ -416,7 +416,7 @@ final class WidgetBuilder {
 
   /// Sets the border color (creating a rect Border if absent).
   WidgetBuilder border(ColorF color) {
-    ensureBorder().color = color;
+    ensureBorder(Border.Style.rect, 0.0f).color = color;
     return this;
   }
 
@@ -430,31 +430,31 @@ final class WidgetBuilder {
 
   /// Sets the border stroke width in logical points.
   WidgetBuilder borderWidth(float width) {
-    ensureBorder().width = width;
+    ensureBorder(Border.Style.rect, 0.0f).width = width;
     return this;
   }
 
   /// Sets the border style.
   WidgetBuilder borderStyle(Border.Style style) {
-    ensureBorder().style = style;
+    ensureBorder(Border.Style.rect, 0.0f).style = style;
     return this;
   }
 
   /// Sets the border corner radius.
   WidgetBuilder borderRadius(float cornerRadius) {
-    ensureBorder().cornerRadius = cornerRadius;
+    ensureBorder(Border.Style.rect, 0.0f).cornerRadius = cornerRadius;
     return this;
   }
 
   /// Sets the dash length for dashed borders.
   WidgetBuilder borderDashLen(float dashLen) {
-    ensureBorder().dashLen = dashLen;
+    ensureBorder(Border.Style.rect, 0.0f).dashLen = dashLen;
     return this;
   }
 
   /// Sets the gap length between dashes for dashed borders.
   WidgetBuilder borderDashGap(float gap) {
-    ensureBorder().gap = gap;
+    ensureBorder(Border.Style.rect, 0.0f).gap = gap;
     return this;
   }
 
@@ -466,7 +466,7 @@ final class WidgetBuilder {
   }
 
   /// Enables or disables debug drawing for this widget.
-  WidgetBuilder debugDraw(bool enabled = true, bool recursive = false) {
+  WidgetBuilder debugDraw(bool enabled, bool recursive) {
     auto comp = ensureDebugDraw();
     comp.enabled = enabled;
     comp.recursive = recursive;
@@ -474,7 +474,7 @@ final class WidgetBuilder {
   }
 
   /// Enables recursive debug drawing for this widget and its descendants.
-  WidgetBuilder debugDrawRecursive(bool enabled = true) {
+  WidgetBuilder debugDrawRecursive(bool enabled) {
     return debugDraw(enabled, true);
   }
 
@@ -526,13 +526,13 @@ final class WidgetBuilder {
   }
 
   /// Enables or disables multiline wrapping on TextLabel.
-  WidgetBuilder multiline(bool multi = true) {
+  WidgetBuilder multiline(bool multi) {
     ensureText().multiline = multi;
     return this;
   }
 
   /// Enables or disables overflow ellipsis truncation on TextLabel.
-  WidgetBuilder ellipsis(bool enabled = true) {
+  WidgetBuilder ellipsis(bool enabled) {
     ensureText().overflowEllipsis = enabled;
     return this;
   }
@@ -587,7 +587,7 @@ final class WidgetBuilder {
 
   /// Sets the mouse-drag view event name, enables input, and sets cursor
   /// capture.
-  WidgetBuilder onMouseDrag(string eventName, bool capture = true) {
+  WidgetBuilder onMouseDrag(string eventName, bool capture) {
     fWidget.inputEnabled = true;
     auto me = ensureMouseEvent();
     me.mouseDrag = eventName;
@@ -596,7 +596,7 @@ final class WidgetBuilder {
   }
 
   /// Enables or disables cursor capture on mouse press for this widget.
-  WidgetBuilder captureCursor(bool capture = true) {
+  WidgetBuilder captureCursor(bool capture) {
     ensureMouseEvent().captureCursor = capture;
     return this;
   }
@@ -681,25 +681,25 @@ final class WidgetBuilder {
   }
 
   /// Attaches a Focus component with initial focused state.
-  WidgetBuilder focus(bool focused = false) {
+  WidgetBuilder focus(bool focused) {
     ensureFocus().focused = focused;
     return this;
   }
 
   /// Sets whether the Focus component skips this widget in tab traversal.
-  WidgetBuilder focusSkip(bool skip = true) {
+  WidgetBuilder focusSkip(bool skip) {
     ensureFocus().skip = skip;
     return this;
   }
 
   /// Marks this widget as a focus-cycling root.
-  WidgetBuilder focusRoot(bool root = true) {
+  WidgetBuilder focusRoot(bool root) {
     ensureFocus().focusRoot = root;
     return this;
   }
 
   /// Marks this widget as the default button activated by Enter.
-  WidgetBuilder defaultButton(bool isDefault = true) {
+  WidgetBuilder defaultButton(bool isDefault) {
     if (isDefault) {
       if (fWidget.components.defaultButton is null) {
         fWidget.components.defaultButton = new DefaultButton();
@@ -781,10 +781,7 @@ private:
     return fWidget.components.anchor;
   }
 
-  Background ensureBg(
-    Background.Style defaultStyle = Background.Style.rect,
-    float defaultRadius = 0.0f
-  ) {
+  Background ensureBg(Background.Style defaultStyle, float defaultRadius) {
     if (fWidget.components.background is null) {
       fWidget.components.background = new Background(
         ColorF(0, 0, 0, 0),
@@ -795,10 +792,7 @@ private:
     return fWidget.components.background;
   }
 
-  Border ensureBorder(
-    Border.Style defaultStyle = Border.Style.rect,
-    float defaultRadius = 0.0f
-  ) {
+  Border ensureBorder(Border.Style defaultStyle, float defaultRadius) {
     if (fWidget.components.border is null) {
       auto b = new Border(ColorF(1, 1, 1, 1), 1.0f, defaultStyle);
       b.cornerRadius = defaultRadius;
@@ -1008,7 +1002,7 @@ unittest {
   // DebugDrawComponent builder helpers
   auto dbgWidget = WidgetBuilder.make(ui)
     .name("dbg")
-    .debugDrawRecursive()
+    .debugDrawRecursive(true)
     .debugDrawColors(ColorF(1, 0, 0, 1), ColorF(0, 0, 0, 1))
     .build();
   assert(dbgWidget.components.debugDraw !is null);

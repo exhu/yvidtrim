@@ -30,7 +30,7 @@ final class DemoView {
   this(
     ref ModelTracker!DemoModel modelTracker,
     ref ModelTracker!TabsModel tabsModelTracker,
-    UiSystem ui = null
+    UiSystem ui
   ) {
     this.ui = (ui !is null) ? ui : new UiSystemImpl(null);
     tracker = ModelTracker!DemoModel.from(modelTracker);
@@ -121,6 +121,19 @@ private:
       .borderWidth(1.0f)
       .build();
 
+    buildHeaderTitleBox(header);
+
+    TabControlBuilder b;
+    tabControl = b
+      .name("headerTabControl")
+      .modelTracker(tabsTracker)
+      .event(headerTabSwitchEvent)
+      .gap(10.0f)
+      .build(ui, header, RectF(), registry);
+    tabControl.components.size = Size.fraction(1.0f, 0.0f);
+  }
+
+  void buildHeaderTitleBox(Widget header) {
     auto titleBox = WidgetBuilder.make(ui)
       .parent(header)
       .name("headerTitleBox")
@@ -153,15 +166,6 @@ private:
       )
       .textColor(ColorF(0.60f, 0.65f, 0.75f, 1.0f))
       .build();
-
-    TabControlBuilder b;
-    tabControl = b
-      .name("headerTabControl")
-      .model(tabsTracker)
-      .event(headerTabSwitchEvent)
-      .gap(10.0f)
-      .build(ui, header, RectF(), registry);
-    tabControl.components.size = Size.fraction(1.0f, 0.0f);
   }
 
   void buildStatusBar() {
@@ -201,7 +205,7 @@ unittest {
   auto tracker = ModelTracker!DemoModel(model);
   auto tabsModel = createHeaderTabsModel();
   auto tabsTracker = ModelTracker!TabsModel(tabsModel);
-  auto demoView = new DemoView(tracker, tabsTracker);
+  auto demoView = new DemoView(tracker, tabsTracker, null);
 
   auto root = demoView.getRootWidget();
   assert(root !is null);
@@ -240,7 +244,7 @@ unittest {
   // Verify root-level debug draw mode synchronization and statusText updates
   assert(root.components.debugDraw is null);
 
-  void applyMode(DebugDrawMode mode, string status = "") {
+  void applyMode(DebugDrawMode mode, string status) {
     auto m = tracker.edit();
     m.debugDrawMode = mode;
     m.statusText = status;

@@ -1,7 +1,6 @@
 module yguilib.widget.internal.layout_anchor;
 
 package(yguilib):
-import std.algorithm.comparison : max;
 import yguilib.render.render_types : RectF;
 import yguilib.widget : Widget;
 import yguilib.widget.layout_components : Anchor, Dimension, Insets, Size,
@@ -43,6 +42,7 @@ void resolveHorizontalAnchor(
     } else {
       // Auto / unconstrained: stretches to fill between anchors
       const float totalInsets = anchor.left.get + anchor.right.get + ml + mr;
+      import std.algorithm.comparison : max;
       float targetWidth = max(0.0f, contentRect.width - totalInsets);
       if (szComp !is null) {
         targetWidth = clampDimension(
@@ -78,6 +78,7 @@ void resolveVerticalAnchor(
     } else {
       // Auto / unconstrained: stretches to fill between anchors
       const float totalInsets = anchor.top.get + anchor.bottom.get + mt + mb;
+      import std.algorithm.comparison : max;
       float targetHeight = max(0.0f, contentRect.height - totalInsets);
       if (szComp !is null) {
         targetHeight = clampDimension(
@@ -100,9 +101,9 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto parent = fix.makeRoot(RectF(10, 10, 200, 100));
+  auto parent = fix.makeRootWithRect(RectF(10, 10, 200, 100));
 
-  auto tr = fix.makeChild(parent, RectF(0, 0, 30, 20));
+  auto tr = fix.makeChildWithRect(parent, RectF(0, 0, 30, 20));
   auto aTR = new Anchor;
   aTR.right = 0.0f;
   aTR.top = 0.0f;
@@ -111,7 +112,7 @@ unittest {
   assert(tr.rect.x == 170); // 200 - 30
   assert(tr.rect.y == 0);
 
-  auto bl = fix.makeChild(parent, RectF(0, 0, 30, 20));
+  auto bl = fix.makeChildWithRect(parent, RectF(0, 0, 30, 20));
   auto aBL = new Anchor;
   aBL.left = 0.0f;
   aBL.bottom = 0.0f;
@@ -120,7 +121,7 @@ unittest {
   assert(bl.rect.x == 0);
   assert(bl.rect.y == 80); // 100 - 20
 
-  auto br = fix.makeChild(parent, RectF(0, 0, 30, 20));
+  auto br = fix.makeChildWithRect(parent, RectF(0, 0, 30, 20));
   auto aBR = new Anchor;
   aBR.right = 5.0f;
   aBR.bottom = 10.0f;
@@ -137,7 +138,7 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto parent = fix.makeRoot(RectF(0, 0, 300, 200));
+  auto parent = fix.makeRootWithRect(RectF(0, 0, 300, 200));
   auto parentSz = new Size;
   parentSz.padding = Insets(10, 15, 10, 15);
   parent.components.size = parentSz;
@@ -147,7 +148,7 @@ unittest {
   // Content rect: startX = 20 (border 5 + pad 15), startY = 15 (5 + 10)
   // availW = 300 - 10 - 30 = 260, availH = 200 - 10 - 20 = 170
 
-  auto child = fix.makeChild(parent, RectF(0, 0, 40, 30));
+  auto child = fix.makeChildWithRect(parent, RectF(0, 0, 40, 30));
   auto childSz = new Size;
   childSz.margin = Insets(2, 3, 4, 5);
   child.components.size = childSz;
@@ -158,9 +159,11 @@ unittest {
   child.components.anchor = a;
   handleAnchorComp(child);
 
-  // x = startX (20) + availW (260) - width (40) - right (10) - margin.right (3) = 227
+  // x = startX (20) + availW (260) - width (40) - right (10)
+  //   - margin.right (3) = 227
   assert(child.rect.x == 227);
-  // y = startY (15) + availH (170) - height (30) - bottom (10) - margin.bottom (4) = 141
+  // y = startY (15) + availH (170) - height (30) - bottom (10)
+  //   - margin.bottom (4) = 141
   assert(child.rect.y == 141);
 }
 
@@ -169,9 +172,9 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto parent = fix.makeRoot(RectF(0, 0, 200, 150));
+  auto parent = fix.makeRootWithRect(RectF(0, 0, 200, 150));
 
-  auto child = fix.makeChild(parent, RectF(0, 0, 0, 0));
+  auto child = fix.makeChildWithRect(parent, RectF(0, 0, 0, 0));
   auto a = new Anchor;
   a.left = 10.0f;
   a.right = 20.0f;
@@ -201,9 +204,9 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto parent = fix.makeRoot(RectF(0, 0, 300, 200));
+  auto parent = fix.makeRootWithRect(RectF(0, 0, 300, 200));
 
-  auto child = fix.makeChild(parent, RectF(0, 0, 50, 40));
+  auto child = fix.makeChildWithRect(parent, RectF(0, 0, 50, 40));
   auto sz = new Size;
   sz.width = Dimension(50, SizingMode.fixed);
   sz.height = Dimension(40, SizingMode.fixed);
