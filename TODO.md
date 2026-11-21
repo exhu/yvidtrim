@@ -1,3 +1,14 @@
+- algorithm and types reimplementation/duplication has been found in the following places:
+  `timer_service.d`
+  TimerId[] collectDueIds(long now, ref TimerId[32] stackIds) const {
+  `uisystem_impl.d`
+  struct ControllerDirtyList
+  snapshotControllers(),
+  there's also ring buffer implementation in
+  `message_bus.d` that could be reimplemented, or used elsewhere.
+  Find more similar structs reimplemented across yguilib.
+  Extract common patterns to a finite set of structs/functions and move that implementation to new `yguilib.allochelpers` module. Replace scattered reimplementations with the ones from the new module.
+
 - guidemo: text hint popup layer widget, controller, system and component with
 hint displayed and animated transparency when cursor delays over a control to
 display the full text (currently buttons do not fit the whole text
