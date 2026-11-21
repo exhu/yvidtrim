@@ -75,6 +75,10 @@ Page class (see `source/guidemo/view.d`).
 - Construct widgets with `WidgetBuilder.make(ui)`.
 - Store references only to widgets mutated in `update()`.
 - Synchronize state in `View.update()` using `ModelTracker!M.update()`.
+- Create `ModelTracker!M` and `View` before the `Controller`, pass `tracker`
+  explicitly to both `View` and `Controller`, and attach `rootWidget` to
+  `app.ui.mainWindow()` in `main()` (keeping `Controller` testable with
+  `UiSystemImpl(null)`).
 
 ### Tier 2: Reusable Composite Widget (`*Builder` + `WidgetView`)
 Use for multi-widget controls that encapsulate child widgets, translate child

@@ -17,7 +17,10 @@ Key architectural separation:
 yvidtrim/
 ├── source/
 │   ├── yvidtrim/          # Video trimmer entry point, models, controllers
-│   │   ├── app.d          # Application entry point, controller, main view
+│   │   ├── app.d          # Application entry point wiring model/view/ctrl
+│   │   ├── controller.d   # MainController handling events and model sync
+│   │   ├── model.d        # MainModel state
+│   │   ├── view.d         # MainView widget tree and model synchronization
 │   │   ├── uitree/        # Declarative widget tree construction
 │   │   └── clibs/sdl3.d   # extern(C) D bindings for yvidtrim-clibs
 │   └── guidemo/           # Interactive GUI showcase and verification app

@@ -9,10 +9,16 @@ project(
 subdir('yguilib')
 subdir('yvidtrim-clibs')
 
-yvidtrim_src = files(
-  'source/yvidtrim/app.d',
+yvidtrim_lib_src = files(
   'source/yvidtrim/clibs/sdl3.d',
+  'source/yvidtrim/controller.d',
+  'source/yvidtrim/model.d',
   'source/yvidtrim/uitree/mainview.d',
+  'source/yvidtrim/view.d',
+)
+
+yvidtrim_src = yvidtrim_lib_src + files(
+  'source/yvidtrim/app.d',
 )
 
 yvidtrim_inc = include_directories('source')
@@ -24,6 +30,16 @@ executable(
   d_import_dirs : yvidtrim_inc,
   dependencies : [yguilib_dep, yvidtrim_sdl3_dep],
 )
+
+yvidtrim_test_exe = executable(
+  'yvidtrim_test',
+  yvidtrim_lib_src + files('source/yvidtrim/test_main.d'),
+  d_unittest : true,
+  include_directories : yvidtrim_inc,
+  d_import_dirs : yvidtrim_inc,
+  dependencies : [yguilib_dep, yvidtrim_sdl3_dep],
+)
+test('yvidtrim_test', yvidtrim_test_exe)
 
 guidemo_lib_src = files(
   'source/guidemo/common.d',

@@ -1,5 +1,7 @@
-- decide on view-controller architecture, View should be created before the controller
-and passed to it instead of creating a view inside one.
+- decide on view-controller architecture, View should be created before the
+  controller and passed to it instead of creating a view inside one (done for
+  `source/yvidtrim`; remaining for `source/guidemo`
+  `DemoController`/`DemoView`).
 
 - Dynamic lists are for another feature to implement.
 
