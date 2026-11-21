@@ -1,3 +1,11 @@
+- move common controls from guidemo into yguilib `hover_button_system.d`
+`scrollbars.d`
+`tab_button.d`
+`tabcontrol.d`
+`virtlist.d`
+under yguilib.controls package.
+
+
 - guidemo: text hint popup layer widget, controller, system and component with
 hint displayed and animated transparency when cursor delays over a control to
 display the full text (currently buttons do not fit the whole text
