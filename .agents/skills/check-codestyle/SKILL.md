@@ -48,6 +48,8 @@ rdmd .agents/skills/check-codestyle/scripts/check_style.d [options] [files...]
 10. **Constructor Constraints (D)**: Warns when a class/struct defines more
     than one non-`@disable` `this(...)` constructor or a constructor has more
     than 3 parameters.
+11. **No Public Import Re-exports (D)**: Errors when a D module uses
+    `public import` to re-export another module.
 
 ## CLI Usage
 

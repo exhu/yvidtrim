@@ -77,6 +77,9 @@ Adhere to `.editorconfig` and `codestyle.md`:
 ## Skills & Automation
 - Skill helper scripts must be written in D using the standard library.
 - Launch skill scripts using `rdmd` (e.g., `rdmd .agents/skills/.../script.d`).
+- Invoke skill scripts directly without wrapping them in `echo` banners or
+  ad-hoc shell filters/counters (`awk`, `wc`, `sed`, `grep`). If a skill lacks
+  needed output or checks, enhance the skill script instead.
 
 ## Markdown documentation
 Use ascii for diagrams in `.md` files, e.g. for plans.

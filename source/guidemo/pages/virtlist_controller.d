@@ -169,8 +169,8 @@ private:
 }
 
 unittest {
-  import guidemo.scrollbars : registerScrollbars;
-  import guidemo.virtlist : registerVirtList;
+  import yguilib.controls.scrollbars : registerScrollbars;
+  import yguilib.controls.virtlist : registerVirtList;
   import yguilib.events.builder : ViewAppEventBuilder;
   import yguilib.internal.uisystem_impl : UiSystemImpl;
   import yguilib.widget : Widget;
@@ -255,8 +255,8 @@ unittest {
 // End-to-end App pipeline test: verifies Page 7 activation, 10,000-item
 // layout, video animation timer lifecycle, and Jump 5000 recycling.
 unittest {
-  import guidemo.scrollbars : registerScrollbars;
-  import guidemo.virtlist : registerVirtList;
+  import yguilib.controls.scrollbars : registerScrollbars;
+  import yguilib.controls.virtlist : registerVirtList;
   import yguilib.app : App;
   import yguilib.events.builder : ViewAppEventBuilder;
   import yguilib.widget : Widget;

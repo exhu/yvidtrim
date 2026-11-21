@@ -5,10 +5,11 @@
 module guidemo.pages.scrollbars_page;
 
 import guidemo.common : makeSectionCard;
-import guidemo.hover_button_system : AnimatedHoverButtonBuilder,
+import yguilib.controls.hover_button_system : AnimatedHoverButtonBuilder,
   HoverAnimConfig;
 import guidemo.model : ScrollbarsPageModel;
-import guidemo.scrollbars : ScrollbarBuilder, ScrollbarModel, ScrollbarStyle;
+import yguilib.controls.scrollbars : ScrollbarBuilder, ScrollbarModel,
+  ScrollbarStyle;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.uisystem : UiRegistry, UiSystem;

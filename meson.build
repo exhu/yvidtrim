@@ -46,7 +46,6 @@ guidemo_lib_src = files(
   'source/guidemo/controller.d',
   'source/guidemo/demo_model_helpers.d',
   'source/guidemo/hover_button.d',
-  'source/guidemo/hover_button_system.d',
   'source/guidemo/model.d',
   'source/guidemo/pages/button_controller.d',
   'source/guidemo/pages/button_page.d',
@@ -62,11 +61,7 @@ guidemo_lib_src = files(
   'source/guidemo/pages/textlabel_page.d',
   'source/guidemo/pages/virtlist_controller.d',
   'source/guidemo/pages/virtlist_page.d',
-  'source/guidemo/scrollbars.d',
-  'source/guidemo/tab_button.d',
-  'source/guidemo/tabcontrol.d',
   'source/guidemo/view.d',
-  'source/guidemo/virtlist.d',
 )
 
 guidemo_src = guidemo_lib_src + files(
@@ -100,63 +95,5 @@ hover_button_test_exe = executable(
   dependencies : [yguilib_dep],
 )
 test('hover_button_test', hover_button_test_exe)
-
-hover_button_system_test_exe = executable(
-  'hover_button_system_test',
-  files('source/guidemo/hover_button_system.d', 'source/guidemo/test_main.d'),
-  d_unittest : true,
-  include_directories : yvidtrim_inc,
-  d_import_dirs : yvidtrim_inc,
-  dependencies : [yguilib_dep],
-)
-test('hover_button_system_test', hover_button_system_test_exe)
-
-tab_button_test_exe = executable(
-  'tab_button_test',
-  files(
-    'source/guidemo/tab_button.d',
-    'source/guidemo/model.d',
-    'source/guidemo/test_main.d',
-  ),
-  d_unittest : true,
-  include_directories : yvidtrim_inc,
-  d_import_dirs : yvidtrim_inc,
-  dependencies : [yguilib_dep],
-)
-test('tab_button_test', tab_button_test_exe)
-
-tabcontrol_test_exe = executable(
-  'tabcontrol_test',
-  files('source/guidemo/tabcontrol.d', 'source/guidemo/test_main.d'),
-  d_unittest : true,
-  include_directories : yvidtrim_inc,
-  d_import_dirs : yvidtrim_inc,
-  dependencies : [yguilib_dep],
-)
-test('tabcontrol_test', tabcontrol_test_exe)
-
-scrollbars_test_exe = executable(
-  'scrollbars_test',
-  files('source/guidemo/scrollbars.d', 'source/guidemo/test_main.d'),
-  d_unittest : true,
-  include_directories : yvidtrim_inc,
-  d_import_dirs : yvidtrim_inc,
-  dependencies : [yguilib_dep],
-)
-test('scrollbars_test', scrollbars_test_exe)
-
-virtlist_test_exe = executable(
-  'virtlist_test',
-  files(
-    'source/guidemo/virtlist.d',
-    'source/guidemo/scrollbars.d',
-    'source/guidemo/test_main.d',
-  ),
-  d_unittest : true,
-  include_directories : yvidtrim_inc,
-  d_import_dirs : yvidtrim_inc,
-  dependencies : [yguilib_dep],
-)
-test('virtlist_test', virtlist_test_exe)
 
 

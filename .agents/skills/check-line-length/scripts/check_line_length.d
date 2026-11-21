@@ -1,16 +1,16 @@
 #!/usr/bin/env rdmd
 /**
- * Checks line length violations on git diffs or full files on disk.
+ * Checks line length and optional file line-count violations on git diffs
+ * or full files on disk.
  */
 module check_line_length;
 
 import core.sys.posix.sys.stat : fstat, stat_t, S_ISFIFO, S_ISREG;
-import std.algorithm : canFind;
 import std.conv : ConvException, to;
 import std.file : exists, isFile, readText;
 import std.getopt : defaultGetoptPrinter, getopt, GetoptResult;
 import std.process : execute;
-import std.stdio : stderr, stdin, writefln;
+import std.stdio : stderr, stdin, writefln, writeln;
 import std.string : endsWith, indexOf, isNumeric, splitLines, startsWith, strip;
 
 struct Violation {
@@ -21,10 +21,19 @@ struct Violation {
   string content;
 }
 
+struct Options {
+  size_t maxWidth = 80;
+  size_t maxLines = 0;
+  size_t tabWidth = 4;
+  bool staged = false;
+  bool forceStdin = false;
+  bool fullFileMode = false;
+}
+
 /**
  * Calculates visual column width expanding tab stops.
  */
-size_t visualLength(string s, size_t tabWidth = 4) {
+size_t visualLength(string s, size_t tabWidth) {
   if (s.endsWith("\r")) {
     s = s[0 .. $ - 1];
   }
@@ -59,41 +68,48 @@ bool isTrackedInGit(string path) {
 }
 
 /**
- * Checks raw lines against maxWidth (used for full file scans).
+ * Checks raw lines against maxWidth and optional maxLines limit.
  */
 Violation[] checkRawLines(
   string sourceName,
   const(string)[] lines,
   size_t maxWidth,
-  size_t tabWidth
+  size_t tabWidth,
+  size_t maxLines
 ) {
   Violation[] violations;
+  if (maxLines > 0 && lines.length > maxLines) {
+    violations ~= Violation(
+      sourceName,
+      lines.length,
+      lines.length,
+      maxLines,
+      "Total line count exceeds limit"
+    );
+  }
   foreach (size_t idx, line; lines) {
     size_t len = visualLength(line, tabWidth);
     if (len > maxWidth) {
-      violations ~= Violation(
-        sourceName,
-        idx + 1,
-        len,
-        maxWidth,
-        line
-      );
+      violations ~= Violation(sourceName, idx + 1, len, maxWidth, line);
     }
   }
   return violations;
 }
 
 /**
- * Checks all lines in a file on disk against maxWidth.
+ * Checks all lines in a file on disk against maxWidth and maxLines.
  */
 Violation[] checkFileLines(
   string filePath,
   size_t maxWidth,
-  size_t tabWidth
+  size_t tabWidth,
+  size_t maxLines
 ) {
   try {
     string content = readText(filePath);
-    return checkRawLines(filePath, content.splitLines(), maxWidth, tabWidth);
+    return checkRawLines(
+      filePath, content.splitLines(), maxWidth, tabWidth, maxLines
+    );
   } catch (Exception e) {
     stderr.writefln("Error reading %s: %s", filePath, e.msg);
     return [];
@@ -108,97 +124,231 @@ Violation[] checkDiffLines(
   size_t maxWidth,
   size_t tabWidth
 ) {
+  import std.algorithm : canFind;
+
   Violation[] violations;
   string currentFile = "";
   size_t currentLineNum = 0;
   bool inHunk = false;
 
   foreach (line; lines) {
-    if (line.startsWith("diff --git ")) {
-      inHunk = false;
-      continue;
-    }
-    if (line.startsWith("--- ")) {
+    if (line.startsWith("diff --git ") || line.startsWith("--- ")) {
       inHunk = false;
       continue;
     }
     if (line.startsWith("+++ ")) {
       inHunk = false;
-      string path = line[4 .. $].strip;
-      if (path.startsWith("b/")) {
-        currentFile = path[2 .. $];
-      } else if (path != "/dev/null") {
-        currentFile = path;
-      } else {
-        currentFile = "";
-      }
+      currentFile = parseDiffTargetPath(line[4 .. $].strip);
       continue;
     }
     if (line.startsWith("@@ ") && line.canFind(" @@")) {
-      auto endIdx = line[3 .. $].indexOf(" @@");
-      if (endIdx != -1) {
-        string header = line[3 .. 3 + endIdx];
-        auto plusIdx = header.indexOf('+');
-        if (plusIdx != -1) {
-          string newPart = header[plusIdx + 1 .. $];
-          auto commaIdx = newPart.indexOf(',');
-          string lineStr = (commaIdx != -1) ? newPart[0 .. commaIdx] : newPart;
-          try {
-            currentLineNum = lineStr.strip.to!size_t;
-            inHunk = true;
-          } catch (ConvException) {
-            inHunk = false;
-          }
-        }
-      }
+      inHunk = parseHunkStartLine(line, currentLineNum);
       continue;
     }
-
     if (!inHunk) {
       continue;
     }
-
     if (line.startsWith("+")) {
       size_t lineNum = currentLineNum++;
       string content = line[1 .. $];
       size_t len = visualLength(content, tabWidth);
       if (len > maxWidth) {
-        violations ~= Violation(
-          currentFile,
-          lineNum,
-          len,
-          maxWidth,
-          content
-        );
+        violations ~= Violation(currentFile, lineNum, len, maxWidth, content);
       }
-    } else if (line.startsWith("-")) {
-      // Deleted lines do not advance line number in target file
     } else if (line.startsWith(" ")) {
-      // Context line advances line number
       currentLineNum++;
     }
   }
-
   return violations;
 }
 
-int main(string[] args) {
-  size_t maxWidth = 80;
-  size_t tabWidth = 4;
-  bool staged = false;
-  bool forceStdin = false;
-  bool fullFileMode = false;
+string parseDiffTargetPath(string path) {
+  if (path.startsWith("b/")) {
+    return path[2 .. $];
+  }
+  return (path != "/dev/null") ? path : "";
+}
 
+bool parseHunkStartLine(string line, out size_t startLine) {
+  auto endIdx = line[3 .. $].indexOf(" @@");
+  if (endIdx == -1) {
+    return false;
+  }
+  string header = line[3 .. 3 + endIdx];
+  auto plusIdx = header.indexOf('+');
+  if (plusIdx == -1) {
+    return false;
+  }
+  string newPart = header[plusIdx + 1 .. $];
+  auto commaIdx = newPart.indexOf(',');
+  string lineStr = (commaIdx != -1) ? newPart[0 .. commaIdx] : newPart;
+  try {
+    startLine = lineStr.strip.to!size_t;
+    return true;
+  } catch (ConvException) {
+    return false;
+  }
+}
+
+void appendUniqueViolations(
+  ref Violation[] dest,
+  ref bool[string] seen,
+  const(Violation)[] src
+) {
+  import std.format : format;
+
+  foreach (v; src) {
+    string key = format("%s:%d:%s", v.file, v.line, v.content);
+    if (key !in seen) {
+      seen[key] = true;
+      dest ~= v;
+    }
+  }
+}
+
+bool runGitDiffCheck(
+  string[] cmd,
+  size_t maxWidth,
+  size_t tabWidth,
+  ref Violation[] violations,
+  ref bool[string] seen
+) {
+  auto res = execute(cmd);
+  if (res.status != 0) {
+    stderr.writefln(
+      "git diff failed with exit code %d: %s", res.status, res.output
+    );
+    return false;
+  }
+  auto found = checkDiffLines(res.output.splitLines(), maxWidth, tabWidth);
+  appendUniqueViolations(violations, seen, found);
+  return true;
+}
+
+bool checkRenamedStagedFiles(
+  size_t maxWidth,
+  size_t tabWidth,
+  size_t maxLines,
+  ref Violation[] violations,
+  ref bool[string] seen
+) {
+  auto res = execute([
+    "git", "diff", "--cached", "--name-only", "--diff-filter=R"
+  ]);
+  if (res.status != 0) {
+    return true;
+  }
+  foreach (rawPath; res.output.splitLines()) {
+    string path = rawPath.strip;
+    if (path.length > 0 && exists(path) && isFile(path)) {
+      auto found = checkFileLines(path, maxWidth, tabWidth, maxLines);
+      appendUniqueViolations(violations, seen, found);
+    }
+  }
+  return true;
+}
+
+bool isAllUntrackedFiles(const(string)[] targets) {
+  if (targets.length == 0) {
+    return false;
+  }
+  foreach (t; targets) {
+    if (!exists(t) || !isFile(t) || isTrackedInGit(t)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool runFullFileChecks(
+  const(string)[] targets,
+  bool useStdin,
+  in Options opts,
+  ref Violation[] violations
+) {
+  if (useStdin) {
+    string[] rawLines;
+    foreach (line; stdin.byLineCopy()) {
+      rawLines ~= line;
+    }
+    violations = checkRawLines(
+      "<stdin>", rawLines, opts.maxWidth, opts.tabWidth, opts.maxLines
+    );
+    return true;
+  }
+  if (targets.length == 0) {
+    stderr.writeln("Error: --file requires at least one file path target");
+    return false;
+  }
+  foreach (target; targets) {
+    if (!exists(target) || !isFile(target)) {
+      stderr.writefln("Error: File not found: %s", target);
+      return false;
+    }
+    violations ~= checkFileLines(
+      target, opts.maxWidth, opts.tabWidth, opts.maxLines
+    );
+  }
+  return true;
+}
+
+bool runGitModeChecks(
+  const(string)[] targets,
+  bool useStdin,
+  in Options opts,
+  ref Violation[] violations
+) {
+  if (useStdin) {
+    string[] diffLines;
+    foreach (line; stdin.byLineCopy()) {
+      diffLines ~= line;
+    }
+    violations = checkDiffLines(diffLines, opts.maxWidth, opts.tabWidth);
+    return true;
+  }
+
+  bool[string] seen;
+  if (targets.length == 0 && !opts.staged) {
+    if (!runGitDiffCheck(
+        ["git", "diff", "-U0"], opts.maxWidth, opts.tabWidth, violations, seen
+      )) {
+      return false;
+    }
+    if (!runGitDiffCheck(
+        ["git", "diff", "-U0", "--cached"],
+        opts.maxWidth, opts.tabWidth, violations, seen
+      )) {
+      return false;
+    }
+    return checkRenamedStagedFiles(
+      opts.maxWidth, opts.tabWidth, opts.maxLines, violations, seen
+    );
+  }
+
+  string[] cmd = ["git", "diff", "-U0"];
+  if (opts.staged) {
+    cmd ~= "--cached";
+  }
+  cmd ~= targets;
+  return runGitDiffCheck(cmd, opts.maxWidth, opts.tabWidth, violations, seen);
+}
+
+int main(string[] args) {
+  Options opts;
   GetoptResult helpInfo;
   try {
     helpInfo = getopt(
       args,
-      "w|max-width", "Maximum visual column width (default: 80)", &maxWidth,
-      "t|tab-width", "Tab stop column width (default: 4)", &tabWidth,
+      "w|max-width", "Maximum visual column width (default: 80)",
+      &opts.maxWidth,
+      "m|max-lines", "Maximum total lines per file (0 = unlimited)",
+      &opts.maxLines,
+      "t|tab-width", "Tab stop column width (default: 4)", &opts.tabWidth,
       "f|file", "Check entire file(s) on disk instead of git diff",
-      &fullFileMode,
-      "staged|cached", "Check staged git changes", &staged,
-      "stdin", "Force reading diff or lines from standard input", &forceStdin
+      &opts.fullFileMode,
+      "staged|cached", "Check staged git changes only", &opts.staged,
+      "stdin", "Force reading diff or lines from standard input",
+      &opts.forceStdin
     );
   } catch (Exception e) {
     stderr.writefln("Error: %s", e.msg);
@@ -208,106 +358,46 @@ int main(string[] args) {
   if (helpInfo.helpWanted) {
     defaultGetoptPrinter(
       "Usage: check_line_length.d [options] [target/file...] [max-width]\n\n" ~
-      "Checks line-length violations on git diffs or full files.\n" ~
-      "Reads from git diff, files on disk, or standard input if piped.\n",
+      "Checks line-length and optional line-count violations on git diffs\n" ~
+      "or full files on disk.\n",
       helpInfo.options
     );
     return 0;
   }
 
-  string[] positional = args[1 .. $];
   string[] targets;
-
-  foreach (arg; positional) {
+  foreach (arg; args[1 .. $]) {
     if (arg.isNumeric) {
-      maxWidth = arg.to!size_t;
+      opts.maxWidth = arg.to!size_t;
     } else {
       targets ~= arg;
     }
   }
 
-  const bool useStdin = forceStdin ||
+  const bool useStdin = opts.forceStdin ||
     (isStdinPiped() && targets.length == 0);
-
-  // If -f/--file was not specified, check if targets are untracked disk files.
-  // Untracked files have no git diff history, so default to full file scan.
-  if (!fullFileMode && targets.length > 0) {
-    bool allUntrackedFiles = true;
-    foreach (t; targets) {
-      if (!exists(t) || !isFile(t) || isTrackedInGit(t)) {
-        allUntrackedFiles = false;
-        break;
-      }
-    }
-    if (allUntrackedFiles) {
-      fullFileMode = true;
-    }
+  if (!opts.fullFileMode && isAllUntrackedFiles(targets)) {
+    opts.fullFileMode = true;
   }
 
   Violation[] violations;
-
-  if (fullFileMode) {
-    if (useStdin) {
-      string[] rawLines;
-      foreach (line; stdin.byLineCopy()) {
-        rawLines ~= line;
-      }
-      violations = checkRawLines("<stdin>", rawLines, maxWidth, tabWidth);
-    } else {
-      if (targets.length == 0) {
-        stderr.writeln("Error: --file requires at least one file path target");
-        return 1;
-      }
-      foreach (target; targets) {
-        if (exists(target) && isFile(target)) {
-          violations ~= checkFileLines(target, maxWidth, tabWidth);
-        } else {
-          stderr.writefln("Error: File not found: %s", target);
-          return 1;
-        }
-      }
-    }
-  } else {
-    string[] diffLines;
-
-    if (useStdin) {
-      foreach (line; stdin.byLineCopy()) {
-        diffLines ~= line;
-      }
-    } else {
-      string[] cmd = ["git", "diff", "-U0"];
-      if (staged) {
-        cmd ~= "--cached";
-      }
-      if (targets.length > 0) {
-        cmd ~= targets;
-      }
-
-      auto res = execute(cmd);
-      if (res.status != 0) {
-        stderr.writefln("git diff failed with exit code %d: %s",
-          res.status, res.output);
-        return 1;
-      }
-      diffLines = res.output.splitLines();
-    }
-
-    violations = checkDiffLines(diffLines, maxWidth, tabWidth);
+  const bool ok = opts.fullFileMode
+    ? runFullFileChecks(targets, useStdin, opts, violations)
+    : runGitModeChecks(targets, useStdin, opts, violations);
+  if (!ok) {
+    return 1;
   }
 
   if (violations.length == 0) {
+    writeln("Line length check passed (0 violations).");
     return 0;
   }
 
   foreach (v; violations) {
-    writefln("%s:%d: [%d/%d] %s",
-      v.file.length ? v.file : "<input>",
-      v.line,
-      v.length,
-      v.limit,
-      v.content
+    writefln(
+      "%s:%d: [%d/%d] %s",
+      v.file.length ? v.file : "<input>", v.line, v.length, v.limit, v.content
     );
   }
-
   return 1;
 }

@@ -55,6 +55,7 @@ struct MovePlan {
   string srcRel;
   string dstRel;
   string mesonDir;
+  string dstRoot;
   bool isPackage = false;
   bool collision = false;
 }
@@ -140,8 +141,13 @@ MovePlan resolveMovePlan(
         string tail = plan.isPackage
           ? "source/" ~ newSlash ~ "/package.d"
           : "source/" ~ newSlash ~ ".d";
+        string dstRoot = (newMod == "yguilib"
+          || newMod.startsWith("yguilib."))
+          ? "yguilib/"
+          : "";
+        plan.dstRoot = dstRoot;
         plan.dstRel = tail;
-        plan.dstFile = r ~ tail;
+        plan.dstFile = dstRoot ~ tail;
         plan.collision = exists(plan.dstFile);
         return plan;
       }
@@ -444,6 +450,10 @@ void processMesonFile(
   const Options opts,
   ref ScanSummary summary
 ) {
+  if (plan.mesonDir != plan.dstRoot) {
+    return;
+  }
+
   string content;
   try {
     content = readText(file);

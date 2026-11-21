@@ -5,10 +5,11 @@
 module guidemo.pages.tabcontrol_page;
 
 import guidemo.common : makeSectionCard;
-import guidemo.hover_button_system : AnimatedHoverButtonBuilder,
+import yguilib.controls.hover_button_system : AnimatedHoverButtonBuilder,
   HoverAnimConfig;
 import guidemo.model : TabControlPageModel;
-import guidemo.tabcontrol : TabControlBuilder, TabControlStyle, TabsModel;
+import yguilib.controls.tabcontrol : TabControlBuilder, TabControlStyle,
+  TabsModel;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiRegistry, UiSystem;

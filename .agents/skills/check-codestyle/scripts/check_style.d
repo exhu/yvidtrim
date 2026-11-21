@@ -337,6 +337,7 @@ void checkFileContent(
   auto heavyImportRe = ctRegex!(
     r"^\s*import\s+std\.(algorithm|format|regex|datetime)"
   );
+  auto publicImportRe = ctRegex!(r"^\s*public\s+import\b");
   auto blockStartRe = ctRegex!(
     r"^\s*(class|struct|interface|union|enum|if|while|for|foreach|"
     ~ r"switch|do|void|auto|override|final)\b"
@@ -434,6 +435,13 @@ void checkFileContent(
 
     // 3. D Specific checks
     if (isD) {
+      // Check public import re-exports
+      if (checkThisLine && !matchFirst(rawLine, publicImportRe).empty) {
+        issues ~= Issue(filePath, lineNo, 1, IssueLevel.error,
+          "Public import re-exports are not allowed; import modules "
+          ~ "explicitly.");
+      }
+
       // Check inline visibility attributes
       if (checkThisLine) {
         auto m = matchFirst(rawLine, inlineVisRe);

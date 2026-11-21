@@ -5,7 +5,7 @@
 module guidemo.pages.button_system_page;
 
 import guidemo.common : makeSectionCard;
-import guidemo.hover_button_system : AnimatedHoverButtonBuilder,
+import yguilib.controls.hover_button_system : AnimatedHoverButtonBuilder,
   HoverAnimConfig, HoverButtonConfig;
 import guidemo.model : ButtonSystemPageModel;
 import yguilib.model : ModelTracker;

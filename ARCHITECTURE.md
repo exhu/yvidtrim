@@ -26,11 +26,7 @@ yvidtrim/
 │   └── guidemo/           # Interactive GUI showcase and verification app
 │       ├── guidemoapp.d   # guidemo entry point and system registration
 │       ├── controller.d   # Shared demo controller, quit, F12, page switch
-│       ├── hover_button*.d# Reusable button demos (controller vs system)
-│       ├── scrollbars.d   # Composite Scrollbar widget, view, and controller
-│       ├── tab_button.d   # Reusable header tab buttons in flex container
-│       ├── tabcontrol.d   # Composite TabControl widget, view, and controller
-│       ├── virtlist.d     # Composite VirtList widget, view, and controller
+│       ├── hover_button.d # Controller-based hover button demo
 │       └── pages/         # Showcase views and per-page controllers
 ├── yguilib/               # Independent GUI library (no yvidtrim dependency)
 │   ├── source/yguilib/
@@ -41,6 +37,12 @@ yvidtrim/
 │   │   ├── model.d        # VersionedModel and ModelTracker state tracking
 │   │   ├── clibs/         # extern(C) D bindings for yguilib-clibs
 │   │   ├── controller/    # Controller interfaces and ControllerStack
+│   │   ├── controls/      # Reusable UI controls (no package.d facade)
+│   │   │   ├── hover_button_system.d # ECS hover button & animation system
+│   │   │   ├── scrollbars.d          # Composite Scrollbar widget & view
+│   │   │   ├── tab_button.d          # Styled tab button factory & helpers
+│   │   │   ├── tabcontrol.d          # Composite TabControl widget & view
+│   │   │   └── virtlist.d            # Composite VirtList widget & view
 │   │   ├── events/        # AppEvent, builder, and thread-safe MessageBus
 │   │   ├── render/        # Hardware Renderer, FontManager, shader pipelines
 │   │   ├── widget/        # Widget entity, components, builder, WidgetSystem
@@ -74,7 +76,8 @@ yvidtrim/
   - C handles (SDL windows, GL contexts, TTF fonts) follow strict RAII cleanup
     in explicit `destroy()` and destructors (`~this()`).
 - Encapsulation & Scoping:
-  - Multi-module packages expose functionality through a `package.d` facade.
+  - No `public import` re-exports; multi-module packages like
+    `yguilib.controls` import modules explicitly without `package.d`.
   - Internal modules (`internal/`) must declare `package(<root_pkg>):` or
     `private:`; `public:` declarations inside `internal/` are strictly banned.
   - Scoped imports defer parsing for heavy stdlib modules (e.g., `std.format`).

@@ -2,10 +2,11 @@
  * virtlist.d - Reusable model-driven composite VirtList control combining a
  * VirtListComponent viewport with main-axis and cross-axis Scrollbars.
  */
-module guidemo.virtlist;
+module yguilib.controls.virtlist;
 
 import std.math.rounding : round;
-import guidemo.scrollbars : ScrollbarBuilder, ScrollbarModel, ScrollbarStyle;
+import yguilib.controls.scrollbars : ScrollbarBuilder, ScrollbarModel,
+  ScrollbarStyle;
 import yguilib.controller : HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.events.builder : ViewAppEventBuilder;
@@ -117,7 +118,7 @@ final class VirtListModel : VersionedModel {
     pendingScrollIndex = index;
   }
 
-package(guidemo):
+package(yguilib):
   VirtListChange[] takePendingChanges() {
     VirtListChange[] res = pendingChanges;
     pendingChanges = null;
@@ -639,7 +640,9 @@ private:
       return true;
     }
     if (evName == virtListMainScrollEvent) {
-      vlv.applyMainScrollOffset(ev.view.viewWidget, cast(long) ev.view.value[0]);
+      vlv.applyMainScrollOffset(
+        ev.view.viewWidget, cast(long) ev.view.value[0]
+      );
       return true;
     }
     if (evName == virtListCrossScrollEvent) {
@@ -1082,7 +1085,8 @@ VirtListWidgetViewController registerVirtList(UiSystem ui) {
 }
 
 version (unittest) {
-  import guidemo.scrollbars : registerScrollbars, ScrollbarWidgetView;
+  import yguilib.controls.scrollbars : registerScrollbars,
+    ScrollbarWidgetView;
   import yguilib.app : App;
   import yguilib.controller : DefaultController;
   import yguilib.internal.uisystem_impl : UiSystemImpl;

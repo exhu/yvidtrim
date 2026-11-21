@@ -5,7 +5,7 @@ module guidemo.view;
 
 import guidemo.demo_model_helpers : headerTabNames;
 import guidemo.model : DebugDrawMode, DemoModel;
-import guidemo.tabcontrol : TabControlBuilder, TabsModel;
+import yguilib.controls.tabcontrol : TabControlBuilder, TabsModel;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiRegistry, UiSystem;

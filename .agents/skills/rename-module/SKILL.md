@@ -43,8 +43,9 @@ rdmd .agents/skills/rename-module/scripts/rename_module.d \
   packages may affect `package` visibility or `yguilib` independence.
 - **`ARCHITECTURE.md`**: Per `AGENTS.md`, update `ARCHITECTURE.md` if the
   directory structure or module topology changed.
-- **`package.d` re-exports**: If a parent `package.d` publicly imports the
-  moved module, verify its `public import` remains valid.
+- **No `package.d` re-exports**: Per `codestyle.md`, never add
+  `public import` re-exports in `package.d`; update consumers to import the
+  moved module directly.
 
 ### 3. Apply and Verify
 ```bash

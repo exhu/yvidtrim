@@ -2,11 +2,12 @@
  * tabcontrol.d - Reusable model-driven TabControl widget tree, view, and
  * controller.
  */
-module guidemo.tabcontrol;
+module yguilib.controls.tabcontrol;
 
-import guidemo.tab_button : defaultTabButtonFontSize, defaultTabButtonHeight,
-  defaultTabButtonRadius, defaultTabButtonWidth, tabActiveBg, tabActiveBorder,
-  tabActiveText, tabInactiveBg, tabInactiveBorder, tabInactiveText;
+import yguilib.controls.tab_button : defaultTabButtonFontSize,
+  defaultTabButtonHeight, defaultTabButtonRadius, defaultTabButtonWidth,
+  tabActiveBg, tabActiveBorder, tabActiveText, tabInactiveBg,
+  tabInactiveBorder, tabInactiveText;
 import yguilib.controller : HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker, VersionedModel;

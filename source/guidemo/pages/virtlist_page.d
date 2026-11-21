@@ -5,11 +5,11 @@
 module guidemo.pages.virtlist_page;
 
 import guidemo.common : makeSectionCard;
-import guidemo.hover_button_system : AnimatedHoverButtonBuilder,
+import yguilib.controls.hover_button_system : AnimatedHoverButtonBuilder,
   HoverAnimConfig;
 import guidemo.model : VirtListPageModel;
-import guidemo.virtlist : VirtListBuilder, VirtListModel, VirtListWidgetView,
-  virtListWidgetViewName;
+import yguilib.controls.virtlist : VirtListBuilder, VirtListModel,
+  VirtListWidgetView, virtListWidgetViewName;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiRegistry, UiSystem;

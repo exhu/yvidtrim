@@ -83,7 +83,7 @@ Page class (see `source/guidemo/view.d`).
 ### Tier 2: Reusable Composite Widget (`*Builder` + `WidgetView`)
 Use for multi-widget controls that encapsulate child widgets, translate child
 events, or synchronize dynamic children via `WidgetArrayProvider` or
-`ScrollableArea` (see `source/guidemo/tabcontrol.d`).
+`ScrollableArea` (see `yguilib/source/yguilib/controls/tabcontrol.d`).
 - Define a `*Style` or `*Config` struct for visual defaults.
 - Define a fluent `*Builder` struct with `build(UiSystem ui, Widget parent,
   RectF rect, UiRegistry registry = null)`.
@@ -95,7 +95,7 @@ events, or synchronize dynamic children via `WidgetArrayProvider` or
 ### Tier 3: ECS-Style Widget (`*Component` + `WidgetSystem`)
 Use when behavior or animation applies to single-node widgets automatically
 without manual controller registration (see
-`source/guidemo/hover_button_system.d`).
+`yguilib/source/yguilib/controls/hover_button_system.d`).
 - Define `final class MyComponent : WidgetComponent`.
 - Attach via `WidgetBuilder.make(ui)...component(new MyComponent(...))`.
 - Process visible widgets with the component in a `WidgetSystem` across

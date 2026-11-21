@@ -56,7 +56,7 @@ import yguilib.widget : Widget;
 
 import guidemo.controller : DemoController, DemoControllerParams;
 import guidemo.hover_button : HoverButtonController;
-import guidemo.hover_button_system : AnimatedHoverButtonSystem;
+import yguilib.controls.hover_button_system : AnimatedHoverButtonSystem;
 import guidemo.model : DemoModel;
 import guidemo.pages.button_controller : ButtonPageController;
 import guidemo.pages.button_page : ButtonPage;
@@ -72,10 +72,10 @@ import guidemo.pages.textlabel_controller : TextLabelPageController;
 import guidemo.pages.textlabel_page : TextLabelPage;
 import guidemo.pages.virtlist_controller : VirtListPageController;
 import guidemo.pages.virtlist_page : VirtListPage;
-import guidemo.scrollbars : registerScrollbars;
-import guidemo.tabcontrol : TabsModel, registerTabControl;
+import yguilib.controls.scrollbars : registerScrollbars;
+import yguilib.controls.tabcontrol : TabsModel, registerTabControl;
 import guidemo.view : DemoView, createHeaderTabsModel;
-import guidemo.virtlist : registerVirtList;
+import yguilib.controls.virtlist : registerVirtList;
 
 void main() {
   import std.logger : infof;

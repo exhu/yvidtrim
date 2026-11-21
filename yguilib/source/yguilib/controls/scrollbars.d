@@ -2,7 +2,7 @@
  * scrollbars.d - Reusable composite vertical and horizontal Scrollbar widget,
  * WidgetView, and WidgetViewController.
  */
-module guidemo.scrollbars;
+module yguilib.controls.scrollbars;
 
 import std.math.rounding : round;
 import std.typecons : nullable;

@@ -119,28 +119,3 @@ final class VirtListPageModel : VersionedModel {
   size_t recycledStopsCount = 0;
   size_t activeVideosCount = 0;
 }
-
-/// Default tab captions for the main guidemo header TabControl.
-immutable string[] defaultHeaderTabNames = [
-  "[1] Layout & Paint",
-  "[2] TextLabel Demo",
-  "[3] Hover (Ctrl)",
-  "[4] Hover (System)",
-  "[5] TabControl",
-  "[6] Scrollbars",
-  "[7] VirtList",
-];
-
-/// Model holding header tab names and active tab index.
-final class HeaderTabsModel : VersionedModel {
-  string[] tabNames = [
-    "[1] Layout & Paint",
-    "[2] TextLabel Demo",
-    "[3] Hover (Ctrl)",
-    "[4] Hover (System)",
-    "[5] TabControl",
-    "[6] Scrollbars",
-    "[7] VirtList",
-  ];
-  size_t activeTab = 0;
-}

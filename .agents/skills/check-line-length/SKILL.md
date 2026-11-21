@@ -1,21 +1,22 @@
 ---
 name: check-line-length
 description: >-
-  Check line-length violations on git diff additions for modified or staged
-  files, or scan entire files directly on disk. Use this skill when verifying
-  that code changes adhere to the 80-character (or specified) line length limit.
+  Check line-length violations on git diff additions for modified, staged, or
+  renamed files, or scan entire files on disk (including optional max-lines
+  count checks). Use this skill when verifying that code or docs adhere to the
+  80-character line width or total line-count limits.
 ---
 
 # Git Diff & Full File Line Length Checker
 
-This skill provides automated line-length verification for newly added or
-modified code lines directly from git diffs, as well as full file scans on disk
-to replace manual shell pipelines (such as `awk 'length > 80 ...'`).
+This skill provides automated line-length and optional total line-count
+verification for modified, staged, and renamed files as well as full file
+scans on disk, replacing manual shell pipelines (`awk 'length > 80'`, `wc -l`).
 
 ## Core Script
 
-The checker is implemented as a standalone D script using Phobos and can be
-executed directly using `rdmd`:
+The checker is implemented as a standalone D script using Phobos and executed
+directly with `rdmd`:
 
 ```bash
 rdmd .agents/skills/check-line-length/scripts/check_line_length.d \
@@ -24,22 +25,23 @@ rdmd .agents/skills/check-line-length/scripts/check_line_length.d \
 
 ## Features
 
-- **Direct git diff integration**: Runs `git diff -U0` automatically or reads
-  from standard input if piped.
-- **Full file scanning**: Scans entire files on disk using `-f` / `--file`, or
-  automatically for untracked files, replacing `awk 'length > 80'`.
+- **Combined default git check**: Running with no arguments inspects unstaged
+  additions (`git diff -U0`), staged additions (`git diff -U0 --cached`), and
+  full scans of staged renamed (`git mv`) files in one call.
+- **Full file scanning & line-count cap**: Scans entire files on disk using
+  `-f` / `--file` (or automatically for untracked files), and optionally
+  enforces total file line limits with `-m` / `--max-lines` (replacing `wc -l`).
 - **Accurate line tracking**: Parses unified diff hunk headers
-  (`@@ -a,b +c,d @@`) to report the exact line numbers in the target files.
+  (`@@ -a,b +c,d @@`) to report exact line numbers in target files.
 - **Tab stop expansion**: Converts tab characters (`\t`) to visual column stops
   (default: 4 columns).
-- **Human-readable violation output**:
-  `filePath:line: [length/limit] line content`
-- **Automation-friendly exit codes**: Returns exit code `1` if any line exceeds
-  the limit, or `0` if all checked lines are compliant.
+- **Clear pass/fail output**: Prints `Line length check passed (0 violations).`
+  on exit code `0`, or `filePath:line: [length/limit] line content` on exit
+  code `1` (no `echo` wrappers needed).
 
 ## CLI Usage & Examples
 
-### 1. Check all unstaged modified files against 80 columns:
+### 1. Check all unstaged, staged, and renamed changes against 80 columns:
 ```bash
 rdmd .agents/skills/check-line-length/scripts/check_line_length.d
 ```
@@ -57,7 +59,13 @@ rdmd .agents/skills/check-line-length/scripts/check_line_length.d \
 ```
 *(Note: Untracked files on disk default to full file scan automatically).*
 
-### 4. Check with a custom column limit (e.g. 100 columns):
+### 4. Check both 80-char width and total line count (replacing wc -l):
+```bash
+rdmd .agents/skills/check-line-length/scripts/check_line_length.d \
+  -f --max-lines 249 ARCHITECTURE.md
+```
+
+### 5. Check with a custom column limit (e.g. 100 columns):
 ```bash
 rdmd .agents/skills/check-line-length/scripts/check_line_length.d \
   -f yguilib/source/yguilib/uisystem.d 100
@@ -66,14 +74,10 @@ rdmd .agents/skills/check-line-length/scripts/check_line_length.d \
   -w 100 yguilib/source/yguilib/uisystem.d
 ```
 
-### 5. Check against a specific commit or range:
+### 6. Check against a specific commit or staged changes only:
 ```bash
 rdmd .agents/skills/check-line-length/scripts/check_line_length.d \
   HEAD~1 yguilib/source/yguilib/uisystem.d
-```
-
-### 6. Check staged changes:
-```bash
 rdmd .agents/skills/check-line-length/scripts/check_line_length.d --staged
 ```
 
@@ -91,7 +95,8 @@ cat somefile.txt | \
 
 - `-f, --file`: Check entire file(s) on disk instead of git diff additions.
 - `-w, --max-width`: Maximum visual column width (default: 80).
+- `-m, --max-lines`: Maximum total line count per file (default: 0 = unlimited).
 - `-t, --tab-width`: Tab stop width in columns (default: 4).
-- `--staged, --cached`: Inspect staged changes instead of unstaged changes.
+- `--staged, --cached`: Inspect staged changes only.
 - `--stdin`: Force reading diff or raw lines from standard input.
 - `-h, --help`: Display help and options.

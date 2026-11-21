@@ -2,17 +2,17 @@
 /**
  * Architectural boundary and encapsulation checker for yvidtrim and yguilib.
  * Enforces AGENTS.md and codestyle.md:
- *  - yguilib independence (must never import yvidtrim)
+ *  - yguilib independence (must never import yvidtrim or guidemo)
  *  - Internal directory encapsulation (no public symbols in internal/)
- *  - No umbrella root package.d re-exports
- *  - Domain facade rule (subsystems with >1 module require package.d)
+ *  - No umbrella root package.d or public import re-exports
+ *  - Package directory rule (no single-module package.d dirs without
+ *    internal/)
  *  - Direct C wrapper abstraction (D only imports clibs.*)
  */
 module check_boundaries;
 
 import core.sys.posix.sys.stat : fstat, stat_t, S_ISFIFO, S_ISREG;
 import std.algorithm : canFind, endsWith, startsWith;
-import std.conv : to;
 import std.file : dirEntries, exists, isDir, isFile, readText, SpanMode;
 import std.getopt : defaultGetoptPrinter, getopt, GetoptResult;
 import std.path : baseName, dirName, extension;
@@ -24,9 +24,10 @@ enum BoundaryViolationType {
   yguilibIndependence,
   internalPublicSymbol,
   umbrellaRootImport,
-  missingDomainFacade,
+  publicImportReexport,
   singleModulePackageDir,
-  directCImport
+  directCImport,
+  docLineLimit
 }
 
 struct BoundaryViolation {
@@ -54,22 +55,67 @@ void checkYguilibIndependence(
     if (trimmed.startsWith("//") || trimmed.startsWith("*")) {
       continue;
     }
-    // Check D imports
-    if (trimmed.startsWith("import ") && trimmed.canFind("yvidtrim")) {
-      violations ~= BoundaryViolation(
-        filePath,
-        idx + 1,
-        BoundaryViolationType.yguilibIndependence,
-        "yguilib must not import yvidtrim symbols: " ~ trimmed
-      );
+    foreach (dep; ["yvidtrim", "guidemo"]) {
+      // Check D imports
+      if (trimmed.startsWith("import ") && trimmed.canFind(dep)) {
+        violations ~= BoundaryViolation(
+          filePath,
+          idx + 1,
+          BoundaryViolationType.yguilibIndependence,
+          "yguilib must not import " ~ dep ~ " symbols: " ~ trimmed
+        );
+      }
+      // Check C includes
+      if (trimmed.startsWith("#include") && trimmed.canFind(dep)) {
+        violations ~= BoundaryViolation(
+          filePath,
+          idx + 1,
+          BoundaryViolationType.yguilibIndependence,
+          "yguilib C code must not include " ~ dep ~ " headers: " ~ trimmed
+        );
+      }
     }
-    // Check C includes
-    if (trimmed.startsWith("#include") && trimmed.canFind("yvidtrim")) {
+  }
+}
+
+/**
+ * Checks that D files do not use public import re-exports.
+ */
+void checkPublicImportReexports(
+  string filePath,
+  string content,
+  ref BoundaryViolation[] violations
+) {
+  if (extension(filePath) != ".d") {
+    return;
+  }
+
+  auto publicImportRe = ctRegex!(r"^\s*public\s+import\b");
+  bool inMultilineComment = false;
+  string[] lines = content.splitLines();
+  foreach (size_t idx, string line; lines) {
+    string trimmed = line.strip();
+    if (inMultilineComment) {
+      if (trimmed.canFind("*/")) {
+        inMultilineComment = false;
+      }
+      continue;
+    }
+    if (trimmed.startsWith("/*")) {
+      if (!trimmed.canFind("*/")) {
+        inMultilineComment = true;
+      }
+      continue;
+    }
+    if (trimmed.startsWith("//") || trimmed.startsWith("*")) {
+      continue;
+    }
+    if (!matchFirst(line, publicImportRe).empty) {
       violations ~= BoundaryViolation(
         filePath,
         idx + 1,
-        BoundaryViolationType.yguilibIndependence,
-        "yguilib C code must not include yvidtrim headers: " ~ trimmed
+        BoundaryViolationType.publicImportReexport,
+        "Public import re-exports are prohibited; import modules explicitly."
       );
     }
   }
@@ -143,7 +189,8 @@ void checkRootPackageUmbrellas(ref BoundaryViolation[] violations) {
 }
 
 /**
- * Checks domain facade rules (packages with >1 module require package.d).
+ * Checks package directory rules (single-module package.d dirs without
+ * internal/ are prohibited; multi-module packages do not require package.d).
  */
 void checkDomainFacades(string baseDir, ref BoundaryViolation[] violations) {
   if (!exists(baseDir)) {
@@ -179,17 +226,6 @@ void checkDomainFacades(string baseDir, ref BoundaryViolation[] violations) {
 
     bool hasInternalDir = exists(dir ~ "/internal") && isDir(dir ~ "/internal");
 
-    // Rule: if > 1 module in subsystem directory, package.d is required
-    if (moduleCount > 1 && !hasPackageD) {
-      violations ~= BoundaryViolation(
-        dir,
-        1,
-        BoundaryViolationType.missingDomainFacade,
-        "Subsystem has " ~ to!string(moduleCount)
-        ~ " modules but lacks package.d facade."
-      );
-    }
-
     // Rule: do not create a directory for a single module file as package.d,
     // unless it encapsulates an internal/ implementation directory.
     if (moduleCount == 0 && hasPackageD && !hasInternalDir) {
@@ -201,6 +237,30 @@ void checkDomainFacades(string baseDir, ref BoundaryViolation[] violations) {
         ~ "A single module file should be used instead."
       );
     }
+  }
+}
+
+/**
+ * Checks that ARCHITECTURE.md stays under 250 lines per AGENTS.md.
+ */
+void checkArchitectureLineLimit(ref BoundaryViolation[] violations) {
+  enum maxArchitectureLines = 249;
+  string archPath = "ARCHITECTURE.md";
+  if (!exists(archPath)) {
+    return;
+  }
+  size_t lineCount = readText(archPath).splitLines().length;
+  if (lineCount > maxArchitectureLines) {
+    import std.format : format;
+    violations ~= BoundaryViolation(
+      archPath,
+      lineCount,
+      BoundaryViolationType.docLineLimit,
+      format(
+        "ARCHITECTURE.md has %d lines; must stay under 250 lines.",
+        lineCount
+      )
+    );
   }
 }
 
@@ -241,6 +301,9 @@ int main(string[] args) {
           string content = readText(entry.name);
           checkYguilibIndependence(entry.name, content, violations);
           checkInternalEncapsulation(entry.name, content, violations);
+          if (ext == ".d") {
+            checkPublicImportReexports(entry.name, content, violations);
+          }
         }
       }
     }
@@ -250,6 +313,9 @@ int main(string[] args) {
   checkDomainFacades("yguilib/source/yguilib", violations);
   checkDomainFacades("source/yvidtrim", violations);
   checkDomainFacades("source/guidemo", violations);
+
+  // 4. ARCHITECTURE.md size limit check
+  checkArchitectureLineLimit(violations);
 
   // Print results
   if (violations.length > 0) {

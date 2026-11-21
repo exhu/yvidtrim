@@ -24,7 +24,7 @@
  *       postLayout phases, driving 60 FPS animations via TimerControl when
  *       active and 0% CPU when idle.
  */
-module guidemo.hover_button_system;
+module yguilib.controls.hover_button_system;
 
 import std.math : PI, sin;
 import yguilib.events : AppEvent;

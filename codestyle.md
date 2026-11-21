@@ -96,11 +96,16 @@
   them via properties or methods.
 
 ## 5. D Modules, Architecture & Assets
-- **No umbrella root `package.d`:** Consumers must import subsystems
-  explicitly (e.g., `import yguilib.render;`).
-- **Subsystem facades:** Keep a single-module subsystem as a single `.d` file.
-  Use `<pkg>/package.d` only when a subsystem has multiple modules; do not use
-  `public` re-exports in `package.d`.
+- **No umbrella root `package.d`:** Consumers must import subsystems or
+  modules explicitly (e.g., `import yguilib.render;`,
+  `import yguilib.controls.scrollbars;`).
+- **No `public import` re-exports:** Never use `public import` (in
+  `package.d` or any other module) to re-export symbols from other modules.
+- **Package directories & `package.d`:** Keep a single-module subsystem as a
+  single `.d` file rather than `<pkg>/package.d` (unless it encapsulates an
+  `internal/` directory). Multi-module packages (e.g., `yguilib.controls`) do
+  not require `package.d`; only create `<pkg>/package.d` when `<pkg>` itself
+  defines shared top-level types or functions for that subsystem.
 - **Internal boundaries:** Place volatile logic, wire formats, OS bindings,
   and concrete drivers in `internal/`. Never mark internal symbols `public`;
   use `package(<root_pkg>)` or file-level `private`.

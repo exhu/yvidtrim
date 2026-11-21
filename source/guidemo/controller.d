@@ -12,7 +12,7 @@ import yguilib.uisystem : UiSystem;
 import guidemo.common : isKey;
 import guidemo.demo_model_helpers : pageCount;
 import guidemo.model : DebugDrawMode, DemoModel;
-import guidemo.tabcontrol : TabsModel;
+import yguilib.controls.tabcontrol : TabsModel;
 import guidemo.view : DemoView, headerTabSwitchEvent;
 
 /// Parameters for constructing DemoController.
