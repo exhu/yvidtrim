@@ -41,15 +41,15 @@ interface TimerControl {
    * `Controller.updateView()`. Return `true` to request a Phase 3 render
    * pass (e.g. after direct widget mutations), or call `sendUpdate()` if
    * controllers need a model-sync pass. For controller-owned animations
-   * that should drive `tick(dt)` -> `updateView()`, prefer the
-   * `startTimer(Controller, ...)` overload.
+   * that should drive `tick(dt)` -> `updateView()`, prefer
+   * `startControllerTimer`.
    *
-   * Calling `startTimer()` / `stopTimer()` from inside `callback` is safe.
-   * Unlike the `Controller` and `WidgetSystem` overloads, callback timers
+   * Calling `start*Timer()` / `stopTimer()` from inside `callback` is safe.
+   * Unlike `startControllerTimer` and `startSystemTimer`, callback timers
    * have no automatic owner cleanup; callers must call `stopTimer(id)`
    * before captured objects are destroyed.
    */
-  TimerId startTimer(
+  TimerId startCallbackTimer(
     uint intervalMs,
     TimerMode mode,
     TimerCallback callback
@@ -63,10 +63,10 @@ interface TimerControl {
    * Phase 3. Automatically cancelled when `target` is popped from
    * `ControllerStack`.
    */
-  TimerId startTimer(
+  TimerId startControllerTimer(
     Controller target,
-    uint intervalMs = 16,
-    TimerMode mode = TimerMode.repeat
+    uint intervalMs,
+    TimerMode mode
   );
 
   /**
@@ -76,10 +76,10 @@ interface TimerControl {
    * Automatically cancelled when `target` is unregistered from the
    * pipeline.
    */
-  TimerId startTimer(
+  TimerId startSystemTimer(
     WidgetSystem target,
-    uint intervalMs = 16,
-    TimerMode mode = TimerMode.repeat
+    uint intervalMs,
+    TimerMode mode
   );
 
   /// Cancels an active timer. Passing `invalidTimerId` (0) or an already

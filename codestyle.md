@@ -1,213 +1,136 @@
-# D Coding style
-Prefered coding style is slightly different from standard D style. It's similar in default clang: indentation is 2 spaces, opening { is on the same line as struct/class/function/if/while etc. declaration.
+# Coding Style
 
-## File naming
-All source file names are always lower case.
+## 1. Formatting & Files (D and C)
+- Indent with 2 spaces; use LF line endings; max 80 chars per line.
+- Put opening `{` on the same line as declarations and control statements.
+- Use lowercase-only file names.
 
-## D symbol names
-D code symbol names use D style naming rules, e.g. all module names lowercase, types, classes in PascalCase; consts, variables, functions/methods, fields, enum values in camelCase. Consecutive/adjacent capital letters are not allowed: `ID`, `makeGUID`, `colorRGB` are bad names, `Id`, `makeGuid`, `colorRgb` are good.
+## 2. D Naming & Function Signatures
+- **Symbol casing:**
+  - Modules: `lowercase`
+  - Types (classes, structs, interfaces, enums): `PascalCase`
+  - Functions, methods, variables, fields, enum values: `camelCase`
+  - No consecutive capital letters: use `Id`, `makeGuid`, `colorRgb` (not `ID`,
+    `makeGUID`, `colorRGB`).
+- **No overloaded functions:** Do not add overloaded functions or methods
+  (except for visitor patterns or serialization/conversion). Name each
+  function to convey the arguments it accepts:
+  ```D
+  // GOOD
+  TimerId startCallbackTimer(
+    uint intervalMs, TimerMode mode, TimerCallback cb
+  );
+  TimerId startControllerTimer(
+    Controller target, uint intervalMs, TimerMode mode
+  );
+  TimerId startSystemTimer(
+    WidgetSystem target, uint intervalMs, TimerMode mode
+  );
+  void drawText(TextParameters text);
+  void drawString(string text);
+  void drawTextAt(string text, PointF pos);
 
-Function/method names should convey arguments that it accepts, e.g.
-```D
-// good
-void drawText(TextParameters text);
-void drawString(string text);
-void drawTextAt(String text, PointF pos);
-// bad
-void draw(TextParameters text);
-void draw(String text);
-void draw(String text, PointF pos);
-```
+  // BAD
+  TimerId startTimer(uint intervalMs, TimerMode mode, TimerCallback cb);
+  TimerId startTimer(Controller target, uint intervalMs = 16);
+  void draw(TextParameters text);
+  void draw(string text);
+  ```
+- **No default parameter values:** All parameters must be explicit.
+- **Parameter order:** Put the main semantic parameter first (e.g., `text` in
+  `drawTextAt`).
+- **Many arguments (>5):** Pass a parameter struct as `in` or `ref`, using a
+  fluent builder (`with...`):
+  ```D
+  struct TextParameters {
+    string text;
+    ColorF color;
 
-## D null handling
-By default reference types (classes) and pointers passed to functions and in
-return values cannot be null. If they are allowed to be null it must be
-documented in the comment to the function/method. Insert `assert(argument !is
-null)` in constructors where necessary.
+    TextParameters* withText(string text) {
+      this.text = text;
+      return this;
+    }
 
-If a struct or class field must not be null in all cases, add struct or class
-`invariant` block with `assert(field !is null)` instead of silently creating
-empty objects, or placing null checks everywhere. Disable default constructor if
-the field must be initialized via an argument to a non-null value.
-
-## const for local variables
-Prefer declaring local variables const if they don't change.
-
-## Resources and string import
-Essencial static resources for GUI like fonts, images, shaders, texts are
-embedded into final program via D's import strings if they are small.
-
-Default directory for resources is "assets". Embedable assets via import must
-be placed into "assets/\<package_name\>" to avoid conflicts when both a program
-and a library use the same shader file names, e.g. "assets/yguilib/font.ttf"
-
-Put string imports into "assets.d" or into "internal/assets.d".
-E.g. "source/yguilib/internal/assets.d"
-
-## Variables and constants
-Prefer declaring local variables and fields const if they are not meant to change.
-
-## Architecture & Module Visibility (D)
-To preserve API stability, prevent encapsulation leaks, and protect compiler
-throughput, all modules must strictly adhere to domain-bounded encapsulation.
-
-### 1. Structure & Facades
-- **No Umbrella Root Imports:** Do not provide a monolithic top-level
-  `package.d` that re-exports all library subsystems. Consumers must opt into
-  subsystems explicitly (e.g., `import yguilib.net;`).
-- **Domain Facades:** Each functional subsystem must live in its own directory
-  containing a `package.d` (e.g., `src/yguilib/render/package.d`) if
-  there are more than one module in the subsystem.
-- do not create a directory for a single module file as package.d,
-  a single module file is enough in this case.
-- when converting a module into a package (directory with sub-modules), the
-  original module becomes package.d, e.g. render.d becomes render/package.d
-  containing the original code.
-- do not use public reexports, first-level modules inside the package are
-  the public interface.
-
-### 2. Implementation Boundaries
-- **Internal Directories:** All volatile logic, wire formats, OS bindings, and
-  concrete driver classes belong in an `internal/` subdirectory under their
-  respective domain or under `src/<root_pkg>/internal/` for cross-cutting
-  helpers.
-- **Access Control:** Do not mark internal symbols `public`. Use
-  `package(<root_pkg>)` for symbols shared across the library, or file-level
-  `private` for local routines. Implementation details must never be reachable
-  by external consumers.
-
-### 3. Compile-Time Overhead Rules
-- Keep file-level imports in `internal/` modules strictly minimal.
-- Use scoped imports inside function and template bodies for heavy standard
-  library modules (e.g., `std.algorithm`, `std.format`, `std.json`) to defer
-  template parsing and semantic analysis. However if multiple functions
-  of a module require the same, then do not duplicate imports, but put
-  single import in the start of the file.
-
-## Visiblity attributes order
-In a module, class, struct declare public methods and fields first, then
-protected, and then private.
-
-Do not apply visibility attribute (private, protected, public) per language
-unit, declare a few sections instead inside a class, struct or module, e.g.
-```D
-module mymodule;
-// GOOD
-void myPublicFunction() {}
-private:
-// all private functions, fields, variables go after that
-void myPrivateFunction() {}
-
-// BAD
-public void myPublicFunction() {}
-private void myPrivateFunction() {}
-```
-
-## Function size
-Split long (>50 lines) or complex functions (which have different sematic
-blocks) into smaller.
-
-## Constructors
-Either allow a this() constructor without parameters, or only one
-constructor with parameters (and disable this()),
-do not make multiple constructors.
-
-Constructor parameters should not exceed three, and be used only
-if the struct or class instance cannot be initialized otherwise (e.g. const fields),
-or in rare cases where it's common knowledge/expectation, e.g. PointF, RectF,
-i.e. geometry/math structs like points, circles, vectors, quaternions, rectangles,
-triangles, RGBA colours...
-
-In general case fields should be initialzed to sane defaults, and set either via
-direct access, as properies, or methods.
-
-## Function parameters
-Put the main semantic paramter first, e.g. in drawText function put string type
-the first.
-
-Do not use default parameter values. All parameters must be explicit.
-
-In overloaded functions/methods keep the same uniform order, e.g.
-```D
-void drawText(string text, PointF position, ColorF color);
-void drawText(string text, PointF position, ColorF color, float fontSize);
-void drawText(string text, PointF position, ColorF color, float fontSize, Font font);
-```
-Do not implement new overloaded functions, if not required to implement something similar to visitor pattern,
-or serialization/conversion.
-
-For more than five arguments consider adding a struct type passed as `in` or `ref`,
-which can be constructed with builder pattern, e.g.
-```D
-struct TextParameters {
-  string text;
-  PointF position;
-  ColorF color;
-  float fontSize;
-  Font font;
-
-  TextParameters* withText(string text) {
-	this.text = text;
-	return this;
+    TextParameters* withColor(ColorF color) {
+      this.color = color;
+      return this;
+    }
   }
+  ```
+- **Function size:** Split functions longer than ~50 lines or with distinct
+  semantic blocks into smaller helpers.
 
-  TextParameters* withColor(ColorF color) {
-	this.color = color;
-	return this;
-  }
-  // ...
-}
+## 3. D Null Safety & Invariants
+- Reference types and pointers in parameters and return values are non-null
+  by default. If `null` is allowed, document it in the function/method comment.
+- Assert non-null arguments in constructors (`assert(arg !is null)`).
+- For fields that must never be `null`, add a struct/class `invariant` block
+  (`invariant { assert(field !is null); }`) instead of scattering null checks
+  or creating silent empty objects. Disable default construction (`@disable
+  this();`) when a non-null field requires a constructor argument.
 
-drawText(TextParameters().withText("abc").withColor(colors.red));
+## 4. D Types, Visibility & Constants
+- **Const by default:** Prefer `const` for local variables and fields that do
+  not change.
+- **Visibility section order:** Declare `public` members first, then
+  `protected`, then `private`. Use visibility section labels rather than
+  per-declaration attributes:
+  ```D
+  // GOOD
+  void myPublicFunction() {}
+  private:
+  void myPrivateFunction() {}
 
-```
+  // BAD
+  public void myPublicFunction() {}
+  private void myPrivateFunction() {}
+  ```
+- **Constructors:** Provide either a single parameterless `this()` or one
+  parameterized constructor (`@disable this();` if needed). Keep constructor
+  parameters `<= 3` and use them only when fields cannot be initialized
+  otherwise (e.g., `const` fields) or for math/geometry value types (`PointF`,
+  `RectF`, `ColorF`). Otherwise, initialize fields to sane defaults and set
+  them via properties or methods.
 
-# UI controllers vs systems and components
-Widget components are smaller features of a widget,
-while controllers implement complex logic that affects
-composite widgets.
+## 5. D Modules, Architecture & Assets
+- **No umbrella root `package.d`:** Consumers must import subsystems
+  explicitly (e.g., `import yguilib.render;`).
+- **Subsystem facades:** Keep a single-module subsystem as a single `.d` file.
+  Use `<pkg>/package.d` only when a subsystem has multiple modules; do not use
+  `public` re-exports in `package.d`.
+- **Internal boundaries:** Place volatile logic, wire formats, OS bindings,
+  and concrete drivers in `internal/`. Never mark internal symbols `public`;
+  use `package(<root_pkg>)` or file-level `private`.
+- **Imports:** Keep file-level imports minimal. Use scoped imports inside
+  functions/templates for heavy `std.*` modules unless multiple functions in
+  the file share the same import.
+- **Assets:** Place small embeddable resources in `assets/<package_name>/`
+  (e.g., `assets/yguilib/font.ttf`) and put string imports in `assets.d` or
+  `internal/assets.d`.
+- **UI controllers vs systems/components:** Use `WidgetComponent` +
+  `WidgetSystem` for per-widget or multi-instance behaviors (e.g., focus,
+  hover). Use `Controller` for composite multi-widget coordination via named
+  events.
 
-Systems and components satisfy the case of parent and child widgets and
-multitude of instances, e.g. input focus tracking, hover effect on a button,
-while WidgetController may be more appropriate when multiple Widgets are at play
-and use named events, e.g. a scrollable list may be implemented with a widget
-tree like (root (scroll-view-container (contents...))(scroll-bar)), so it must
-listen to events of scroll-bar and scroll-view on contents size change or also
-it must accept an array model and pass it to scroll-view-container.
+## 6. C Coding Style
+- **Naming:**
+  - Types and enums: `PascalCase`, prefixed with `<lib>_`
+  - Defines, enum values, public constants: `UPPER_SNAKE_CASE`, prefixed with
+    `<LIB>_`
+  - Functions and variables: `snake_case`, public functions prefixed with
+    `<lib>_`
+  ```c
+  typedef struct my_lib_UserProfile {
+    const char* user_name;
+    const char* address_line;
+  } my_lib_UserProfile;
 
-# C coding style
-C code uses the same formatting: 2 spaces, open curly brance on the same line.
-
-## C symbol names
-Types/enums in PascalCase; defines, enum values, public consts in upper
-SNAKE_CASE, variables, consts, function names in snake\_case.
-
-However public functions and types get prefixed with a library name in the
-lower snake case, while enum/defines/constants have library prefix all upper
-case, e.g.
-```c
-typedef struct my_lib_UserProfile {
-  const char* user_name;
-  const char* address_line;
-} my_lib_UserProfile;
-
-typedef enum my_lib_WindowStyle {
-  MY_LIB_WINDOW_STYLE_NONE,
-  MY_LIB_WINDOW_STYLE_RESIZEABLE,
-} my_lib_WindowStyle;
-
-```
-
-## Types and documentation
-Add doc comments describing return values and arguments especially if they
-are of plain types like `int`.
-
-## NULL
-Always document whether NULL is a valid function argument or return value for
-accepted or returned pointers.
-
-If a function uses third-party library and it's unknown if it accepts or
-returns NULL declare it in the comment that it's undefined.
-
-## const for local variables
-Prefer declaring local variables const if they don't change.
+  typedef enum my_lib_WindowStyle {
+    MY_LIB_WINDOW_STYLE_NONE,
+    MY_LIB_WINDOW_STYLE_RESIZEABLE,
+  } my_lib_WindowStyle;
+  ```
+- **Documentation & NULL:** Document return values and parameters (especially
+  plain types like `int`). Always document whether `NULL` is valid for
+  accepted/returned pointers (or state `undefined` for third-party libraries).
+- **Const:** Prefer `const` for local variables that do not change.

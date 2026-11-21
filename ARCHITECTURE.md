@@ -132,7 +132,8 @@ Phase 3 (if dirty): UiSystemImpl ──► WidgetSystemPipeline.updateAndRender(
   tooling. Constructor arguments enforce `assert(arg !is null)` and structs/
   classes assert invariants `invariant { assert(field !is null); }`.
 - Zero-CPU Idle Sleep: Controllers and `WidgetSystem`s register wall-clock
-  timers via `UiSystem.startTimer` (`TimerControl`) during active animations
+  timers via `TimerControl` (`startControllerTimer` / `startSystemTimer` /
+  `startCallbackTimer`) during active animations
   and stop them when settled (`TimerService` returns `-1` when idle so
   `yguilib_sdl3_wait_event()` blocks without spinning).
 - ECS-Style Widgets: `Widget` is an entity with geometry (`RectF`), hierarchy,

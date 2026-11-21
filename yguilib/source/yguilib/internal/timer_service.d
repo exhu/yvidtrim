@@ -5,7 +5,8 @@ package(yguilib):
 import core.time : MonoTime, ticksToNSecs;
 import std.algorithm.comparison : max, min;
 import yguilib.controller : Controller;
-import yguilib.timers : TimerCallback, TimerId, TimerMode, invalidTimerId;
+import yguilib.timers : TimerCallback, TimerId, TimerIntervalMs, TimerMode,
+  invalidTimerId;
 import yguilib.widget.system : WidgetSystem;
 
 struct TimerEntry {
@@ -329,11 +330,15 @@ unittest {
   float lastRepeatDt = 0.0f;
   int oneShotCalls = 0;
 
-  TimerId idRepeat = svc.startCallbackTimer(16, TimerMode.repeat, (id, dt) {
-    repeatCalls++;
-    lastRepeatDt = dt;
-    return true;
-  });
+  TimerId idRepeat = svc.startCallbackTimer(
+    TimerIntervalMs.fps60,
+    TimerMode.repeat,
+    (id, dt) {
+      repeatCalls++;
+      lastRepeatDt = dt;
+      return true;
+    }
+  );
   TimerId idOneShot = svc.startCallbackTimer(500, TimerMode.oneShot, (id, dt) {
     oneShotCalls++;
     return false;
@@ -406,7 +411,11 @@ unittest {
 
   auto ctrl = new DummyCtrl();
   auto sys = new DummySys();
-  auto cId = svc.startControllerTimer(ctrl, 16, TimerMode.repeat);
+  auto cId = svc.startControllerTimer(
+    ctrl,
+    TimerIntervalMs.fps60,
+    TimerMode.repeat
+  );
   auto sId = svc.startSystemTimer(sys, 33, TimerMode.repeat);
 
   // Shorter timer added later clamps wait timeout immediately

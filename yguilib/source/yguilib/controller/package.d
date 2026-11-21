@@ -118,13 +118,13 @@ class DefaultController : Controller {
   }
 protected:
   TimerId startTickTimer(
-    uint intervalMs = 16,
-    TimerMode mode = TimerMode.repeat
+    uint intervalMs,
+    TimerMode mode
   ) {
     if (uiSystem is null) {
       return invalidTimerId;
     }
-    return uiSystem.startTimer(this, intervalMs, mode);
+    return uiSystem.startControllerTimer(this, intervalMs, mode);
   }
 
   void stopTickTimer(ref TimerId id) {

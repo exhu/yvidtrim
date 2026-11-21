@@ -11,8 +11,8 @@ import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.model : ModelTracker;
-import yguilib.timers : AnimationTimer, AnimationWrapMode, TimerId, TimerMode,
-  invalidTimerId;
+import yguilib.timers : AnimationTimer, AnimationWrapMode, TimerId,
+  TimerIntervalMs, TimerMode, invalidTimerId;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
@@ -153,7 +153,10 @@ private:
     }
     if (onPage1 && !alphaTimer.isPaused()) {
       if (alphaTimerId == invalidTimerId) {
-        alphaTimerId = startTickTimer(16, TimerMode.repeat);
+        alphaTimerId = startTickTimer(
+          TimerIntervalMs.fps60,
+          TimerMode.repeat
+        );
       }
     } else {
       stopTickTimer(alphaTimerId);

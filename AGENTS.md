@@ -43,7 +43,8 @@ between threads via sendAppEvent.
   for unhandled events so quit and window redraw lifecycle events are not
   skipped. Model-sync (`update()`) and timer-driven animations (`tick(float dt)`
   or `WidgetSystem` `SystemPhase.update`) are invoked directly in Phase 2; use
-  `TimerControl` (`startTimer`/`stopTimer`/`startTickTimer`) for active
+  `TimerControl` (`startCallbackTimer` / `startControllerTimer` /
+  `startSystemTimer` / `stopTimer` / `startTickTimer`) for active
   animations and stop timers when idle so `SDL_WaitEvent` sleeps at 0% CPU.
 - **Pointer Motion Fidelity**: Never merge or coalesce `mouseMotion` events
   into a single vector or endpoint; curved cursor sweeps within one frame must

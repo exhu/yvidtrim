@@ -31,8 +31,8 @@ import std.math : PI, sin;
 import yguilib.events : AppEvent;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, PointF, RectF;
-import yguilib.timers : AnimationTimer, AnimationWrapMode, TimerId, TimerMode,
-  invalidTimerId;
+import yguilib.timers : AnimationTimer, AnimationWrapMode, TimerId,
+  TimerIntervalMs, TimerMode, invalidTimerId;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
@@ -345,7 +345,11 @@ private:
       host = fallbackHost;
     }
     if (animTimerId == invalidTimerId && isAnyAnimating() && host !is null) {
-      animTimerId = host.startTimer(this, 16, TimerMode.repeat);
+      animTimerId = host.startSystemTimer(
+        this,
+        TimerIntervalMs.fps60,
+        TimerMode.repeat
+      );
     }
   }
 
@@ -740,7 +744,7 @@ unittest {
       sentEvents ~= ev;
     }
 
-    override TimerId startTimer(
+    override TimerId startCallbackTimer(
       uint intervalMs,
       TimerMode mode,
       TimerCallback callback
@@ -750,20 +754,20 @@ unittest {
       return id;
     }
 
-    override TimerId startTimer(
+    override TimerId startControllerTimer(
       Controller target,
-      uint intervalMs = 16,
-      TimerMode mode = TimerMode.repeat
+      uint intervalMs,
+      TimerMode mode
     ) {
       const TimerId id = nextTimerId++;
       activeTimers[id] = true;
       return id;
     }
 
-    override TimerId startTimer(
+    override TimerId startSystemTimer(
       WidgetSystem target,
-      uint intervalMs = 16,
-      TimerMode mode = TimerMode.repeat
+      uint intervalMs,
+      TimerMode mode
     ) {
       const TimerId id = nextTimerId++;
       activeTimers[id] = true;

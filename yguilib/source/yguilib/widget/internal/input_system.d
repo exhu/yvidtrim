@@ -452,7 +452,7 @@ version (unittest) {
       sentEvents ~= ev;
     }
 
-    override TimerId startTimer(
+    override TimerId startCallbackTimer(
       uint intervalMs,
       TimerMode mode,
       TimerCallback callback
@@ -460,18 +460,18 @@ version (unittest) {
       return invalidTimerId;
     }
 
-    override TimerId startTimer(
+    override TimerId startControllerTimer(
       Controller target,
-      uint intervalMs = 16,
-      TimerMode mode = TimerMode.repeat
+      uint intervalMs,
+      TimerMode mode
     ) {
       return invalidTimerId;
     }
 
-    override TimerId startTimer(
+    override TimerId startSystemTimer(
       WidgetSystem target,
-      uint intervalMs = 16,
-      TimerMode mode = TimerMode.repeat
+      uint intervalMs,
+      TimerMode mode
     ) {
       return invalidTimerId;
     }

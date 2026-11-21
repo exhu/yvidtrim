@@ -4,7 +4,7 @@ import glad2.gles2;
 import std.typecons : Nullable;
 import std.logger;
 import yguilib.clibs.sdl3;
-import yguilib.timers : TimerCallback, TimerId, TimerMode;
+import yguilib.timers : TimerCallback, TimerId, TimerIntervalMs, TimerMode;
 import yguilib.uisystem;
 import yguilib.controller : Controller, DefaultController, HandleResult;
 import yguilib.controller.internal.controller_stack : ControllerStack;
@@ -63,7 +63,7 @@ class UiSystemImpl : UiSystem {
     messageBus.send(ev);
   }
 
-  override TimerId startTimer(
+  override TimerId startCallbackTimer(
     uint intervalMs,
     TimerMode mode,
     TimerCallback callback
@@ -71,18 +71,18 @@ class UiSystemImpl : UiSystem {
     return timerService.startCallbackTimer(intervalMs, mode, callback);
   }
 
-  override TimerId startTimer(
+  override TimerId startControllerTimer(
     Controller target,
-    uint intervalMs = 16,
-    TimerMode mode = TimerMode.repeat
+    uint intervalMs,
+    TimerMode mode
   ) {
     return timerService.startControllerTimer(target, intervalMs, mode);
   }
 
-  override TimerId startTimer(
+  override TimerId startSystemTimer(
     WidgetSystem target,
-    uint intervalMs = 16,
-    TimerMode mode = TimerMode.repeat
+    uint intervalMs,
+    TimerMode mode
   ) {
     return timerService.startSystemTimer(target, intervalMs, mode);
   }
@@ -1180,8 +1180,16 @@ unittest {
   // Idle when no timers active
   assert(ui.nextWaitTimeoutMs() == -1);
 
-  const TimerId cTimer = ui.startTimer(ctrl, 16, TimerMode.repeat);
-  const TimerId sTimer = ui.startTimer(sys, 16, TimerMode.repeat);
+  const TimerId cTimer = ui.startControllerTimer(
+    ctrl,
+    TimerIntervalMs.fps60,
+    TimerMode.repeat
+  );
+  const TimerId sTimer = ui.startSystemTimer(
+    sys,
+    TimerIntervalMs.fps60,
+    TimerMode.repeat
+  );
   assert(ui.isTimerActive(cTimer));
   assert(ui.isTimerActive(sTimer));
   assert(ui.nextWaitTimeoutMs() == 16);
