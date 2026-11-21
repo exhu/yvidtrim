@@ -1,21 +1,3 @@
-- In guidemo implement new virtual (to reperesent large data sets dynamically by
-  recycling widgets) vertical/horizontal list composit control with scrollbars,
-  which may contain multiple types of elements (widgets) (types are represented
-  as array of strings, fixed at creation), which have a variable size (the size
-  may exceed visible area of the parent control). Implementation is placed into
-  `virtlist.d` and may be similar to `tabcontrol.d`, where the model defines
-  just items count, current page location, etc, actual row/column data to setup
-  the row widget is up to the provider of the factory methods for reusable
-  widgets per row/column. Either extend existing or implement new WidgetSystem
-  to handle resizing and scrolling cooperation to support dynamic list items
-  removal/insertion maintaining relative scroll position, and notification that
-  the widget is no longer visible/cached for recycling later, so the provider be able to
-  stop animation logic for it. Implement a new page in guidemo to demostrate heterogeneous
-  list with dynamic grows/removal, and very larget sets, e.g. 10000 items to test
-  proper scrolling, positioning and rendering. The list is developed to be employed
-  to render file lists (open/save file browser), media collection (animated video clips with
-  metadata mixed with image thumbnails with exif) and similar cases both vertical and horizontal.
-
 - first devise reusable composite widgets in code (how to pass models, events,
 reusable views and controllers), then we'll invent a text format to construct
 widget trees to allow for visual editing

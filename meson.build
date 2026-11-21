@@ -60,10 +60,13 @@ guidemo_lib_src = files(
   'source/guidemo/pages/tabcontrol_page.d',
   'source/guidemo/pages/textlabel_controller.d',
   'source/guidemo/pages/textlabel_page.d',
+  'source/guidemo/pages/virtlist_controller.d',
+  'source/guidemo/pages/virtlist_page.d',
   'source/guidemo/scrollbars.d',
   'source/guidemo/tab_button.d',
   'source/guidemo/tabcontrol.d',
   'source/guidemo/view.d',
+  'source/guidemo/virtlist.d',
 )
 
 guidemo_src = guidemo_lib_src + files(
@@ -141,5 +144,19 @@ scrollbars_test_exe = executable(
   dependencies : [yguilib_dep],
 )
 test('scrollbars_test', scrollbars_test_exe)
+
+virtlist_test_exe = executable(
+  'virtlist_test',
+  files(
+    'source/guidemo/virtlist.d',
+    'source/guidemo/scrollbars.d',
+    'source/guidemo/test_main.d',
+  ),
+  d_unittest : true,
+  include_directories : yvidtrim_inc,
+  d_import_dirs : yvidtrim_inc,
+  dependencies : [yguilib_dep],
+)
+test('virtlist_test', virtlist_test_exe)
 
 

@@ -12,6 +12,7 @@ import yguilib.widget.input_components : DefaultButton, Focus, MouseEvent;
 import yguilib.widget.layout_components : AlignItems, Anchor, Dimension,
   FlexContainer, FlexDirection, Insets, JustifyContent, Size, SizingMode;
 import yguilib.widget.scroll_components : ScrollableArea;
+import yguilib.widget.virtlist_components : VirtListComponent, VirtListProvider;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget.widget_view : WidgetView;
 
@@ -680,6 +681,53 @@ final class WidgetBuilder {
     return this;
   }
 
+  /// Attaches a VirtListComponent with `provider` (`provider` is allowed to
+  /// be null) and enables child clipping.
+  WidgetBuilder virtList(VirtListProvider provider) {
+    fWidget.clipChildren = true;
+    ensureVirtList().provider = provider;
+    return this;
+  }
+
+  /// Sets the item count on VirtListComponent.
+  WidgetBuilder virtListCount(size_t count) {
+    ensureVirtList().itemsCount = count;
+    return this;
+  }
+
+  /// Sets the main-axis layout direction on VirtListComponent.
+  WidgetBuilder virtListDirection(FlexDirection dir) {
+    ensureVirtList().direction = dir;
+    return this;
+  }
+
+  /// Sets the item spacing gap on VirtListComponent.
+  WidgetBuilder virtListGap(float gap) {
+    ensureVirtList().gap = gap;
+    return this;
+  }
+
+  /// Enables or disables cross-axis stretching on VirtListComponent items.
+  WidgetBuilder virtListStretchCross(bool stretch) {
+    ensureVirtList().stretchCrossAxis = stretch;
+    return this;
+  }
+
+  /// Sets the VirtListComponent metrics-changed event name (`eventName` is
+  /// allowed to be null).
+  WidgetBuilder onVirtListMetricsChanged(string eventName) {
+    ensureVirtList().metricsChangedEvent = eventName;
+    return this;
+  }
+
+  /// Attaches a pre-configured VirtListComponent and enables child clipping.
+  WidgetBuilder virtListComponent(VirtListComponent comp) {
+    assert(comp !is null, "VirtListComponent must not be null");
+    fWidget.clipChildren = true;
+    fWidget.components.virtList = comp;
+    return this;
+  }
+
   /// Attaches a Focus component with initial focused state.
   WidgetBuilder focus(bool focused) {
     ensureFocus().focused = focused;
@@ -841,6 +889,13 @@ private:
       fWidget.components.widgetArray = new WidgetArrayComponent();
     }
     return fWidget.components.widgetArray;
+  }
+
+  VirtListComponent ensureVirtList() {
+    if (fWidget.components.virtList is null) {
+      fWidget.components.virtList = new VirtListComponent();
+    }
+    return fWidget.components.virtList;
   }
 
   Focus ensureFocus() {

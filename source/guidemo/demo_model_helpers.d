@@ -53,7 +53,7 @@ string[] headerTabNames() {
 }
 
 unittest {
-  assert(pageCount() == 6);
+  assert(pageCount() == 7);
 
   auto m = new DemoModel();
   assert(isPageActive(m, DemoPage.layoutPainter));
@@ -64,15 +64,16 @@ unittest {
 
   assert(
     formatPageStatus(DemoPage.button, "Clicks: 3") ==
-      "[Tab/1-6] Page 3: Hover Buttons | Clicks: 3 | [Q/Esc] Quit"
+      "[Tab/1-7] Page 3: Hover Buttons | Clicks: 3 | [Q/Esc] Quit"
   );
   assert(
     formatPageStatus(DemoPage.layoutPainter, "") ==
-      "[Tab/1-6] Page 1: Layout | [Q/Esc] Quit"
+      "[Tab/1-7] Page 1: Layout | [Q/Esc] Quit"
   );
 
   auto tabs = headerTabNames();
-  assert(tabs.length == 6);
+  assert(tabs.length == 7);
   assert(tabs[0] == "[1] Layout & Paint");
   assert(tabs[5] == "[6] Scrollbars");
+  assert(tabs[6] == "[7] VirtList");
 }

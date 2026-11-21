@@ -30,6 +30,7 @@ yvidtrim/
 │       ├── scrollbars.d   # Composite Scrollbar widget, view, and controller
 │       ├── tab_button.d   # Reusable header tab buttons in flex container
 │       ├── tabcontrol.d   # Composite TabControl widget, view, and controller
+│       ├── virtlist.d     # Composite VirtList widget, view, and controller
 │       └── pages/         # Showcase views and per-page controllers
 ├── yguilib/               # Independent GUI library (no yvidtrim dependency)
 │   ├── source/yguilib/
@@ -43,6 +44,8 @@ yvidtrim/
 │   │   ├── events/        # AppEvent, builder, and thread-safe MessageBus
 │   │   ├── render/        # Hardware Renderer, FontManager, shader pipelines
 │   │   ├── widget/        # Widget entity, components, builder, WidgetSystem
+│   │   │   ├── virtlist_components.d # VirtListProvider & VirtListComponent
+│   │   │   └── internal/virtlist_system.d # Recycling, layout & wheel scroll
 │   │   └── internal/      # UiSystemImpl, TimerService, UiSystemController
 │   ├── yguilib-clibs/     # Private C wrappers around SDL3 and SDL3_ttf
 │   └── assets/            # Embedded resources (fonts, shaders) via import("")

@@ -33,9 +33,9 @@
  * update this demo with dedicated visual sections and interactive controls.
  *
  * KEYBOARD CONTROLS:
- *   [Tab]/[1-6]   Switch demo page (Page 1: Layout, Page 2: TextLabel,
+ *   [Tab]/[1-7]   Switch demo page (Page 1: Layout, Page 2: TextLabel,
  *                 Page 3: Hover Ctrl, Page 4: Hover System,
- *                 Page 5: TabControl, Page 6: Scrollbars)
+ *                 Page 5: TabControl, Page 6: Scrollbars, Page 7: VirtList)
  *   [M]           Toggle multiline on interactive TextLabel
  *   [E]           Toggle overflow ellipsis on interactive TextLabel
  *   [L]           Cycle horizontal alignment (left -> center -> right)
@@ -70,9 +70,12 @@ import guidemo.pages.tabcontrol_controller : TabControlPageController;
 import guidemo.pages.tabcontrol_page : TabControlPage;
 import guidemo.pages.textlabel_controller : TextLabelPageController;
 import guidemo.pages.textlabel_page : TextLabelPage;
+import guidemo.pages.virtlist_controller : VirtListPageController;
+import guidemo.pages.virtlist_page : VirtListPage;
 import guidemo.scrollbars : registerScrollbars;
 import guidemo.tabcontrol : TabsModel, registerTabControl;
 import guidemo.view : DemoView, createHeaderTabsModel;
+import guidemo.virtlist : registerVirtList;
 
 void main() {
   import std.logger : infof;
@@ -84,6 +87,7 @@ void main() {
   app.ui.registerWidgetSystem(new AnimatedHoverButtonSystem());
   app.ui.pushController(registerTabControl(app.ui));
   app.ui.pushController(registerScrollbars(app.ui));
+  app.ui.pushController(registerVirtList(app.ui));
   auto hoverBtnController = new HoverButtonController(app.ui);
   app.ui.pushController(hoverBtnController);
 
@@ -153,5 +157,10 @@ void registerDemoPages(
   auto scrollPage = new ScrollbarsPage(ui, rootWidget, ui);
   ui.pushController(
     new ScrollbarsPageController(ui, demoTracker, scrollPage)
+  );
+
+  auto virtListPage = new VirtListPage(ui, rootWidget, ui);
+  ui.pushController(
+    new VirtListPageController(ui, demoTracker, virtListPage)
   );
 }

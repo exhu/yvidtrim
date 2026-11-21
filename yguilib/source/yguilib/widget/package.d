@@ -86,8 +86,11 @@ struct WidgetComponents {
   KeyboardEvent keyboardEvent;
   MouseEvent mouseEvent;
 
+  import yguilib.widget.virtlist_components : VirtListComponent;
+
   // data driven
   WidgetArrayComponent widgetArray;
+  VirtListComponent virtList;
 
   DebugDrawComponent debugDraw;
 
@@ -171,6 +174,7 @@ struct WidgetComponents {
     keyboardEvent = null;
     mouseEvent = null;
     widgetArray = null;
+    virtList = null;
     custom.clear();
     customSerializers.clear();
   }

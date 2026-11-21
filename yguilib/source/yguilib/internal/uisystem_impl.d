@@ -26,6 +26,7 @@ debug {
 }
 import yguilib.widget.internal.data_system: DataSystem;
 import yguilib.widget.internal.scroll_system : ScrollSystem;
+import yguilib.widget.internal.virtlist_system : VirtListSystem;
 import yguilib.widget.system : WidgetSystem;
 import yguilib.window : Window;
 import yguilib.internal.timer_service : TimerEntry, TimerService;
@@ -40,6 +41,7 @@ class UiSystemImpl : UiSystem {
     pipeline.registerSystem(new FocusSystem());
     pipeline.registerSystem(new InputSystem(this));
     pipeline.registerSystem(new LayoutSystem());
+    pipeline.registerSystem(new VirtListSystem(this));
     pipeline.registerSystem(new ScrollSystem(this));
     pipeline.registerSystem(new WidgetPainterSystem());
     debug {

@@ -253,4 +253,11 @@ unittest {
   assert(hrPage6.consume);
   assert(demoCtrl.tracker.model.activePage == 5);
   assert(demoCtrl.tabsTracker.model.activeTab == 5);
+
+  // Page 7 key switch
+  auto evKey7 = makeKeyDown(Keycode.key7, Scancode.key7);
+  auto hrPage7 = demoCtrl.handleEvent(evKey7);
+  assert(hrPage7.consume);
+  assert(demoCtrl.tracker.model.activePage == 6);
+  assert(demoCtrl.tabsTracker.model.activeTab == 6);
 }

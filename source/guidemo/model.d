@@ -25,6 +25,7 @@ enum DemoPage : size_t {
   buttonSystem,
   tabControl,
   scrollbars,
+  virtList,
 }
 
 /// Display metadata for a single guidemo page.
@@ -41,6 +42,7 @@ immutable DemoPageMeta[DemoPage.max + 1] demoPages = [
   DemoPage.buttonSystem: DemoPageMeta("Hover (System)", "Hover System"),
   DemoPage.tabControl: DemoPageMeta("TabControl", "TabControl"),
   DemoPage.scrollbars: DemoPageMeta("Scrollbars", "Scrollbars"),
+  DemoPage.virtList: DemoPageMeta("VirtList", "VirtList"),
 ];
 
 /// Model holding shared global state for the demo.
@@ -102,6 +104,22 @@ final class ScrollbarsPageModel : VersionedModel {
   long playgroundValue = 200;
 }
 
+/// Model holding Page 7 (VirtList Showcase) state.
+final class VirtListPageModel : VersionedModel {
+  size_t vItemsCount = 10000;
+  size_t vFirstVisible = 0;
+  size_t vVisibleCount = 0;
+  size_t vActiveWidgets = 0;
+  size_t vPooledWidgets = 0;
+  size_t hItemsCount = 1200;
+  size_t hFirstVisible = 0;
+  size_t hVisibleCount = 0;
+  size_t hActiveWidgets = 0;
+  size_t hPooledWidgets = 0;
+  size_t recycledStopsCount = 0;
+  size_t activeVideosCount = 0;
+}
+
 /// Default tab captions for the main guidemo header TabControl.
 immutable string[] defaultHeaderTabNames = [
   "[1] Layout & Paint",
@@ -110,6 +128,7 @@ immutable string[] defaultHeaderTabNames = [
   "[4] Hover (System)",
   "[5] TabControl",
   "[6] Scrollbars",
+  "[7] VirtList",
 ];
 
 /// Model holding header tab names and active tab index.
@@ -121,6 +140,7 @@ final class HeaderTabsModel : VersionedModel {
     "[4] Hover (System)",
     "[5] TabControl",
     "[6] Scrollbars",
+    "[7] VirtList",
   ];
   size_t activeTab = 0;
 }
