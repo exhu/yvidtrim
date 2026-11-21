@@ -1,6 +1,7 @@
 module yguilib.widget.virtlist_components;
 
 import std.math.traits : isFinite;
+import yguilib.allochelpers : ReusableArray;
 import yguilib.events : AppEvent;
 import yguilib.widget : Widget;
 import yguilib.widget.component : WidgetComponent;
@@ -273,7 +274,7 @@ final class VirtListComponent : WidgetComponent {
 
 package(yguilib):
   VirtListActiveItem[] fActiveItems;
-  Widget[] fFreePool;
+  ReusableArray!Widget fFreePool;
   float[size_t] fItemMainSizes;
   float[size_t] fItemCrossSizes;
   double fKnownMainSizesSum = 0.0;

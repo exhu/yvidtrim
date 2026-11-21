@@ -30,6 +30,7 @@ yvidtrim/
 │       └── pages/         # Showcase views and per-page controllers
 ├── yguilib/               # Independent GUI library (no yvidtrim dependency)
 │   ├── source/yguilib/
+│   │   ├── allochelpers.d # SmallBuffer, RingBuffer, ReusableArray containers
 │   │   ├── app.d          # Application wrapper running event loop
 │   │   ├── window.d       # Window, OpenGL context, display scaling
 │   │   ├── uisystem.d     # UiSystem, ControllerStack, EventControl interfaces
@@ -71,7 +72,8 @@ yvidtrim/
     main thread is waiting, and preserves raw `mouseMotion` samples without
     merging.
 - Memory & Safety Enforcements:
-  - Event dispatch uses stack buffers (`Controller[16]`) to eliminate GC churn.
+  - Hot paths use `yguilib.allochelpers` (`SmallBuffer`, `RingBuffer`,
+    `ReusableArray`) to minimize GC churn in event, timer, and layout loops.
   - GC is permitted for widget graph construction, models, and UI event strings.
   - C handles (SDL windows, GL contexts, TTF fonts) follow strict RAII cleanup
     in explicit `destroy()` and destructors (`~this()`).

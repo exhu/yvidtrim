@@ -6,6 +6,7 @@ yguilib_inc = include_directories('source')
 yguilib_assets_inc = include_directories('assets')
 
 yguilib_src = files(
+  'source/yguilib/allochelpers.d',
   'source/yguilib/app.d',
   'source/yguilib/assets.d',
   'source/yguilib/clibs/sdl3.d',

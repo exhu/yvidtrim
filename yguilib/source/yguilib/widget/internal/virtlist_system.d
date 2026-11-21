@@ -4,6 +4,7 @@ package(yguilib):
 
 import std.math : abs;
 import std.math.traits : isFinite;
+import yguilib.allochelpers : ReusableArray, SmallBuffer;
 import yguilib.events : AppEvent;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render : Renderer;
@@ -120,7 +121,7 @@ final class VirtListSystem : WidgetSystem {
 private:
   static void clearComponentRuntime(VirtListComponent vc) {
     vc.fActiveItems = null;
-    vc.fFreePool = null;
+    vc.fFreePool.releaseMemory();
     vc.fItemMainSizes.clear();
     vc.fItemCrossSizes.clear();
     vc.fKnownMainSizesSum = 0.0;
@@ -129,7 +130,7 @@ private:
 
   static void detachReleasedItem(VirtListComponent vc, Widget w) {
     import std.algorithm.mutation : remove;
-    vc.fFreePool = vc.fFreePool.remove!(item => item is w);
+    vc.fFreePool.compact((const ref item) => item !is w);
     vc.fActiveItems = vc.fActiveItems.remove!(item => item.widget is w);
   }
 
@@ -201,7 +202,9 @@ private:
     normalizeAnchor(vc, viewportMain, avgMain, gap);
 
     VirtListActiveItem[] prevActive = vc.fActiveItems;
-    bool[] claimed = new bool[prevActive.length];
+    SmallBuffer!(bool, 32) claimedBuf;
+    claimedBuf.fillWith(prevActive.length, false);
+    bool[] claimed = claimedBuf[];
     VirtListActiveItem[] newActive = fillVisibleRange(
       w, vc, r, viewportMain, viewportCross, isRow, gap, prevActive, claimed
     );
@@ -392,7 +395,7 @@ private:
     foreach (ref item; vc.fActiveItems) {
       if (item.widget !is null) {
         item.widget.visible = false;
-        vc.fFreePool ~= item.widget;
+        vc.fFreePool.push(item.widget);
         if (vc.provider !is null) {
           vc.provider.onWidgetRecycled(item.widget);
         }
@@ -715,11 +718,9 @@ private:
     }
     newlyBound = true;
     needsRebind = true;
-    if (vc.fFreePool.length > 0) {
-      Widget reused = vc.fFreePool[$ - 1];
-      vc.fFreePool.length -= 1;
-      vc.fFreePool.assumeSafeAppend();
-      return reused;
+    auto reused = vc.fFreePool.tryPop();
+    if (!reused.isNull) {
+      return reused.get();
     }
     Widget stolen = stealUnclaimedActive(vc, idx, prevActive, claimed);
     if (stolen !is null) {
@@ -786,7 +787,7 @@ private:
       item.mainOffset += shortfall;
     }
 
-    VirtListActiveItem[] backfill;
+    SmallBuffer!(VirtListActiveItem, 16) backfill;
     float topEdge = active[0].mainOffset;
     size_t prevIdx = active[0].index;
     while (topEdge > 0.0f && prevIdx > 0) {
@@ -799,13 +800,13 @@ private:
       }
       entry.mainOffset = topEdge - gap - entry.mainSize;
       topEdge = entry.mainOffset;
-      backfill ~= entry;
+      backfill.push(entry);
     }
 
     if (backfill.length > 0) {
       import std.algorithm.mutation : reverse;
-      reverse(backfill);
-      active = backfill ~ active;
+      reverse(backfill[]);
+      active = backfill[] ~ active;
     }
 
     if (active[0].index == 0 && active[0].mainOffset > 0.0f) {
@@ -829,7 +830,7 @@ private:
       Widget w = active[0].widget;
       if (w !is null) {
         w.visible = false;
-        vc.fFreePool ~= w;
+        vc.fFreePool.push(w);
         vc.provider.onWidgetRecycled(w);
       }
       active = active[1 .. $];
@@ -844,7 +845,7 @@ private:
     foreach (i, ref oldItem; prevActive) {
       if (!claimed[i] && oldItem.widget !is null) {
         oldItem.widget.visible = false;
-        vc.fFreePool ~= oldItem.widget;
+        vc.fFreePool.push(oldItem.widget);
         vc.provider.onWidgetRecycled(oldItem.widget);
       }
     }
@@ -908,14 +909,13 @@ private:
     bool stretchCrossAxis
   ) {
     assert(itemWidget !is null);
-    nodeBuf.length = 0;
-    nodeBuf.assumeSafeAppend();
+    nodeBuf.clear();
     collectVisibleNodes(itemWidget, nodeBuf);
     if (nodeBuf.length == 0) {
       return;
     }
 
-    foreach_reverse (node; nodeBuf) {
+    foreach_reverse (node; nodeBuf[]) {
       LayoutSystem.handleSizeComp(node, r);
     }
 
@@ -923,7 +923,7 @@ private:
       applyCrossAxisStretch(itemWidget, viewportCross, isRow);
     }
 
-    foreach (node; nodeBuf) {
+    foreach (node; nodeBuf[]) {
       if (node !is itemWidget) {
         LayoutSystem.handleAnchorComp(node);
       }
@@ -932,16 +932,19 @@ private:
 
     recomputeAutoMainSizes(itemWidget, r, isRow, stretchCrossAxis);
 
-    foreach (node; nodeBuf) {
+    foreach (node; nodeBuf[]) {
       node.layoutDirty = false;
     }
   }
 
-  static void collectVisibleNodes(Widget node, ref Widget[] buf) {
+  static void collectVisibleNodes(
+    Widget node,
+    ref ReusableArray!Widget buf
+  ) {
     if (node is null || !node.visible) {
       return;
     }
-    buf ~= node;
+    buf.push(node);
     foreach (child; node.children) {
       collectVisibleNodes(child, buf);
     }
@@ -977,7 +980,7 @@ private:
     bool isRow,
     bool stretchCrossAxis
   ) {
-    foreach_reverse (node; nodeBuf) {
+    foreach_reverse (node; nodeBuf[]) {
       const Size sz = node.components.size;
       if (sz is null) {
         continue;
@@ -1051,7 +1054,7 @@ private:
 
   WidgetSystemHost fHost;
   LayoutSystem fLayoutSystem;
-  Widget[] nodeBuf;
+  ReusableArray!Widget nodeBuf;
 }
 
 version (unittest) {

@@ -3,6 +3,7 @@ module yguilib.widget.internal.system_pipeline;
 package(yguilib):
 
 import std.array : Appender;
+import yguilib.allochelpers : ReusableArray;
 import yguilib.events : AppEvent;
 import yguilib.render : Renderer;
 import yguilib.render.render_types : RectF;
@@ -30,10 +31,8 @@ final class WidgetSystemPipeline {
   /// Registers a system, inserts it in priority order, and calls onRegister.
   void registerSystem(WidgetSystem system) {
     assert(system !is null);
-    foreach (s; systems) {
-      if (s is system) {
-        return;
-      }
+    if (systems.contains(system)) {
+      return;
     }
     insertSorted(systems, system);
     rebuildPhaseLists();
@@ -43,27 +42,16 @@ final class WidgetSystemPipeline {
   /// Unregisters a system and calls onUnregister.
   void unregisterSystem(WidgetSystem system) {
     assert(system !is null);
-    size_t removeIdx = systems.length;
-    foreach (i, s; systems) {
-      if (s is system) {
-        removeIdx = i;
-        break;
-      }
-    }
-    if (removeIdx == systems.length) {
+    if (!systems.removeFirst(system)) {
       return;
     }
-    foreach (i; removeIdx .. systems.length - 1) {
-      systems[i] = systems[i + 1];
-    }
-    systems = systems[0 .. $ - 1];
     rebuildPhaseLists();
     system.onUnregister();
   }
 
   /// Finds the first registered system of type T (or null if none).
   T findSystem(T : WidgetSystem)() {
-    foreach (s; systems) {
+    foreach (s; systems[]) {
       if (auto match = cast(T) s) {
         return match;
       }
@@ -74,7 +62,7 @@ final class WidgetSystemPipeline {
   /// Finds the first registered system matching `type` (or null if none).
   WidgetSystem findSystemByType(TypeInfo_Class type) {
     assert(type !is null);
-    foreach (s; systems) {
+    foreach (s; systems[]) {
       if (typeid(s) is type) {
         return s;
       }
@@ -86,7 +74,7 @@ final class WidgetSystemPipeline {
   /// Notifies all registered systems that a window has closed.
   void notifyWindowClosed(Window window) {
     assert(window !is null);
-    foreach (s; systems) {
+    foreach (s; systems[]) {
       s.onWindowClosed(window);
     }
   }
@@ -102,7 +90,7 @@ final class WidgetSystemPipeline {
       vw => vw.widget is w
     );
     collector.clearBuffer();
-    foreach (s; systems) {
+    foreach (s; systems[]) {
       s.onWidgetReleased(w);
     }
   }
@@ -286,20 +274,18 @@ private:
     }
   }
 
-  static void insertSorted(ref WidgetSystem[] list, WidgetSystem item) {
+  static void insertSorted(
+    ref ReusableArray!WidgetSystem list,
+    WidgetSystem item
+  ) {
     size_t insertPos = list.length;
-    foreach (i, existing; list) {
+    foreach (i, existing; list[]) {
       if (item.priority < existing.priority) {
         insertPos = i;
         break;
       }
     }
-    list ~= item;
-
-    for (size_t i = list.length - 1; i > insertPos; --i) {
-      list[i] = list[i - 1];
-    }
-    list[insertPos] = item;
+    list.insertAt(insertPos, item);
   }
 
   void rebuildPhaseLists() {
@@ -313,7 +299,7 @@ private:
 
   WidgetSystem[] filterByPhase(SystemPhase phase) {
     WidgetSystem[] res;
-    foreach (s; systems) {
+    foreach (s; systems[]) {
       if ((s.phases & phase) != 0) {
         res ~= s;
       }
@@ -326,7 +312,7 @@ private:
   VisibleWidgets fLastVisibleWidgets;
   Appender!(RectF[]) oldRectBuf;
 
-  WidgetSystem[] systems;
+  ReusableArray!WidgetSystem systems;
   // references to systems
   WidgetSystem[] eventSystems;
   WidgetSystem[] updateSystems;

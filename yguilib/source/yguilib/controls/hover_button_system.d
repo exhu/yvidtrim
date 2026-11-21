@@ -27,6 +27,7 @@
 module yguilib.controls.hover_button_system;
 
 import std.math : PI, sin;
+import yguilib.allochelpers : ReusableArray;
 import yguilib.events : AppEvent;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, PointF, RectF;
@@ -318,11 +319,7 @@ final class AnimatedHoverButtonSystem : WidgetSystem {
     if (w is null) {
       return;
     }
-    for (ptrdiff_t i = cast(ptrdiff_t) activeButtons.length - 1; i >= 0; --i) {
-      if (activeButtons[i] is w) {
-        removeActiveButtonAt(i);
-      }
-    }
+    activeButtons.compact((const ref item) => item !is w);
     if (hoveredWidget is w) {
       hoveredWidget = null;
     }
@@ -335,7 +332,7 @@ final class AnimatedHoverButtonSystem : WidgetSystem {
   }
 
   bool isAnyAnimating() const nothrow @safe {
-    return activeButtons.length > 0;
+    return !activeButtons.empty;
   }
 
 private:
@@ -482,12 +479,7 @@ private:
     if (w is null) {
       return;
     }
-    foreach (existing; activeButtons) {
-      if (existing is w) {
-        return;
-      }
-    }
-    activeButtons ~= w;
+    activeButtons.addUnique(w);
   }
 
   void cleanInvisibleButtons() {
@@ -508,7 +500,7 @@ private:
             w.setBorderColor(comp.normalBorder);
           }
         }
-        removeActiveButtonAt(i);
+        activeButtons.removeAt(cast(size_t) i);
       }
     }
     if (hoveredWidget !is null && !isWidgetVisible(hoveredWidget)) {
@@ -520,13 +512,6 @@ private:
     if (!isAnyAnimating()) {
       stopAnimTimer();
     }
-  }
-
-  void removeActiveButtonAt(size_t index) {
-    for (size_t i = index; i < activeButtons.length - 1; ++i) {
-      activeButtons[i] = activeButtons[i + 1];
-    }
-    activeButtons = activeButtons[0 .. $ - 1];
   }
 
   static bool isWidgetVisible(Widget w) {
@@ -543,14 +528,14 @@ private:
       Widget w = activeButtons[i];
       auto comp = w.components.get!AnimatedHoverButtonComponent();
       if (comp is null) {
-        removeActiveButtonAt(i);
+        activeButtons.removeAt(cast(size_t) i);
         continue;
       }
 
       initColorsIfNeeded(w, comp);
       const bool stillActive = stepComponent(w, comp, dt);
       if (!stillActive) {
-        removeActiveButtonAt(i);
+        activeButtons.removeAt(cast(size_t) i);
       }
     }
   }
@@ -716,7 +701,7 @@ private:
 
   Widget hoveredWidget = null;
   Widget pressedWidget = null;
-  Widget[] activeButtons;
+  ReusableArray!Widget activeButtons;
   WidgetSystemHost host = null;
   TimerId animTimerId = invalidTimerId;
 }

@@ -2,6 +2,7 @@ module yguilib.widget.internal.input_system;
 
 package(yguilib):
 
+import yguilib.allochelpers : ReusableArray;
 import yguilib.clibs.sdl3 : yguilib_sdl3_capture_mouse;
 import yguilib.widget.internal.focus_system;
 import yguilib.widget.system : SystemEventResult, SystemPhase,
@@ -66,9 +67,8 @@ final class InputSystem : WidgetSystem {
     if (w is null) {
       return;
     }
-    import std.algorithm.mutation : remove;
-    hoveredWidgets = hoveredWidgets.remove!(e => e.widget is w);
-    hoverScratch = hoverScratch.remove!(e => e.widget is w);
+    hoveredWidgets.compact((const ref e) => e.widget !is w);
+    hoverScratch.compact((const ref e) => e.widget !is w);
     foreach (ref pw; pressedWidgets) {
       if (pw is w) {
         pw = null;
@@ -281,15 +281,11 @@ private:
     collectHovered(widgets, p);
     notifyDepartedWidgets(p);
     notifyEnteredAndMovedWidgets(p, sendMove);
-
-    auto temp = hoveredWidgets;
-    hoveredWidgets = hoverScratch;
-    hoverScratch = temp;
+    hoveredWidgets.swapWith(hoverScratch);
   }
 
   void collectHovered(VisibleWidgets widgets, PointF p) {
-    hoverScratch.length = 0;
-    hoverScratch.assumeSafeAppend();
+    hoverScratch.clear();
 
     if (!hasLastMousePos)
       return;
@@ -304,7 +300,7 @@ private:
         continue;
       if (isHit(widgets[i], p)) {
         if (want.inputEnabled && want.components.mouseEvent !is null) {
-          hoverScratch ~= HoverEntry(want, widgets[i].absRect);
+          hoverScratch.push(HoverEntry(want, widgets[i].absRect));
         }
       }
       want = want.parent;
@@ -314,8 +310,8 @@ private:
   }
 
   void notifyDepartedWidgets(PointF p) {
-    foreach (ref entry; hoveredWidgets) {
-      if (!containsWidget(hoverScratch, entry.widget)) {
+    foreach (ref entry; hoveredWidgets[]) {
+      if (!containsWidget(hoverScratch[], entry.widget)) {
         if (entry.widget.components.mouseEvent !is null &&
             entry.widget.components.mouseEvent.mouseLeave.length > 0) {
           const float lx = p.x - entry.absRect.x;
@@ -332,11 +328,11 @@ private:
   }
 
   void notifyEnteredAndMovedWidgets(PointF p, bool sendMove) {
-    foreach (ref entry; hoverScratch) {
+    foreach (ref entry; hoverScratch[]) {
       if (entry.widget.components.mouseEvent is null)
         continue;
 
-      const wasHovered = containsWidget(hoveredWidgets, entry.widget);
+      const wasHovered = containsWidget(hoveredWidgets[], entry.widget);
       const float lx = p.x - entry.absRect.x;
       const float ly = p.y - entry.absRect.y;
       auto val = MouseEvent.AppEventViewValue.pack(
@@ -372,8 +368,8 @@ private:
     passViewEvent(host, w, ev);
   }
 
-  HoverEntry[] hoveredWidgets;
-  HoverEntry[] hoverScratch;
+  ReusableArray!HoverEntry hoveredWidgets;
+  ReusableArray!HoverEntry hoverScratch;
   Widget[maxMouseButtons] pressedWidgets;
   bool hasCursorCapture = false;
   PointF lastMousePos;

@@ -3,6 +3,7 @@ module yguilib.internal.uisystem_impl;
 import glad2.gles2;
 import std.typecons : Nullable;
 import std.logger;
+import yguilib.allochelpers : SmallBuffer;
 import yguilib.clibs.sdl3;
 import yguilib.timers : TimerCallback, TimerId, TimerIntervalMs, TimerMode;
 import yguilib.uisystem;
@@ -301,46 +302,7 @@ private:
     }
     return JSONValue(winJson);
   }
-  struct ControllerDirtyList {
-    Controller[16] stackBuf;
-    size_t stackCount = 0;
-    Controller[] heapList;
-
-    void add(Controller c) {
-      if (c is null || contains(c)) {
-        return;
-      }
-      if (heapList.length > 0) {
-        heapList ~= c;
-      } else if (stackCount < stackBuf.length) {
-        stackBuf[stackCount++] = c;
-      } else {
-        heapList = stackBuf[].dup;
-        heapList ~= c;
-      }
-    }
-
-    bool contains(Controller c) const {
-      if (heapList.length > 0) {
-        foreach (item; heapList) {
-          if (item is c) {
-            return true;
-          }
-        }
-        return false;
-      }
-      foreach (item; stackBuf[0 .. stackCount]) {
-        if (item is c) {
-          return true;
-        }
-      }
-      return false;
-    }
-
-    @property bool empty() const {
-      return stackCount == 0 && heapList.length == 0;
-    }
-  }
+  alias ControllerDirtyList = SmallBuffer!(Controller, 16);
 
   void enqueueSdlEvent(in yguilib_sdl3_Event sdlEv) {
     Nullable!AppEvent appEv = appEventFromSdlEvent(sdlEv);
@@ -375,14 +337,8 @@ private:
    * Snapshots active controllers to a local stack buffer to avoid GC
    * allocations and protect against stack mutations during handleEvent.
    */
-  Controller[] snapshotControllers(ref Controller[16] stackBuf) {
-    const size_t numControllers = controllers.length;
-    if (numControllers <= stackBuf.length) {
-      stackBuf[0 .. numControllers] =
-        controllers.getAll()[0 .. numControllers];
-      return stackBuf[0 .. numControllers];
-    }
-    return controllers.getAll().dup;
+  void snapshotControllers(ref SmallBuffer!(Controller, 16) outBuf) {
+    outBuf.assignSlice(controllers.getAll());
   }
 
   bool isMainWindowEvent(uint windowId) const {
@@ -416,11 +372,10 @@ private:
   ) {
     handleMainWindowEvent(event, needRender);
 
-    Controller[16] stackBuf;
-    Controller[] activeList = snapshotControllers(stackBuf);
+    SmallBuffer!(Controller, 16) activeBuf;
+    snapshotControllers(activeBuf);
 
-    for (ptrdiff_t i = cast(ptrdiff_t) activeList.length - 1; i >= 0; --i) {
-      Controller c = activeList[i];
+    foreach_reverse (c; activeBuf[]) {
       if (c is null) {
         continue;
       }
@@ -435,7 +390,7 @@ private:
         needModelUpdate = true;
         break;
       case Controller.HandleResult.Result.updateView:
-        dirtyViews.add(c);
+        dirtyViews.addUnique(c);
         break;
       }
 
@@ -482,11 +437,11 @@ private:
     ref bool needRender
   ) {
     if (needModelUpdate) {
-      Controller[16] stackBuf;
-      Controller[] activeList = snapshotControllers(stackBuf);
-      foreach_reverse (c; activeList) {
+      SmallBuffer!(Controller, 16) activeBuf;
+      snapshotControllers(activeBuf);
+      foreach_reverse (c; activeBuf[]) {
         if (c !is null && c.update()) {
-          dirtyViews.add(c);
+          dirtyViews.addUnique(c);
         }
       }
     }
@@ -497,7 +452,7 @@ private:
       case TimerEntry.TargetKind.controller:
         if (entry.controllerTarget !is null &&
             entry.controllerTarget.tick(dt)) {
-          dirtyViews.add(entry.controllerTarget);
+          dirtyViews.addUnique(entry.controllerTarget);
         }
         break;
       case TimerEntry.TargetKind.widgetSystem:
@@ -516,9 +471,9 @@ private:
 
   void runPhase3Render(in ControllerDirtyList dirtyViews, bool needRender) {
     if (!dirtyViews.empty) {
-      Controller[16] stackBuf;
-      Controller[] activeList = snapshotControllers(stackBuf);
-      foreach (c; activeList) {
+      SmallBuffer!(Controller, 16) activeBuf;
+      snapshotControllers(activeBuf);
+      foreach (c; activeBuf[]) {
         if (c !is null && dirtyViews.contains(c)) {
           if (c.updateView()) {
             needRender = true;

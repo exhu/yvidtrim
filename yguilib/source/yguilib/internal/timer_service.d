@@ -3,6 +3,7 @@ module yguilib.internal.timer_service;
 package(yguilib):
 
 import core.time : MonoTime, ticksToNSecs;
+import yguilib.allochelpers : ReusableArray, SmallBuffer;
 import yguilib.controller : Controller;
 import yguilib.timers : TimerCallback, TimerId, TimerIntervalMs, TimerMode,
   invalidTimerId;
@@ -80,7 +81,7 @@ struct TimerService {
     if (id == invalidTimerId) {
       return;
     }
-    foreach (ref e; entries) {
+    foreach (ref e; entries[]) {
       if (e.active && e.id == id) {
         deactivateEntry(e);
         break;
@@ -93,7 +94,7 @@ struct TimerService {
     if (id == invalidTimerId) {
       return false;
     }
-    foreach (const ref e; entries) {
+    foreach (const ref e; entries[]) {
       if (e.active && e.id == id) {
         return true;
       }
@@ -105,7 +106,7 @@ struct TimerService {
     if (target is null) {
       return;
     }
-    foreach (ref e; entries) {
+    foreach (ref e; entries[]) {
       if (e.active &&
           e.targetKind == TimerEntry.TargetKind.controller &&
           e.controllerTarget is target) {
@@ -119,7 +120,7 @@ struct TimerService {
     if (target is null) {
       return;
     }
-    foreach (ref e; entries) {
+    foreach (ref e; entries[]) {
       if (e.active &&
           e.targetKind == TimerEntry.TargetKind.widgetSystem &&
           e.systemTarget is target) {
@@ -132,7 +133,7 @@ struct TimerService {
   int nextWaitTimeoutMs(long now) const {
     bool hasActive = false;
     long earliestNs = 0;
-    foreach (const ref e; entries) {
+    foreach (const ref e; entries[]) {
       if (!e.active) {
         continue;
       }
@@ -154,7 +155,7 @@ struct TimerService {
   }
 
   bool hasDueTimers(long now) const {
-    foreach (const ref e; entries) {
+    foreach (const ref e; entries[]) {
       if (e.active && e.nextFireNs <= now) {
         return true;
       }
@@ -167,9 +168,9 @@ struct TimerService {
     scope void delegate(TimerEntry entry, float dt) onFire
   ) {
     assert(onFire !is null);
-    TimerId[32] stackIds;
-    TimerId[] dueIds = collectDueIds(now, stackIds);
-    if (dueIds.length == 0) {
+    SmallBuffer!(TimerId, 32) dueIds;
+    collectDueIds(now, dueIds);
+    if (dueIds.empty) {
       return;
     }
 
@@ -179,7 +180,7 @@ struct TimerService {
       compactIfIdle();
     }
 
-    foreach (id; dueIds) {
+    foreach (id; dueIds[]) {
       ptrdiff_t idx = findActiveIndex(id);
       if (idx < 0 || entries[idx].nextFireNs > now) {
         continue;
@@ -190,7 +191,7 @@ struct TimerService {
 
   size_t activeCount() const {
     size_t count = 0;
-    foreach (const ref e; entries) {
+    foreach (const ref e; entries[]) {
       if (e.active) {
         count++;
       }
@@ -213,7 +214,7 @@ private:
     entry.nextFireNs = now + periodNs;
     entry.mode = mode;
     entry.active = true;
-    entries ~= entry;
+    entries.push(entry);
     return entry.id;
   }
 
@@ -228,27 +229,16 @@ private:
     return id;
   }
 
-  TimerId[] collectDueIds(long now, ref TimerId[32] stackIds) const {
-    size_t count = 0;
-    TimerId[] heapIds;
-    foreach (const ref e; entries) {
-      if (!e.active || e.nextFireNs > now) {
-        continue;
-      }
-      if (heapIds.length > 0) {
-        heapIds ~= e.id;
-      } else if (count < stackIds.length) {
-        stackIds[count++] = e.id;
-      } else {
-        heapIds = stackIds[].dup;
-        heapIds ~= e.id;
+  void collectDueIds(long now, ref SmallBuffer!(TimerId, 32) dueIds) const {
+    foreach (const ref e; entries[]) {
+      if (e.active && e.nextFireNs <= now) {
+        dueIds.push(e.id);
       }
     }
-    return heapIds.length > 0 ? heapIds : stackIds[0 .. count];
   }
 
   ptrdiff_t findActiveIndex(TimerId id) const {
-    foreach (i, const ref e; entries) {
+    foreach (i, const ref e; entries[]) {
       if (e.active && e.id == id) {
         return cast(ptrdiff_t) i;
       }
@@ -296,20 +286,10 @@ private:
     if (firingDepth > 0) {
       return;
     }
-    size_t writeIdx = 0;
-    foreach (i; 0 .. entries.length) {
-      if (entries[i].active) {
-        if (writeIdx != i) {
-          entries[writeIdx] = entries[i];
-        }
-        writeIdx++;
-      }
-    }
-    entries.length = writeIdx;
-    entries.assumeSafeAppend();
+    entries.compact((const ref e) => e.active);
   }
 
-  TimerEntry[] entries;
+  ReusableArray!TimerEntry entries;
   TimerId nextId = 1;
   uint firingDepth = 0;
   long delegate() clockFn = null;
@@ -457,4 +437,34 @@ unittest {
   svc.stopTimersForSystem(sys);
   assert(!svc.isTimerActive(sId));
   assert(svc.activeCount() == 0);
+}
+
+// Verifies >32 simultaneous due timers trigger the SmallBuffer heap-spill path.
+unittest {
+  enum size_t timerCount = 40;
+  long fakeNowNs = 1_000_000_000L;
+  TimerService svc;
+  svc.setClock(() => fakeNowNs);
+
+  TimerId[timerCount] ids;
+  size_t firedCount = 0;
+  foreach (i; 0 .. timerCount) {
+    ids[i] = svc.startCallbackTimer(10, TimerMode.oneShot, (id, dt) {
+      firedCount++;
+      return false;
+    });
+  }
+  assert(svc.activeCount() == timerCount);
+
+  fakeNowNs += 10_000_000L;
+  TimerId[] firedOrder;
+  svc.fireDueTimers(fakeNowNs, (TimerEntry e, float dt) {
+    firedOrder ~= e.id;
+    e.callback(e.id, dt);
+  });
+
+  assert(firedCount == timerCount);
+  assert(firedOrder == ids[]);
+  assert(svc.activeCount() == 0);
+  assert(svc.nextWaitTimeoutMs(fakeNowNs) == -1);
 }

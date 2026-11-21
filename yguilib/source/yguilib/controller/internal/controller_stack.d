@@ -2,13 +2,14 @@ module yguilib.controller.internal.controller_stack;
 
 package(yguilib):
 
-import yguilib.controller : Controller, DefaultController;
+import yguilib.allochelpers : ReusableArray;
+import yguilib.controller : Controller;
 
 struct ControllerStack {
   void push(Controller c) {
     assert(c !is null);
     c.setModal(false);
-    stack ~= c;
+    stack.push(c);
     c.onPush();
   }
 
@@ -19,7 +20,7 @@ struct ControllerStack {
     if (active !is null) {
       active.onSuspendByModal();
     }
-    stack ~= c;
+    stack.push(c);
     c.onPush();
   }
 
@@ -29,7 +30,7 @@ struct ControllerStack {
       return;
     }
     const bool wasModal = active.isModal;
-    stack.length -= 1;
+    stack.popBack();
     active.onPop();
     active = getActiveOrNull();
     if (active !is null && wasModal) {
@@ -38,14 +39,14 @@ struct ControllerStack {
   }
 
   Controller getActiveOrNull() {
-    if (stack.length != 0) {
-      return stack[$ - 1];
+    if (!stack.empty) {
+      return stack.back();
     }
     return null;
   }
 
   bool empty() const {
-    return stack.length == 0;
+    return stack.empty;
   }
 
   size_t length() const {
@@ -53,7 +54,7 @@ struct ControllerStack {
   }
 
   inout(Controller[]) getAll() inout {
-    return stack;
+    return stack[];
   }
 
   inout(Controller) opIndex(size_t i) inout {
@@ -62,7 +63,7 @@ struct ControllerStack {
   }
 
   int opApply(scope int delegate(Controller) dg) {
-    foreach (c; stack) {
+    foreach (c; stack[]) {
       if (int res = dg(c)) {
         return res;
       }
@@ -71,7 +72,7 @@ struct ControllerStack {
   }
 
 private:
-  Controller[] stack;
+  ReusableArray!Controller stack;
 }
 
 // Verifies ControllerStack push, modal push, and pop lifecycle transitions.

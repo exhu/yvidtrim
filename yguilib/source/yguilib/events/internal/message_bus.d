@@ -5,6 +5,7 @@ package(yguilib):
 import core.lifetime : move;
 import core.thread : Thread, ThreadID;
 import std.typecons : Nullable;
+import yguilib.allochelpers : RingBuffer;
 import yguilib.clibs.sdl3;
 import yguilib.events : AppEvent;
 import yguilib.timers : StopWatchNs;
@@ -40,7 +41,7 @@ struct MessageBus {
   this(Object lockObj) {
     assert(lockObj !is null);
     this.lock = lockObj;
-    this.buffer = new AppEvent[initialCapacity];
+    this.queue.reserve(initialCapacity);
     if (fStatsEnabled) {
       fTotalWatch.start();
       fWindowWatch.start();
@@ -79,8 +80,8 @@ struct MessageBus {
     bool needWake = false;
     const ThreadID callerId = Thread.getThis().id;
     synchronized (lock) {
-      if (buffer.length == 0) {
-        buffer = new AppEvent[initialCapacity];
+      if (queue.capacity == 0) {
+        queue.reserve(initialCapacity);
       }
       const bool isMain = hasMainThread && callerId == mainThreadId;
       bool allowedToSend = true;
@@ -88,13 +89,8 @@ struct MessageBus {
         allowedToSend = false;
       }
       if (allowedToSend) {
-        if (count == buffer.length) {
-          grow();
-        }
-        const size_t tailIdx = (head + count) & (buffer.length - 1);
         pendingKindCounts[ev.kind]++;
-        buffer[tailIdx] = move(ev);
-        count++;
+        queue.push(move(ev));
         if (!isMain && !wakeSent) {
           wakeSent = true;
           needWake = true;
@@ -113,22 +109,21 @@ struct MessageBus {
    */
   Nullable!AppEvent get() {
     synchronized (lock) {
-      if (count == 0) {
-        return Nullable!AppEvent.init;
+      Nullable!AppEvent ev = queue.tryPop();
+      if (ev.isNull) {
+        return ev;
       }
-      auto ev = move(buffer[head]);
-      assert(pendingKindCounts[ev.kind] > 0);
-      pendingKindCounts[ev.kind]--;
-      head = (head + 1) & (buffer.length - 1);
-      count--;
-      return Nullable!AppEvent(ev);
+      const AppEvent.Kind kind = ev.get().kind;
+      assert(pendingKindCounts[kind] > 0);
+      pendingKindCounts[kind]--;
+      return ev;
     }
   }
 
   /// Returns $(D true) if there are pending events awaiting retrieval.
   bool hasPending() {
     synchronized (lock) {
-      return count > 0;
+      return !queue.empty;
     }
   }
 
@@ -137,7 +132,7 @@ struct MessageBus {
   /// Returns $(D true) if empty (safe to wait), $(D false) if events exist.
   bool prepareToWait() {
     synchronized (lock) {
-      if (count > 0) {
+      if (!queue.empty) {
         return false;
       }
       wakeSent = false;
@@ -147,13 +142,13 @@ struct MessageBus {
 
   size_t length() {
     synchronized (lock) {
-      return count;
+      return queue.length;
     }
   }
 
   size_t capacity() {
     synchronized (lock) {
-      return buffer.length;
+      return queue.capacity;
     }
   }
 
@@ -242,33 +237,18 @@ private:
   }
 
   bool isDuplicateNoRepeat(in AppEvent ev) const {
-    if (count == 0) {
+    if (queue.empty) {
       return false;
     }
     if (isIdempotentNoRepeatKind(ev.kind)) {
       return pendingKindCounts[ev.kind] > 0;
     }
-    const size_t mask = buffer.length - 1;
-    foreach (i; 0 .. count) {
-      const size_t idx = (head + i) & mask;
-      if (buffer[idx].equalsContent(ev)) {
+    foreach (const ref item; queue) {
+      if (item.equalsContent(ev)) {
         return true;
       }
     }
     return false;
-  }
-
-  void grow() {
-    const size_t newCap = buffer.length > 0
-      ? buffer.length * 2
-      : initialCapacity;
-    auto newBuf = new AppEvent[newCap];
-    const size_t mask = buffer.length - 1;
-    foreach (i; 0 .. count) {
-      newBuf[i] = move(buffer[(head + i) & mask]);
-    }
-    buffer = newBuf;
-    head = 0;
   }
 
   void recordEventStats(bool posted) {
@@ -297,9 +277,7 @@ private:
   }
 
   enum size_t initialCapacity = 64;
-  AppEvent[] buffer;
-  size_t head = 0;
-  size_t count = 0;
+  RingBuffer!AppEvent queue;
   size_t[AppEvent.Kind.max + 1] pendingKindCounts;
   bool wakeSent = false;
   bool hasMainThread = false;
