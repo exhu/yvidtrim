@@ -13,10 +13,6 @@ enum TimerIntervalMs : uint {
   fps60 = 16,
 }
 
-/// Opaque identifier for a registered timer (0 = invalid / inactive).
-alias TimerId = uint;
-enum TimerId invalidTimerId = 0;
-
 /// Controls how AnimationTimer behaves when elapsed reaches duration.
 enum AnimationWrapMode {
   once,          /// Clamps at 1.0 and pauses.

@@ -5,7 +5,8 @@ import std.typecons : Nullable;
 import std.logger;
 import yguilib.allochelpers : SmallBuffer;
 import yguilib.clibs.sdl3;
-import yguilib.timers : TimerId, TimerIntervalMs, TimerMode;
+import yguilib.timercontrol : TimerId;
+import yguilib.timers : TimerIntervalMs, TimerMode;
 import yguilib.uisystem;
 import yguilib.controller : Controller, DefaultController, HandleResult;
 import yguilib.controller.internal.controller_stack : ControllerStack;
@@ -1047,7 +1048,8 @@ unittest {
 // mouseMotion flood without timer starvation or multi-render stalls.
 unittest {
   import yguilib.render.render_types : PointF, RectF;
-  import yguilib.timers : TimerId, TimerMode;
+  import yguilib.timercontrol : TimerId;
+  import yguilib.timers : TimerMode;
   import yguilib.widget.system : SystemPhase, WidgetSystemContext;
 
   final class FloodController : DefaultController {
@@ -1533,7 +1535,7 @@ unittest {
 // receives distinct TimerIds, runs updateView() at most once per step, and
 // stops all timers on popController().
 unittest {
-  import yguilib.timers : invalidTimerId;
+  import yguilib.timercontrol : invalidTimerId;
 
   final class MultiTimerController : DefaultController {
     TimerId fastId = invalidTimerId;
@@ -1623,7 +1625,7 @@ unittest {
 // needModelUpdate is true (without active timers), and timer cleanup on
 // unregisterWidgetSystem().
 unittest {
-  import yguilib.timers : invalidTimerId;
+  import yguilib.timercontrol : invalidTimerId;
   import yguilib.widget.system : SystemPhase, WidgetSystemContext;
 
   final class MultiTimerSystem : WidgetSystem {

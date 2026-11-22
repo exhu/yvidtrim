@@ -79,7 +79,7 @@ private:
 unittest {
   import yguilib.events : AppEvent;
   import yguilib.controller : HandleResult;
-  import yguilib.timers : TimerId;
+  import yguilib.timercontrol : TimerId;
   import yguilib.widget : Widget;
 
   class ModalTrackController : Controller {

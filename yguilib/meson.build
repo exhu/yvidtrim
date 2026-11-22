@@ -39,6 +39,7 @@ yguilib_src = files(
   'source/yguilib/render/package.d',
   'source/yguilib/render/render_types.d',
   'source/yguilib/serhelpers.d',
+  'source/yguilib/timercontrol.d',
   'source/yguilib/timers.d',
   'source/yguilib/uisystem.d',
   'source/yguilib/widget/builder.d',

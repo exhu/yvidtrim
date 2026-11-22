@@ -429,7 +429,8 @@ RectF computeWidgetAbsRect(Widget w) {
 
 version (unittest) {
   import yguilib.object_registry : ObjectRegistry;
-  import yguilib.timers : TimerId, TimerMode, invalidTimerId;
+  import yguilib.timercontrol : TimerId, invalidTimerId;
+  import yguilib.timers : TimerMode;
   import yguilib.widget.widget_view : WidgetViewController;
 
   class TestUiSystem : WidgetSystemHost {

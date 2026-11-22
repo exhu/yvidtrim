@@ -1,6 +1,7 @@
 module yguilib.controller;
 import yguilib.events : AppEvent;
-import yguilib.timers : TimerId, TimerMode, invalidTimerId;
+import yguilib.timercontrol : TimerId, invalidTimerId;
+import yguilib.timers : TimerMode;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget;
 

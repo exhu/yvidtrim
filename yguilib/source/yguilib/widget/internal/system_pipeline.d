@@ -7,7 +7,7 @@ import yguilib.allochelpers : ReusableArray;
 import yguilib.events : AppEvent;
 import yguilib.render : Renderer;
 import yguilib.render.render_types : RectF;
-import yguilib.timers : TimerId;
+import yguilib.timercontrol : TimerId;
 import yguilib.widget : Widget;
 import yguilib.widget.internal.collect_visible : VisibleWidgetsCollector;
 import yguilib.widget.system : SystemEventResult, SystemPhase,
@@ -337,7 +337,8 @@ private:
 version (unittest) {
 private:
   import yguilib.object_registry : ObjectRegistry;
-  import yguilib.timers : TimerMode, invalidTimerId;
+  import yguilib.timercontrol : invalidTimerId;
+  import yguilib.timers : TimerMode;
   import yguilib.widget.widget_view : WidgetView, WidgetViewController;
 
   class DummyHost : WidgetSystemHost {

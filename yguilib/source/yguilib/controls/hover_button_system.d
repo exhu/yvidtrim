@@ -31,8 +31,9 @@ import yguilib.allochelpers : ReusableArray;
 import yguilib.events : AppEvent;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, PointF, RectF;
-import yguilib.timers : AnimationTimer, AnimationWrapMode, TimerId,
-  TimerIntervalMs, TimerMode, invalidTimerId;
+import yguilib.timercontrol : TimerId, invalidTimerId;
+import yguilib.timers : AnimationTimer, AnimationWrapMode, TimerIntervalMs,
+  TimerMode;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;

@@ -52,8 +52,9 @@ import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, RectF;
-import yguilib.timers : AnimationTimer, AnimationWrapMode, TimerId,
-  TimerIntervalMs, TimerMode, invalidTimerId;
+import yguilib.timercontrol : TimerId, invalidTimerId;
+import yguilib.timers : AnimationTimer, AnimationWrapMode, TimerIntervalMs,
+  TimerMode;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : ViewComponent, Widget;
 import yguilib.widget.builder : WidgetBuilder;

@@ -1090,7 +1090,8 @@ version (unittest) {
   import yguilib.app : App;
   import yguilib.controller : DefaultController;
   import yguilib.internal.uisystem_impl : UiSystemImpl;
-  import yguilib.timers : invalidTimerId, TimerId, TimerMode;
+  import yguilib.timercontrol : TimerId, invalidTimerId;
+  import yguilib.timers : TimerMode;
   import yguilib.widget.drawing_components : TextLabel;
 
 private:

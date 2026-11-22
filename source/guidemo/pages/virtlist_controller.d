@@ -15,7 +15,8 @@ import guidemo.pages.virtlist_page : VirtListPage, page7ExpandRowEvent,
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker;
-import yguilib.timers : TimerId, TimerMode, invalidTimerId;
+import yguilib.timercontrol : TimerId, invalidTimerId;
+import yguilib.timers : TimerMode;
 import yguilib.uisystem : UiSystem;
 
 /// Controller handling Page 7 VirtList actions, metrics sync, and video pulse

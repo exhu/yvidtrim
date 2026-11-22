@@ -4,7 +4,8 @@ package(yguilib):
 
 import core.time : MonoTime, ticksToNSecs;
 import yguilib.allochelpers : ReusableArray, SmallBuffer;
-import yguilib.timers : TimerId, TimerIntervalMs, TimerMode, invalidTimerId;
+import yguilib.timercontrol : TimerId, invalidTimerId;
+import yguilib.timers : TimerIntervalMs, TimerMode;
 
 struct TimerEntry {
   TimerId id = invalidTimerId;

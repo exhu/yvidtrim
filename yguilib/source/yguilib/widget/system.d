@@ -2,8 +2,9 @@ module yguilib.widget.system;
 
 import yguilib.events : AppEvent;
 import yguilib.render : Renderer;
-import yguilib.timers : TimerId, TimerMode, invalidTimerId;
-import yguilib.uisystem : EventControl, TimerControl, UiRegistry;
+import yguilib.timercontrol : TimerControl, TimerId, invalidTimerId;
+import yguilib.timers : TimerMode;
+import yguilib.uisystem : EventControl, UiRegistry;
 import yguilib.widget : Widget;
 import yguilib.widget.visible : VisibleWidget, VisibleWidgets;
 import yguilib.window : Window;

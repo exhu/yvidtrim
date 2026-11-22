@@ -148,7 +148,8 @@ private:
 version (unittest) {
   import yguilib.events : AppEvent;
   import yguilib.object_registry : ObjectRegistry;
-  import yguilib.timers : TimerId, TimerMode, invalidTimerId;
+  import yguilib.timercontrol : TimerId, invalidTimerId;
+  import yguilib.timers : TimerMode;
   import yguilib.widget.layout_components : Insets, Size;
   import yguilib.widget.widget_view : WidgetView, WidgetViewController;
 

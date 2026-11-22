@@ -1,5 +1,4 @@
-- check alpha pulse in guidemo, how it uses timer, may be it's not necessary to return true from callback for
-immediate update because event queue is read until any timer is due anyway, and then update is fired for controller.
+- guidemo: fix issues described in updateView TODO comments in `source/guidemo/pages/layout_painter_controller.d`
 
 - guidemo: text hint (tooltip) popup layer widget, controller, system and component with
 hint displayed and animated transparency when cursor delays over a control to

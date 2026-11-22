@@ -11,8 +11,9 @@ import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.model : ModelTracker;
-import yguilib.timers : AnimationTimer, AnimationWrapMode, TimerId,
-  TimerIntervalMs, TimerMode, invalidTimerId;
+import yguilib.timercontrol : TimerId, invalidTimerId;
+import yguilib.timers : AnimationTimer, AnimationWrapMode, TimerIntervalMs,
+  TimerMode;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
   JustifyContent;
@@ -58,19 +59,23 @@ final class LayoutPainterPageController : DefaultController {
 
   override bool updateView() {
     page.update();
+    // TODO split into model update and view update,
+    // model updates are in update() method,
+    // view updates (calls to widget methods) are only in updateView
     if (syncPageShell(
         demoTracker,
         DemoPage.layoutPainter,
         page.getRootWidget(),
         page.formatStatus()
       )) {
+      // TODO this is not supposed to be called from updateView
       sendUpdate();
     }
     return true;
   }
 
   override bool update() {
-    const bool demoChanged = demoTracker.update();
+    const bool demoChanged = demoTracker.update() | tracker.update();
     syncAlphaTimer();
     return demoChanged;
   }
@@ -89,7 +94,8 @@ final class LayoutPainterPageController : DefaultController {
     auto model = tracker.edit();
     model.alphaValue = alphaTimer.map(0.2f, 1.0f);
     tracker.commit(model);
-    return tracker.update();
+    sendUpdate();
+    return false;
   }
 
   override HandleResult handleEvent(AppEvent ev) {
