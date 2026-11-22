@@ -5,6 +5,7 @@
 module yguilib.controls.virtlist;
 
 import std.math.rounding : round;
+import std.typecons : Nullable;
 import yguilib.controller : HandleResult;
 import yguilib.controls.common : emitViewValueEvent, findWidgetView, orDefault,
   registerWidgetViewPair;
@@ -136,13 +137,13 @@ package(yguilib):
     return res;
   }
 
-  bool takePendingScrollIndex(out size_t index) {
+  Nullable!size_t takePendingScrollIndex() {
     if (!hasPendingScrollIndex) {
-      return false;
+      return Nullable!size_t.init;
     }
-    index = pendingScrollIndex;
+    const size_t index = pendingScrollIndex;
     hasPendingScrollIndex = false;
-    return true;
+    return Nullable!size_t(index);
   }
 
 private:
@@ -346,6 +347,14 @@ final class VirtListWidgetView : WidgetViewBase {
   }
 
 private:
+  struct VirtListParts {
+    Widget viewport;
+    Widget mainScrollbar;
+    Widget crossScrollbar;
+    Widget cornerBox;
+    FlexDirection dir = FlexDirection.column;
+  }
+
   VirtListEntry[Widget] entries;
   Widget[Widget] scrollbarToRoot;
 
@@ -391,14 +400,13 @@ private:
     Widget viewWidget,
     ref ModelTracker!VirtListModel tracker
   ) {
-    Widget vp, mainSb, crossSb, corner;
-    FlexDirection dir = FlexDirection.column;
-    findVirtListParts(viewWidget, vp, mainSb, crossSb, corner, dir);
+    auto parts = findVirtListParts(viewWidget);
     auto mainTracker = ModelTracker!ScrollbarModel(new ScrollbarModel());
     auto crossTracker = ModelTracker!ScrollbarModel(new ScrollbarModel());
     registerVirtList(
       viewWidget, tracker, mainTracker, crossTracker,
-      vp, mainSb, crossSb, corner, dir, defaultVirtListEventName
+      parts.viewport, parts.mainScrollbar, parts.crossScrollbar,
+      parts.cornerBox, parts.dir, defaultVirtListEventName
     );
   }
 
@@ -469,15 +477,14 @@ private:
     auto vc = entry.viewport.components.virtList;
     auto mutModel = cast(VirtListModel) entry.tracker.model;
     VirtListChange[] changes = mutModel.takePendingChanges();
-    size_t scrollIdx = 0;
-    const bool hasScrollIdx = mutModel.takePendingScrollIndex(scrollIdx);
+    const auto scrollIdx = mutModel.takePendingScrollIndex();
     const bool countChanged = (vc.itemsCount != mutModel.itemsCount);
 
     applyChangesToComponent(vc, changes, mutModel.itemsCount, countChanged);
-    if (hasScrollIdx) {
-      vc.scrollToIndex(scrollIdx);
+    if (!scrollIdx.isNull) {
+      vc.scrollToIndex(scrollIdx.get());
     }
-    if (changes.length > 0 || countChanged || hasScrollIdx) {
+    if (changes.length > 0 || countChanged || !scrollIdx.isNull) {
       entry.viewport.update(WidgetUpdateScope.layout);
       return true;
     }
@@ -511,17 +518,10 @@ private:
     }
   }
 
-  static void findVirtListParts(
-    Widget viewWidget,
-    out Widget viewport,
-    out Widget mainScrollbar,
-    out Widget crossScrollbar,
-    out Widget cornerBox,
-    out FlexDirection dir
-  ) {
-    dir = FlexDirection.column;
+  static VirtListParts findVirtListParts(Widget viewWidget) {
+    VirtListParts parts;
     if (viewWidget is null || viewWidget.children.length < 2) {
-      return;
+      return parts;
     }
     Widget topRow = viewWidget.children[0];
     Widget bottomRow = viewWidget.children[1];
@@ -531,15 +531,19 @@ private:
     Widget leftBar = (bottomRow.children.length >= 2)
       ? bottomRow.children[0]
       : null;
-    viewport = (topRow.children.length >= 1) ? topRow.children[0] : null;
-    cornerBox = (bottomRow.children.length >= 2)
+    parts.viewport = (topRow.children.length >= 1) ? topRow.children[0] : null;
+    parts.cornerBox = (bottomRow.children.length >= 2)
       ? bottomRow.children[1]
       : null;
-    if (viewport !is null && viewport.components.virtList !is null) {
-      dir = viewport.components.virtList.direction;
+    if (parts.viewport !is null &&
+        parts.viewport.components.virtList !is null) {
+      parts.dir = parts.viewport.components.virtList.direction;
     }
-    mainScrollbar = (dir == FlexDirection.column) ? rightBar : leftBar;
-    crossScrollbar = (dir == FlexDirection.column) ? leftBar : rightBar;
+    parts.mainScrollbar =
+      (parts.dir == FlexDirection.column) ? rightBar : leftBar;
+    parts.crossScrollbar =
+      (parts.dir == FlexDirection.column) ? leftBar : rightBar;
+    return parts;
   }
 }
 
@@ -564,9 +568,9 @@ final class VirtListWidgetViewController : WidgetViewControllerBase {
     if (auto vlv = findOwningView!VirtListWidgetView(
         views, ev.view.viewWidget
       )) {
-      bool needModelUpdate = false;
-      if (handleRootEvent(vlv, ev, needModelUpdate)) {
-        const auto res = needModelUpdate
+      const RootEventResult rootRes = handleRootEvent(vlv, ev);
+      if (rootRes.handled) {
+        const auto res = rootRes.needModelUpdate
           ? HandleResult.Result.update
           : HandleResult.Result.updateView;
         return HandleResult(res, true);
@@ -585,6 +589,11 @@ final class VirtListWidgetViewController : WidgetViewControllerBase {
   }
 
 private:
+  struct RootEventResult {
+    bool handled;
+    bool needModelUpdate;
+  }
+
   bool routeScrollEvent(
     VirtListWidgetView vlv,
     Widget root,
@@ -602,11 +611,7 @@ private:
     return false;
   }
 
-  bool handleRootEvent(
-    VirtListWidgetView vlv,
-    AppEvent ev,
-    out bool needModelUpdate
-  ) {
+  RootEventResult handleRootEvent(VirtListWidgetView vlv, AppEvent ev) {
     if (ev.view.eventName == virtListMetricsChangedEvent) {
       auto val = VirtListComponent.AppEventViewValue.fromRaw(ev.view.value);
       if (vlv.handleMetricsChanged(ev.view.viewWidget, val)) {
@@ -617,10 +622,11 @@ private:
           cast(ulong) val.firstVisibleIndex
         );
       }
-      needModelUpdate = true;
-      return true;
+      return RootEventResult(true, true);
     }
-    return routeScrollEvent(vlv, ev.view.viewWidget, ev);
+    return RootEventResult(
+      routeScrollEvent(vlv, ev.view.viewWidget, ev), false
+    );
   }
 
   bool handleOwnedScrollbarEvent(VirtListWidgetView vlv, AppEvent ev) {

@@ -749,10 +749,8 @@ final class VerticalMediaProvider : VirtListProvider {
     VerticalRowRefs refs = *pRefs;
     const VerticalItemData item = items[index];
 
-    float wPx = 530.0f;
-    float hPx = 38.0f;
-    computeItemDimensions(item, wPx, hPx);
-    applyRowDimensions(w, wPx, hPx);
+    const ItemDimensions dims = computeItemDimensions(item);
+    applyRowDimensions(w, dims.width, dims.height);
 
     refs.headerSubtree.setVisible(item.kind == VerticalItemKind.header);
     refs.videoSubtree.setVisible(item.kind == VerticalItemKind.video);
@@ -762,18 +760,18 @@ final class VerticalMediaProvider : VirtListProvider {
     final switch (item.kind) {
     case VerticalItemKind.header:
       activeVideos.remove(w);
-      bindHeaderSubtree(refs, item, index, wPx, hPx);
+      bindHeaderSubtree(refs, item, index, dims.width, dims.height);
       break;
     case VerticalItemKind.video:
-      bindVideoSubtree(w, refs, item, index, wPx, hPx);
+      bindVideoSubtree(w, refs, item, index, dims.width, dims.height);
       break;
     case VerticalItemKind.image:
       activeVideos.remove(w);
-      bindImageSubtree(refs, item, index, wPx, hPx);
+      bindImageSubtree(refs, item, index, dims.width, dims.height);
       break;
     case VerticalItemKind.file:
       activeVideos.remove(w);
-      bindFileSubtree(refs, item, index, wPx, hPx);
+      bindFileSubtree(refs, item, index, dims.width, dims.height);
       break;
     }
     w.update(WidgetUpdateScope.layout);
@@ -902,36 +900,34 @@ private:
     return VerticalItemKind.file;
   }
 
-  static void computeItemDimensions(
-    in VerticalItemData item,
-    out float wPx,
-    out float hPx
-  ) {
+  static ItemDimensions computeItemDimensions(in VerticalItemData item) {
     final switch (item.kind) {
     case VerticalItemKind.header:
-      wPx = item.expanded ? 640.0f : 530.0f;
-      hPx = item.expanded ? 76.0f : 34.0f;
-      break;
+      return ItemDimensions(
+        item.expanded ? 640.0f : 530.0f,
+        item.expanded ? 76.0f : 34.0f
+      );
     case VerticalItemKind.video:
-      wPx = item.expanded ? 700.0f : 530.0f;
-      hPx = item.expanded ? 400.0f : 74.0f;
-      break;
+      return ItemDimensions(
+        item.expanded ? 700.0f : 530.0f,
+        item.expanded ? 400.0f : 74.0f
+      );
     case VerticalItemKind.image:
       if (item.expanded) {
-        wPx = 700.0f;
-        hPx = 220.0f;
+        return ItemDimensions(700.0f, 220.0f);
       } else if (item.itemId % 24 == 10) {
-        wPx = 680.0f;
-        hPx = 380.0f;
+        return ItemDimensions(680.0f, 380.0f);
       } else {
-        wPx = (item.itemId % 8 == 2) ? 650.0f : 530.0f;
-        hPx = 84.0f;
+        return ItemDimensions(
+          (item.itemId % 8 == 2) ? 650.0f : 530.0f,
+          84.0f
+        );
       }
-      break;
     case VerticalItemKind.file:
-      wPx = item.expanded ? 640.0f : 530.0f;
-      hPx = item.expanded ? 110.0f : 38.0f;
-      break;
+      return ItemDimensions(
+        item.expanded ? 640.0f : 530.0f,
+        item.expanded ? 110.0f : 38.0f
+      );
     }
   }
 
@@ -1378,10 +1374,8 @@ final class HorizontalStripProvider : VirtListProvider {
     HorizontalCardRefs refs = *pRefs;
     const HorizontalItemData item = items[index];
 
-    float wPx = 140.0f;
-    float hPx = 180.0f;
-    computeCardDimensions(item, wPx, hPx);
-    applyCardDimensions(w, wPx, hPx);
+    const ItemDimensions dims = computeCardDimensions(item);
+    applyCardDimensions(w, dims.width, dims.height);
 
     refs.keyframeSubtree.setVisible(item.kind == HorizontalItemKind.keyframe);
     refs.segmentSubtree.setVisible(item.kind == HorizontalItemKind.segment);
@@ -1389,13 +1383,13 @@ final class HorizontalStripProvider : VirtListProvider {
 
     final switch (item.kind) {
     case HorizontalItemKind.keyframe:
-      bindKeyframeSubtree(refs, item, index, wPx, hPx);
+      bindKeyframeSubtree(refs, item, index, dims.width, dims.height);
       break;
     case HorizontalItemKind.segment:
-      bindSegmentSubtree(refs, item, index, wPx, hPx);
+      bindSegmentSubtree(refs, item, index, dims.width, dims.height);
       break;
     case HorizontalItemKind.marker:
-      bindMarkerSubtree(refs, item, index, wPx, hPx);
+      bindMarkerSubtree(refs, item, index, dims.width, dims.height);
       break;
     }
     w.update(WidgetUpdateScope.layout);
@@ -1465,24 +1459,23 @@ private:
     return HorizontalItemKind.keyframe;
   }
 
-  static void computeCardDimensions(
-    in HorizontalItemData item,
-    out float wPx,
-    out float hPx
-  ) {
+  static ItemDimensions computeCardDimensions(in HorizontalItemData item) {
     final switch (item.kind) {
     case HorizontalItemKind.keyframe:
-      wPx = item.resized ? 360.0f : 140.0f;
-      hPx = item.resized ? 260.0f : 180.0f;
-      break;
+      return ItemDimensions(
+        item.resized ? 360.0f : 140.0f,
+        item.resized ? 260.0f : 180.0f
+      );
     case HorizontalItemKind.segment:
-      wPx = item.resized ? 600.0f : 340.0f;
-      hPx = item.resized ? 285.0f : 250.0f;
-      break;
+      return ItemDimensions(
+        item.resized ? 600.0f : 340.0f,
+        item.resized ? 285.0f : 250.0f
+      );
     case HorizontalItemKind.marker:
-      wPx = item.resized ? 220.0f : 76.0f;
-      hPx = item.resized ? 245.0f : 140.0f;
-      break;
+      return ItemDimensions(
+        item.resized ? 220.0f : 76.0f,
+        item.resized ? 245.0f : 140.0f
+      );
     }
   }
 
@@ -1724,4 +1717,11 @@ private:
     Widget markerSubtree;
     Widget markerTitleLabel;
   }
+}
+
+private:
+
+struct ItemDimensions {
+  float width;
+  float height;
 }

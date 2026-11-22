@@ -1,6 +1,7 @@
 module yguilib.widget.internal.layout_content_size;
 
 package(yguilib):
+import std.typecons : Nullable;
 import yguilib.render : Renderer;
 import yguilib.render.font : Font;
 import yguilib.render.render_types : PointF;
@@ -34,7 +35,6 @@ PointF calcPaddingAndBorder(
 
 PointF calcContentSize(Widget w, Renderer r) {
   import std.algorithm.comparison : max, min;
-  PointF size = PointF(0.0f, 0.0f);
 
   if (w.components.scrollableArea !is null) {
     foreach (child; w.children) {
@@ -46,12 +46,14 @@ PointF calcContentSize(Widget w, Renderer r) {
 
   FlexContainer flexComp = w.components.flexContainer;
   if (flexComp !is null) {
-    if (tryCalcFlexContentSize(w, flexComp, size)) {
-      return size;
+    const Nullable!PointF res = tryCalcFlexContentSize(w, flexComp);
+    if (!res.isNull) {
+      return res.get();
     }
   } else {
-    if (tryCalcChildrenBoundingBox(w, size)) {
-      return size;
+    const Nullable!PointF res = tryCalcChildrenBoundingBox(w);
+    if (!res.isNull) {
+      return res.get();
     }
   }
 
@@ -97,14 +99,13 @@ PointF calcContentSize(Widget w, Renderer r) {
   );
 }
 
-bool tryCalcFlexContentSize(
+Nullable!PointF tryCalcFlexContentSize(
   const Widget w,
-  const FlexContainer flexComp,
-  out PointF size
+  const FlexContainer flexComp
 ) {
   import std.algorithm.comparison : max;
   if (w.children.length == 0) {
-    return false;
+    return Nullable!PointF.init;
   }
 
   size_t visibleCount = 0;
@@ -124,23 +125,22 @@ bool tryCalcFlexContentSize(
   }
 
   if (visibleCount == 0) {
-    return false;
+    return Nullable!PointF.init;
   }
 
   if (visibleCount > 1) {
     mainSum += flexComp.gap * (visibleCount - 1);
   }
 
-  size = isRow ? PointF(mainSum, crossMax) : PointF(crossMax, mainSum);
-  return true;
+  const PointF size = isRow
+    ? PointF(mainSum, crossMax)
+    : PointF(crossMax, mainSum);
+  return Nullable!PointF(size);
 }
 
-bool tryCalcChildrenBoundingBox(
-  const Widget w,
-  out PointF size
-) {
+Nullable!PointF tryCalcChildrenBoundingBox(const Widget w) {
   if (w.children.length == 0) {
-    return false;
+    return Nullable!PointF.init;
   }
 
   size_t visibleCount = 0;
@@ -156,11 +156,10 @@ bool tryCalcChildrenBoundingBox(
   }
 
   if (visibleCount == 0) {
-    return false;
+    return Nullable!PointF.init;
   }
 
-  size = boundingSize;
-  return true;
+  return Nullable!PointF(boundingSize);
 }
 
 PointF calcTextContentSize(

@@ -4,6 +4,7 @@
  */
 module yguilib.controls.common;
 
+import std.typecons : Nullable;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiRegistry, UiSystem;
@@ -191,26 +192,33 @@ void emitViewValueEvent(
   ui.sendAppEvent(ev);
 }
 
+/// Discovered child widgets of a 3-child `[dec, middle, inc]` arrow composite.
+struct ArrowCompositeParts {
+  Widget dec;
+  Widget middle;
+  Widget inner;
+  Widget inc;
+}
+
 /// Probes a 3-child `[dec, middle, inc]` composite where `middle` contains at
-/// least one child (`inner`). `root` is allowed to be null (returns false).
-bool findArrowComposite(
-  Widget root,
-  out Widget dec,
-  out Widget middle,
-  out Widget inner,
-  out Widget inc
-) {
+/// least one child (`inner`). `root` is allowed to be null (returns null
+/// `Nullable`).
+Nullable!ArrowCompositeParts findArrowComposite(Widget root) {
   if (root is null || root.children.length != 3) {
-    return false;
+    return Nullable!ArrowCompositeParts.init;
   }
-  dec = root.children[0];
-  middle = root.children[1];
-  inc = root.children[2];
-  if (middle.children.length > 0) {
-    inner = middle.children[0];
-    return true;
+  Widget middle = root.children[1];
+  if (middle.children.length == 0) {
+    return Nullable!ArrowCompositeParts.init;
   }
-  return false;
+  return Nullable!ArrowCompositeParts(
+    ArrowCompositeParts(
+      root.children[0],
+      middle,
+      middle.children[0],
+      root.children[2]
+    )
+  );
 }
 
 unittest {
@@ -342,23 +350,26 @@ unittest {
   import yguilib.internal.uisystem_impl : UiSystemImpl;
 
   auto ui = new UiSystemImpl(null);
-  Widget dec, mid, inner, inc;
-  assert(!findArrowComposite(null, dec, mid, inner, inc));
+  assert(findArrowComposite(null).isNull);
 
   auto root = ui.makeWidget();
   auto c0 = ui.makeWidget();
   auto c1 = ui.makeWidget();
   root.addChild(c0);
   root.addChild(c1);
-  assert(!findArrowComposite(root, dec, mid, inner, inc));
+  assert(findArrowComposite(root).isNull);
 
   auto c2 = ui.makeWidget();
   root.addChild(c2);
-  assert(!findArrowComposite(root, dec, mid, inner, inc));
-  assert(dec is c0 && mid is c1 && inc is c2);
+  assert(findArrowComposite(root).isNull);
 
   auto c1Inner = ui.makeWidget();
   c1.addChild(c1Inner);
-  assert(findArrowComposite(root, dec, mid, inner, inc));
-  assert(dec is c0 && mid is c1 && inner is c1Inner && inc is c2);
+  auto found = findArrowComposite(root);
+  assert(!found.isNull);
+  auto parts = found.get();
+  assert(
+    parts.dec is c0 && parts.middle is c1 &&
+    parts.inner is c1Inner && parts.inc is c2
+  );
 }

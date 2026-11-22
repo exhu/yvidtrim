@@ -1,6 +1,3 @@
-- codestyle: a lot of places in code use ref/out parameters, better to settle on returning struct or class
-instead when multiple results are necessary, update codestyle.md accordingly.
-
 - guidemo: does not use app.run now, probably need to change approach to
 allow user to push controllers as prefered instead of pushing/popping passed to run.
 

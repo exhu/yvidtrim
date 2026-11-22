@@ -620,6 +620,17 @@ private:
     return result;
   }
 
+  struct MeasuredItemSize {
+    float main;
+    float cross;
+  }
+
+  struct AcquiredItem {
+    Widget widget;
+    bool newlyBound;
+    bool needsRebind;
+  }
+
   VirtListActiveItem acquireAndMeasureItem(
     Widget w,
     VirtListComponent vc,
@@ -631,11 +642,10 @@ private:
     VirtListActiveItem[] prevActive,
     bool[] claimed
   ) {
-    bool newlyBound = false;
-    bool needsRebind = false;
-    Widget itemWidget = acquireItemWidget(
-      w, vc, idx, prevActive, claimed, newlyBound, needsRebind
+    AcquiredItem acquired = acquireItemWidget(
+      w, vc, idx, prevActive, claimed
     );
+    Widget itemWidget = acquired.widget;
     if (itemWidget is null) {
       return VirtListActiveItem.init;
     }
@@ -643,7 +653,7 @@ private:
     if (!itemWidget.visible) {
       itemWidget.visible = true;
     }
-    if (newlyBound || needsRebind) {
+    if (acquired.newlyBound || acquired.needsRebind) {
       vc.provider.updateWidgetAt(itemWidget, idx);
     }
 
@@ -652,42 +662,40 @@ private:
     const bool crossChanged = cached && vc.stretchCrossAxis &&
       getCrossSize(itemWidget, isRow) != vc.fItemCrossSizes[idx];
 
-    float measuredMain = 0.0f;
-    float measuredCross = 0.0f;
-    if (!cached || newlyBound || needsRebind || dirtyLayout || crossChanged) {
+    MeasuredItemSize measured;
+    if (!cached || acquired.newlyBound || acquired.needsRebind ||
+        dirtyLayout || crossChanged) {
       measureItemSubtree(
         itemWidget, r, viewportCross, isRow, vc.stretchCrossAxis
       );
-      cacheMeasuredItemSize(
-        vc, itemWidget, idx, isRow, measuredMain, measuredCross
-      );
+      measured = cacheMeasuredItemSize(vc, itemWidget, idx, isRow);
     } else {
-      measuredMain = vc.fItemMainSizes[idx];
-      measuredCross = vc.fItemCrossSizes[idx];
+      measured = MeasuredItemSize(
+        vc.fItemMainSizes[idx],
+        vc.fItemCrossSizes[idx]
+      );
     }
 
-    if (newlyBound || needsRebind || dirtyLayout) {
+    if (acquired.newlyBound || acquired.needsRebind || dirtyLayout) {
       itemWidget.dirty = true;
     }
     return VirtListActiveItem(
-      idx, itemWidget, pos, measuredMain, measuredCross, false
+      idx, itemWidget, pos, measured.main, measured.cross, false
     );
   }
 
-  static void cacheMeasuredItemSize(
+  static MeasuredItemSize cacheMeasuredItemSize(
     VirtListComponent vc,
     Widget itemWidget,
     size_t idx,
-    bool isRow,
-    out float measuredMain,
-    out float measuredCross
+    bool isRow
   ) {
     import std.algorithm.comparison : max;
-    measuredMain = max(
+    const float measuredMain = max(
       0.0f,
       isRow ? itemWidget.rect.width : itemWidget.rect.height
     );
-    measuredCross = max(
+    const float measuredCross = max(
       0.0f,
       isRow ? itemWidget.rect.height : itemWidget.rect.width
     );
@@ -697,40 +705,35 @@ private:
     vc.fItemMainSizes[idx] = measuredMain;
     vc.fKnownMainSizesSum += measuredMain;
     vc.fItemCrossSizes[idx] = measuredCross;
+    return MeasuredItemSize(measuredMain, measuredCross);
   }
 
-  static Widget acquireItemWidget(
+  static AcquiredItem acquireItemWidget(
     Widget w,
     VirtListComponent vc,
     size_t idx,
     VirtListActiveItem[] prevActive,
-    bool[] claimed,
-    out bool newlyBound,
-    out bool needsRebind
+    bool[] claimed
   ) {
     foreach (i, ref oldItem; prevActive) {
       if (!claimed[i] && oldItem.index == idx && oldItem.widget !is null) {
         claimed[i] = true;
-        newlyBound = false;
-        needsRebind = oldItem.needsRebind;
-        return oldItem.widget;
+        return AcquiredItem(oldItem.widget, false, oldItem.needsRebind);
       }
     }
-    newlyBound = true;
-    needsRebind = true;
     auto reused = vc.fFreePool.tryPopBack();
     if (!reused.isNull) {
-      return reused.get();
+      return AcquiredItem(reused.get(), true, true);
     }
     Widget stolen = stealUnclaimedActive(vc, idx, prevActive, claimed);
     if (stolen !is null) {
-      return stolen;
+      return AcquiredItem(stolen, true, true);
     }
     Widget created = vc.provider.createWidget(w);
     if (created !is null && created.parent !is w) {
       w.addChild(created);
     }
-    return created;
+    return AcquiredItem(created, true, true);
   }
 
   static Widget stealUnclaimedActive(

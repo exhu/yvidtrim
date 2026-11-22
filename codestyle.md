@@ -40,6 +40,20 @@
   void draw(string text);
   ```
 - **No default parameter values:** All parameters must be explicit.
+- **Return values vs `out`/`ref` parameters:**
+  - Do not use `out` parameters in D functions, methods, or constructors.
+  - Do not use `ref` parameters to return results or output flags.
+  - For optional single-value results, return `std.typecons.Nullable!T`.
+  - For multiple results, return a named `struct` (or `class` when reference
+    semantics are needed).
+  - Permitted `ref` uses:
+    - In-place mutation of an existing state, context, cache, or handle
+      (e.g., `ref WidgetSystemContext`, `ref ModelTracker!M`,
+      `stopTimer(ref TimerId)`).
+    - Hot-path reusable buffers (`ref SmallBuffer`, `ref ReusableArray`,
+      `ref Appender`).
+    - Fluent struct builders (`ref WidgetBuilder`) and large input parameter
+      structs (`in`, `const ref`, or `ref`).
 - **Parameter order:** Put the main semantic parameter first (e.g., `text` in
   `drawTextAt`).
 - **Many arguments (>5):** Pass a parameter struct as `in` or `ref`, using a

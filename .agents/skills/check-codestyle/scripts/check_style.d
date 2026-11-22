@@ -9,15 +9,15 @@
  *  - No inline visibility keywords (e.g. 'private void foo()')
  *  - Scoped imports for heavy Phobos modules
  *  - Function length <= 50 lines
- *  - D: no default parameter values, no overloaded functions,
- *    no consecutive capital letters in symbol names,
+ *  - D: no default parameter values, no 'out' parameters,
+ *    no overloaded functions, no consecutive capital letters in symbol names,
  *    and constructor count / <= 3 parameter constraints
  */
 module check_style;
 
 import core.sys.posix.sys.stat : fstat, stat_t, S_ISFIFO, S_ISREG;
 import std.algorithm : canFind, countUntil;
-import std.ascii : isAlphaNum, isUpper;
+import std.ascii : isAlpha, isAlphaNum, isUpper, isWhite;
 import std.conv : to;
 import std.file : dirEntries, exists, isDir, isFile, readText, SpanMode;
 import std.getopt : defaultGetoptPrinter, getopt, GetoptResult;
@@ -192,22 +192,94 @@ bool isOverloadExempt(string name) {
   return name == "visit" || name.startsWith("op") || name.startsWith("~");
 }
 
-void inspectParamList(
-  string paramStr,
-  out bool hasDefault,
-  out size_t paramCount
-) {
-  hasDefault = false;
-  paramCount = 0;
+struct ParamListInfo {
+  bool hasDefault;
+  bool hasOutParam;
+  size_t paramCount;
+}
+
+struct ParenContentResult {
+  string content;
+  size_t endIdx;
+}
+
+bool isParamStorageClass(string token) {
+  switch (token) {
+    case "scope":
+    case "return":
+    case "lazy":
+    case "in":
+    case "ref":
+    case "auto":
+    case "const":
+    case "immutable":
+    case "shared":
+    case "inout":
+    case "final":
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool paramHasOutKeyword(string param) {
+  size_t i = 0;
+  while (i < param.length) {
+    while (i < param.length && isWhite(param[i])) {
+      i++;
+    }
+    if (i >= param.length) {
+      return false;
+    }
+    if (param[i] == '@') {
+      i++;
+      while (i < param.length && (isAlphaNum(param[i]) || param[i] == '_')) {
+        i++;
+      }
+      if (i < param.length && param[i] == '(') {
+        int depth = 1;
+        i++;
+        while (i < param.length && depth > 0) {
+          if (param[i] == '(') {
+            depth++;
+          } else if (param[i] == ')') {
+            depth--;
+          }
+          i++;
+        }
+      }
+      continue;
+    }
+    if (!(isAlpha(param[i]) || param[i] == '_')) {
+      return false;
+    }
+    size_t start = i;
+    while (i < param.length && (isAlphaNum(param[i]) || param[i] == '_')) {
+      i++;
+    }
+    string token = param[start .. i];
+    if (token == "out") {
+      return true;
+    }
+    if (!isParamStorageClass(token)) {
+      return false;
+    }
+  }
+  return false;
+}
+
+ParamListInfo inspectParamList(string paramStr) {
+  ParamListInfo info;
   string inner = paramStr.strip();
   if (inner.length == 0) {
-    return;
+    return info;
   }
 
   int depth = 0;
   bool inStr = false;
   char quote = 0;
   size_t commas = 0;
+  size_t paramStart = 0;
 
   for (size_t i = 0; i < inner.length; i++) {
     char c = inner[i];
@@ -229,30 +301,37 @@ void inspectParamList(
         depth--;
       }
     } else if (depth == 0 && c == ',') {
+      if (paramHasOutKeyword(inner[paramStart .. i])) {
+        info.hasOutParam = true;
+      }
+      paramStart = i + 1;
       commas++;
     } else if (depth == 0 && c == '=') {
       char prev = i > 0 ? inner[i - 1] : 0;
       char next = i + 1 < inner.length ? inner[i + 1] : 0;
       if (prev != '=' && prev != '!' && prev != '<' && prev != '>'
         && next != '=' && next != '>') {
-        hasDefault = true;
+        info.hasDefault = true;
       }
     }
   }
-  paramCount = commas + 1;
+  if (paramHasOutKeyword(inner[paramStart .. $])) {
+    info.hasOutParam = true;
+  }
+  info.paramCount = commas + 1;
+  return info;
 }
 
-string extractParenContent(
+ParenContentResult extractParenContent(
   const string[] lines,
   size_t startIdx,
-  size_t openCol,
-  out size_t endIdx
+  size_t openCol
 ) {
   string acc = "";
   int depth = 0;
   bool inStr = false;
   char quote = 0;
-  endIdx = startIdx;
+  size_t endIdx = startIdx;
 
   for (size_t li = startIdx; li < lines.length; li++) {
     string ln = lines[li];
@@ -282,7 +361,7 @@ string extractParenContent(
         depth--;
         if (depth == 0) {
           endIdx = li;
-          return acc;
+          return ParenContentResult(acc, endIdx);
         }
         acc ~= c;
       } else if (depth > 0) {
@@ -291,7 +370,7 @@ string extractParenContent(
     }
     acc ~= ' ';
   }
-  return acc;
+  return ParenContentResult(acc, endIdx);
 }
 
 /**
@@ -501,15 +580,17 @@ void checkFileContent(
           if (!ctorM.empty) {
             bool isDisabled = ctorM[1].length > 0;
             size_t openCol = cast(size_t) rawLine.indexOf('(');
-            size_t endIdx = idx;
-            string paramStr = extractParenContent(lines, idx, openCol, endIdx);
-            bool hasDefault = false;
-            size_t paramCount = 0;
-            inspectParamList(paramStr, hasDefault, paramCount);
+            auto parenRes = extractParenContent(lines, idx, openCol);
+            auto info = inspectParamList(parenRes.content);
 
-            if (checkThisLine && hasDefault) {
+            if (checkThisLine && info.hasDefault) {
               issues ~= Issue(filePath, lineNo, 1, IssueLevel.error,
                 "Default parameter values are not allowed in constructors.");
+            }
+            if (checkThisLine && !isClibBinding && info.hasOutParam) {
+              issues ~= Issue(filePath, lineNo, 1, IssueLevel.error,
+                "Use a returned struct or Nullable!T instead of 'out' "
+                ~ "parameters.");
             }
             if (!isDisabled) {
               if (scopes.length > 0 && scopes[$ - 1].isTypeScope) {
@@ -520,9 +601,9 @@ void checkFileContent(
                     ~ "parameterized constructor.");
                 }
               }
-              if (checkThisLine && paramCount > 3) {
+              if (checkThisLine && info.paramCount > 3) {
                 issues ~= Issue(filePath, lineNo, 1, IssueLevel.warning,
-                  "Constructor has " ~ to!string(paramCount)
+                  "Constructor has " ~ to!string(info.paramCount)
                   ~ " parameters (recommended <= 3).");
               }
             }
@@ -545,22 +626,22 @@ void checkFileContent(
                 if (pIdx != -1) {
                   openCol = afterName + cast(size_t) pIdx;
                 }
-                size_t endIdx = idx;
-                string paramStr = extractParenContent(
-                  lines, idx, openCol, endIdx
-                );
+                auto parenRes = extractParenContent(lines, idx, openCol);
                 // Only treat as declaration if ends with '{' or ';' after ')'
-                string tail = lines[endIdx].strip();
+                string tail = lines[parenRes.endIdx].strip();
                 if (tail.endsWith("{") || tail.endsWith(";")
                   || tail.endsWith("const") || tail.endsWith("@safe")
                   || tail.endsWith("nothrow") || tail.endsWith("@nogc")) {
-                  bool hasDefault = false;
-                  size_t paramCount = 0;
-                  inspectParamList(paramStr, hasDefault, paramCount);
-                  if (checkThisLine && hasDefault) {
+                  auto info = inspectParamList(parenRes.content);
+                  if (checkThisLine && info.hasDefault) {
                     issues ~= Issue(filePath, lineNo, 1, IssueLevel.error,
                       "Default parameter values are not allowed ('"
                       ~ fnName ~ "').");
+                  }
+                  if (checkThisLine && !isClibBinding && info.hasOutParam) {
+                    issues ~= Issue(filePath, lineNo, 1, IssueLevel.error,
+                      "Use a returned struct or Nullable!T instead of 'out' "
+                      ~ "parameters.");
                   }
                   if (checkThisLine && !isClibBinding
                     && hasConsecutiveCaps(fnName)) {

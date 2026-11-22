@@ -14,8 +14,8 @@ import yguilib.widget.internal.layout_dimension : computeDimension;
 import yguilib.widget.internal.layout_content_size : calcContentSize,
   calcPaddingAndBorder;
 import yguilib.widget.internal.layout_flex : alignChildCrossAxis,
-  arrangeMainAxis, calcContentRect, computeJustifyOffsets, resolveFractionSizes,
-  updateFlexChildTextHeight;
+  arrangeMainAxis, calcContentRect, computeJustifyOffsets, JustifyOffsets,
+  resolveFractionSizes, updateFlexChildTextHeight;
 import yguilib.widget.internal.layout_anchor : handleAnchorComp;
 
 // TODO move to public module, allow to register in LayoutSystem
@@ -181,14 +181,14 @@ private:
       contentCrossPos, contentCrossExtent, r
     );
 
-    float startOffset = 0.0f;
-    float gapBetween = 0.0f;
-    computeJustifyOffsets(
+    const JustifyOffsets offsets = computeJustifyOffsets(
       flexComp.justify, visibleChildren, isRow, contentMainPos,
-      contentMainExtent, flexComp.gap, startOffset, gapBetween
+      contentMainExtent, flexComp.gap
     );
 
-    arrangeMainAxis(visibleChildren, isRow, startOffset, gapBetween);
+    arrangeMainAxis(
+      visibleChildren, isRow, offsets.startOffset, offsets.gapBetween
+    );
 
     foreach (child; visibleChildren) {
       alignChildCrossAxis(

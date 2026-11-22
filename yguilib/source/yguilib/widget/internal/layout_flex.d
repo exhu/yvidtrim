@@ -116,16 +116,19 @@ void resolveFractionSizes(
   }
 }
 
+struct JustifyOffsets {
+  float startOffset;
+  float gapBetween;
+}
+
 /// Computes start offset and gap between children for JustifyContent modes.
-void computeJustifyOffsets(
+JustifyOffsets computeJustifyOffsets(
   JustifyContent justify,
   Widget[] children,
   bool isRow,
   float contentMainPos,
   float contentMainExtent,
-  float gap,
-  out float startOffset,
-  out float gapBetween
+  float gap
 ) {
   float totalChildrenSize = 0.0f;
   foreach (child; children) {
@@ -136,33 +139,35 @@ void computeJustifyOffsets(
   const float totalGaps = count > 1 ? gap * (count - 1) : 0.0f;
   const float freeSpace = contentMainExtent - totalChildrenSize - totalGaps;
 
+  JustifyOffsets result;
   final switch (justify) {
   case JustifyContent.start:
-    startOffset = contentMainPos;
-    gapBetween = gap;
+    result.startOffset = contentMainPos;
+    result.gapBetween = gap;
     break;
 
   case JustifyContent.end:
-        import std.algorithm.comparison : max;
-    startOffset = contentMainPos + max(0.0f, freeSpace);
-    gapBetween = gap;
+    import std.algorithm.comparison : max;
+    result.startOffset = contentMainPos + max(0.0f, freeSpace);
+    result.gapBetween = gap;
     break;
 
   case JustifyContent.center:
-        import std.algorithm.comparison : max;
-    startOffset = contentMainPos + round(max(0.0f, freeSpace) * 0.5f);
-    gapBetween = gap;
+    import std.algorithm.comparison : max;
+    result.startOffset = contentMainPos + round(max(0.0f, freeSpace) * 0.5f);
+    result.gapBetween = gap;
     break;
 
   case JustifyContent.spaceBetween:
-    startOffset = contentMainPos;
+    result.startOffset = contentMainPos;
     if (count > 1 && freeSpace > 0.0f) {
-      gapBetween = gap + (freeSpace / (count - 1));
+      result.gapBetween = gap + (freeSpace / (count - 1));
     } else {
-      gapBetween = count > 1 ? gap : 0.0f;
+      result.gapBetween = count > 1 ? gap : 0.0f;
     }
     break;
   }
+  return result;
 }
 
 /// Positions children sequentially along the main axis.

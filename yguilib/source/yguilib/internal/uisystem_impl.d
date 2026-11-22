@@ -289,6 +289,12 @@ private:
   }
   alias ControllerDirtyList = SmallBuffer!(Controller, 16);
 
+  struct EventBatchResult {
+    bool keepRunning = true;
+    bool needModelUpdate = false;
+    bool needRender = false;
+  }
+
   void enqueueSdlEvent(in yguilib_sdl3_Event sdlEv) {
     Nullable!AppEvent appEv = appEventFromSdlEvent(sdlEv);
     if (!appEv.isNull) {
@@ -331,31 +337,31 @@ private:
       windowId == fMainWindow.id);
   }
 
-  void handleMainWindowEvent(in AppEvent event, ref bool needRender) {
+  bool handleMainWindowEvent(in AppEvent event) {
     if (fMainWindow is null || !event.isWindowEvent()) {
-      return;
+      return false;
     }
     if (isMainWindowEvent(event.window.windowId)) {
       fMainWindow.handleWindowEvent(event);
       if (fMainWindow.rootWidget !is null && event.isWindowRedrawEvent()) {
         fMainWindow.rootWidget.update(WidgetUpdateScope.all);
-        needRender = true;
+        return true;
       }
     }
+    return false;
   }
 
   /**
    * Dispatches a discrete event through the controller stack from newest
    * (active) to oldest, stopping early when consumed.
-   * Returns false if quit was requested.
+   * Returns EventBatchResult with keepRunning = false if quit was requested.
    */
-  bool dispatchDiscreteEvent(
+  EventBatchResult dispatchDiscreteEvent(
     AppEvent event,
-    ref ControllerDirtyList dirtyViews,
-    ref bool needModelUpdate,
-    ref bool needRender
+    ref ControllerDirtyList dirtyViews
   ) {
-    handleMainWindowEvent(event, needRender);
+    EventBatchResult batch;
+    batch.needRender = handleMainWindowEvent(event);
 
     SmallBuffer!(Controller, 16) activeBuf;
     snapshotControllers(activeBuf);
@@ -368,11 +374,12 @@ private:
       Controller.HandleResult result = c.handleEvent(event);
       final switch (result.result) {
       case Controller.HandleResult.Result.quit:
-        return false;
+        batch.keepRunning = false;
+        return batch;
       case Controller.HandleResult.Result.nothing:
         break;
       case Controller.HandleResult.Result.update:
-        needModelUpdate = true;
+        batch.needModelUpdate = true;
         break;
       case Controller.HandleResult.Result.updateView:
         dirtyViews.addUnique(c);
@@ -384,15 +391,12 @@ private:
       }
     }
 
-    return true;
+    return batch;
   }
 
-  bool drainMessageBus(
-    ref ControllerDirtyList dirtyViews,
-    ref bool needModelUpdate,
-    ref bool needRender
-  ) {
+  EventBatchResult drainMessageBus(ref ControllerDirtyList dirtyViews) {
     enum size_t maxEventsPerStep = 256;
+    EventBatchResult batch;
     size_t processed = 0;
     while (processed < maxEventsPerStep) {
       if (processed > 0 && timerService.hasDueTimers(timerService.nowNs())) {
@@ -405,15 +409,18 @@ private:
       processed++;
       AppEvent event = nullableEvent.get();
       if (event.kind == AppEvent.Kind.update) {
-        needModelUpdate = true;
+        batch.needModelUpdate = true;
         continue;
       }
-      if (!dispatchDiscreteEvent(
-          event, dirtyViews, needModelUpdate, needRender)) {
-        return false;
+      const EventBatchResult step = dispatchDiscreteEvent(event, dirtyViews);
+      batch.needModelUpdate |= step.needModelUpdate;
+      batch.needRender |= step.needRender;
+      if (!step.keepRunning) {
+        batch.keepRunning = false;
+        return batch;
       }
     }
-    return true;
+    return batch;
   }
 
   void runPhase2Updates(
@@ -472,16 +479,16 @@ private:
     waitForEventsIfIdle();
     drainSdlEvents();
 
-    bool needModelUpdate = false;
-    bool needRender = fPendingRedraw;
+    const bool needRender = fPendingRedraw;
     fPendingRedraw = false;
     ControllerDirtyList dirtyViews;
 
-    if (!drainMessageBus(dirtyViews, needModelUpdate, needRender)) {
+    const EventBatchResult batch = drainMessageBus(dirtyViews);
+    if (!batch.keepRunning) {
       return false;
     }
-    runPhase2Updates(dirtyViews, needModelUpdate);
-    runPhase3Render(dirtyViews, needRender);
+    runPhase2Updates(dirtyViews, batch.needModelUpdate);
+    runPhase3Render(dirtyViews, needRender || batch.needRender);
     return true;
   }
 

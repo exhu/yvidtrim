@@ -50,6 +50,9 @@ rdmd .agents/skills/check-codestyle/scripts/check_style.d [options] [files...]
     than 3 parameters.
 11. **No Public Import Re-exports (D)**: Errors when a D module uses
     `public import` to re-export another module.
+12. **No `out` Parameters (D)**: Errors when a D function, method, or
+    constructor declaration uses `out` parameters (excluding `clibs/`
+    bindings).
 
 ## CLI Usage
 

@@ -179,14 +179,12 @@ private:
         target.components.mouseEvent.mouseUp.length == 0)
       return;
 
-    RectF targetRect;
-    bool inside = false;
-    resolveWidgetRectAndHit(widgets, target, p, targetRect, inside);
+    const WidgetHitInfo hit = resolveWidgetRectAndHit(widgets, target, p);
 
-    const float lx = p.x - targetRect.x;
-    const float ly = p.y - targetRect.y;
+    const float lx = p.x - hit.targetRect.x;
+    const float ly = p.y - hit.targetRect.y;
     auto val = MouseEvent.AppEventViewValue.pack(
-      lx, ly, btn, inside, 0.0f, 0.0f, p.x, p.y
+      lx, ly, btn, hit.inside, 0.0f, 0.0f, p.x, p.y
     );
     sendMouseEvent(target, target.components.mouseEvent.mouseUp, val);
   }
@@ -222,34 +220,33 @@ private:
         continue;
       }
 
-      RectF targetRect;
-      bool inside = false;
-      resolveWidgetRectAndHit(widgets, target, p, targetRect, inside);
+      const WidgetHitInfo hit = resolveWidgetRectAndHit(widgets, target, p);
 
-      const float lx = p.x - targetRect.x;
-      const float ly = p.y - targetRect.y;
+      const float lx = p.x - hit.targetRect.x;
+      const float ly = p.y - hit.targetRect.y;
       auto val = MouseEvent.AppEventViewValue.pack(
-        lx, ly, cast(ubyte) i, inside, rel.x, rel.y, p.x, p.y
+        lx, ly, cast(ubyte) i, hit.inside, rel.x, rel.y, p.x, p.y
       );
       sendMouseEvent(target, me.mouseDrag, val);
     }
   }
 
-  static void resolveWidgetRectAndHit(
+  struct WidgetHitInfo {
+    RectF targetRect;
+    bool inside;
+  }
+
+  static WidgetHitInfo resolveWidgetRectAndHit(
     VisibleWidgets widgets,
     Widget target,
-    PointF p,
-    out RectF targetRect,
-    out bool inside
+    PointF p
   ) {
     const idx = findVisibleWidgetIndex(widgets, target);
     if (idx >= 0) {
-      targetRect = widgets[idx].absRect;
-      inside = isHit(widgets[idx], p);
-    } else {
-      targetRect = computeWidgetAbsRect(target);
-      inside = targetRect.contains(p);
+      return WidgetHitInfo(widgets[idx].absRect, isHit(widgets[idx], p));
     }
+    const RectF targetRect = computeWidgetAbsRect(target);
+    return WidgetHitInfo(targetRect, targetRect.contains(p));
   }
 
   void syncCursorCapture() {

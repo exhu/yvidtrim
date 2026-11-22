@@ -213,12 +213,17 @@ final class TabControlWidgetView : WidgetViewBase {
       return;
     }
 
-    Widget lBtn, sv, tc, rBtn;
-    if (!findArrowComposite(viewWidget, lBtn, sv, tc, rBtn)) {
-      lBtn = null;
-      sv = null;
-      tc = viewWidget;
-      rBtn = null;
+    auto found = findArrowComposite(viewWidget);
+    Widget lBtn = null;
+    Widget sv = null;
+    Widget tc = viewWidget;
+    Widget rBtn = null;
+    if (!found.isNull) {
+      auto parts = found.get();
+      lBtn = parts.dec;
+      sv = parts.middle;
+      tc = parts.inner;
+      rBtn = parts.inc;
     }
     registerTabControl(
       viewWidget,
@@ -403,6 +408,13 @@ private:
     nearest,
   }
 
+  struct ScrollMetrics {
+    float currentOffset;
+    float contentMain;
+    float viewportMain;
+    float maxScroll;
+  }
+
   TabControlEntry[Widget] tabEntries;
 
   bool scrollStep(Widget viewWidget, int dir) {
@@ -417,17 +429,10 @@ private:
       return false;
     }
 
-    float currentOffset, contentMain, viewportMain, maxScroll;
-    getScrollMetrics(
-      entry,
-      currentOffset,
-      contentMain,
-      viewportMain,
-      maxScroll
-    );
+    const ScrollMetrics sm = getScrollMetrics(entry);
     const bool forward = (dir >= 0);
-    if (forward ? (currentOffset >= maxScroll - 0.5f)
-                : (currentOffset <= 0.5f)) {
+    if (forward ? (sm.currentOffset >= sm.maxScroll - 0.5f)
+                : (sm.currentOffset <= 0.5f)) {
       return false;
     }
 
@@ -438,15 +443,15 @@ private:
     const float targetOrigin = findOrigin(
       entry.tabsContainer,
       ax,
-      currentOffset,
-      maxScroll,
+      sm.currentOffset,
+      sm.maxScroll,
       mode
     );
 
     entry.scrollViewport.setScrollOffset(
       ax.withMainCoord(sa.offset, targetOrigin)
     );
-    updateArrowButtonStates(entry, targetOrigin, maxScroll);
+    updateArrowButtonStates(entry, targetOrigin, sm.maxScroll);
     entry.viewDirty = true;
     return true;
   }
@@ -567,34 +572,29 @@ private:
     return currentOffset;
   }
 
-  static void getScrollMetrics(
-    TabControlEntry entry,
-    out float currentOffset,
-    out float contentMain,
-    out float viewportMain,
-    out float maxScroll
-  ) {
+  static ScrollMetrics getScrollMetrics(TabControlEntry entry) {
     import std.algorithm.comparison : max;
 
     auto sa = entry.scrollViewport.components.scrollableArea;
     const Axis ax = Axis.of(entry.direction);
-    currentOffset = (sa !is null) ? ax.mainCoord(sa.offset) : 0.0f;
+    const float currentOffset = (sa !is null) ? ax.mainCoord(sa.offset) : 0.0f;
 
-    contentMain = firstPositive(
+    const float contentMain = firstPositive(
       (sa !is null) ? ax.mainCoord(sa.contentSize) : 0.0f,
       ax.mainCoord(entry.lastContentSize),
       (entry.tabsContainer !is null)
         ? ax.mainSize(entry.tabsContainer.rect)
         : 0.0f
     );
-    viewportMain = firstPositive(
+    const float viewportMain = firstPositive(
       (sa !is null) ? ax.mainCoord(sa.viewportSize) : 0.0f,
       ax.mainCoord(entry.lastViewportSize),
       (entry.scrollViewport !is null)
         ? ax.mainSize(entry.scrollViewport.rect)
         : 0.0f
     );
-    maxScroll = max(0.0f, contentMain - viewportMain);
+    const float maxScroll = max(0.0f, contentMain - viewportMain);
+    return ScrollMetrics(currentOffset, contentMain, viewportMain, maxScroll);
   }
 
   static float calcFullAvailableMain(
@@ -794,6 +794,11 @@ struct TabControlBuilder {
   }
 
 private:
+  struct ViewportBuildResult {
+    Widget scrollViewport;
+    Widget tabsContainer;
+  }
+
   void buildAndRegisterParts(
     UiSystem ui,
     UiRegistry registry,
@@ -808,10 +813,7 @@ private:
       ui, root, rootName ~ "LeftBtn", arrowW, arrowH,
       ax.decArrow(), tabScrollLeftEvent
     );
-    Widget tabsContainer;
-    auto scrollViewport = buildViewport(
-      ui, root, rootName, rect, ax, tabsContainer
-    );
+    auto vpRes = buildViewport(ui, root, rootName, rect, ax);
     auto rightBtn = buildArrowButton(
       ui, root, rootName ~ "RightBtn", arrowW, arrowH,
       ax.incArrow(), tabScrollRightEvent
@@ -819,7 +821,8 @@ private:
 
     root.update(WidgetUpdateScope.parentView);
     registerBuiltTabControl(
-      registry, root, leftBtn, scrollViewport, tabsContainer, rightBtn
+      registry, root, leftBtn, vpRes.scrollViewport,
+      vpRes.tabsContainer, rightBtn
     );
   }
 
@@ -847,13 +850,12 @@ private:
       .build();
   }
 
-  Widget buildViewport(
+  ViewportBuildResult buildViewport(
     UiSystem ui,
     Widget root,
     string rootName,
     RectF rect,
-    Axis ax,
-    out Widget tabsContainer
+    Axis ax
   ) {
     const float crossSize = ax.isRow
       ? btnStyle.button.height
@@ -872,7 +874,7 @@ private:
       .build();
 
     auto provider = new TabButtonsProvider(ui, tabsTracker.model, btnStyle);
-    tabsContainer = WidgetBuilder.make(ui)
+    auto tabsContainer = WidgetBuilder.make(ui)
       .parent(scrollViewport)
       .name(rootName ~ "Tabs")
       .rect(RectF(0, 0, 1.0f, 1.0f))
@@ -886,7 +888,7 @@ private:
       .widgetArray(provider)
       .widgetArrayCount(tabsTracker.model.tabNames.length)
       .build();
-    return scrollViewport;
+    return ViewportBuildResult(scrollViewport, tabsContainer);
   }
 
   void registerBuiltTabControl(
