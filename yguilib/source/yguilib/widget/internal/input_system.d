@@ -428,9 +428,8 @@ RectF computeWidgetAbsRect(Widget w) {
 }
 
 version (unittest) {
-  import yguilib.controller : Controller;
   import yguilib.object_registry : ObjectRegistry;
-  import yguilib.timers : TimerCallback, TimerId, TimerMode, invalidTimerId;
+  import yguilib.timers : TimerId, TimerMode, invalidTimerId;
   import yguilib.widget.widget_view : WidgetViewController;
 
   class TestUiSystem : WidgetSystemHost {
@@ -447,24 +446,8 @@ version (unittest) {
       sentEvents ~= ev;
     }
 
-    override TimerId startCallbackTimer(
-      uint intervalMs,
-      TimerMode mode,
-      TimerCallback callback
-    ) {
-      return invalidTimerId;
-    }
-
-    override TimerId startControllerTimer(
-      Controller target,
-      uint intervalMs,
-      TimerMode mode
-    ) {
-      return invalidTimerId;
-    }
-
-    override TimerId startSystemTimer(
-      WidgetSystem target,
+    override TimerId startTimer(
+      Object owner,
       uint intervalMs,
       TimerMode mode
     ) {

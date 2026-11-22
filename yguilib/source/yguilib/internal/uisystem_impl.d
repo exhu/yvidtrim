@@ -5,7 +5,7 @@ import std.typecons : Nullable;
 import std.logger;
 import yguilib.allochelpers : SmallBuffer;
 import yguilib.clibs.sdl3;
-import yguilib.timers : TimerCallback, TimerId, TimerIntervalMs, TimerMode;
+import yguilib.timers : TimerId, TimerIntervalMs, TimerMode;
 import yguilib.uisystem;
 import yguilib.controller : Controller, DefaultController, HandleResult;
 import yguilib.controller.internal.controller_stack : ControllerStack;
@@ -66,28 +66,12 @@ class UiSystemImpl : UiSystem {
     messageBus.send(ev);
   }
 
-  override TimerId startCallbackTimer(
-    uint intervalMs,
-    TimerMode mode,
-    TimerCallback callback
-  ) {
-    return timerService.startCallbackTimer(intervalMs, mode, callback);
-  }
-
-  override TimerId startControllerTimer(
-    Controller target,
+  override TimerId startTimer(
+    Object owner,
     uint intervalMs,
     TimerMode mode
   ) {
-    return timerService.startControllerTimer(target, intervalMs, mode);
-  }
-
-  override TimerId startSystemTimer(
-    WidgetSystem target,
-    uint intervalMs,
-    TimerMode mode
-  ) {
-    return timerService.startSystemTimer(target, intervalMs, mode);
+    return timerService.startTimer(owner, intervalMs, mode);
   }
 
   override void stopTimer(TimerId id) {
@@ -117,7 +101,7 @@ class UiSystemImpl : UiSystem {
 
   override void unregisterWidgetSystem(WidgetSystem system) {
     assert(system !is null);
-    timerService.stopTimersForSystem(system);
+    timerService.stopTimersForOwner(system);
     pipeline.unregisterSystem(system);
   }
 
@@ -148,7 +132,7 @@ class UiSystemImpl : UiSystem {
   override void popController() {
     Controller active = controllers.getActiveOrNull();
     if (active !is null) {
-      timerService.stopTimersForController(active);
+      timerService.stopTimersForOwner(cast(Object) active);
     }
     controllers.pop();
   }
@@ -221,7 +205,7 @@ class UiSystemImpl : UiSystem {
       if (controllers.getActiveOrNull() is sysCtrl) {
         popController();
       } else {
-        timerService.stopTimersForController(sysCtrl);
+        timerService.stopTimersForOwner(sysCtrl);
       }
     }
 
@@ -433,8 +417,7 @@ private:
 
   void runPhase2Updates(
     ref ControllerDirtyList dirtyViews,
-    bool needModelUpdate,
-    ref bool needRender
+    bool needModelUpdate
   ) {
     if (needModelUpdate) {
       SmallBuffer!(Controller, 16) activeBuf;
@@ -444,27 +427,17 @@ private:
           dirtyViews.addUnique(c);
         }
       }
+      pipeline.runUpdatePhase(fMainWindow);
     }
 
     const long tickNowNs = timerService.nowNs();
     timerService.fireDueTimers(tickNowNs, (TimerEntry entry, float dt) {
-      final switch (entry.targetKind) {
-      case TimerEntry.TargetKind.controller:
-        if (entry.controllerTarget !is null &&
-            entry.controllerTarget.tick(dt)) {
-          dirtyViews.addUnique(entry.controllerTarget);
+      if (auto ctrl = cast(Controller) entry.owner) {
+        if (ctrl.onTimer(entry.id, dt)) {
+          dirtyViews.addUnique(ctrl);
         }
-        break;
-      case TimerEntry.TargetKind.widgetSystem:
-        if (entry.systemTarget !is null) {
-          pipeline.runSystemUpdate(entry.systemTarget, fMainWindow, dt);
-        }
-        break;
-      case TimerEntry.TargetKind.callback:
-        if (entry.callback !is null && entry.callback(entry.id, dt)) {
-          needRender = true;
-        }
-        break;
+      } else if (auto sys = cast(WidgetSystem) entry.owner) {
+        pipeline.runSystemTimer(sys, fMainWindow, entry.id, dt);
       }
     });
   }
@@ -506,7 +479,7 @@ private:
     if (!drainMessageBus(dirtyViews, needModelUpdate, needRender)) {
       return false;
     }
-    runPhase2Updates(dirtyViews, needModelUpdate, needRender);
+    runPhase2Updates(dirtyViews, needModelUpdate);
     runPhase3Render(dirtyViews, needRender);
     return true;
   }
@@ -646,7 +619,7 @@ unittest {
     }
 
     override void onPush() {
-      timerId = startTickTimer(10, TimerMode.repeat);
+      timerId = startTimer(10, TimerMode.repeat);
     }
 
     override HandleResult handleEvent(in AppEvent ev) {
@@ -656,15 +629,18 @@ unittest {
       return HandleResult(HandleResult.Result.nothing);
     }
 
-    override bool tick(float dt) {
-      tickCalls++;
-      return true;
+    override bool onTimer(TimerId id, float dt) {
+      if (id == timerId) {
+        tickCalls++;
+        return true;
+      }
+      return false;
     }
 
     override bool updateView() {
       viewTicks++;
       if (viewTicks >= 2) {
-        stopTickTimer(timerId);
+        stopTimer(timerId);
         ui.sendAppEvent(AppEvent(AppEvent.Kind.appQuit));
       }
       return true;
@@ -1076,7 +1052,7 @@ unittest {
 
   final class FloodController : DefaultController {
     PointF[] motionPoints;
-    int tickCount = 0;
+    int timerCount = 0;
     int viewCount = 0;
 
     this(UiSystem ui) {
@@ -1092,8 +1068,8 @@ unittest {
       return super.handleEvent(ev);
     }
 
-    override bool tick(float dt) {
-      tickCount++;
+    override bool onTimer(TimerId id, float dt) {
+      timerCount++;
       return true;
     }
 
@@ -1104,15 +1080,20 @@ unittest {
   }
 
   final class RenderCountSystem : WidgetSystem {
-    int updateCount = 0;
+    int phaseUpdateCount = 0;
+    int timerCount = 0;
     int renderCount = 0;
 
     override @property SystemPhase phases() const nothrow @safe {
       return SystemPhase.update | SystemPhase.render;
     }
 
-    override void update(ref WidgetSystemContext ctx, float dt) {
-      updateCount++;
+    override void update(ref WidgetSystemContext ctx) {
+      phaseUpdateCount++;
+    }
+
+    override void onTimer(ref WidgetSystemContext ctx, TimerId id, float dt) {
+      timerCount++;
       if (ctx.root !is null) {
         ctx.root.update(WidgetUpdateScope.visuals);
       }
@@ -1152,12 +1133,12 @@ unittest {
   // Idle when no timers active
   assert(ui.nextWaitTimeoutMs() == -1);
 
-  const TimerId cTimer = ui.startControllerTimer(
+  const TimerId cTimer = ui.startTimer(
     ctrl,
     TimerIntervalMs.fps60,
     TimerMode.repeat
   );
-  const TimerId sTimer = ui.startSystemTimer(
+  const TimerId sTimer = ui.startTimer(
     sys,
     TimerIntervalMs.fps60,
     TimerMode.repeat
@@ -1182,9 +1163,10 @@ unittest {
   fakeNowNs += 16_000_000L;
   assert(ui.runEventLoopStep());
   assert(ctrl.motionPoints.length == 1);
-  assert(ctrl.tickCount == 1);
+  assert(ctrl.timerCount == 1);
   assert(ctrl.viewCount == 1);
-  assert(sys.updateCount == 1);
+  assert(sys.phaseUpdateCount == 0);
+  assert(sys.timerCount == 1);
   assert(sys.renderCount == 1);
 
   // Step 2 drains all remaining 199 queued mouseMotion events immediately
@@ -1195,8 +1177,14 @@ unittest {
     assert(ctrl.motionPoints[i].x == cast(float) i);
     assert(ctrl.motionPoints[i].y == cast(float) ((i * 7) % 100));
   }
-  assert(ctrl.tickCount == 1);
+  assert(ctrl.timerCount == 1);
   assert(sys.renderCount == 1);
+
+  // Phase 2a runs SystemPhase.update on update events without firing timers.
+  ui.sendAppEvent(AppEvent.makeNoRepeat(AppEvent.Kind.update));
+  assert(ui.runEventLoopStep());
+  assert(sys.phaseUpdateCount == 1);
+  assert(sys.timerCount == 1);
 
   // Queue another 200 curved waypoints before deadline -> all 200 drain in one
   // step, and advancing clock fires timers once with a single render pass.
@@ -1212,14 +1200,14 @@ unittest {
   fakeNowNs += 8_000_000L;
   assert(ui.runEventLoopStep());
   assert(ctrl.motionPoints.length == 200);
-  assert(ctrl.tickCount == 1);
+  assert(ctrl.timerCount == 1);
   assert(sys.renderCount == 1);
 
   fakeNowNs += 8_000_000L;
   assert(ui.runEventLoopStep());
-  assert(ctrl.tickCount == 2);
+  assert(ctrl.timerCount == 2);
   assert(ctrl.viewCount == 2);
-  assert(sys.updateCount == 2);
+  assert(sys.timerCount == 2);
   assert(sys.renderCount == 2);
 
   // Pop controller & unregister system -> timers auto-cancelled, idle = -1
@@ -1539,4 +1527,169 @@ unittest {
   assert(!ui.eventStatsEnabled);
   ui.setEventStatsEnabled(true);
   assert(ui.eventStatsEnabled);
+}
+
+// Verifies a Controller with two independent timers (10 ms and 25 ms)
+// receives distinct TimerIds, runs updateView() at most once per step, and
+// stops all timers on popController().
+unittest {
+  import yguilib.timers : invalidTimerId;
+
+  final class MultiTimerController : DefaultController {
+    TimerId fastId = invalidTimerId;
+    TimerId slowId = invalidTimerId;
+    TimerId[] firedIds;
+    int viewCount = 0;
+
+    this(UiSystem ui) {
+      assert(ui !is null);
+      super(ui);
+    }
+
+    override void onPush() {
+      fastId = startTimer(10, TimerMode.repeat);
+      slowId = startTimer(25, TimerMode.repeat);
+    }
+
+    override bool onTimer(TimerId id, float dt) {
+      firedIds ~= id;
+      return true;
+    }
+
+    override bool updateView() {
+      viewCount++;
+      return false;
+    }
+  }
+
+  yguilib_sdl3_init();
+  scope (exit) yguilib_sdl3_quit();
+
+  auto ui = new UiSystemImpl(null);
+  long fakeNowNs = 1_000_000_000L;
+  ui.setTimerClock(() => fakeNowNs);
+
+  auto ctrl = new MultiTimerController(ui);
+  ui.pushController(ctrl);
+
+  assert(ctrl.fastId != invalidTimerId);
+  assert(ctrl.slowId != invalidTimerId);
+  assert(ctrl.fastId != ctrl.slowId);
+  assert(ui.isTimerActive(ctrl.fastId));
+  assert(ui.isTimerActive(ctrl.slowId));
+
+  // t = 10 ms: only fastId fires
+  fakeNowNs += 10_000_000L;
+  assert(ui.runEventLoopStep());
+  assert(ctrl.firedIds == [ctrl.fastId]);
+  assert(ctrl.viewCount == 1);
+
+  // t = 20 ms: only fastId fires
+  fakeNowNs += 10_000_000L;
+  assert(ui.runEventLoopStep());
+  assert(ctrl.firedIds == [ctrl.fastId, ctrl.fastId]);
+  assert(ctrl.viewCount == 2);
+
+  // t = 25 ms: only slowId fires (fastId next due at 30 ms)
+  fakeNowNs += 5_000_000L;
+  assert(ui.runEventLoopStep());
+  assert(ctrl.firedIds == [ctrl.fastId, ctrl.fastId, ctrl.slowId]);
+  assert(ctrl.viewCount == 3);
+
+  // t = 30 ms: fastId fires (next due at 40 ms)
+  fakeNowNs += 5_000_000L;
+  assert(ui.runEventLoopStep());
+  assert(ctrl.firedIds.length == 4);
+  assert(ctrl.firedIds[3] == ctrl.fastId);
+  assert(ctrl.viewCount == 4);
+
+  // t = 50 ms: both fastId (40 ms) and slowId (50 ms) due in same step;
+  // updateView() must run at most once for this step.
+  fakeNowNs += 20_000_000L;
+  assert(ui.runEventLoopStep());
+  assert(ctrl.firedIds.length == 6);
+  assert(ctrl.firedIds[4] == ctrl.fastId);
+  assert(ctrl.firedIds[5] == ctrl.slowId);
+  assert(ctrl.viewCount == 5);
+
+  // popController() cancels all timers owned by this controller
+  ui.popController();
+  assert(!ui.isTimerActive(ctrl.fastId));
+  assert(!ui.isTimerActive(ctrl.slowId));
+  assert(ui.nextWaitTimeoutMs() == -1);
+}
+
+// Verifies WidgetSystem multi-timer dispatch, Phase 2a update(ctx) when
+// needModelUpdate is true (without active timers), and timer cleanup on
+// unregisterWidgetSystem().
+unittest {
+  import yguilib.timers : invalidTimerId;
+  import yguilib.widget.system : SystemPhase, WidgetSystemContext;
+
+  final class MultiTimerSystem : WidgetSystem {
+    TimerId t1 = invalidTimerId;
+    TimerId t2 = invalidTimerId;
+    TimerId[] firedIds;
+    int updateCalls = 0;
+
+    override @property SystemPhase phases() const nothrow @safe {
+      return SystemPhase.update;
+    }
+
+    override void update(ref WidgetSystemContext ctx) {
+      updateCalls++;
+    }
+
+    override void onTimer(ref WidgetSystemContext ctx, TimerId id, float dt) {
+      firedIds ~= id;
+    }
+
+    void startBothTimers() {
+      t1 = startTimer(10, TimerMode.repeat);
+      t2 = startTimer(25, TimerMode.repeat);
+    }
+  }
+
+  yguilib_sdl3_init();
+  scope (exit) yguilib_sdl3_quit();
+
+  auto ui = new UiSystemImpl(null);
+  long fakeNowNs = 1_000_000_000L;
+  ui.setTimerClock(() => fakeNowNs);
+
+  auto sys = new MultiTimerSystem();
+  ui.registerWidgetSystem(sys);
+
+  // No active timers: Phase 2a update(ctx) still runs when needModelUpdate
+  assert(ui.nextWaitTimeoutMs() == -1);
+  ui.sendAppEvent(AppEvent.makeNoRepeat(AppEvent.Kind.update));
+  assert(ui.runEventLoopStep());
+  assert(sys.updateCalls == 1);
+  assert(sys.firedIds.length == 0);
+
+  // Start two independent timers on the system
+  sys.startBothTimers();
+  assert(sys.t1 != invalidTimerId);
+  assert(sys.t2 != invalidTimerId);
+  assert(sys.t1 != sys.t2);
+  assert(ui.isTimerActive(sys.t1));
+  assert(ui.isTimerActive(sys.t2));
+
+  // t = 10 ms: t1 fires, update(ctx) does not run (needModelUpdate is false)
+  fakeNowNs += 10_000_000L;
+  assert(ui.runEventLoopStep());
+  assert(sys.firedIds == [sys.t1]);
+  assert(sys.updateCalls == 1);
+
+  // t = 25 ms: both t1 (20 ms) and t2 (25 ms) fire with distinct TimerIds
+  fakeNowNs += 15_000_000L;
+  assert(ui.runEventLoopStep());
+  assert(sys.firedIds == [sys.t1, sys.t1, sys.t2]);
+  assert(sys.updateCalls == 1);
+
+  // unregisterWidgetSystem() cancels all timers owned by the system
+  ui.unregisterWidgetSystem(sys);
+  assert(!ui.isTimerActive(sys.t1));
+  assert(!ui.isTimerActive(sys.t2));
+  assert(ui.nextWaitTimeoutMs() == -1);
 }

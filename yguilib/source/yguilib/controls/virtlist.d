@@ -1251,7 +1251,10 @@ private:
       return super.handleEvent(ev);
     }
 
-    override bool tick(float dt) {
+    override bool onTimer(TimerId id, float dt) {
+      if (id == invalidTimerId || id != timerId) {
+        return false;
+      }
       if (stage == 2) {
         if (tracker.model.scrollOffsetCross <= 0.0f) {
           retries++;
@@ -1280,7 +1283,7 @@ private:
         assert(tracker.model.itemsCount == 10003);
         assert(vc.anchorIndex >= 50);
         completed = true;
-        uiSystem.stopTimer(timerId);
+        stopTimer(timerId);
         uiSystem.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(700)));
       }
       return false;
@@ -1335,7 +1338,7 @@ private:
         AppEvent.Kind.mouseButtonUp,
         AppEvent.MouseData(1, cx, cy, 0, 0.0f, 0.0f, 1, false, 1)
       ));
-      timerId = uiSystem.startControllerTimer(this, 1, TimerMode.repeat);
+      timerId = startTimer(1, TimerMode.repeat);
     }
   }
 }

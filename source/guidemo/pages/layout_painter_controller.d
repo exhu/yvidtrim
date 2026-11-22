@@ -53,7 +53,7 @@ final class LayoutPainterPageController : DefaultController {
   }
 
   override void onPop() {
-    stopTickTimer(alphaTimerId);
+    stopTimer(alphaTimerId);
   }
 
   override bool updateView() {
@@ -75,7 +75,10 @@ final class LayoutPainterPageController : DefaultController {
     return demoChanged;
   }
 
-  override bool tick(float dt) {
+  override bool onTimer(TimerId id, float dt) {
+    if (id == invalidTimerId || id != alphaTimerId) {
+      return false;
+    }
     syncAlphaTimer();
     if (!isPageActive(demoTracker.model, DemoPage.layoutPainter) ||
         alphaTimer.isPaused()) {
@@ -144,13 +147,13 @@ private:
     }
     if (onPage1 && !alphaTimer.isPaused()) {
       if (alphaTimerId == invalidTimerId) {
-        alphaTimerId = startTickTimer(
+        alphaTimerId = startTimer(
           TimerIntervalMs.fps60,
           TimerMode.repeat
         );
       }
     } else {
-      stopTickTimer(alphaTimerId);
+      stopTimer(alphaTimerId);
     }
   }
 
@@ -193,16 +196,16 @@ unittest {
   assert(hrM.result == HandleResult.Result.nothing);
   assert(!hrM.consume);
 
-  // Page 1 alpha pulse animates on tick(dt)
+  // Page 1 alpha pulse animates on onTimer(id, dt)
   const float alphaBefore = page.getTracker().model.alphaValue;
-  assert(ctrl.tick(0.016f));
+  assert(ctrl.onTimer(ctrl.alphaTimerId, 0.016f));
   assert(page.getTracker().model.alphaValue != alphaBefore);
 
   // Switch away from Page 1: shortcuts ignored and timer stopped
   auto dm = demoTracker.edit();
   dm.activePage = 1;
   demoTracker.commit(dm);
-  assert(!ctrl.tick(0.016f));
+  assert(!ctrl.onTimer(ctrl.alphaTimerId, 0.016f));
   assert(!ui.isTimerActive(ctrl.alphaTimerId));
 
   auto hrD2 = ctrl.handleEvent(makeKeyDown(Keycode.d, Scancode.d));

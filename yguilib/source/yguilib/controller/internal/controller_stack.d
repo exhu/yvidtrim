@@ -79,6 +79,7 @@ private:
 unittest {
   import yguilib.events : AppEvent;
   import yguilib.controller : HandleResult;
+  import yguilib.timers : TimerId;
   import yguilib.widget : Widget;
 
   class ModalTrackController : Controller {
@@ -104,7 +105,7 @@ unittest {
       return false;
     }
 
-    override bool tick(float dt) {
+    override bool onTimer(TimerId id, float dt) {
       return false;
     }
 

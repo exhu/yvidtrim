@@ -17,11 +17,6 @@ enum TimerIntervalMs : uint {
 alias TimerId = uint;
 enum TimerId invalidTimerId = 0;
 
-/// Callback invoked on the main thread during Phase 2 when a timer expires.
-/// Returns true if a UI render pass should be requested.
-alias TimerCallback = bool delegate(TimerId id, float dt);
-
-
 /// Controls how AnimationTimer behaves when elapsed reaches duration.
 enum AnimationWrapMode {
   once,          /// Clamps at 1.0 and pauses.

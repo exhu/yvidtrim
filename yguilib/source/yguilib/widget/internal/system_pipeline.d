@@ -7,6 +7,7 @@ import yguilib.allochelpers : ReusableArray;
 import yguilib.events : AppEvent;
 import yguilib.render : Renderer;
 import yguilib.render.render_types : RectF;
+import yguilib.timers : TimerId;
 import yguilib.widget : Widget;
 import yguilib.widget.internal.collect_visible : VisibleWidgetsCollector;
 import yguilib.widget.system : SystemEventResult, SystemPhase,
@@ -120,15 +121,26 @@ final class WidgetSystemPipeline {
     return aggregate;
   }
 
-  /// Invokes `system.update(ctx, dt)` if `system` participates in
-  /// `SystemPhase.update`. `window` is allowed to be null in headless tests.
-  void runSystemUpdate(WidgetSystem system, Window window, float dt) {
-    assert(system !is null);
-    if ((system.phases & SystemPhase.update) == 0) {
-      return;
-    }
+  /// Phase 2a: Runs `update(ctx)` on all `SystemPhase.update` systems.
+  /// Note: `window` is allowed to be null in headless tests.
+  void runUpdatePhase(Window window) {
     WidgetSystemContext ctx = makeContext(window);
-    system.update(ctx, dt);
+    foreach (s; updateSystems) {
+      s.update(ctx);
+    }
+  }
+
+  /// Phase 2b: Invokes `system.onTimer(ctx, id, dt)` for a due timer.
+  /// Note: `window` is allowed to be null in headless tests.
+  void runSystemTimer(
+    WidgetSystem system,
+    Window window,
+    TimerId id,
+    float dt
+  ) {
+    assert(system !is null);
+    WidgetSystemContext ctx = makeContext(window);
+    system.onTimer(ctx, id, dt);
   }
 
   /// Runs preLayout, layout (if tree layout is dirty), postLayout, and render
@@ -324,9 +336,8 @@ private:
 
 version (unittest) {
 private:
-  import yguilib.controller : Controller;
   import yguilib.object_registry : ObjectRegistry;
-  import yguilib.timers : TimerCallback, TimerId, TimerMode, invalidTimerId;
+  import yguilib.timers : TimerMode, invalidTimerId;
   import yguilib.widget.widget_view : WidgetView, WidgetViewController;
 
   class DummyHost : WidgetSystemHost {
@@ -343,24 +354,8 @@ private:
       sentEvents ~= ev;
     }
 
-    override TimerId startCallbackTimer(
-      uint intervalMs,
-      TimerMode mode,
-      TimerCallback callback
-    ) {
-      return invalidTimerId;
-    }
-
-    override TimerId startControllerTimer(
-      Controller target,
-      uint intervalMs,
-      TimerMode mode
-    ) {
-      return invalidTimerId;
-    }
-
-    override TimerId startSystemTimer(
-      WidgetSystem target,
+    override TimerId startTimer(
+      Object owner,
       uint intervalMs,
       TimerMode mode
     ) {
@@ -658,33 +653,49 @@ unittest {
   assert(largeContent.rect.y == -80.0f);
 }
 
-// Verifies SystemPhase.update and WidgetSystemPipeline.runSystemUpdate.
+// Verifies SystemPhase.update (runUpdatePhase) and runSystemTimer.
 unittest {
   import std.math.operations : isClose;
 
   final class UpdateOnlySystem : WidgetSystem {
-    float lastDt = 0.0f;
     int updateCalls = 0;
+    int timerCalls = 0;
+    TimerId lastId = invalidTimerId;
+    float lastDt = 0.0f;
 
     override @property SystemPhase phases() const nothrow @safe {
       return SystemPhase.update;
     }
 
-    override void update(ref WidgetSystemContext ctx, float dt) {
+    override void update(ref WidgetSystemContext ctx) {
       updateCalls++;
+    }
+
+    override void onTimer(ref WidgetSystemContext ctx, TimerId id, float dt) {
+      timerCalls++;
+      lastId = id;
       lastDt = dt;
     }
   }
 
   final class NoUpdateSystem : WidgetSystem {
     int updateCalls = 0;
+    int timerCalls = 0;
+    TimerId lastId = invalidTimerId;
+    float lastDt = 0.0f;
 
     override @property SystemPhase phases() const nothrow @safe {
       return SystemPhase.preLayout;
     }
 
-    override void update(ref WidgetSystemContext ctx, float dt) {
+    override void update(ref WidgetSystemContext ctx) {
       updateCalls++;
+    }
+
+    override void onTimer(ref WidgetSystemContext ctx, TimerId id, float dt) {
+      timerCalls++;
+      lastId = id;
+      lastDt = dt;
     }
   }
 
@@ -696,10 +707,18 @@ unittest {
   pipeline.registerSystem(updSys);
   pipeline.registerSystem(otherSys);
 
-  pipeline.runSystemUpdate(updSys, null, 0.016f);
+  pipeline.runUpdatePhase(null);
   assert(updSys.updateCalls == 1);
+  assert(otherSys.updateCalls == 0);
+
+  pipeline.runSystemTimer(updSys, null, 7, 0.016f);
+  assert(updSys.timerCalls == 1);
+  assert(updSys.lastId == 7);
   assert(isClose(updSys.lastDt, 0.016f));
 
-  pipeline.runSystemUpdate(otherSys, null, 0.016f);
-  assert(otherSys.updateCalls == 0);
+  // onTimer runs independently of SystemPhase.update.
+  pipeline.runSystemTimer(otherSys, null, 9, 0.032f);
+  assert(otherSys.timerCalls == 1);
+  assert(otherSys.lastId == 9);
+  assert(isClose(otherSys.lastDt, 0.032f));
 }

@@ -20,9 +20,9 @@
  *       AnimatedHoverButtonComponent attached directly.
  *     - No manual button registration: the system automatically processes
  *       any visible widget with the component during its pipeline phases.
- *     - Integrated into WidgetSystemPipeline across event, update, and
- *       postLayout phases, driving 60 FPS animations via TimerControl when
- *       active and 0% CPU when idle.
+ *     - Integrated into WidgetSystemPipeline across event and postLayout
+ *       phases, driving 60 FPS animations via TimerControl when active and
+ *       0% CPU when idle.
  */
 module yguilib.controls.hover_button_system;
 
@@ -263,22 +263,22 @@ final class AnimatedHoverButtonSystem : WidgetSystem {
   }
 
   override @property SystemPhase phases() const nothrow @safe {
-    return SystemPhase.event | SystemPhase.update | SystemPhase.postLayout;
+    return SystemPhase.event | SystemPhase.postLayout;
   }
 
   override void onRegister(WidgetSystemHost newHost) {
     if (host !is null && host !is newHost) {
       stopAnimTimer();
     }
+    super.onRegister(newHost);
     if (newHost !is null) {
-      host = newHost;
-      ensureAnimTimer(host);
+      ensureAnimTimer(newHost);
     }
   }
 
   override void onUnregister() {
     stopAnimTimer();
-    host = null;
+    super.onUnregister();
   }
 
   override SystemEventResult handleEvent(
@@ -300,7 +300,7 @@ final class AnimatedHoverButtonSystem : WidgetSystem {
     return SystemEventResult(false, false);
   }
 
-  override void update(ref WidgetSystemContext ctx, float dt) {
+  override void onTimer(ref WidgetSystemContext ctx, TimerId id, float dt) {
     if (!isAnyAnimating()) {
       stopAnimTimer();
       return;
@@ -341,19 +341,12 @@ private:
       host = fallbackHost;
     }
     if (animTimerId == invalidTimerId && isAnyAnimating() && host !is null) {
-      animTimerId = host.startSystemTimer(
-        this,
-        TimerIntervalMs.fps60,
-        TimerMode.repeat
-      );
+      animTimerId = startTimer(TimerIntervalMs.fps60, TimerMode.repeat);
     }
   }
 
   void stopAnimTimer() {
-    if (animTimerId != invalidTimerId && host !is null) {
-      host.stopTimer(animTimerId);
-    }
-    animTimerId = invalidTimerId;
+    stopTimer(animTimerId);
   }
 
   SystemEventResult handleMouseMotion(
@@ -702,15 +695,12 @@ private:
   Widget hoveredWidget = null;
   Widget pressedWidget = null;
   ReusableArray!Widget activeButtons;
-  WidgetSystemHost host = null;
   TimerId animTimerId = invalidTimerId;
 }
 
 // Unit tests for AnimatedHoverButtonComponent, Builder, and WidgetSystem
 unittest {
-  import yguilib.controller : Controller;
   import yguilib.object_registry : ObjectRegistry;
-  import yguilib.timers : TimerCallback;
   import yguilib.widget.system : WidgetSystemHost;
   import yguilib.widget.widget_view : WidgetView, WidgetViewController;
 
@@ -730,28 +720,8 @@ unittest {
       sentEvents ~= ev;
     }
 
-    override TimerId startCallbackTimer(
-      uint intervalMs,
-      TimerMode mode,
-      TimerCallback callback
-    ) {
-      const TimerId id = nextTimerId++;
-      activeTimers[id] = true;
-      return id;
-    }
-
-    override TimerId startControllerTimer(
-      Controller target,
-      uint intervalMs,
-      TimerMode mode
-    ) {
-      const TimerId id = nextTimerId++;
-      activeTimers[id] = true;
-      return id;
-    }
-
-    override TimerId startSystemTimer(
-      WidgetSystem target,
+    override TimerId startTimer(
+      Object owner,
       uint intervalMs,
       TimerMode mode
     ) {
@@ -810,7 +780,7 @@ unittest {
   auto sys = new AnimatedHoverButtonSystem();
   sys.onRegister(host);
   assert((sys.phases & SystemPhase.event) != 0);
-  assert((sys.phases & SystemPhase.update) != 0);
+  assert((sys.phases & SystemPhase.update) == 0);
   assert((sys.phases & SystemPhase.postLayout) != 0);
   assert(sys.animTimerId == invalidTimerId);
 
@@ -842,8 +812,8 @@ unittest {
   assert(sys.isAnyAnimating());
   assert(host.isTimerActive(sys.animTimerId));
 
-  // Run update(ctx, dt) to step animation
-  sys.update(ctx, 0.016f);
+  // Run onTimer(ctx, id, dt) to step animation
+  sys.onTimer(ctx, 1, 0.016f);
   assert(comp.hoverProgress > 0.0f);
 
   // Mouse button down
@@ -878,7 +848,7 @@ unittest {
 
   // Step until animation settles
   foreach (_; 0 .. 50) {
-    sys.update(ctx, 0.016f);
+    sys.onTimer(ctx, 1, 0.016f);
   }
   assert(comp.hoverProgress == 0.0f);
   assert(!sys.isAnyAnimating());
@@ -914,7 +884,7 @@ unittest {
   assert(sys.isAnyAnimating());
   assert(host.isTimerActive(sys.animTimerId));
 
-  sys.update(ctx, 0.016f);
+  sys.onTimer(ctx, 1, 0.016f);
   assert(gradComp.hoverProgress > 0.0f);
   assert(gradComp.animPhase > 0.0f);
 
@@ -950,7 +920,7 @@ unittest {
 
   float[3] maxProg = [0.0f, 0.0f, 0.0f];
   foreach (_; 0 .. 60) {
-    sys.update(ctx, 0.016f);
+    sys.onTimer(ctx, 1, 0.016f);
     foreach (i; 0 .. 3) {
       if (sweepComps[i].hoverProgress > maxProg[i]) {
         maxProg[i] = sweepComps[i].hoverProgress;

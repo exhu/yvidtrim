@@ -2,6 +2,7 @@ module yguilib.widget.system;
 
 import yguilib.events : AppEvent;
 import yguilib.render : Renderer;
+import yguilib.timers : TimerId, TimerMode, invalidTimerId;
 import yguilib.uisystem : EventControl, TimerControl, UiRegistry;
 import yguilib.widget : Widget;
 import yguilib.widget.visible : VisibleWidget, VisibleWidgets;
@@ -82,11 +83,15 @@ abstract class WidgetSystem {
   }
 
   /// Called once when the system is registered with the pipeline.
-  /// `host` is allowed to be null in isolated tests.
-  void onRegister(WidgetSystemHost host) {}
+  /// `newHost` is allowed to be null in isolated tests.
+  void onRegister(WidgetSystemHost newHost) {
+    host = newHost;
+  }
 
   /// Called once when the system is unregistered from the pipeline.
-  void onUnregister() {}
+  void onUnregister() {
+    host = null;
+  }
 
   /// Called when a window is closed/removed so systems with per-window state
   /// can clean up entries keyed by `window` or `window.id`.
@@ -103,8 +108,11 @@ abstract class WidgetSystem {
     return SystemEventResult(false, false);
   }
 
-  /// Phase 2: Time-stepped timer update (animations, continuous playback).
-  void update(ref WidgetSystemContext ctx, float dt) {}
+  /// Phase 2a: Non-timed model/data update.
+  void update(ref WidgetSystemContext ctx) {}
+
+  /// Phase 2b: Timer handler called independently for each due timer.
+  void onTimer(ref WidgetSystemContext ctx, TimerId id, float dt) {}
 
   /// Phase 3a: Pre-layout update (bindings, data array sync).
   void preLayout(ref WidgetSystemContext ctx) {}
@@ -119,6 +127,22 @@ abstract class WidgetSystem {
   void render(ref WidgetSystemContext ctx) {}
 
 protected:
+  /// Starts a timer owned by this WidgetSystem via `host`.
+  TimerId startTimer(uint intervalMs, TimerMode mode) {
+    if (host is null) {
+      return invalidTimerId;
+    }
+    return host.startTimer(this, intervalMs, mode);
+  }
+
+  /// Stops a timer owned by this WidgetSystem and resets `id` to invalid.
+  void stopTimer(ref TimerId id) {
+    if (id != invalidTimerId && host !is null) {
+      host.stopTimer(id);
+    }
+    id = invalidTimerId;
+  }
+
   /// Sets execution priority within a phase (lower runs earlier).
   void setPriority(int priority) nothrow @safe {
     fPriority = priority;
@@ -137,6 +161,8 @@ protected:
       Fn(vw);
     }
   }
+
+  WidgetSystemHost host;
 
 private:
   int fPriority = defaultPriority;
@@ -197,7 +223,8 @@ unittest {
   customSys.onWindowClosed(null);
   auto res = customSys.handleEvent(ev, ctx);
   assert(!res.consumed && !res.requestUpdateView);
-  customSys.update(ctx, 0.016f);
+  customSys.update(ctx);
+  customSys.onTimer(ctx, 1, 0.016f);
   customSys.preLayout(ctx);
   customSys.layout(ctx);
   customSys.postLayout(ctx);

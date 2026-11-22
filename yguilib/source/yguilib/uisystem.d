@@ -1,7 +1,7 @@
 module yguilib.uisystem;
 import yguilib.controller : Controller;
 import yguilib.events : AppEvent;
-import yguilib.timers : TimerCallback, TimerId, TimerMode;
+import yguilib.timers : TimerId, TimerMode;
 import yguilib.widget : Widget;
 import yguilib.widget.widget_view : WidgetViewController, WidgetView;
 import yguilib.widget.system : WidgetSystem, WidgetSystemHost;
@@ -31,64 +31,29 @@ interface EventControl {
 /// Main-thread timer registration service replacing per-event timeoutMs.
 interface TimerControl {
   /**
-   * Starts a standalone callback timer firing on the main thread during
-   * Phase 2 of the event loop (after Phase 1 input drain and Phase 2a
-   * `Controller.update()` model sync, and before Phase 3 `updateView()`
-   * and rendering).
+   * Starts a timer owned by `owner` (must not be null), firing on the main
+   * thread during Phase 2b of the event loop (after Phase 1 input drain and
+   * Phase 2a model-sync `update()`, and before Phase 3 `updateView()` and
+   * rendering).
    *
-   * Note: This callback is NOT invoked as part of `Controller.update()`
-   * and does NOT automatically call `Controller.update()` or
-   * `Controller.updateView()`. Return `true` to request a Phase 3 render
-   * pass (e.g. after direct widget mutations), or call `sendUpdate()` if
-   * controllers need a model-sync pass. For controller-owned animations
-   * that should drive `tick(dt)` -> `updateView()`, prefer
-   * `startControllerTimer`.
+   * Supported owners:
+   * - `Controller`: When due in Phase 2b, `UiSystem` calls
+   *   `owner.onTimer(id, dt)`. If it returns `true`, `owner.updateView()` is
+   *   scheduled for Phase 3. Automatically cancelled when `owner` is popped
+   *   from `ControllerStack`.
+   * - `WidgetSystem`: When due in Phase 2b, `UiSystem` calls
+   *   `owner.onTimer(ctx, id, dt)` regardless of `SystemPhase` flags, before
+   *   Phase 3 layout and rendering. Automatically cancelled when `owner` is
+   *   unregistered via `unregisterWidgetSystem()`.
    *
-   * Calling `start*Timer()` / `stopTimer()` from inside `callback` is safe.
-   * Unlike `startControllerTimer` and `startSystemTimer`, callback timers
-   * have no automatic owner cleanup; callers must call `stopTimer(id)`
-   * before captured objects are destroyed.
+   * Note: Timers are not deduplicated per `owner`. Calling this multiple
+   * times for the same owner registers independent timers; if multiple are
+   * due in the same event-loop step, `onTimer` is called independently for
+   * each due timer `(id, dt)`. Calling `startTimer()` / `stopTimer()` from
+   * inside `onTimer()` is safe.
    */
-  TimerId startCallbackTimer(
-    uint intervalMs,
-    TimerMode mode,
-    TimerCallback callback
-  );
-
-  /**
-   * Starts a timer bound to `target`. When due in Phase 2 (after input
-   * drain and model sync, before Phase 3), `UiSystem` calls
-   * `target.tick(dt)` directly (independent of `Controller.update()`).
-   * If `tick(dt)` returns `true`, `target.updateView()` is scheduled for
-   * Phase 3. Automatically cancelled when `target` is popped from
-   * `ControllerStack`.
-   *
-   * Note: Timers are not deduplicated per `target`. Calling this multiple
-   * times for the same `Controller` registers independent timers; if
-   * multiple are due in the same event-loop step, `target.tick(dt)` is
-   * called once per due timer (each with that timer's `dt`), while
-   * `target.updateView()` is still invoked at most once in Phase 3.
-   */
-  TimerId startControllerTimer(
-    Controller target,
-    uint intervalMs,
-    TimerMode mode
-  );
-
-  /**
-   * Starts a timer bound to `target` (which must include
-   * `SystemPhase.update`). When due in Phase 2, `UiSystem` calls
-   * `target.update(ctx, dt)` before Phase 3 layout and rendering.
-   * Automatically cancelled when `target` is unregistered from the
-   * pipeline.
-   *
-   * Note: Timers are not deduplicated per `target`. Calling this multiple
-   * times for the same `WidgetSystem` registers independent timers; if
-   * multiple are due in the same event-loop step, `target.update(ctx, dt)`
-   * is called once per due timer (each with that timer's `dt`).
-   */
-  TimerId startSystemTimer(
-    WidgetSystem target,
+  TimerId startTimer(
+    Object owner,
     uint intervalMs,
     TimerMode mode
   );

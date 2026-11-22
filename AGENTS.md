@@ -41,10 +41,10 @@ between threads via sendAppEvent.
 - **Controller Event Delegation & Timers**: Subclasses of `DefaultController`
   that override `handleEvent(AppEvent ev)` must return `super.handleEvent(ev)`
   for unhandled events so quit and window redraw lifecycle events are not
-  skipped. Model-sync (`update()`) and timer-driven animations (`tick(float dt)`
-  or `WidgetSystem` `SystemPhase.update`) are invoked directly in Phase 2; use
-  `TimerControl` (`startCallbackTimer` / `startControllerTimer` /
-  `startSystemTimer` / `stopTimer` / `startTickTimer`) for active
+  skipped. Phase 2 runs non-timed model-sync (`Controller.update()`,
+  `WidgetSystem` `SystemPhase.update`) in Phase 2a and owner-bound due timers
+  (`Controller.onTimer(id, dt)`, `WidgetSystem.onTimer(ctx, id, dt)`) in
+  Phase 2b; use `TimerControl` (`startTimer` / `stopTimer`) for active
   animations and stop timers when idle so `SDL_WaitEvent` sleeps at 0% CPU.
 - **View-Controller Separation**: Create `ModelTracker!M` and the `View`
   before the `Controller`, and pass `ModelTracker!M` explicitly to both

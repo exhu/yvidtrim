@@ -56,7 +56,7 @@ final class VirtListPageController : DefaultController {
   }
 
   override void onPop() {
-    stopTickTimer(animTimerId);
+    stopTimer(animTimerId);
   }
 
   override bool update() {
@@ -80,7 +80,10 @@ final class VirtListPageController : DefaultController {
     return true;
   }
 
-  override bool tick(float dt) {
+  override bool onTimer(TimerId id, float dt) {
+    if (id == invalidTimerId || id != animTimerId) {
+      return false;
+    }
     syncAnimTimer();
     if (!isPageActive(demoTracker.model, DemoPage.virtList) ||
         !page.hasActiveVideos()) {
@@ -155,10 +158,10 @@ private:
     const bool active = onPage && page.hasActiveVideos();
     if (active) {
       if (animTimerId == invalidTimerId) {
-        animTimerId = startTickTimer(33, TimerMode.repeat);
+        animTimerId = startTimer(33, TimerMode.repeat);
       }
     } else {
-      stopTickTimer(animTimerId);
+      stopTimer(animTimerId);
     }
   }
 
@@ -292,14 +295,17 @@ unittest {
       super(sys);
       target = targetCtrl;
       page = targetPage;
-      pollId = startTickTimer(10, TimerMode.repeat);
+      pollId = startTimer(10, TimerMode.repeat);
     }
 
     override void onPop() {
-      stopTickTimer(pollId);
+      stopTimer(pollId);
     }
 
-    override bool tick(float dt) {
+    override bool onTimer(TimerId id, float dt) {
+      if (id == invalidTimerId || id != pollId) {
+        return false;
+      }
       if (step == 0) {
         auto dm = target.demoTracker.edit();
         dm.activePage = DemoPage.virtList;
@@ -312,7 +318,7 @@ unittest {
         const auto m = page.getTracker().model;
         if (m.activeVideosCount > 0 &&
             uiSystem.isTimerActive(target.animTimerId)) {
-          assert(target.tick(0.05f));
+          assert(target.onTimer(target.animTimerId, 0.05f));
           target.handleEvent(ViewAppEventBuilder(page7Jump5000Event).build());
           step = 2;
         }
@@ -332,7 +338,7 @@ unittest {
       }
       if (step == 3 && !uiSystem.isTimerActive(target.animTimerId)) {
         passed = true;
-        stopTickTimer(pollId);
+        stopTimer(pollId);
         sendQuit();
       }
       return false;

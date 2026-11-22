@@ -1,23 +1,7 @@
-- timers, controllers, systems update architecture simplification and
-  improvement based on documentation/timers-and-systems.md Variant D hybrid idea:
+- check alpha pulse in guidemo, how it uses timer, may be it's not necessary to return true from callback for
+immediate update because event queue is read until any timer is due anyway, and then update is fired for controller.
 
-  timers must have owners (class instance passed on registration), TimerService
-  must have a method that unregisters all timers that are bound to passed owner
-  instance, start* methods are reduced to single one that accepts owner object;
-
-  id = DefaultController.startTimer(...no callback) -- uses UiSystem, UiSystem unregisters it on popController
-  Controller.onTimer(TimerId, dt) -- called for all timers fired for that controller independently (i.e. may be called multiple times for different firing timers in a single update step (like Controller.tick in current code),
-  body may use sendUpdate if something needs updating (logic recalc or view), or may
-  request view update at once during the update phase (e.g. to update animations preemptively no matter
-  how full the event queue is), however
-  usually only Controller.update() is meant to schedule updateView -- add doc comments to Controller interface.
-
-  Implement similar Controller pattern to WidgetSystem timers -- single onTimer method etc.
-
-  startCallbackTimer must be removed.
-
-
-- guidemo: text hint popup layer widget, controller, system and component with
+- guidemo: text hint (tooltip) popup layer widget, controller, system and component with
 hint displayed and animated transparency when cursor delays over a control to
 display the full text (currently buttons do not fit the whole text
 

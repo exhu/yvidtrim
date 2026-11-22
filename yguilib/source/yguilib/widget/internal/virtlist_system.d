@@ -1058,10 +1058,9 @@ private:
 }
 
 version (unittest) {
-  import yguilib.controller : Controller;
   import yguilib.internal.uisystem_impl : UiSystemImpl;
   import yguilib.object_registry : ObjectRegistry;
-  import yguilib.timers : TimerCallback, TimerId, TimerMode, invalidTimerId;
+  import yguilib.timers : TimerId, TimerMode, invalidTimerId;
   import yguilib.uisystem : UiSystem;
   import yguilib.widget.builder : WidgetBuilder;
   import yguilib.widget.internal.collect_visible : VisibleWidgetsCollector;
@@ -1084,24 +1083,8 @@ version (unittest) {
       sentEvents ~= ev;
     }
 
-    override TimerId startCallbackTimer(
-      uint intervalMs,
-      TimerMode mode,
-      TimerCallback callback
-    ) {
-      return invalidTimerId;
-    }
-
-    override TimerId startControllerTimer(
-      Controller target,
-      uint intervalMs,
-      TimerMode mode
-    ) {
-      return invalidTimerId;
-    }
-
-    override TimerId startSystemTimer(
-      WidgetSystem target,
+    override TimerId startTimer(
+      Object owner,
       uint intervalMs,
       TimerMode mode
     ) {

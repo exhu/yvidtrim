@@ -4,31 +4,19 @@ package(yguilib):
 
 import core.time : MonoTime, ticksToNSecs;
 import yguilib.allochelpers : ReusableArray, SmallBuffer;
-import yguilib.controller : Controller;
-import yguilib.timers : TimerCallback, TimerId, TimerIntervalMs, TimerMode,
-  invalidTimerId;
-import yguilib.widget.system : WidgetSystem;
+import yguilib.timers : TimerId, TimerIntervalMs, TimerMode, invalidTimerId;
 
 struct TimerEntry {
-  enum TargetKind {
-    callback,
-    controller,
-    widgetSystem,
-  }
-
   TimerId id = invalidTimerId;
   long periodNs = 0;
   long nextFireNs = 0;
   long lastFireNs = 0;
   TimerMode mode = TimerMode.repeat;
-  TargetKind targetKind = TargetKind.callback;
-  Controller controllerTarget = null;
-  WidgetSystem systemTarget = null;
-  TimerCallback callback = null;
+  Object owner = null;
   bool active = false;
 }
 
-/// Manages wall-clock timers for controllers, widget systems, and callbacks.
+/// Manages wall-clock timers bound to owners.
 struct TimerService {
   void setClock(long delegate() clock) {
     clockFn = clock;
@@ -41,39 +29,14 @@ struct TimerService {
     return ticksToNSecs(MonoTime.currTime.ticks);
   }
 
-  TimerId startCallbackTimer(
-    uint intervalMs,
-    TimerMode mode,
-    TimerCallback cb
-  ) {
-    assert(cb !is null, "TimerCallback must not be null");
-    TimerEntry entry;
-    entry.targetKind = TimerEntry.TargetKind.callback;
-    entry.callback = cb;
-    return addEntry(entry, intervalMs, mode);
-  }
-
-  TimerId startControllerTimer(
-    Controller target,
+  TimerId startTimer(
+    Object owner,
     uint intervalMs,
     TimerMode mode
   ) {
-    assert(target !is null, "Controller target must not be null");
+    assert(owner !is null, "Timer owner must not be null");
     TimerEntry entry;
-    entry.targetKind = TimerEntry.TargetKind.controller;
-    entry.controllerTarget = target;
-    return addEntry(entry, intervalMs, mode);
-  }
-
-  TimerId startSystemTimer(
-    WidgetSystem target,
-    uint intervalMs,
-    TimerMode mode
-  ) {
-    assert(target !is null, "WidgetSystem target must not be null");
-    TimerEntry entry;
-    entry.targetKind = TimerEntry.TargetKind.widgetSystem;
-    entry.systemTarget = target;
+    entry.owner = owner;
     return addEntry(entry, intervalMs, mode);
   }
 
@@ -102,28 +65,12 @@ struct TimerService {
     return false;
   }
 
-  void stopTimersForController(Controller target) {
-    if (target is null) {
+  void stopTimersForOwner(Object owner) {
+    if (owner is null) {
       return;
     }
     foreach (ref e; entries[]) {
-      if (e.active &&
-          e.targetKind == TimerEntry.TargetKind.controller &&
-          e.controllerTarget is target) {
-        deactivateEntry(e);
-      }
-    }
-    compactIfIdle();
-  }
-
-  void stopTimersForSystem(WidgetSystem target) {
-    if (target is null) {
-      return;
-    }
-    foreach (ref e; entries[]) {
-      if (e.active &&
-          e.targetKind == TimerEntry.TargetKind.widgetSystem &&
-          e.systemTarget is target) {
+      if (e.active && e.owner is owner) {
         deactivateEntry(e);
       }
     }
@@ -277,9 +224,7 @@ private:
 
   static void deactivateEntry(ref TimerEntry e) {
     e.active = false;
-    e.controllerTarget = null;
-    e.systemTarget = null;
-    e.callback = null;
+    e.owner = null;
   }
 
   void compactIfIdle() {
@@ -308,23 +253,18 @@ unittest {
   assert(!svc.hasDueTimers(fakeNowNs));
 
   // Register a 16ms repeat timer and a 500ms one-shot timer
+  auto repeatOwner = new Object();
+  auto oneShotOwner = new Object();
   int repeatCalls = 0;
   float lastRepeatDt = 0.0f;
   int oneShotCalls = 0;
 
-  TimerId idRepeat = svc.startCallbackTimer(
+  TimerId idRepeat = svc.startTimer(
+    repeatOwner,
     TimerIntervalMs.fps60,
-    TimerMode.repeat,
-    (id, dt) {
-      repeatCalls++;
-      lastRepeatDt = dt;
-      return true;
-    }
+    TimerMode.repeat
   );
-  TimerId idOneShot = svc.startCallbackTimer(500, TimerMode.oneShot, (id, dt) {
-    oneShotCalls++;
-    return false;
-  });
+  TimerId idOneShot = svc.startTimer(oneShotOwner, 500, TimerMode.oneShot);
 
   assert(svc.isTimerActive(idRepeat));
   assert(svc.isTimerActive(idOneShot));
@@ -340,7 +280,12 @@ unittest {
   assert(svc.hasDueTimers(fakeNowNs));
   assert(svc.nextWaitTimeoutMs(fakeNowNs) == 0);
   svc.fireDueTimers(fakeNowNs, (TimerEntry e, float dt) {
-    e.callback(e.id, dt);
+    if (e.owner is repeatOwner) {
+      repeatCalls++;
+      lastRepeatDt = dt;
+    } else if (e.owner is oneShotOwner) {
+      oneShotCalls++;
+    }
   });
   assert(repeatCalls == 1);
   assert(isClose(lastRepeatDt, 0.016f, 0.0001f));
@@ -351,7 +296,12 @@ unittest {
   // next deadline anchors to previous deadline + 16 ms -> 12 ms remaining
   fakeNowNs += 20_000_000L;
   svc.fireDueTimers(fakeNowNs, (TimerEntry e, float dt) {
-    e.callback(e.id, dt);
+    if (e.owner is repeatOwner) {
+      repeatCalls++;
+      lastRepeatDt = dt;
+    } else if (e.owner is oneShotOwner) {
+      oneShotCalls++;
+    }
   });
   assert(repeatCalls == 2);
   assert(isClose(lastRepeatDt, 0.020f, 0.0001f));
@@ -360,7 +310,12 @@ unittest {
   // Lag clamp when behind by > 1 period (no spiral of death)
   fakeNowNs += 500_000_000L;
   svc.fireDueTimers(fakeNowNs, (TimerEntry e, float dt) {
-    e.callback(e.id, dt);
+    if (e.owner is repeatOwner) {
+      repeatCalls++;
+      lastRepeatDt = dt;
+    } else if (e.owner is oneShotOwner) {
+      oneShotCalls++;
+    }
   });
   assert(repeatCalls == 3);
   assert(oneShotCalls == 1);
@@ -387,7 +342,7 @@ unittest {
     }
     override bool updateView() { return false; }
     override bool update() { return false; }
-    override bool tick(float dt) { return false; }
+    override bool onTimer(TimerId id, float dt) { return false; }
     override void onPush() {}
     override void onPop() {}
     override void onSuspendByModal() {}
@@ -406,35 +361,32 @@ unittest {
 
   auto ctrl = new DummyCtrl();
   auto sys = new DummySys();
-  auto cId = svc.startControllerTimer(
+  auto selfStopOwner = new Object();
+  auto cId = svc.startTimer(
     ctrl,
     TimerIntervalMs.fps60,
     TimerMode.repeat
   );
-  auto sId = svc.startSystemTimer(sys, 33, TimerMode.repeat);
+  auto sId = svc.startTimer(sys, 33, TimerMode.repeat);
 
   // Shorter timer added later clamps wait timeout immediately
-  TimerId selfStopId = invalidTimerId;
-  selfStopId = svc.startCallbackTimer(5, TimerMode.repeat, (id, dt) {
-    svc.stopTimer(selfStopId);
-    return false;
-  });
+  TimerId selfStopId = svc.startTimer(selfStopOwner, 5, TimerMode.repeat);
   assert(svc.nextWaitTimeoutMs(fakeNowNs) == 5);
 
   fakeNowNs += 5_000_000L;
   svc.fireDueTimers(fakeNowNs, (TimerEntry e, float dt) {
-    if (e.targetKind == TimerEntry.TargetKind.callback) {
-      e.callback(e.id, dt);
+    if (e.owner is selfStopOwner) {
+      svc.stopTimer(e.id);
     }
   });
   assert(!svc.isTimerActive(selfStopId));
   assert(svc.nextWaitTimeoutMs(fakeNowNs) == 11);
 
-  svc.stopTimersForController(ctrl);
+  svc.stopTimersForOwner(ctrl);
   assert(!svc.isTimerActive(cId));
   assert(svc.isTimerActive(sId));
 
-  svc.stopTimersForSystem(sys);
+  svc.stopTimersForOwner(sys);
   assert(!svc.isTimerActive(sId));
   assert(svc.activeCount() == 0);
 }
@@ -446,13 +398,11 @@ unittest {
   TimerService svc;
   svc.setClock(() => fakeNowNs);
 
+  auto owner = new Object();
   TimerId[timerCount] ids;
   size_t firedCount = 0;
   foreach (i; 0 .. timerCount) {
-    ids[i] = svc.startCallbackTimer(10, TimerMode.oneShot, (id, dt) {
-      firedCount++;
-      return false;
-    });
+    ids[i] = svc.startTimer(owner, 10, TimerMode.oneShot);
   }
   assert(svc.activeCount() == timerCount);
 
@@ -460,7 +410,9 @@ unittest {
   TimerId[] firedOrder;
   svc.fireDueTimers(fakeNowNs, (TimerEntry e, float dt) {
     firedOrder ~= e.id;
-    e.callback(e.id, dt);
+    if (e.owner is owner) {
+      firedCount++;
+    }
   });
 
   assert(firedCount == timerCount);

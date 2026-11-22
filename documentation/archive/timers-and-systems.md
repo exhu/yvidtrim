@@ -1,5 +1,9 @@
 # Timers, Controllers, and WidgetSystems: Analysis and Improvement Variants
 
+> **Status:** Implemented (Variant D architecture adopted with unified
+> owner-bound `TimerControl.startTimer` / `stopTimer`, `Controller.onTimer`,
+> `WidgetSystem.onTimer`, and non-timed Phase 2a `SystemPhase.update`).
+
 ## 1. Current Architecture Overview
 
 The event loop in `UiSystemImpl.runEventLoopStep()`

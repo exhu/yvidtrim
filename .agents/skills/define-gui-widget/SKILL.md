@@ -99,12 +99,13 @@ without manual controller registration (see
 - Define `final class MyComponent : WidgetComponent`.
 - Attach via `WidgetBuilder.make(ui)...component(new MyComponent(...))`.
 - Process visible widgets with the component in a `WidgetSystem` across
-  `SystemPhase.event | SystemPhase.update | SystemPhase.preLayout |
-  SystemPhase.postLayout`.
-- For 60 FPS animations, register a timer via `host.startTimer(this, 16,
-  TimerMode.repeat)` in `SystemPhase.update`, stop it when idle, and never
-  request inline per-`mouseMotion` renders (latch sub-frame hover pulses if
-  hover-animated).
+  `SystemPhase.event | SystemPhase.preLayout | SystemPhase.postLayout`
+  (plus `SystemPhase.update` for non-timed Phase 2a `update(ctx)` work).
+- For 60 FPS animations, register an owner-bound timer via `startTimer(16,
+  TimerMode.repeat)` (or `host.startTimer(this, 16, TimerMode.repeat)`),
+  step animations in `onTimer(ctx, id, dt)`, stop it with `stopTimer` when
+  idle, and never request inline per-`mouseMotion` renders (latch sub-frame
+  hover pulses if hover-animated).
 
 ---
 
@@ -140,7 +141,7 @@ follow these rules:
 4. **Use Correct `WidgetUpdateScope` When Mutating Widgets**:
    - `WidgetBuilder.build()` automatically calls
      `widget.update(WidgetUpdateScope.parentView)`.
-   - In `View.update()` or `tick(dt)` animations:
+   - In `View.update()` or `onTimer` animations:
      - Use `Widget.setCaption(...)`, `setBackgroundColor(...)`,
        `setBorderColor(...)`, `setTextColor(...)` (which trigger the minimum
        required scope automatically).

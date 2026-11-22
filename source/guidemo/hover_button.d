@@ -40,8 +40,8 @@
  * ------------------------------------
  * HoverButtonController is a non-modal controller that can service one or
  * multiple buttons concurrently. During active transitions (e.g. fading or
- * gradient play), it runs a 16 ms controller timer via `startTickTimer` to
- * step animations in `tick(dt)`. Once all buttons reach their resting state
+ * gradient play), it runs a 16 ms controller timer via `startTimer` to
+ * step animations in `onTimer(id, dt)`. Once all buttons reach their resting
  * (idle or fully hovered/pressed), it stops the timer, allowing the
  * application to sleep at 0% idle CPU.
  */
@@ -335,12 +335,12 @@ final class HoverButtonController : DefaultController {
       e => e.viewWidget is button || e.visualWidget is button
     );
     if (!isAnyAnimating()) {
-      stopTickTimer(animTimerId);
+      stopTimer(animTimerId);
     }
   }
 
   override void onPop() {
-    stopTickTimer(animTimerId);
+    stopTimer(animTimerId);
   }
 
   override void onWidgetReleased(Widget w) {
@@ -357,10 +357,13 @@ final class HoverButtonController : DefaultController {
     return super.handleEvent(ev);
   }
 
-  override bool tick(float dt) {
+  override bool onTimer(TimerId id, float dt) {
+    if (id == invalidTimerId || id != animTimerId) {
+      return false;
+    }
     const bool anyChanged = stepAnimation(dt);
     if (!isAnyAnimating()) {
-      stopTickTimer(animTimerId);
+      stopTimer(animTimerId);
     }
     return anyChanged;
   }
@@ -380,7 +383,7 @@ final class HoverButtonController : DefaultController {
 private:
   void ensureAnimTimer() {
     if (animTimerId == invalidTimerId && isAnyAnimating()) {
-      animTimerId = startTickTimer(TimerIntervalMs.fps60, TimerMode.repeat);
+      animTimerId = startTimer(TimerIntervalMs.fps60, TimerMode.repeat);
     }
   }
   ptrdiff_t findEntryIndex(Widget viewWidget) const {
@@ -594,7 +597,6 @@ private:
 unittest {
   import yguilib.controller : Controller;
   import yguilib.object_registry : ObjectRegistry;
-  import yguilib.timers : TimerCallback;
   import yguilib.widget.widget_view : WidgetViewController, WidgetView;
   import yguilib.widget.system : WidgetSystem;
   import yguilib.window : Window;
@@ -607,26 +609,8 @@ unittest {
     override void sendAppEvent(AppEvent ev) {
       sentEvents ~= ev;
     }
-    override TimerId startCallbackTimer(
-      uint intervalMs,
-      TimerMode mode,
-      TimerCallback callback
-    ) {
-      const TimerId id = nextTimerId++;
-      activeTimers[id] = true;
-      return id;
-    }
-    override TimerId startControllerTimer(
-      Controller target,
-      uint intervalMs,
-      TimerMode mode
-    ) {
-      const TimerId id = nextTimerId++;
-      activeTimers[id] = true;
-      return id;
-    }
-    override TimerId startSystemTimer(
-      WidgetSystem target,
+    override TimerId startTimer(
+      Object owner,
       uint intervalMs,
       TimerMode mode
     ) {
@@ -740,7 +724,7 @@ unittest {
   assert(testUi.isTimerActive(controller.animTimerId));
 
   // Advance animation step and sync view
-  assert(controller.tick(0.016f));
+  assert(controller.onTimer(controller.animTimerId, 0.016f));
   assert(controller.entries[0].hoverProgress > 0.0f);
   assert(controller.updateView());
 
@@ -785,7 +769,7 @@ unittest {
 
   gradController.handleEvent(enterEv);
   assert(gradController.isAnyAnimating());
-  assert(gradController.tick(0.016f));
+  assert(gradController.onTimer(gradController.animTimerId, 0.016f));
   assert(gradController.updateView());
   assert(gradController.entries[0].animPhase > 0.0f);
 
@@ -826,7 +810,7 @@ unittest {
   assert(testUi.isTimerActive(sweepCtrl.animTimerId));
   float[3] maxProgress = [0.0f, 0.0f, 0.0f];
   foreach (_; 0 .. 60) {
-    sweepCtrl.tick(0.016f);
+    sweepCtrl.onTimer(sweepCtrl.animTimerId, 0.016f);
     sweepCtrl.updateView();
     foreach (i; 0 .. 3) {
       if (sweepCtrl.entries[i].hoverProgress > maxProgress[i]) {

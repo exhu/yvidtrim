@@ -40,9 +40,17 @@ interface Controller {
   /// or `sendUpdate()`). Returns true if the view needs updating.
   bool update();
 
-  /// Called in Phase 2 when a controller-bound timer fires with elapsed `dt`
-  /// seconds. Returns true if `updateView()` should run in Phase 3.
-  bool tick(float dt);
+  /**
+   * Called independently in Phase 2b for each due timer owned by this
+   * controller.
+   *
+   * May call `sendUpdate()` if model/logic recalculation or view sync is
+   * needed, or return `true` to request `updateView()` immediately during
+   * the current update step (e.g., preemptive animations regardless of
+   * event queue depth). Usually only `Controller.update()` is meant to
+   * schedule `updateView()`.
+   */
+  bool onTimer(TimerId id, float dt);
 
   void onPush();
   void onPop();
@@ -71,7 +79,7 @@ class DefaultController : Controller {
     return false;
   }
 
-  override bool tick(float dt) {
+  override bool onTimer(TimerId id, float dt) {
     return false;
   }
 
@@ -119,17 +127,17 @@ class DefaultController : Controller {
     sendAppEvent(AppEvent(AppEvent.Kind.appQuit));
   }
 protected:
-  TimerId startTickTimer(
+  TimerId startTimer(
     uint intervalMs,
     TimerMode mode
   ) {
     if (uiSystem is null) {
       return invalidTimerId;
     }
-    return uiSystem.startControllerTimer(this, intervalMs, mode);
+    return uiSystem.startTimer(this, intervalMs, mode);
   }
 
-  void stopTickTimer(ref TimerId id) {
+  void stopTimer(ref TimerId id) {
     if (id != invalidTimerId && uiSystem !is null) {
       uiSystem.stopTimer(id);
     }
