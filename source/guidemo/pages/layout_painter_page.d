@@ -18,19 +18,22 @@ import yguilib.widget.layout_components : AlignItems, Anchor, Dimension,
 
 /// Page 1 widget container displaying Painter styles and layout features.
 final class LayoutPainterPage {
-  /// Constructs LayoutPainterPage. `parent` is allowed to be null in tests.
-  this(UiSystem ui, Widget parent) {
+  @disable this();
+
+  /// Constructs LayoutPainterPage with an externally created `modelTracker`.
+  this(
+    UiSystem ui,
+    Widget parent,
+    ref ModelTracker!LayoutPainterPageModel modelTracker
+  ) {
     assert(ui !is null, "UiSystem must not be null");
+    assert(parent !is null, "parent must not be null");
     this.ui = ui;
-    tracker = ModelTracker!LayoutPainterPageModel(
-      new LayoutPainterPageModel()
-    );
+    tracker = ModelTracker!LayoutPainterPageModel.from(modelTracker);
     root = new Widget(ui.nextWidgetId());
     root.name = "layoutPainterPage";
     root.rect = RectF(0, 0, 1280, 720);
-    if (parent !is null) {
-      parent.addChild(root);
-    }
+    parent.addChild(root);
 
     buildPainterSection();
     buildSizingSection();
@@ -38,10 +41,11 @@ final class LayoutPainterPage {
     buildFlexPlayground();
   }
 
-  ref ModelTracker!LayoutPainterPageModel getTracker() return {
-    return tracker;
+  invariant {
+    assert(root !is null);
   }
 
+  /// Syncs widgets from the page model when it changed.
   void update() {
     if (!tracker.update()) {
       return;
@@ -84,11 +88,12 @@ final class LayoutPainterPage {
     }
   }
 
+  /// Returns the status bar text for this page.
   string formatStatus() {
     import std.format : format;
 
     const auto m = tracker.model;
-    string dirStr = m.direction == FlexDirection.row ? "row" : "col";
+    const string dirStr = m.direction == FlexDirection.row ? "row" : "col";
     string justStr;
     final switch (m.justify) {
     case JustifyContent.start:
@@ -121,7 +126,7 @@ final class LayoutPainterPage {
       break;
     }
 
-    string visStr = m.child2Visible ? "visible" : "hidden";
+    const string visStr = m.child2Visible ? "visible" : "hidden";
 
     return format(
       "[D] Dir: %s | [J] Justify: %s | [A] Align: %s | " ~
@@ -130,14 +135,17 @@ final class LayoutPainterPage {
     );
   }
 
-  Widget getRootWidget() {
+  /// Returns the page root widget.
+  Widget rootWidget() {
     return root;
   }
 
+  /// Shows or hides the page.
   void setVisible(bool visible) {
     root.setVisible(visible);
   }
 
+  /// Returns whether the page is visible.
   bool isVisible() const {
     return root.visible;
   }

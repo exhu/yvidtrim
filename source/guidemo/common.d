@@ -15,6 +15,45 @@ import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border,
   DebugDrawComponent, TextLabel;
 
+/**
+ * Parameters for constructing a page controller.
+ *
+ * `P` is the page view class; `T` is the page model tracker or a
+ * `<Page>Trackers` struct exposing `static T from(ref T)`.
+ */
+struct PageControllerParams(P, T) {
+  UiSystem ui;
+  ModelTracker!DemoModel demoTracker;
+  T trackers;
+  P page;
+
+  /// Sets the UI system.
+  ref PageControllerParams withUi(UiSystem ui) return {
+    this.ui = ui;
+    return this;
+  }
+
+  /// Sets the shared demo model tracker.
+  ref PageControllerParams withDemoTracker(
+    ref ModelTracker!DemoModel otherTracker
+  ) return {
+    this.demoTracker = ModelTracker!DemoModel.from(otherTracker);
+    return this;
+  }
+
+  /// Sets the page tracker(s), sharing models with `otherTrackers`.
+  ref PageControllerParams withTrackers(ref T otherTrackers) return {
+    this.trackers = T.from(otherTrackers);
+    return this;
+  }
+
+  /// Sets the page view.
+  ref PageControllerParams withPage(P page) return {
+    this.page = page;
+    return this;
+  }
+}
+
 /// Returns true if `ev` matches `targetKey` (case-insensitive for ASCII
 /// letters) or `targetScan`.
 bool isKey(in AppEvent ev, Keycode targetKey, Scancode targetScan) {

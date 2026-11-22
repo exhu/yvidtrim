@@ -22,17 +22,22 @@ enum btnCountResetEvent = "btnCountReset";
 
 /// Page 3 widget container showcasing HoverButton and HoverButtonController.
 final class ButtonPage {
-  /// Constructs ButtonPage. `parent` is allowed to be null in tests.
-  this(UiSystem ui, Widget parent) {
+  @disable this();
+
+  /// Constructs ButtonPage with an externally created `modelTracker`.
+  this(
+    UiSystem ui,
+    Widget parent,
+    ref ModelTracker!ButtonPageModel modelTracker
+  ) {
     assert(ui !is null, "UiSystem must not be null");
+    assert(parent !is null, "parent must not be null");
     this.ui = ui;
-    tracker = ModelTracker!ButtonPageModel(new ButtonPageModel());
+    tracker = ModelTracker!ButtonPageModel.from(modelTracker);
     root = new Widget(ui.nextWidgetId());
     root.name = "buttonPage";
     root.rect = RectF(0, 0, 1280, 720);
-    if (parent !is null) {
-      parent.addChild(root);
-    }
+    parent.addChild(root);
 
     buildFadingSection();
     buildGradientPlaySection();
@@ -40,10 +45,11 @@ final class ButtonPage {
     buildArchitectureSection();
   }
 
-  ref ModelTracker!ButtonPageModel getTracker() return {
-    return tracker;
+  invariant {
+    assert(root !is null);
   }
 
+  /// Syncs widgets from the page model when it changed.
   void update() {
     import std.format : format;
 
@@ -61,20 +67,24 @@ final class ButtonPage {
     }
   }
 
+  /// Returns the status bar text for this page.
   string formatStatus() {
     import std.format : format;
 
     return format("Clicks: %d", tracker.model.buttonClickCount);
   }
 
-  Widget getRootWidget() {
+  /// Returns the page root widget.
+  Widget rootWidget() {
     return root;
   }
 
+  /// Shows or hides the page.
   void setVisible(bool visible) {
     root.setVisible(visible);
   }
 
+  /// Returns whether the page is visible.
   bool isVisible() const {
     return root.visible;
   }
@@ -145,7 +155,7 @@ private:
       .border(ColorF(0.30f, 0.35f, 0.45f, 1.0f), 1.0f)
       .radius(6.0f)
       .fixedSize(140.0f, 38.0f)
-      .action("fadeBtn1Click").tooltip();
+      .action("fadeBtn1Click").captionTooltip();
     HoverAnimConfig cfg1;
     cfg1.style = HoverAnimConfig.AnimStyle.fade;
     cfg1.hoverBg = ColorF(0.28f, 0.38f, 0.55f, 1.0f);
@@ -161,7 +171,7 @@ private:
       .border(ColorF(0.20f, 0.45f, 0.30f, 1.0f), 1.0f)
       .radius(6.0f)
       .fixedSize(150.0f, 38.0f)
-      .action("btnCountAction").tooltip();
+      .action("btnCountAction").captionTooltip();
     HoverAnimConfig cfg2;
     cfg2.style = HoverAnimConfig.AnimStyle.fade;
     cfg2.hoverBg = ColorF(0.18f, 0.55f, 0.35f, 1.0f);
@@ -177,7 +187,7 @@ private:
       .border(ColorF(0.48f, 0.20f, 0.24f, 1.0f), 1.0f)
       .radius(6.0f)
       .fixedSize(140.0f, 38.0f)
-      .action("btnCountAction").tooltip();
+      .action("btnCountAction").captionTooltip();
     HoverAnimConfig cfg3;
     cfg3.style = HoverAnimConfig.AnimStyle.fade;
     cfg3.hoverBg = ColorF(0.65f, 0.20f, 0.25f, 1.0f);
@@ -277,7 +287,7 @@ private:
       .radius(6.0f)
       .fixedSize(width, 38.0f)
       .action("btnCountAction")
-      .tooltip();
+      .captionTooltip();
     HoverAnimConfig cfg;
     cfg.style = HoverAnimConfig.AnimStyle.gradientPlay;
     cfg.hoverBg = hoverBg;
@@ -388,7 +398,7 @@ private:
       .radius(8.0f)
       .fixedSize(180.0f, 42.0f)
       .action("btnCountAction")
-      .tooltip();
+      .captionTooltip();
     HoverAnimConfig cfg1;
     cfg1.style = HoverAnimConfig.AnimStyle.fade;
     cfg1.hoverBg = ColorF(0.25f, 0.45f, 0.80f, 1.0f);
@@ -405,7 +415,7 @@ private:
       .radius(8.0f)
       .fixedSize(140.0f, 42.0f)
       .action("btnCountReset")
-      .tooltip();
+      .captionTooltip();
     HoverAnimConfig cfg2;
     cfg2.style = HoverAnimConfig.AnimStyle.fade;
     cfg2.hoverBg = ColorF(0.30f, 0.34f, 0.40f, 1.0f);
@@ -495,7 +505,7 @@ private:
       .radius(18.0f)
       .fixedSize(170.0f, 36.0f)
       .action("btnCountAction")
-      .tooltip();
+      .captionTooltip();
     HoverAnimConfig pillCfg1;
     pillCfg1.style = HoverAnimConfig.AnimStyle.fade;
     pillCfg1.hoverBg = ColorF(0.40f, 0.28f, 0.60f, 1.0f);
@@ -512,7 +522,7 @@ private:
       .radius(18.0f)
       .fixedSize(170.0f, 36.0f)
       .action("btnCountAction")
-      .tooltip();
+      .captionTooltip();
     HoverAnimConfig pillCfg2;
     pillCfg2.style = HoverAnimConfig.AnimStyle.gradientPlay;
     pillCfg2.hoverBg = ColorF(0.15f, 0.50f, 0.35f, 1.0f);
@@ -572,7 +582,9 @@ unittest {
   import yguilib.internal.uisystem_impl : UiSystemImpl;
 
   auto ui = new UiSystemImpl(null);
-  auto page = new ButtonPage(ui, null);
+  auto parent = new Widget(ui.nextWidgetId());
+  auto pageTracker = ModelTracker!ButtonPageModel(new ButtonPageModel());
+  auto page = new ButtonPage(ui, parent, pageTracker);
 
   assert(page.managedButtons.length > 0);
   bool foundLongCaption = false;

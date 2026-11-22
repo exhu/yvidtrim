@@ -26,9 +26,15 @@ yvidtrim/
 │   └── guidemo/           # Interactive GUI showcase and verification app
 │       ├── guidemoapp.d   # guidemo entry point and system registration
 │       ├── controller.d   # Shared demo controller, quit, F12, page switch
+│       ├── common.d       # PageControllerParams, section cards, page sync
+│       ├── model.d        # DemoModel and per-page VersionedModels
+│       ├── view.d         # DemoView shell (header tabs, status bar)
+│       ├── demo_model_helpers.d # Page numbering & status helpers
 │       ├── hover_button.d # Controller-based hover button demo
 │       └── pages/         # Showcase views and per-page controllers
-│                          # (incl. knob_page.d: CursorCapture.lock demo)
+│                          # (incl. knob_page.d: CursorCapture.lock demo;
+│                          # virtlist_items.d item models,
+│                          # virtlist_providers.d VirtListProviders)
 ├── yguilib/               # Independent GUI library (no yvidtrim dependency)
 │   ├── source/yguilib/
 │   │   ├── allochelpers.d # SmallBuffer, RingBuffer, ReusableArray containers
@@ -172,6 +178,10 @@ Phase 3 (if dirty): UiSystemImpl ──► WidgetSystemPipeline.updateAndRender(
   `UiSystem.releaseWidget(w)`, which traverses bottom-up, unregisters views,
   notifies controllers via `onWidgetReleased`, purges input/pipeline caches,
   and calls `w.release()` to detach and clear components.
+- guidemo Page Wiring: `registerDemoPages` creates each page's trackers
+  (`ModelTracker!M` or a `<Page>Trackers` struct) and passes them to the page
+  view and, via `PageControllerParams`, to its controller, which edits shared
+  models directly; view-only models stay inside the views.
 - Invalidation Scopes: Fine-grained `WidgetUpdateScope` flags (`visuals`,
   `content`, `layout`, `parentView`, `all`) prevent redundant layout passes.
 - Embedded Assets: Fonts and shaders live under `assets/<package_name>/` and

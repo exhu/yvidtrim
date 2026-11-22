@@ -84,78 +84,92 @@ struct HoverButtonBuilder {
   Anchor customAnchor = null;
   string widgetName = null;
   bool hasTooltip = false;
-  string tooltipText = null;
+  string tooltipHint = null;
 
+  /// Sets the widget name.
   ref HoverButtonBuilder name(string buttonName) return {
     widgetName = buttonName;
     return this;
   }
 
+  /// Sets the caption text.
   ref HoverButtonBuilder text(string caption) return {
     config.text = caption;
     return this;
   }
 
+  /// Sets the background color.
   ref HoverButtonBuilder bg(ColorF color) return {
     config.normalBg = color;
     return this;
   }
 
+  /// Sets the border color and width.
   ref HoverButtonBuilder border(ColorF color, float width) return {
     config.borderColor = color;
     config.borderWidth = width;
     return this;
   }
 
+  /// Sets the corner radius.
   ref HoverButtonBuilder radius(float r) return {
     config.cornerRadius = r;
     return this;
   }
 
+  /// Sets vertical and horizontal padding.
   ref HoverButtonBuilder padding(float vertical, float horizontal) return {
     config.padding = Insets.vh(vertical, horizontal);
     return this;
   }
 
+  /// Sets the caption font size in points.
   ref HoverButtonBuilder fontSize(float pt) return {
     config.fontSize = pt;
     return this;
   }
 
+  /// Sets the action event name emitted on click.
   ref HoverButtonBuilder action(string eventName) return {
     config.actionEvent = eventName;
     return this;
   }
 
+  /// Sets the size policy.
   ref HoverButtonBuilder size(Size sz) return {
     customSize = sz;
     return this;
   }
 
+  /// Sets a fixed size.
   ref HoverButtonBuilder fixedSize(float w, float h) return {
     customSize = Size.fixed(w, h);
     return this;
   }
 
+  /// Sizes the button to its content.
   ref HoverButtonBuilder autoSize() return {
     customSize = Size.autoSize();
     return this;
   }
 
+  /// Sets the anchor.
   ref HoverButtonBuilder anchor(Anchor a) return {
     customAnchor = a;
     return this;
   }
 
-  ref HoverButtonBuilder tooltip() return {
+  /// Attaches a tooltip whose text is taken from the caption.
+  ref HoverButtonBuilder captionTooltip() return {
     hasTooltip = true;
-    tooltipText = null;
+    tooltipHint = null;
     return this;
   }
 
-  ref HoverButtonBuilder tooltip(string hintText) return {
+  /// Attaches a tooltip showing `hintText`.
+  ref HoverButtonBuilder tooltipText(string hintText) return {
     hasTooltip = true;
-    tooltipText = hintText;
+    tooltipHint = hintText;
     return this;
   }
 
@@ -237,7 +251,7 @@ private:
       .onMouseMove("mouseMove");
 
     if (hasTooltip) {
-      cb.component(Tooltip.withText(tooltipText));
+      cb.component(Tooltip.withText(tooltipHint));
     }
   }
 }
@@ -294,11 +308,15 @@ final class HoverButtonController : DefaultController {
 
   enum float hoverPulsePeak = 0.75f;
 
+  @disable this();
+
+  /// Constructs the controller bound to `ui`.
   this(UiSystem ui) {
     assert(ui !is null, "ui must not be null");
     super(ui);
   }
 
+  /// Registers `buttonView` for hover/press animation.
   void addButton(Widget buttonView, in HoverAnimConfig animConfig) {
     assert(buttonView !is null, "buttonView must not be null");
     assert(
@@ -334,18 +352,22 @@ final class HoverButtonController : DefaultController {
     entries ~= entry;
   }
 
+  /// Registers `buttonViews` with matching `animConfigs` (defaults when
+  /// missing).
   void addButtons(
     Widget[] buttonViews,
     in HoverAnimConfig[] animConfigs
   ) {
     foreach (i, view; buttonViews) {
-      HoverAnimConfig cfg = (animConfigs !is null && i < animConfigs.length)
+      const HoverAnimConfig cfg =
+        (animConfigs !is null && i < animConfigs.length)
         ? animConfigs[i]
         : HoverAnimConfig();
       addButton(view, cfg);
     }
   }
 
+  /// Unregisters `button`; null is ignored.
   void removeButton(Widget button) {
     if (button is null) {
       return;
@@ -369,7 +391,7 @@ final class HoverButtonController : DefaultController {
 
   override HandleResult handleEvent(AppEvent ev) {
     if (ev.kind == AppEvent.Kind.view) {
-      ptrdiff_t idx = findEntryIndex(ev.view.viewWidget);
+      const ptrdiff_t idx = findEntryIndex(ev.view.viewWidget);
       if (idx >= 0) {
         return handleButtonEvent(entries[idx], ev);
       }
@@ -438,7 +460,7 @@ private:
   }
 
   void updateCursorNorm(ref ButtonEntry entry, in AppEvent ev) {
-    auto val = MouseEvent.AppEventViewValue.fromRaw(ev.view.value);
+    const val = MouseEvent.AppEventViewValue.fromRaw(ev.view.value);
     if (entry.visualWidget !is null &&
         entry.visualWidget.rect.width > 0.0f &&
         entry.visualWidget.rect.height > 0.0f) {
@@ -588,7 +610,7 @@ private:
       );
     }
 
-    ColorF currentBorder = lerpColor(
+    const ColorF currentBorder = lerpColor(
       entry.normalBorder,
       entry.animConfig.hoverBorder,
       entry.hoverProgress
@@ -849,12 +871,12 @@ unittest {
   assert(gradController.entries.length == 0);
   assert(!testUi.isTimerActive(gradController.animTimerId));
 
-  // Test 6: .tooltip() attaches Tooltip to visual child widget
+  // Test 6: .captionTooltip() attaches Tooltip to visual child widget
   HoverButtonBuilder tb;
   auto tipRoot = tb
     .name("tipHoverBtn")
     .text("Hover Caption")
-    .tooltip()
+    .captionTooltip()
     .build(testUi, null, RectF(0, 0, 100, 32));
   assert(!tipRoot.components.has!Tooltip());
   auto tipVisual = tipRoot.children[0];
@@ -867,7 +889,7 @@ unittest {
   auto tipCustomRoot = tbCustom
     .name("tipHoverBtnCustom")
     .text("Short")
-    .tooltip("Custom Hover Hint")
+    .tooltipText("Custom Hover Hint")
     .build(testUi, null, RectF(0, 0, 100, 32));
   auto tipCustomVisual = tipCustomRoot.children[0];
   assert(tipCustomVisual.components.has!Tooltip());

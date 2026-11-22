@@ -58,7 +58,8 @@ import yguilib.widget : Widget;
 import guidemo.controller : DemoController, DemoControllerParams;
 import guidemo.hover_button : HoverButtonController;
 import yguilib.controls.hover_button_system : AnimatedHoverButtonSystem;
-import guidemo.model : DemoModel, KnobPageModel;
+import guidemo.model : ButtonPageModel, ButtonSystemPageModel, DemoModel,
+  KnobPageModel, LayoutPainterPageModel, TextLabelPageModel;
 import guidemo.pages.button_controller : ButtonPageController;
 import guidemo.pages.button_page : ButtonPage;
 import guidemo.pages.button_system_controller : ButtonSystemPageController;
@@ -68,13 +69,15 @@ import guidemo.pages.knob_page : KnobPage;
 import guidemo.pages.layout_painter_controller : LayoutPainterPageController;
 import guidemo.pages.layout_painter_page : LayoutPainterPage;
 import guidemo.pages.scrollbars_controller : ScrollbarsPageController;
-import guidemo.pages.scrollbars_page : ScrollbarsPage;
+import guidemo.pages.scrollbars_page : ScrollbarsPage,
+  ScrollbarsPageTrackers;
 import guidemo.pages.tabcontrol_controller : TabControlPageController;
-import guidemo.pages.tabcontrol_page : TabControlPage;
+import guidemo.pages.tabcontrol_page : TabControlPage,
+  TabControlPageTrackers;
 import guidemo.pages.textlabel_controller : TextLabelPageController;
 import guidemo.pages.textlabel_page : TextLabelPage;
 import guidemo.pages.virtlist_controller : VirtListPageController;
-import guidemo.pages.virtlist_page : VirtListPage;
+import guidemo.pages.virtlist_page : VirtListPage, VirtListPageTrackers;
 import yguilib.controls.scrollbars : registerScrollbars;
 import yguilib.controls.tabcontrol : TabsModel, registerTabControl;
 import yguilib.controls.tooltip : TooltipLayerBuilder, TooltipSystem;
@@ -100,7 +103,7 @@ void main() {
   auto demoTracker = ModelTracker!DemoModel(new DemoModel());
   auto tabsTracker = ModelTracker!TabsModel(createHeaderTabsModel());
   auto demoView = new DemoView(app.ui, demoTracker, tabsTracker);
-  auto rootWidget = demoView.getRootWidget();
+  auto rootWidget = demoView.rootWidget();
   app.withRootWidget(rootWidget);
 
   DemoControllerParams params;
@@ -137,45 +140,140 @@ void registerDemoPages(
   assert(rootWidget !is null, "rootWidget must not be null");
   assert(hoverBtnController !is null, "hoverBtnController must not be null");
 
-  auto layoutPage = new LayoutPainterPage(ui, rootWidget);
-  ui.pushController(
-    new LayoutPainterPageController(ui, demoTracker, layoutPage)
+  registerLayoutPainterPage(ui, demoTracker, rootWidget);
+  registerTextLabelPage(ui, demoTracker, rootWidget);
+  registerButtonPage(ui, demoTracker, rootWidget, hoverBtnController);
+  registerButtonSystemPage(ui, demoTracker, rootWidget);
+
+  auto tabTrackers = TabControlPageTrackers.make();
+  registerTrackedPage!(TabControlPage, TabControlPageController)(
+    ui,
+    demoTracker,
+    rootWidget,
+    tabTrackers
   );
 
-  auto textPage = new TextLabelPage(ui, rootWidget);
-  ui.pushController(
-    new TextLabelPageController(ui, demoTracker, textPage)
+  auto scrollTrackers = ScrollbarsPageTrackers.make();
+  registerTrackedPage!(ScrollbarsPage, ScrollbarsPageController)(
+    ui,
+    demoTracker,
+    rootWidget,
+    scrollTrackers
   );
 
-  auto buttonPage = new ButtonPage(ui, rootWidget);
-  buttonPage.registerWithController(hoverBtnController);
-  ui.pushController(
-    new ButtonPageController(ui, demoTracker, buttonPage)
+  auto virtListTrackers = VirtListPageTrackers.make();
+  registerTrackedPage!(VirtListPage, VirtListPageController)(
+    ui,
+    demoTracker,
+    rootWidget,
+    virtListTrackers
   );
 
-  auto buttonSysPage = new ButtonSystemPage(ui, rootWidget);
-  ui.pushController(
-    new ButtonSystemPageController(ui, demoTracker, buttonSysPage)
-  );
+  registerKnobPage(ui, demoTracker, rootWidget);
+}
 
-  auto tabPage = new TabControlPage(ui, rootWidget, ui);
-  ui.pushController(
-    new TabControlPageController(ui, demoTracker, tabPage)
-  );
+/**
+ * Creates the view `P(ui, parent, trackers)`, params and controller `C`
+ * sharing `trackers`, and pushes the controller. Returns the created view.
+ */
+P registerTrackedPage(P, C, T)(
+  UiSystem ui,
+  ref ModelTracker!DemoModel demoTracker,
+  Widget rootWidget,
+  ref T trackers
+) {
+  import guidemo.common : PageControllerParams;
 
-  auto scrollPage = new ScrollbarsPage(ui, rootWidget, ui);
-  ui.pushController(
-    new ScrollbarsPageController(ui, demoTracker, scrollPage)
-  );
+  assert(ui !is null, "UiSystem must not be null");
+  assert(rootWidget !is null, "rootWidget must not be null");
+  auto page = new P(ui, rootWidget, trackers);
+  PageControllerParams!(P, T) params;
+  params.withUi(ui)
+    .withDemoTracker(demoTracker)
+    .withTrackers(trackers)
+    .withPage(page);
+  ui.pushController(new C(params));
+  return page;
+}
 
-  auto virtListPage = new VirtListPage(ui, rootWidget, ui);
-  ui.pushController(
-    new VirtListPageController(ui, demoTracker, virtListPage)
+/**
+ * Creates the page tracker, view `P`, params and controller `C` for a page
+ * whose view ctor is `P(ui, parent, tracker)`, and pushes the controller.
+ * Returns the created view.
+ */
+P registerSimplePage(P, C, M)(
+  UiSystem ui,
+  ref ModelTracker!DemoModel demoTracker,
+  Widget rootWidget
+) {
+  auto pageTracker = ModelTracker!M(new M());
+  return registerTrackedPage!(P, C, ModelTracker!M)(
+    ui,
+    demoTracker,
+    rootWidget,
+    pageTracker
   );
+}
 
-  auto knobTracker = ModelTracker!KnobPageModel(new KnobPageModel());
-  auto knobPage = new KnobPage(ui, rootWidget, knobTracker);
-  ui.pushController(
-    new KnobPageController(ui, demoTracker, knobTracker, knobPage)
+void registerLayoutPainterPage(
+  UiSystem ui,
+  ref ModelTracker!DemoModel demoTracker,
+  Widget rootWidget
+) {
+  registerSimplePage!(
+    LayoutPainterPage,
+    LayoutPainterPageController,
+    LayoutPainterPageModel
+  )(ui, demoTracker, rootWidget);
+}
+
+void registerTextLabelPage(
+  UiSystem ui,
+  ref ModelTracker!DemoModel demoTracker,
+  Widget rootWidget
+) {
+  registerSimplePage!(
+    TextLabelPage,
+    TextLabelPageController,
+    TextLabelPageModel
+  )(ui, demoTracker, rootWidget);
+}
+
+void registerButtonPage(
+  UiSystem ui,
+  ref ModelTracker!DemoModel demoTracker,
+  Widget rootWidget,
+  HoverButtonController hoverBtnController
+) {
+  assert(hoverBtnController !is null, "hoverBtnController must not be null");
+  auto page = registerSimplePage!(
+    ButtonPage,
+    ButtonPageController,
+    ButtonPageModel
+  )(ui, demoTracker, rootWidget);
+  page.registerWithController(hoverBtnController);
+}
+
+void registerButtonSystemPage(
+  UiSystem ui,
+  ref ModelTracker!DemoModel demoTracker,
+  Widget rootWidget
+) {
+  registerSimplePage!(
+    ButtonSystemPage,
+    ButtonSystemPageController,
+    ButtonSystemPageModel
+  )(ui, demoTracker, rootWidget);
+}
+
+void registerKnobPage(
+  UiSystem ui,
+  ref ModelTracker!DemoModel demoTracker,
+  Widget rootWidget
+) {
+  registerSimplePage!(KnobPage, KnobPageController, KnobPageModel)(
+    ui,
+    demoTracker,
+    rootWidget
   );
 }

@@ -3,7 +3,8 @@
  */
 module guidemo.pages.layout_painter_controller;
 
-import guidemo.common : isKey, syncPageShellView, syncPageStatus;
+import guidemo.common : PageControllerParams, isKey, syncPageShellView,
+  syncPageStatus;
 import guidemo.demo_model_helpers : isPageActive;
 import guidemo.model : DemoModel, DemoPage, LayoutPainterPageModel;
 import guidemo.pages.layout_painter_page : LayoutPainterPage;
@@ -14,25 +15,29 @@ import yguilib.model : ModelTracker;
 import yguilib.timercontrol : TimerId, invalidTimerId;
 import yguilib.timers : AnimationTimer, AnimationWrapMode, TimerIntervalMs,
   TimerMode;
-import yguilib.uisystem : UiSystem;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
   JustifyContent;
+
+/// Parameters for constructing LayoutPainterPageController.
+alias LayoutPainterPageControllerParams = PageControllerParams!(
+  LayoutPainterPage,
+  ModelTracker!LayoutPainterPageModel
+);
 
 /// Controller handling Page 1 keyboard shortcuts and alpha pulse animation.
 final class LayoutPainterPageController : DefaultController {
   @disable this();
 
-  this(
-    UiSystem ui,
-    ref ModelTracker!DemoModel demoTracker,
-    LayoutPainterPage page
-  ) {
-    assert(ui !is null, "ui must not be null");
-    assert(page !is null, "page must not be null");
-    super(ui);
-    this.demoTracker = ModelTracker!DemoModel.from(demoTracker);
-    this.page = page;
-    this.tracker = ModelTracker!LayoutPainterPageModel.from(page.getTracker());
+  /// Constructs the controller from fluent `params`.
+  this(ref LayoutPainterPageControllerParams params) {
+    assert(params.ui !is null, "ui must not be null");
+    assert(params.page !is null, "page must not be null");
+    super(params.ui);
+    this.demoTracker = ModelTracker!DemoModel.from(params.demoTracker);
+    this.page = params.page;
+    this.tracker = ModelTracker!LayoutPainterPageModel.from(
+      params.trackers
+    );
     alphaTimer.start(1.2f, AnimationWrapMode.pingPong);
     const bool onPage = isPageActive(
       this.demoTracker.model,
@@ -44,7 +49,7 @@ final class LayoutPainterPageController : DefaultController {
     syncPageShellView(
       this.demoTracker.model,
       DemoPage.layoutPainter,
-      page.getRootWidget()
+      page.rootWidget()
     );
     syncPageStatus(
       this.demoTracker,
@@ -66,7 +71,7 @@ final class LayoutPainterPageController : DefaultController {
     syncPageShellView(
       demoTracker.model,
       DemoPage.layoutPainter,
-      page.getRootWidget()
+      page.rootWidget()
     );
     return true;
   }
@@ -129,11 +134,11 @@ private:
         ? FlexDirection.column
         : FlexDirection.row;
     } else if (isKey(ev, Keycode.j, Scancode.j)) {
-      size_t nextJ = (cast(size_t) model.justify + 1) %
+      const size_t nextJ = (cast(size_t) model.justify + 1) %
         (JustifyContent.max + 1);
       model.justify = cast(JustifyContent) nextJ;
     } else if (isKey(ev, Keycode.a, Scancode.a)) {
-      size_t nextA = (cast(size_t) model.alignItems + 1) %
+      const size_t nextA = (cast(size_t) model.alignItems + 1) %
         (AlignItems.max + 1);
       model.alignItems = cast(AlignItems) nextA;
     } else if (isKey(ev, Keycode.g, Scancode.g)) {
@@ -184,8 +189,16 @@ unittest {
   auto demoModel = new DemoModel();
   auto demoTracker = ModelTracker!DemoModel(demoModel);
   auto root = new Widget(ui.nextWidgetId());
-  auto page = new LayoutPainterPage(ui, root);
-  auto ctrl = new LayoutPainterPageController(ui, demoTracker, page);
+  auto pageTracker = ModelTracker!LayoutPainterPageModel(
+    new LayoutPainterPageModel()
+  );
+  auto page = new LayoutPainterPage(ui, root, pageTracker);
+  LayoutPainterPageControllerParams params;
+  params.withUi(ui)
+    .withDemoTracker(demoTracker)
+    .withTrackers(pageTracker)
+    .withPage(page);
+  auto ctrl = new LayoutPainterPageController(params);
 
   AppEvent makeKeyDown(Keycode k, Scancode sc) {
     return AppEvent.keyEvent(
@@ -200,7 +213,7 @@ unittest {
   auto hrD = ctrl.handleEvent(makeKeyDown(Keycode.d, Scancode.d));
   assert(hrD.result == HandleResult.Result.update);
   assert(hrD.consume);
-  assert(page.getTracker().model.direction == FlexDirection.column);
+  assert(pageTracker.model.direction == FlexDirection.column);
   assert(ctrl.update());
   assert(!ctrl.update());
   assert(ctrl.updateView());
@@ -212,9 +225,9 @@ unittest {
   assert(!hrM.consume);
 
   // Page 1 alpha pulse animates on onTimer(id, dt)
-  const float alphaBefore = page.getTracker().model.alphaValue;
+  const float alphaBefore = pageTracker.model.alphaValue;
   assert(ctrl.onTimer(ctrl.alphaTimerId, 0.016f));
-  assert(page.getTracker().model.alphaValue != alphaBefore);
+  assert(pageTracker.model.alphaValue != alphaBefore);
 
   // Switch away from Page 1: shortcuts ignored and timer stopped
   auto dm = demoTracker.edit();
@@ -226,7 +239,7 @@ unittest {
   auto hrD2 = ctrl.handleEvent(makeKeyDown(Keycode.d, Scancode.d));
   assert(hrD2.result == HandleResult.Result.nothing);
   assert(!hrD2.consume);
-  assert(page.getTracker().model.direction == FlexDirection.column);
+  assert(pageTracker.model.direction == FlexDirection.column);
 
   // Switch back to Page 1: update() restarts timer
   dm = demoTracker.edit();

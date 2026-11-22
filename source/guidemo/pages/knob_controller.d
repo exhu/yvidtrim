@@ -4,39 +4,41 @@
  */
 module guidemo.pages.knob_controller;
 
-import guidemo.common : syncPageShellView, syncPageStatus;
+import guidemo.common : PageControllerParams, syncPageShellView,
+  syncPageStatus;
 import guidemo.model : DemoModel, DemoPage, KnobPageModel;
 import guidemo.pages.knob_page : KnobPage, knobDownEvent, knobDragEvent,
   knobUpEvent;
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker;
-import yguilib.uisystem : UiSystem;
 import yguilib.widget.input_components : MouseEvent;
 
 /// Value change per pixel of horizontal relative drag motion.
 enum float knobSensitivity = 0.01f;
 
+/// Parameters for constructing KnobPageController.
+alias KnobPageControllerParams =
+  PageControllerParams!(KnobPage, ModelTracker!KnobPageModel);
+
 /// Controller translating locked-cursor drag deltas into knob value changes.
 final class KnobPageController : DefaultController {
   @disable this();
 
+  /// Constructs the controller from fluent `params`.
   this(
-    UiSystem ui,
-    ref ModelTracker!DemoModel demoTracker,
-    ref ModelTracker!KnobPageModel knobTracker,
-    KnobPage page
+    ref PageControllerParams!(KnobPage, ModelTracker!KnobPageModel) params
   ) {
-    assert(ui !is null, "ui must not be null");
-    assert(page !is null, "page must not be null");
-    super(ui);
-    this.demoTracker = ModelTracker!DemoModel.from(demoTracker);
-    this.tracker = ModelTracker!KnobPageModel.from(knobTracker);
-    this.page = page;
+    assert(params.ui !is null, "ui must not be null");
+    assert(params.page !is null, "page must not be null");
+    super(params.ui);
+    this.demoTracker = ModelTracker!DemoModel.from(params.demoTracker);
+    this.tracker = ModelTracker!KnobPageModel.from(params.trackers);
+    this.page = params.page;
     syncPageShellView(
       this.demoTracker.model,
       DemoPage.knob,
-      page.getRootWidget()
+      page.rootWidget()
     );
     syncPageStatus(this.demoTracker, DemoPage.knob, page.formatStatus());
   }
@@ -64,7 +66,7 @@ final class KnobPageController : DefaultController {
     syncPageShellView(
       demoTracker.model,
       DemoPage.knob,
-      page.getRootWidget()
+      page.rootWidget()
     );
     return true;
   }
@@ -116,7 +118,12 @@ unittest {
   auto demoTracker = ModelTracker!DemoModel(new DemoModel());
   auto knobTracker = ModelTracker!KnobPageModel(new KnobPageModel());
   auto page = new KnobPage(ui, root, knobTracker);
-  auto ctrl = new KnobPageController(ui, demoTracker, knobTracker, page);
+  KnobPageControllerParams params;
+  params.withUi(ui)
+    .withDemoTracker(demoTracker)
+    .withTrackers(knobTracker)
+    .withPage(page);
+  auto ctrl = new KnobPageController(params);
 
   auto downEv = ViewAppEventBuilder(knobDownEvent).build();
   assert(ctrl.handleEvent(downEv).consume);

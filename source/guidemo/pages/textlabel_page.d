@@ -15,17 +15,22 @@ import yguilib.widget.layout_components : Dimension, Insets, Size, SizingMode;
 
 /// Page 2 container displaying TextLabel multiline, ellipsis, alignment demos.
 final class TextLabelPage {
-  /// Constructs TextLabelPage. `parent` is allowed to be null in tests.
-  this(UiSystem ui, Widget parent) {
+  @disable this();
+
+  /// Constructs TextLabelPage with an externally created `modelTracker`.
+  this(
+    UiSystem ui,
+    Widget parent,
+    ref ModelTracker!TextLabelPageModel modelTracker
+  ) {
     assert(ui !is null, "UiSystem must not be null");
+    assert(parent !is null, "parent must not be null");
     this.ui = ui;
-    tracker = ModelTracker!TextLabelPageModel(new TextLabelPageModel());
+    tracker = ModelTracker!TextLabelPageModel.from(modelTracker);
     root = new Widget(ui.nextWidgetId());
     root.name = "textLabelPage";
     root.rect = RectF(0, 0, 1280, 720);
-    if (parent !is null) {
-      parent.addChild(root);
-    }
+    parent.addChild(root);
 
     buildAlignmentSection();
     buildEllipsisSection();
@@ -33,10 +38,11 @@ final class TextLabelPage {
     buildPlaygroundSection();
   }
 
-  ref ModelTracker!TextLabelPageModel getTracker() return {
-    return tracker;
+  invariant {
+    assert(root !is null);
   }
 
+  /// Syncs widgets from the page model when it changed.
   void update() {
     if (!tracker.update()) {
       return;
@@ -66,11 +72,12 @@ final class TextLabelPage {
     }
   }
 
+  /// Returns the status bar text for this page.
   string formatStatus() {
     import std.format : format;
 
     const auto m = tracker.model;
-    string alignStr = alignmentToString(m.labelAlignment);
+    const string alignStr = alignmentToString(m.labelAlignment);
     return format(
       "[M] Multiline: %s | [E] Ellipsis: %s | [L] Align: %s | " ~
       "[T] Sample: %d/3",
@@ -81,14 +88,17 @@ final class TextLabelPage {
     );
   }
 
-  Widget getRootWidget() {
+  /// Returns the page root widget.
+  Widget rootWidget() {
     return root;
   }
 
+  /// Shows or hides the page.
   void setVisible(bool visible) {
     root.setVisible(visible);
   }
 
+  /// Returns whether the page is visible.
   bool isVisible() const {
     return root.visible;
   }
@@ -104,6 +114,7 @@ final class TextLabelPage {
       "• Line 4: Additional content exceeding height boundary",
   ];
 
+  /// Returns the lowercase name of `alignment`.
   static string alignmentToString(TextLabel.Alignment alignment) {
     final switch (alignment) {
     case TextLabel.Alignment.left:
@@ -115,6 +126,7 @@ final class TextLabelPage {
     }
   }
 
+  /// Returns the interactive playground status text for `m`.
   static string formatInteractiveStatus(const TextLabelPageModel m) {
     import std.format : format;
 

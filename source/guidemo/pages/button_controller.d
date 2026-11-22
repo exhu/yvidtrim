@@ -3,7 +3,8 @@
  */
 module guidemo.pages.button_controller;
 
-import guidemo.common : syncPageShellView, syncPageStatus;
+import guidemo.common : PageControllerParams, syncPageShellView,
+  syncPageStatus;
 import guidemo.model : ButtonPageModel, DemoModel, DemoPage;
 import guidemo.pages.button_page : ButtonPage, btnCountActionEvent,
   btnCountResetEvent;
@@ -12,33 +13,26 @@ import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker;
 import yguilib.uisystem : UiSystem;
 
+/// Parameters for constructing ButtonPageController.
+alias ButtonPageControllerParams =
+  PageControllerParams!(ButtonPage, ModelTracker!ButtonPageModel);
+
 /// Controller handling Page 3 button action and reset events.
 final class ButtonPageController : DefaultController {
-  static ButtonPageController createStandalone(
-    UiSystem ui,
-    ButtonPage page
-  ) {
-    auto dm = ModelTracker!DemoModel(new DemoModel());
-    return new ButtonPageController(ui, dm, page);
-  }
-
   @disable this();
 
-  this(
-    UiSystem ui,
-    ref ModelTracker!DemoModel demoTracker,
-    ButtonPage page
-  ) {
-    assert(ui !is null, "ui must not be null");
-    assert(page !is null, "page must not be null");
-    super(ui);
-    this.demoTracker = ModelTracker!DemoModel.from(demoTracker);
-    this.page = page;
-    this.tracker = ModelTracker!ButtonPageModel.from(page.getTracker());
+  /// Constructs the controller from fluent `params`.
+  this(ref ButtonPageControllerParams params) {
+    assert(params.ui !is null, "ui must not be null");
+    assert(params.page !is null, "page must not be null");
+    super(params.ui);
+    this.demoTracker = ModelTracker!DemoModel.from(params.demoTracker);
+    this.page = params.page;
+    this.tracker = ModelTracker!ButtonPageModel.from(params.trackers);
     syncPageShellView(
       this.demoTracker.model,
       DemoPage.button,
-      page.getRootWidget()
+      page.rootWidget()
     );
     syncPageStatus(
       this.demoTracker,
@@ -70,7 +64,7 @@ final class ButtonPageController : DefaultController {
     syncPageShellView(
       demoTracker.model,
       DemoPage.button,
-      page.getRootWidget()
+      page.rootWidget()
     );
     return true;
   }
@@ -109,19 +103,26 @@ unittest {
 
   auto ui = new UiSystemImpl(null);
   auto root = new Widget(ui.nextWidgetId());
-  auto page = new ButtonPage(ui, root);
-  auto ctrl = ButtonPageController.createStandalone(ui, page);
+  auto standaloneDemo = ModelTracker!DemoModel(new DemoModel());
+  auto pageTracker = ModelTracker!ButtonPageModel(new ButtonPageModel());
+  auto page = new ButtonPage(ui, root, pageTracker);
+  ButtonPageControllerParams params;
+  params.withUi(ui)
+    .withDemoTracker(standaloneDemo)
+    .withTrackers(pageTracker)
+    .withPage(page);
+  auto ctrl = new ButtonPageController(params);
 
   auto evInc = ViewAppEventBuilder(btnCountActionEvent).build();
   auto hrInc = ctrl.handleEvent(evInc);
   assert(hrInc.result == HandleResult.Result.update);
   assert(hrInc.consume);
-  assert(page.getTracker().model.buttonClickCount == 1);
+  assert(pageTracker.model.buttonClickCount == 1);
 
   auto evReset = ViewAppEventBuilder(btnCountResetEvent).build();
   auto hrReset = ctrl.handleEvent(evReset);
   assert(hrReset.consume);
-  assert(page.getTracker().model.buttonClickCount == 0);
+  assert(pageTracker.model.buttonClickCount == 0);
 
   // Unrelated event is not consumed
   auto evOther = ViewAppEventBuilder("sysBtnCountAction").build();
@@ -131,8 +132,14 @@ unittest {
 
   // Phase 2 update() syncs page visibility when activePage changes
   auto demoTracker = ModelTracker!DemoModel(new DemoModel());
-  auto page2 = new ButtonPage(ui, root);
-  auto ctrl2 = new ButtonPageController(ui, demoTracker, page2);
+  auto pageTracker2 = ModelTracker!ButtonPageModel(new ButtonPageModel());
+  auto page2 = new ButtonPage(ui, root, pageTracker2);
+  ButtonPageControllerParams params2;
+  params2.withUi(ui)
+    .withDemoTracker(demoTracker)
+    .withTrackers(pageTracker2)
+    .withPage(page2);
+  auto ctrl2 = new ButtonPageController(params2);
   assert(!page2.isVisible());
   auto dm = demoTracker.edit();
   dm.activePage = DemoPage.button;
@@ -181,7 +188,7 @@ unittest {
 
   auto tabsTracker = ModelTracker!TabsModel(createHeaderTabsModel());
   auto demoView = new DemoView(ui, demoTracker, tabsTracker);
-  auto root = demoView.getRootWidget();
+  auto root = demoView.rootWidget();
   app.withRootWidget(root);
 
   DemoControllerParams params;
@@ -191,13 +198,21 @@ unittest {
     .withTabsTracker(tabsTracker);
   auto demoCtrl = new DemoController(params);
 
-  auto page = new ButtonPage(ui, root);
-  auto btnCtrl = new ButtonPageController(ui, demoTracker, page);
+  auto pageTracker = ModelTracker!ButtonPageModel(new ButtonPageModel());
+  auto page = new ButtonPage(ui, root, pageTracker);
+  ButtonPageControllerParams pageParams;
+  pageParams.withUi(ui)
+    .withDemoTracker(demoTracker)
+    .withTrackers(pageTracker)
+    .withPage(page);
+  auto btnCtrl = new ButtonPageController(pageParams);
 
   final class HarnessController : DefaultController {
     int updateCount = 0;
     TimerId checkTimer = invalidTimerId;
     bool passed = false;
+
+    @disable this();
 
     this(UiSystem sys) {
       assert(sys !is null, "sys must not be null");

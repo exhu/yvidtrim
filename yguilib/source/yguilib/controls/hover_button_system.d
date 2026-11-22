@@ -135,7 +135,7 @@ struct AnimatedHoverButtonBuilder {
   Anchor customAnchor = null;
   string widgetName = null;
   bool hasTooltip = false;
-  string tooltipText = null;
+  string tooltipHint = null;
 
   ref AnimatedHoverButtonBuilder name(string buttonName) return {
     widgetName = buttonName;
@@ -210,15 +210,17 @@ struct AnimatedHoverButtonBuilder {
     return this;
   }
 
-  ref AnimatedHoverButtonBuilder tooltip() return {
+  /// Attaches a tooltip whose text is taken from the caption.
+  ref AnimatedHoverButtonBuilder captionTooltip() return {
     hasTooltip = true;
-    tooltipText = null;
+    tooltipHint = null;
     return this;
   }
 
-  ref AnimatedHoverButtonBuilder tooltip(string hintText) return {
+  /// Attaches a tooltip showing `hintText`.
+  ref AnimatedHoverButtonBuilder tooltipText(string hintText) return {
     hasTooltip = true;
-    tooltipText = hintText;
+    tooltipHint = hintText;
     return this;
   }
 
@@ -250,7 +252,7 @@ struct AnimatedHoverButtonBuilder {
     comp.colorsInitialized = true;
     b.component(comp);
     if (hasTooltip) {
-      b.component(Tooltip.withText(tooltipText));
+      b.component(Tooltip.withText(tooltipHint));
     }
     b.inputEnabled(true);
 
@@ -875,12 +877,12 @@ unittest {
   assert(!sys.isAnyAnimating());
   assert(sys.animTimerId == invalidTimerId);
 
-  // Test 5: .tooltip() attaches Tooltip component
+  // Test 5: .captionTooltip() attaches Tooltip component
   AnimatedHoverButtonBuilder tb1;
   auto tipBtn = tb1
     .name("tipBtn")
     .text("Fallback Caption")
-    .tooltip()
+    .captionTooltip()
     .build(testUi, null, RectF(0, 0, 100, 32));
   assert(tipBtn.components.has!Tooltip());
   assert(
@@ -891,7 +893,7 @@ unittest {
   auto tipBtnCustom = tb2
     .name("tipBtnCustom")
     .text("Short")
-    .tooltip("Explicit Tooltip Hint")
+    .tooltipText("Explicit Tooltip Hint")
     .build(testUi, null, RectF(0, 0, 100, 32));
   assert(tipBtnCustom.components.has!Tooltip());
   assert(

@@ -3,42 +3,35 @@
  */
 module guidemo.pages.button_system_controller;
 
-import guidemo.common : syncPageShellView, syncPageStatus;
+import guidemo.common : PageControllerParams, syncPageShellView,
+  syncPageStatus;
 import guidemo.model : ButtonSystemPageModel, DemoModel, DemoPage;
 import guidemo.pages.button_system_page : ButtonSystemPage,
   sysBtnCountActionEvent, sysBtnCountResetEvent;
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker;
-import yguilib.uisystem : UiSystem;
+
+/// Parameters for constructing ButtonSystemPageController.
+alias ButtonSystemPageControllerParams =
+  PageControllerParams!(ButtonSystemPage, ModelTracker!ButtonSystemPageModel);
 
 /// Controller handling Page 4 system-driven button action and reset events.
 final class ButtonSystemPageController : DefaultController {
-  static ButtonSystemPageController createStandalone(
-    UiSystem ui,
-    ButtonSystemPage page
-  ) {
-    auto dm = ModelTracker!DemoModel(new DemoModel());
-    return new ButtonSystemPageController(ui, dm, page);
-  }
-
   @disable this();
 
-  this(
-    UiSystem ui,
-    ref ModelTracker!DemoModel demoTracker,
-    ButtonSystemPage page
-  ) {
-    assert(ui !is null, "ui must not be null");
-    assert(page !is null, "page must not be null");
-    super(ui);
-    this.demoTracker = ModelTracker!DemoModel.from(demoTracker);
-    this.page = page;
-    this.tracker = ModelTracker!ButtonSystemPageModel.from(page.getTracker());
+  /// Constructs the controller from fluent `params`.
+  this(ref ButtonSystemPageControllerParams params) {
+    assert(params.ui !is null, "ui must not be null");
+    assert(params.page !is null, "page must not be null");
+    super(params.ui);
+    this.demoTracker = ModelTracker!DemoModel.from(params.demoTracker);
+    this.page = params.page;
+    this.tracker = ModelTracker!ButtonSystemPageModel.from(params.trackers);
     syncPageShellView(
       this.demoTracker.model,
       DemoPage.buttonSystem,
-      page.getRootWidget()
+      page.rootWidget()
     );
     syncPageStatus(
       this.demoTracker,
@@ -70,7 +63,7 @@ final class ButtonSystemPageController : DefaultController {
     syncPageShellView(
       demoTracker.model,
       DemoPage.buttonSystem,
-      page.getRootWidget()
+      page.rootWidget()
     );
     return true;
   }
@@ -109,19 +102,28 @@ unittest {
 
   auto ui = new UiSystemImpl(null);
   auto root = new Widget(ui.nextWidgetId());
-  auto page = new ButtonSystemPage(ui, root);
-  auto ctrl = ButtonSystemPageController.createStandalone(ui, page);
+  auto standaloneDemo = ModelTracker!DemoModel(new DemoModel());
+  auto pageTracker = ModelTracker!ButtonSystemPageModel(
+    new ButtonSystemPageModel()
+  );
+  auto page = new ButtonSystemPage(ui, root, pageTracker);
+  ButtonSystemPageControllerParams params;
+  params.withUi(ui)
+    .withDemoTracker(standaloneDemo)
+    .withTrackers(pageTracker)
+    .withPage(page);
+  auto ctrl = new ButtonSystemPageController(params);
 
   auto evInc = ViewAppEventBuilder(sysBtnCountActionEvent).build();
   auto hrInc = ctrl.handleEvent(evInc);
   assert(hrInc.result == HandleResult.Result.update);
   assert(hrInc.consume);
-  assert(page.getTracker().model.buttonClickCount == 1);
+  assert(pageTracker.model.buttonClickCount == 1);
 
   auto evReset = ViewAppEventBuilder(sysBtnCountResetEvent).build();
   auto hrReset = ctrl.handleEvent(evReset);
   assert(hrReset.consume);
-  assert(page.getTracker().model.buttonClickCount == 0);
+  assert(pageTracker.model.buttonClickCount == 0);
 
   // Page 3 event is not consumed
   auto evOther = ViewAppEventBuilder("btnCountAction").build();
@@ -131,8 +133,16 @@ unittest {
 
   // Phase 2 update() syncs page visibility when activePage changes
   auto demoTracker = ModelTracker!DemoModel(new DemoModel());
-  auto page2 = new ButtonSystemPage(ui, root);
-  auto ctrl2 = new ButtonSystemPageController(ui, demoTracker, page2);
+  auto pageTracker2 = ModelTracker!ButtonSystemPageModel(
+    new ButtonSystemPageModel()
+  );
+  auto page2 = new ButtonSystemPage(ui, root, pageTracker2);
+  ButtonSystemPageControllerParams params2;
+  params2.withUi(ui)
+    .withDemoTracker(demoTracker)
+    .withTrackers(pageTracker2)
+    .withPage(page2);
+  auto ctrl2 = new ButtonSystemPageController(params2);
   assert(!page2.isVisible());
   auto dm = demoTracker.edit();
   dm.activePage = DemoPage.buttonSystem;

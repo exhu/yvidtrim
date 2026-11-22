@@ -22,11 +22,13 @@ struct DemoControllerParams {
   DemoView view;
   ModelTracker!TabsModel tabsTracker;
 
+  /// Sets the UI system.
   ref DemoControllerParams withUi(UiSystem ui) return {
     this.ui = ui;
     return this;
   }
 
+  /// Sets the shared demo model tracker.
   ref DemoControllerParams withTracker(
     ref ModelTracker!DemoModel otherTracker
   ) return {
@@ -34,11 +36,13 @@ struct DemoControllerParams {
     return this;
   }
 
+  /// Sets the demo shell view.
   ref DemoControllerParams withView(DemoView view) return {
     this.view = view;
     return this;
   }
 
+  /// Sets the header tab control model tracker.
   ref DemoControllerParams withTabsTracker(
     ref ModelTracker!TabsModel otherTabsTracker
   ) return {
@@ -52,6 +56,7 @@ struct DemoControllerParams {
 final class DemoController : DefaultController {
   @disable this();
 
+  /// Constructs DemoController from fluent `params`.
   this(ref DemoControllerParams params) {
     assert(params.ui !is null, "UiSystem must not be null");
     assert(params.view !is null, "DemoView must not be null");
@@ -166,7 +171,7 @@ private:
   }
 
   static void toggleDebugDraw(DemoModel model) {
-    size_t next = (cast(size_t) model.debugDrawMode + 1) %
+    const size_t next = (cast(size_t) model.debugDrawMode + 1) %
       (DebugDrawMode.max + 1);
     model.debugDrawMode = cast(DebugDrawMode) next;
   }
@@ -239,8 +244,8 @@ unittest {
     DebugDrawMode.off,
   ];
   foreach (expected; expectedModes) {
-    auto evF12 = makeKeyDown(Keycode.f12, Scancode.f12);
-    auto hrF12 = demoCtrl.handleEvent(evF12);
+    const evF12 = makeKeyDown(Keycode.f12, Scancode.f12);
+    const hrF12 = demoCtrl.handleEvent(evF12);
     assert(hrF12.result == HandleResult.Result.update);
     assert(hrF12.consume);
     assert(demoCtrl.tracker.model.debugDrawMode == expected);

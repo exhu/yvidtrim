@@ -61,20 +61,24 @@ final class KnobPage {
     return format("%.2f%s", m.value, m.dragging ? "  (dragging)" : "");
   }
 
+  /// Returns the status bar text for this page.
   string formatStatus() {
     import std.format : format;
 
     return format("Value: %.2f", tracker.model.value);
   }
 
-  Widget getRootWidget() {
+  /// Returns the page root widget.
+  Widget rootWidget() {
     return root;
   }
 
-  Widget getValueBox() {
-    return valueBox;
+  /// Returns the widget displaying the knob value.
+  Widget valueBox() {
+    return valueBoxWidget;
   }
 
+  /// Returns whether the page is visible.
   bool isVisible() const {
     return root.visible;
   }
@@ -89,7 +93,7 @@ private:
       "knobCard"
     );
 
-    valueBox = WidgetBuilder.make(ui)
+    valueBoxWidget = WidgetBuilder.make(ui)
       .parent(card)
       .name("knobValueBox")
       .rect(RectF(16, 44, 240, 48))
@@ -103,7 +107,7 @@ private:
       .build();
 
     valueLabel = WidgetBuilder.make(ui)
-      .parent(valueBox)
+      .parent(valueBoxWidget)
       .name("knobValueLabel")
       .rect(RectF(0, 14, 240, 20))
       .text(formatValue())
@@ -133,6 +137,6 @@ private:
   UiSystem ui;
   ModelTracker!KnobPageModel tracker;
   Widget root;
-  Widget valueBox;
+  Widget valueBoxWidget;
   Widget valueLabel;
 }

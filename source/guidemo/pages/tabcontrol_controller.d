@@ -3,44 +3,52 @@
  */
 module guidemo.pages.tabcontrol_controller;
 
-import guidemo.common : syncPageShellView, syncPageStatus;
+import guidemo.common : PageControllerParams, syncPageShellView,
+  syncPageStatus;
 import guidemo.model : DemoModel, DemoPage, TabControlPageModel;
-import guidemo.pages.tabcontrol_page : TabControlPage, dynamicTabSwitchEvent,
-  page5AddTabEvent, page5NarrowViewportEvent, page5RemoveTabEvent,
-  page5ResetTabsEvent, page5WidenViewportEvent, pageTabSwitchEvent,
-  verticalTabSwitchEvent;
+import guidemo.pages.tabcontrol_page : TabControlPage, TabControlPageTrackers,
+  defaultDynamicTabNames, dynamicTabSwitchEvent, page5AddTabEvent,
+  page5NarrowViewportEvent, page5RemoveTabEvent, page5ResetTabsEvent,
+  page5WidenViewportEvent, pageTabSwitchEvent, verticalTabSwitchEvent;
 import yguilib.controller : DefaultController, HandleResult;
+import yguilib.controls.tabcontrol : TabsModel;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker;
-import yguilib.uisystem : UiSystem;
+
+/// Parameters for constructing TabControlPageController.
+alias TabControlPageControllerParams =
+  PageControllerParams!(TabControlPage, TabControlPageTrackers);
+
+/// Maximum number of dynamic tabs.
+enum size_t maxDynamicTabs = 10;
+/// Minimum dynamic tab viewport width in pixels.
+enum float minViewportWidth = 300.0f;
+/// Maximum dynamic tab viewport width in pixels.
+enum float maxViewportWidth = 580.0f;
+/// Dynamic tab viewport width change per narrow/widen click.
+enum float viewportWidthStep = 70.0f;
 
 /// Controller handling Page 5 tab switch and dynamic tab mutation events.
 final class TabControlPageController : DefaultController {
-  static TabControlPageController createStandalone(
-    UiSystem ui,
-    TabControlPage page
-  ) {
-    auto dm = ModelTracker!DemoModel(new DemoModel());
-    return new TabControlPageController(ui, dm, page);
-  }
-
   @disable this();
 
-  this(
-    UiSystem ui,
-    ref ModelTracker!DemoModel demoTracker,
-    TabControlPage page
-  ) {
-    assert(ui !is null, "ui must not be null");
-    assert(page !is null, "page must not be null");
-    super(ui);
-    this.demoTracker = ModelTracker!DemoModel.from(demoTracker);
-    this.page = page;
-    this.tracker = ModelTracker!TabControlPageModel.from(page.getTracker());
+  /// Constructs the controller from fluent `params`.
+  this(ref TabControlPageControllerParams params) {
+    assert(params.ui !is null, "ui must not be null");
+    assert(params.page !is null, "page must not be null");
+    super(params.ui);
+    this.demoTracker = ModelTracker!DemoModel.from(params.demoTracker);
+    this.tracker = ModelTracker!TabControlPageModel.from(
+      params.trackers.page
+    );
+    this.dynamicTabsTracker = ModelTracker!TabsModel.from(
+      params.trackers.dynamicTabs
+    );
+    this.page = params.page;
     syncPageShellView(
       this.demoTracker.model,
       DemoPage.tabControl,
-      page.getRootWidget()
+      page.rootWidget()
     );
     syncPageStatus(
       this.demoTracker,
@@ -56,6 +64,7 @@ final class TabControlPageController : DefaultController {
   override bool update() {
     const bool demoChanged = demoTracker.update();
     const bool pageChanged = tracker.update();
+    const bool tabsChanged = dynamicTabsTracker.update();
     const bool statusChanged = syncPageStatus(
       demoTracker,
       DemoPage.tabControl,
@@ -64,7 +73,7 @@ final class TabControlPageController : DefaultController {
     if (statusChanged) {
       demoTracker.update();
     }
-    return demoChanged || pageChanged || statusChanged;
+    return demoChanged || pageChanged || tabsChanged || statusChanged;
   }
 
   override bool updateView() {
@@ -72,7 +81,7 @@ final class TabControlPageController : DefaultController {
     syncPageShellView(
       demoTracker.model,
       DemoPage.tabControl,
-      page.getRootWidget()
+      page.rootWidget()
     );
     return true;
   }
@@ -119,30 +128,95 @@ private:
   }
 
   bool handleMutation(string eventName) {
-    auto model = tracker.edit();
-    bool handled = true;
     if (eventName == page5AddTabEvent) {
-      model.dynamicTabCount = page.addDynamicTab();
-      model.dynamicTab = page.getDynamicActiveTab();
+      addDynamicTab();
     } else if (eventName == page5RemoveTabEvent) {
-      model.dynamicTabCount = page.removeDynamicTab();
-      model.dynamicTab = page.getDynamicActiveTab();
+      removeDynamicTab();
     } else if (eventName == page5ResetTabsEvent) {
-      model.dynamicTabCount = page.resetDynamicTabs();
-      model.dynamicTab = page.getDynamicActiveTab();
+      resetDynamicTabs();
     } else if (eventName == page5NarrowViewportEvent) {
-      model.viewportWidth = page.narrowDynamicViewport();
+      setViewportWidth(narrowedWidth(tracker.model.viewportWidth));
     } else if (eventName == page5WidenViewportEvent) {
-      model.viewportWidth = page.widenDynamicViewport();
+      setViewportWidth(widenedWidth(tracker.model.viewportWidth));
     } else {
-      handled = false;
+      return false;
     }
+    return true;
+  }
+
+  /// Appends a new tab to the dynamic TabsModel (up to 10 tabs).
+  void addDynamicTab() {
+    import std.format : format;
+
+    auto m = dynamicTabsTracker.edit();
+    if (m.tabNames.length < maxDynamicTabs) {
+      const size_t nextNum = m.tabNames.length + 1;
+      m.tabNames ~= format("Clip %d", nextNum);
+      m.activeTab = m.tabNames.length - 1;
+    }
+    dynamicTabsTracker.commit(m);
+    syncDynamicTabs();
+  }
+
+  /// Removes the last tab from the dynamic TabsModel (down to 1 tab).
+  void removeDynamicTab() {
+    auto m = dynamicTabsTracker.edit();
+    if (m.tabNames.length > 1) {
+      m.tabNames = m.tabNames[0 .. $ - 1];
+      if (m.activeTab >= m.tabNames.length) {
+        m.activeTab = m.tabNames.length - 1;
+      }
+    }
+    dynamicTabsTracker.commit(m);
+    syncDynamicTabs();
+  }
+
+  /// Resets the dynamic TabsModel back to 6 tabs.
+  void resetDynamicTabs() {
+    auto m = dynamicTabsTracker.edit();
+    m.tabNames = defaultDynamicTabNames();
+    m.activeTab = 0;
+    dynamicTabsTracker.commit(m);
+    syncDynamicTabs();
+  }
+
+  /// Copies the dynamic tab count and active tab into the page model.
+  void syncDynamicTabs() {
+    const auto dm = dynamicTabsTracker.model;
+    auto model = tracker.edit();
+    model.dynamicTabCount = dm.tabNames.length;
+    model.dynamicTab = dm.activeTab;
     tracker.commit(model);
-    return handled;
+  }
+
+  /// Stores the dynamic tab viewport `width` in the page model.
+  void setViewportWidth(float width) {
+    auto model = tracker.edit();
+    model.viewportWidth = width;
+    tracker.commit(model);
+  }
+
+  /// Returns `width` narrowed by one step (min `minViewportWidth`).
+  static float narrowedWidth(float width) {
+    if (width <= minViewportWidth) {
+      return width;
+    }
+    const float w = width - viewportWidthStep;
+    return (w < minViewportWidth) ? minViewportWidth : w;
+  }
+
+  /// Returns `width` widened by one step (max `maxViewportWidth`).
+  static float widenedWidth(float width) {
+    if (width >= maxViewportWidth) {
+      return width;
+    }
+    const float w = width + viewportWidthStep;
+    return (w > maxViewportWidth) ? maxViewportWidth : w;
   }
 
   ModelTracker!DemoModel demoTracker;
   ModelTracker!TabControlPageModel tracker;
+  ModelTracker!TabsModel dynamicTabsTracker;
   TabControlPage page;
 }
 
@@ -151,10 +225,26 @@ unittest {
   import yguilib.internal.uisystem_impl : UiSystemImpl;
   import yguilib.widget : Widget;
 
+  TabControlPageController makeController(
+    UiSystemImpl ui,
+    Widget root,
+    ref ModelTracker!DemoModel demoTracker,
+    ref TabControlPageTrackers trackers
+  ) {
+    auto page = new TabControlPage(ui, root, trackers);
+    TabControlPageControllerParams params;
+    params.withUi(ui)
+      .withDemoTracker(demoTracker)
+      .withTrackers(trackers)
+      .withPage(page);
+    return new TabControlPageController(params);
+  }
+
   auto ui = new UiSystemImpl(null);
   auto root = new Widget(ui.nextWidgetId());
-  auto page = new TabControlPage(ui, root, ui);
-  auto ctrl = TabControlPageController.createStandalone(ui, page);
+  auto demoTracker = ModelTracker!DemoModel(new DemoModel());
+  auto trackers = TabControlPageTrackers.make();
+  auto ctrl = makeController(ui, root, demoTracker, trackers);
 
   // Tab switch events must not be consumed so TabControlWidgetViewController
   // on the stack also receives them.
@@ -162,26 +252,45 @@ unittest {
   auto hrSub = ctrl.handleEvent(evSub);
   assert(hrSub.result == HandleResult.Result.update);
   assert(!hrSub.consume);
-  assert(page.getTracker().model.subTab == 2);
+  assert(trackers.page.model.subTab == 2);
 
   auto evDyn = ViewAppEventBuilder(dynamicTabSwitchEvent).value(1).build();
   auto hrDyn = ctrl.handleEvent(evDyn);
   assert(hrDyn.result == HandleResult.Result.update);
   assert(!hrDyn.consume);
-  assert(page.getTracker().model.dynamicTab == 1);
+  assert(trackers.page.model.dynamicTab == 1);
 
   auto evVert = ViewAppEventBuilder(verticalTabSwitchEvent).value(3).build();
   auto hrVert = ctrl.handleEvent(evVert);
   assert(hrVert.result == HandleResult.Result.update);
   assert(!hrVert.consume);
-  assert(page.getTracker().model.verticalTab == 3);
+  assert(trackers.page.model.verticalTab == 3);
 
   // Mutation events are consumed
   auto evAdd = ViewAppEventBuilder(page5AddTabEvent).build();
   auto hrAdd = ctrl.handleEvent(evAdd);
   assert(hrAdd.result == HandleResult.Result.update);
   assert(hrAdd.consume);
-  assert(page.getTracker().model.dynamicTabCount == 7);
+  assert(trackers.page.model.dynamicTabCount == 7);
+  assert(trackers.dynamicTabs.model.tabNames.length == 7);
+  assert(trackers.page.model.dynamicTab == 6);
+
+  auto evRem = ViewAppEventBuilder(page5RemoveTabEvent).build();
+  assert(ctrl.handleEvent(evRem).consume);
+  assert(trackers.page.model.dynamicTabCount == 6);
+  assert(trackers.page.model.dynamicTab == 5);
+
+  auto evNarrow = ViewAppEventBuilder(page5NarrowViewportEvent).build();
+  assert(ctrl.handleEvent(evNarrow).consume);
+  assert(trackers.page.model.viewportWidth == 510.0f);
+  auto evWiden = ViewAppEventBuilder(page5WidenViewportEvent).build();
+  assert(ctrl.handleEvent(evWiden).consume);
+  assert(trackers.page.model.viewportWidth == maxViewportWidth);
+
+  auto evReset = ViewAppEventBuilder(page5ResetTabsEvent).build();
+  assert(ctrl.handleEvent(evReset).consume);
+  assert(trackers.page.model.dynamicTabCount == 6);
+  assert(trackers.page.model.dynamicTab == 0);
 
   // Unrelated event is not consumed
   auto evOther = ViewAppEventBuilder("headerTabSwitch").value(0).build();
@@ -190,15 +299,15 @@ unittest {
   assert(!hrOther.consume);
 
   // Phase 2 update() syncs page visibility when activePage changes
-  auto demoTracker = ModelTracker!DemoModel(new DemoModel());
-  auto page2 = new TabControlPage(ui, root, ui);
-  auto ctrl2 = new TabControlPageController(ui, demoTracker, page2);
-  assert(!page2.isVisible());
-  auto dm = demoTracker.edit();
+  auto demoTracker2 = ModelTracker!DemoModel(new DemoModel());
+  auto trackers2 = TabControlPageTrackers.make();
+  auto ctrl2 = makeController(ui, root, demoTracker2, trackers2);
+  assert(!ctrl2.page.isVisible());
+  auto dm = demoTracker2.edit();
   dm.activePage = DemoPage.tabControl;
-  demoTracker.commit(dm);
+  demoTracker2.commit(dm);
   assert(ctrl2.update());
   assert(!ctrl2.update());
   ctrl2.updateView();
-  assert(page2.isVisible());
+  assert(ctrl2.page.isVisible());
 }

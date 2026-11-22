@@ -56,6 +56,7 @@ final class DemoView {
     assert(statusLabel !is null);
   }
 
+  /// Syncs widgets from the demo model when it changed.
   void update() {
     if (tracker.update()) {
       const auto m = tracker.model;
@@ -64,11 +65,13 @@ final class DemoView {
     }
   }
 
-  Widget getRootWidget() {
+  /// Returns the demo shell root widget.
+  Widget rootWidget() {
     return view;
   }
 
-  Widget getHeaderTabControl() {
+  /// Returns the header tab control widget.
+  Widget headerTabControl() {
     return tabControl;
   }
 
@@ -219,7 +222,7 @@ unittest {
   auto tabsTracker = ModelTracker!TabsModel(tabsModel);
   auto demoView = new DemoView(ui, tracker, tabsTracker);
 
-  auto root = demoView.getRootWidget();
+  auto root = demoView.rootWidget();
   assert(root !is null);
   assert(root.children.length > 0);
 
@@ -238,7 +241,7 @@ unittest {
   assert(titleBox.components.flexContainer.direction == FlexDirection.column);
   assert(titleBox.children.length == 2);
 
-  auto tabCtrl = demoView.getHeaderTabControl();
+  auto tabCtrl = demoView.headerTabControl();
   assert(tabCtrl !is null);
   assert(tabCtrl is header.children[1]);
   assert(tabCtrl.components.size !is null);

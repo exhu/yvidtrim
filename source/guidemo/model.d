@@ -104,6 +104,7 @@ final class ScrollbarsPageModel : VersionedModel {
   long releaseValue = 250;
   size_t releaseEventCount = 0;
   long playgroundValue = 200;
+  float playgroundBarWidth = 570.0f;
 }
 
 /// Model holding Page 7 (VirtList Showcase) state.
@@ -120,6 +121,8 @@ final class VirtListPageModel : VersionedModel {
   size_t hPooledWidgets = 0;
   size_t recycledStopsCount = 0;
   size_t activeVideosCount = 0;
+  /// Horizontal VirtList viewport width in pixels (set by the controller).
+  float hViewportWidth = 583.0f;
 }
 
 /// Model holding Page 8 (Knob / cursor lock showcase) state.

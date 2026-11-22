@@ -62,7 +62,9 @@ guidemo_lib_src = files(
   'source/guidemo/pages/textlabel_controller.d',
   'source/guidemo/pages/textlabel_page.d',
   'source/guidemo/pages/virtlist_controller.d',
+  'source/guidemo/pages/virtlist_items.d',
   'source/guidemo/pages/virtlist_page.d',
+  'source/guidemo/pages/virtlist_providers.d',
   'source/guidemo/view.d',
 )
 

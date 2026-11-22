@@ -12,7 +12,7 @@ import yguilib.controls.tabcontrol : TabControlBuilder, TabControlStyle,
   TabsModel;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
-import yguilib.uisystem : UiRegistry, UiSystem;
+import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
@@ -28,16 +28,53 @@ enum page5ResetTabsEvent = "page5ResetTabs";
 enum page5NarrowViewportEvent = "page5NarrowViewport";
 enum page5WidenViewportEvent = "page5WidenViewport";
 
+/// Returns the default dynamic tab names (6 clips).
+string[] defaultDynamicTabNames() {
+  return [
+    "Clip 1",
+    "Clip 2",
+    "Clip 3",
+    "Clip 4",
+    "Clip 5",
+    "Clip 6",
+  ];
+}
+
+/// Trackers shared between TabControlPage and TabControlPageController.
+struct TabControlPageTrackers {
+  ModelTracker!TabControlPageModel page;
+  ModelTracker!TabsModel dynamicTabs;
+
+  /// Creates trackers with default models.
+  static TabControlPageTrackers make() {
+    TabControlPageTrackers t;
+    t.page = ModelTracker!TabControlPageModel(new TabControlPageModel());
+    t.dynamicTabs = ModelTracker!TabsModel(
+      new TabsModel(defaultDynamicTabNames(), 0)
+    );
+    return t;
+  }
+
+  /// Copies `other` with independent per-holder versions.
+  static TabControlPageTrackers from(ref TabControlPageTrackers other) {
+    TabControlPageTrackers t;
+    t.page = ModelTracker!TabControlPageModel.from(other.page);
+    t.dynamicTabs = ModelTracker!TabsModel.from(other.dynamicTabs);
+    return t;
+  }
+}
+
 /// Page 5 widget container showcasing reusable TabControl instances.
 final class TabControlPage {
-  /// Constructs TabControlPage. `registry` is allowed to be null in headless
-  /// tests.
-  this(UiSystem ui, Widget parent, UiRegistry registry) {
+  @disable this();
+
+  /// Constructs TabControlPage sharing models with `trackers`.
+  this(UiSystem ui, Widget parent, ref TabControlPageTrackers trackers) {
     assert(ui !is null, "UiSystem must not be null");
     assert(parent !is null, "parent must not be null");
     this.ui = ui;
-    this.registry = (registry !is null) ? registry : ui;
-    tracker = ModelTracker!TabControlPageModel(new TabControlPageModel());
+    tracker = ModelTracker!TabControlPageModel.from(trackers.page);
+    dynamicTabsTracker = ModelTracker!TabsModel.from(trackers.dynamicTabs);
     root = new Widget(ui.nextWidgetId());
     root.name = "tabControlPage";
     root.rect = RectF(0, 0, 1280, 720);
@@ -45,19 +82,6 @@ final class TabControlPage {
 
     subTabsTracker = ModelTracker!TabsModel(
       new TabsModel(["Overview", "Telemetry", "Settings"], 0)
-    );
-    dynamicTabsTracker = ModelTracker!TabsModel(
-      new TabsModel(
-        [
-          "Clip 1",
-          "Clip 2",
-          "Clip 3",
-          "Clip 4",
-          "Clip 5",
-          "Clip 6",
-        ],
-        0
-      )
     );
     verticalTabsTracker = ModelTracker!TabsModel(
       new TabsModel(
@@ -76,14 +100,13 @@ final class TabControlPage {
     assert(root !is null);
   }
 
-  ref ModelTracker!TabControlPageModel getTracker() return {
-    return tracker;
-  }
-
+  /// Syncs widgets from the page and dynamic tabs models when they changed.
   void update() {
     import std.format : format;
 
-    if (!tracker.update()) {
+    const bool pageChanged = tracker.update();
+    const bool tabsChanged = dynamicTabsTracker.update();
+    if (!pageChanged && !tabsChanged) {
       return;
     }
 
@@ -100,25 +123,12 @@ final class TabControlPage {
       );
     }
 
-    if (dynamicStatusLabel !is null) {
-      const auto dm = dynamicTabsTracker.model;
-      const float vw = getDynamicViewportWidth();
-      dynamicStatusLabel.setCaption(
-        format(
-          "Model Tabs: %d / 10 | Width: %.0fpx | Active: %d (%s)",
-          dm.tabNames.length,
-          vw,
-          dm.activeTab,
-          dm.activeTab < dm.tabNames.length
-            ? dm.tabNames[dm.activeTab]
-            : "none"
-        )
-      );
-    }
-
+    applyDynamicViewportWidth(m.viewportWidth);
+    updateDynamicStatus(m.viewportWidth);
     updateVerticalInspector(m.verticalTab);
   }
 
+  /// Returns the status bar text for this page.
   string formatStatus() {
     import std.format : format;
 
@@ -133,107 +143,51 @@ final class TabControlPage {
     );
   }
 
-  /// Appends a new tab to the dynamic TabsModel (up to 10 tabs).
-  size_t addDynamicTab() {
-    import std.format : format;
-
-    auto m = dynamicTabsTracker.edit();
-    if (m.tabNames.length < 10) {
-      const size_t nextNum = m.tabNames.length + 1;
-      m.tabNames ~= format("Clip %d", nextNum);
-      m.activeTab = m.tabNames.length - 1;
-    }
-    const size_t count = m.tabNames.length;
-    dynamicTabsTracker.commit(m);
-    return count;
-  }
-
-  /// Removes the last tab from the dynamic TabsModel (down to 1 tab).
-  size_t removeDynamicTab() {
-    auto m = dynamicTabsTracker.edit();
-    if (m.tabNames.length > 1) {
-      m.tabNames = m.tabNames[0 .. $ - 1];
-      if (m.activeTab >= m.tabNames.length) {
-        m.activeTab = m.tabNames.length - 1;
-      }
-    }
-    const size_t count = m.tabNames.length;
-    dynamicTabsTracker.commit(m);
-    return count;
-  }
-
-  /// Resets the dynamic TabsModel back to 6 tabs.
-  size_t resetDynamicTabs() {
-    auto m = dynamicTabsTracker.edit();
-    m.tabNames = [
-      "Clip 1",
-      "Clip 2",
-      "Clip 3",
-      "Clip 4",
-      "Clip 5",
-      "Clip 6",
-    ];
-    m.activeTab = 0;
-    dynamicTabsTracker.commit(m);
-    return 6;
-  }
-
-  float narrowDynamicViewport() {
-    if (dynamicTabControl !is null) {
-      float curW = dynamicTabControl.rect.width;
-      if (curW > 300.0f) {
-        curW -= 70.0f;
-        if (curW < 300.0f) {
-          curW = 300.0f;
-        }
-        dynamicTabControl.rect.width = curW;
-        dynamicTabControl.update(WidgetUpdateScope.layout);
-      }
-      return curW;
-    }
-    return 580.0f;
-  }
-
-  float widenDynamicViewport() {
-    if (dynamicTabControl !is null) {
-      float curW = dynamicTabControl.rect.width;
-      if (curW < 580.0f) {
-        curW += 70.0f;
-        if (curW > 580.0f) {
-          curW = 580.0f;
-        }
-        dynamicTabControl.rect.width = curW;
-        dynamicTabControl.update(WidgetUpdateScope.layout);
-      }
-      return curW;
-    }
-    return 580.0f;
-  }
-
-  float getDynamicViewportWidth() const {
-    if (dynamicTabControl !is null) {
-      return dynamicTabControl.rect.width;
-    }
-    return 580.0f;
-  }
-
-  size_t getDynamicActiveTab() {
-    return dynamicTabsTracker.model.activeTab;
-  }
-
-  Widget getRootWidget() {
+  /// Returns the page root widget.
+  Widget rootWidget() {
     return root;
   }
 
+  /// Shows or hides the page.
   void setVisible(bool visible) {
     root.setVisible(visible);
   }
 
+  /// Returns whether the page is visible.
   bool isVisible() const {
     return root.visible;
   }
 
 private:
+  void applyDynamicViewportWidth(float width) {
+    if (dynamicTabControl is null ||
+        dynamicTabControl.rect.width == width) {
+      return;
+    }
+    dynamicTabControl.rect.width = width;
+    dynamicTabControl.update(WidgetUpdateScope.layout);
+  }
+
+  void updateDynamicStatus(float viewportWidth) {
+    import std.format : format;
+
+    if (dynamicStatusLabel is null) {
+      return;
+    }
+    const auto dm = dynamicTabsTracker.model;
+    dynamicStatusLabel.setCaption(
+      format(
+        "Model Tabs: %d / 10 | Width: %.0fpx | Active: %d (%s)",
+        dm.tabNames.length,
+        viewportWidth,
+        dm.activeTab,
+        dm.activeTab < dm.tabNames.length
+          ? dm.tabNames[dm.activeTab]
+          : "none"
+      )
+    );
+  }
+
   void updateSubPanels(size_t activeIdx) {
     const bool p0 = (activeIdx == 0);
     const bool p1 = (activeIdx == 1);
@@ -309,7 +263,7 @@ private:
       .event("pageTabSwitch")
       .buttonSize(160.0f, 30.0f)
       .gap(10.0f)
-      .build(ui, card, RectF(16, 62, 570, 32), registry);
+      .build(ui, card, RectF(16, 62, 570, 32), ui);
 
     buildSubPanels(card);
 
@@ -427,7 +381,7 @@ private:
       .event("dynamicTabSwitch")
       .buttonSize(108.0f, 30.0f)
       .gap(8.0f)
-      .build(ui, card, RectF(16, 62, 580, 32), registry);
+      .build(ui, card, RectF(16, 62, 580, 32), ui);
 
     buildDynamicMutationButtons(card);
     buildDynamicInfoBox(card);
@@ -537,7 +491,7 @@ private:
       .border(cfg.hoverBorder, 1.0f)
       .fixedSize(width, 34.0f)
       .anim(cfg)
-      .tooltip()
+      .captionTooltip()
       .build(ui, parent, RectF(0, 0, width, 34));
   }
 
@@ -610,7 +564,7 @@ private:
       .alignItems(AlignItems.start)
       .gap(8.0f)
       .style(emeraldStyle)
-      .build(ui, card, RectF(16, 66, 165, 190), registry);
+      .build(ui, card, RectF(16, 66, 165, 190), ui);
 
     buildVerticalInspectorBox(card);
   }
@@ -711,7 +665,6 @@ private:
   UiSystem ui;
   ModelTracker!TabControlPageModel tracker;
   Widget root;
-  UiRegistry registry;
 
   ModelTracker!TabsModel subTabsTracker;
   ModelTracker!TabsModel dynamicTabsTracker;
@@ -767,7 +720,8 @@ unittest {
   registerTabControl(ui);
   auto parent = new Widget(ui.nextWidgetId());
   parent.rect = RectF(0, 0, 1280, 720);
-  auto page = new TabControlPage(ui, parent, ui);
+  auto trackers = TabControlPageTrackers.make();
+  auto page = new TabControlPage(ui, parent, trackers);
 
   // Verify mutation buttons have Tooltip components
   static immutable string[5] mutNames = [
@@ -778,14 +732,14 @@ unittest {
     "widenViewportBtn",
   ];
   foreach (btnName; mutNames) {
-    auto btn = findByName(page.getRootWidget(), btnName);
+    auto btn = findByName(page.rootWidget(), btnName);
     assert(btn !is null);
     assert(btn.components.has!Tooltip());
     assert(btn.components.get!Tooltip().resolveText(btn).length > 0);
   }
 
   // Materialize TabControl tab buttons via provider and verify Tooltip
-  auto subCtrl = findByName(page.getRootWidget(), "subTabControl");
+  auto subCtrl = findByName(page.rootWidget(), "subTabControl");
   assert(subCtrl !is null);
   auto tabsContainer = findWidgetArray(subCtrl);
   assert(tabsContainer !is null);

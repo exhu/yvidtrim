@@ -23,11 +23,18 @@ enum sysBtnCountResetEvent = "sysBtnCountReset";
 /// Page 4 widget container showcasing AnimatedHoverButtonSystem and
 /// AnimatedHoverButtonComponent.
 final class ButtonSystemPage {
-  this(UiSystem ui, Widget parent) {
+  @disable this();
+
+  /// Constructs ButtonSystemPage with an externally created `modelTracker`.
+  this(
+    UiSystem ui,
+    Widget parent,
+    ref ModelTracker!ButtonSystemPageModel modelTracker
+  ) {
     assert(ui !is null, "UiSystem must not be null");
     assert(parent !is null, "parent must not be null");
     this.ui = ui;
-    tracker = ModelTracker!ButtonSystemPageModel(new ButtonSystemPageModel());
+    tracker = ModelTracker!ButtonSystemPageModel.from(modelTracker);
     root = new Widget(ui.nextWidgetId());
     root.name = "buttonSystemPage";
     root.rect = RectF(0, 0, 1280, 720);
@@ -39,10 +46,11 @@ final class ButtonSystemPage {
     buildArchitectureSection();
   }
 
-  ref ModelTracker!ButtonSystemPageModel getTracker() return {
-    return tracker;
+  invariant {
+    assert(root !is null);
   }
 
+  /// Syncs widgets from the page model when it changed.
   void update() {
     import std.format : format;
 
@@ -60,20 +68,24 @@ final class ButtonSystemPage {
     }
   }
 
+  /// Returns the status bar text for this page.
   string formatStatus() {
     import std.format : format;
 
     return format("Clicks: %d", tracker.model.buttonClickCount);
   }
 
-  Widget getRootWidget() {
+  /// Returns the page root widget.
+  Widget rootWidget() {
     return root;
   }
 
+  /// Shows or hides the page.
   void setVisible(bool visible) {
     root.setVisible(visible);
   }
 
+  /// Returns whether the page is visible.
   bool isVisible() const {
     return root.visible;
   }
@@ -126,7 +138,7 @@ private:
     b1.name("sysFadeSlateBtn").text("Slate Button")
       .bg(ColorF(0.18f, 0.20f, 0.25f, 1.0f))
       .border(ColorF(0.30f, 0.35f, 0.45f, 1.0f), 1.0f)
-      .radius(6.0f).fixedSize(140.0f, 38.0f).anim(cfg1).tooltip()
+      .radius(6.0f).fixedSize(140.0f, 38.0f).anim(cfg1).captionTooltip()
       .build(ui, btnRow, RectF(0, 0, 140, 38));
 
     HoverAnimConfig cfg2;
@@ -142,7 +154,7 @@ private:
       )
       .bg(ColorF(0.12f, 0.24f, 0.18f, 1.0f))
       .border(ColorF(0.20f, 0.45f, 0.30f, 1.0f), 1.0f)
-      .radius(6.0f).fixedSize(150.0f, 38.0f).anim(cfg2).tooltip()
+      .radius(6.0f).fixedSize(150.0f, 38.0f).anim(cfg2).captionTooltip()
       .build(ui, btnRow, RectF(0, 0, 150, 38));
 
     HoverAnimConfig cfg3;
@@ -155,7 +167,7 @@ private:
     b3.name("sysFadeCrimsonBtn").text("Crimson Delete")
       .bg(ColorF(0.26f, 0.12f, 0.14f, 1.0f))
       .border(ColorF(0.48f, 0.20f, 0.24f, 1.0f), 1.0f)
-      .radius(6.0f).fixedSize(140.0f, 38.0f).anim(cfg3).tooltip()
+      .radius(6.0f).fixedSize(140.0f, 38.0f).anim(cfg3).captionTooltip()
       .build(ui, btnRow, RectF(0, 0, 140, 38));
   }
 
@@ -241,7 +253,7 @@ private:
     b1.name("sysGradCyanBtn").text("Cyan Wave")
       .bg(ColorF(0.10f, 0.20f, 0.28f, 1.0f))
       .border(ColorF(0.20f, 0.45f, 0.65f, 1.0f), 1.0f)
-      .radius(6.0f).fixedSize(140.0f, 38.0f).anim(cfg1).tooltip()
+      .radius(6.0f).fixedSize(140.0f, 38.0f).anim(cfg1).captionTooltip()
       .build(ui, btnRow, RectF(0, 0, 140, 38));
 
     HoverAnimConfig cfg2;
@@ -255,7 +267,7 @@ private:
     b2.name("sysGradSunsetBtn").text("Sunset Glow")
       .bg(ColorF(0.26f, 0.20f, 0.10f, 1.0f))
       .border(ColorF(0.50f, 0.38f, 0.18f, 1.0f), 1.0f)
-      .radius(6.0f).fixedSize(145.0f, 38.0f).anim(cfg2).tooltip()
+      .radius(6.0f).fixedSize(145.0f, 38.0f).anim(cfg2).captionTooltip()
       .build(ui, btnRow, RectF(0, 0, 145, 38));
 
     HoverAnimConfig cfg3;
@@ -269,7 +281,7 @@ private:
     b3.name("sysGradAuroraBtn").text("Purple Aurora")
       .bg(ColorF(0.22f, 0.12f, 0.28f, 1.0f))
       .border(ColorF(0.42f, 0.22f, 0.55f, 1.0f), 1.0f)
-      .radius(6.0f).fixedSize(145.0f, 38.0f).anim(cfg3).tooltip()
+      .radius(6.0f).fixedSize(145.0f, 38.0f).anim(cfg3).captionTooltip()
       .build(ui, btnRow, RectF(0, 0, 145, 38));
   }
 
@@ -354,7 +366,7 @@ private:
     b1.name("sysIncrementBtn").text("+ Click Increment")
       .bg(ColorF(0.15f, 0.30f, 0.55f, 1.0f))
       .border(ColorF(0.30f, 0.55f, 0.95f, 1.0f), 1.5f)
-      .radius(8.0f).fixedSize(180.0f, 42.0f).anim(cfg1).tooltip()
+      .radius(8.0f).fixedSize(180.0f, 42.0f).anim(cfg1).captionTooltip()
       .build(ui, actionRow, RectF(0, 0, 180, 42));
 
     HoverAnimConfig cfg2;
@@ -367,7 +379,7 @@ private:
     b2.name("sysResetCounterBtn").text("Reset Counter")
       .bg(ColorF(0.20f, 0.22f, 0.26f, 1.0f))
       .border(ColorF(0.35f, 0.38f, 0.45f, 1.0f), 1.0f)
-      .radius(8.0f).fixedSize(140.0f, 42.0f).anim(cfg2).tooltip()
+      .radius(8.0f).fixedSize(140.0f, 42.0f).anim(cfg2).captionTooltip()
       .build(ui, actionRow, RectF(0, 0, 140, 42));
   }
 
@@ -454,7 +466,7 @@ private:
     p1.name("sysPillFadeBtn").text("Pill Button (r=18)")
       .bg(ColorF(0.22f, 0.16f, 0.32f, 1.0f))
       .border(ColorF(0.45f, 0.32f, 0.65f, 1.5f), 1.5f)
-      .radius(18.0f).fixedSize(170.0f, 36.0f).anim(pillCfg1).tooltip()
+      .radius(18.0f).fixedSize(170.0f, 36.0f).anim(pillCfg1).captionTooltip()
       .build(ui, pillRow, RectF(0, 0, 170, 36));
 
     HoverAnimConfig pillCfg2;
@@ -468,7 +480,7 @@ private:
     p2.name("sysPillWaveBtn").text("Pill Wave (r=18)")
       .bg(ColorF(0.14f, 0.26f, 0.24f, 1.0f))
       .border(ColorF(0.28f, 0.55f, 0.50f, 1.5f), 1.5f)
-      .radius(18.0f).fixedSize(170.0f, 36.0f).anim(pillCfg2).tooltip()
+      .radius(18.0f).fixedSize(170.0f, 36.0f).anim(pillCfg2).captionTooltip()
       .build(ui, pillRow, RectF(0, 0, 170, 36));
   }
 
@@ -542,11 +554,14 @@ unittest {
 
   auto ui = new UiSystemImpl(null);
   auto parent = new Widget(ui.nextWidgetId());
-  auto page = new ButtonSystemPage(ui, parent);
+  auto pageTracker = ModelTracker!ButtonSystemPageModel(
+    new ButtonSystemPageModel()
+  );
+  auto page = new ButtonSystemPage(ui, parent, pageTracker);
 
   size_t buttonCount = 0;
   bool foundLongCaption = false;
-  checkButtons(page.getRootWidget(), buttonCount, foundLongCaption);
+  checkButtons(page.rootWidget(), buttonCount, foundLongCaption);
   assert(buttonCount >= 10);
   assert(foundLongCaption);
 }

@@ -3,7 +3,8 @@
  */
 module guidemo.pages.textlabel_controller;
 
-import guidemo.common : isKey, syncPageShellView, syncPageStatus;
+import guidemo.common : PageControllerParams, isKey, syncPageShellView,
+  syncPageStatus;
 import guidemo.demo_model_helpers : isPageActive;
 import guidemo.model : DemoModel, DemoPage, TextLabelPageModel;
 import guidemo.pages.textlabel_page : TextLabelPage;
@@ -11,28 +12,28 @@ import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.model : ModelTracker;
-import yguilib.uisystem : UiSystem;
 import yguilib.widget.drawing_components : TextLabel;
+
+/// Parameters for constructing TextLabelPageController.
+alias TextLabelPageControllerParams =
+  PageControllerParams!(TextLabelPage, ModelTracker!TextLabelPageModel);
 
 /// Controller handling Page 2 keyboard shortcuts for TextLabel options.
 final class TextLabelPageController : DefaultController {
   @disable this();
 
-  this(
-    UiSystem ui,
-    ref ModelTracker!DemoModel demoTracker,
-    TextLabelPage page
-  ) {
-    assert(ui !is null, "ui must not be null");
-    assert(page !is null, "page must not be null");
-    super(ui);
-    this.demoTracker = ModelTracker!DemoModel.from(demoTracker);
-    this.page = page;
-    this.tracker = ModelTracker!TextLabelPageModel.from(page.getTracker());
+  /// Constructs the controller from fluent `params`.
+  this(ref TextLabelPageControllerParams params) {
+    assert(params.ui !is null, "ui must not be null");
+    assert(params.page !is null, "page must not be null");
+    super(params.ui);
+    this.demoTracker = ModelTracker!DemoModel.from(params.demoTracker);
+    this.page = params.page;
+    this.tracker = ModelTracker!TextLabelPageModel.from(params.trackers);
     syncPageShellView(
       this.demoTracker.model,
       DemoPage.textLabel,
-      page.getRootWidget()
+      page.rootWidget()
     );
     syncPageStatus(
       this.demoTracker,
@@ -64,7 +65,7 @@ final class TextLabelPageController : DefaultController {
     syncPageShellView(
       demoTracker.model,
       DemoPage.textLabel,
-      page.getRootWidget()
+      page.rootWidget()
     );
     return true;
   }
@@ -88,7 +89,7 @@ private:
     } else if (isKey(ev, Keycode.e, Scancode.e)) {
       model.labelEllipsis = !model.labelEllipsis;
     } else if (isKey(ev, Keycode.l, Scancode.l)) {
-      size_t nextAlign = (cast(size_t) model.labelAlignment + 1) % 3;
+      const size_t nextAlign = (cast(size_t) model.labelAlignment + 1) % 3;
       model.labelAlignment = cast(TextLabel.Alignment) nextAlign;
     } else if (isKey(ev, Keycode.t, Scancode.t)) {
       model.labelSampleIndex = (model.labelSampleIndex + 1) %
@@ -113,8 +114,16 @@ unittest {
   auto demoModel = new DemoModel();
   auto demoTracker = ModelTracker!DemoModel(demoModel);
   auto root = new Widget(ui.nextWidgetId());
-  auto page = new TextLabelPage(ui, root);
-  auto ctrl = new TextLabelPageController(ui, demoTracker, page);
+  auto pageTracker = ModelTracker!TextLabelPageModel(
+    new TextLabelPageModel()
+  );
+  auto page = new TextLabelPage(ui, root, pageTracker);
+  TextLabelPageControllerParams params;
+  params.withUi(ui)
+    .withDemoTracker(demoTracker)
+    .withTrackers(pageTracker)
+    .withPage(page);
+  auto ctrl = new TextLabelPageController(params);
 
   AppEvent makeKeyDown(Keycode k, Scancode sc) {
     return AppEvent.keyEvent(
@@ -127,7 +136,7 @@ unittest {
   auto hrIgnored = ctrl.handleEvent(makeKeyDown(Keycode.m, Scancode.m));
   assert(hrIgnored.result == HandleResult.Result.nothing);
   assert(!hrIgnored.consume);
-  assert(page.getTracker().model.labelMultiline);
+  assert(pageTracker.model.labelMultiline);
 
   // Switch to Page 2 (activePage == DemoPage.textLabel)
   assert(!page.isVisible());
@@ -143,11 +152,11 @@ unittest {
   auto hrM = ctrl.handleEvent(makeKeyDown(Keycode.m, Scancode.m));
   assert(hrM.result == HandleResult.Result.update);
   assert(hrM.consume);
-  assert(!page.getTracker().model.labelMultiline);
+  assert(!pageTracker.model.labelMultiline);
 
   auto hrL = ctrl.handleEvent(makeKeyDown(Keycode.l, Scancode.l));
   assert(hrL.consume);
-  assert(page.getTracker().model.labelAlignment == TextLabel.Alignment.center);
+  assert(pageTracker.model.labelAlignment == TextLabel.Alignment.center);
 
   // Unrelated key [D] is not consumed
   auto hrD = ctrl.handleEvent(makeKeyDown(Keycode.d, Scancode.d));

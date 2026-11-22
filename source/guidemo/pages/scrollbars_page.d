@@ -12,7 +12,7 @@ import yguilib.controls.scrollbars : ScrollbarBuilder, ScrollbarModel,
   ScrollbarStyle;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, PointF, RectF;
-import yguilib.uisystem : UiRegistry, UiSystem;
+import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : TextLabel;
@@ -32,16 +32,45 @@ enum page6NarrowBarEvent = "page6NarrowBar";
 enum page6WidenBarEvent = "page6WidenBar";
 enum page6ResetBarEvent = "page6ResetBar";
 
+/// Default playground scrollbar width in pixels.
+enum float playgroundDefaultWidth = 570.0f;
+
+/// Trackers shared between ScrollbarsPage and ScrollbarsPageController.
+struct ScrollbarsPageTrackers {
+  ModelTracker!ScrollbarsPageModel page;
+  ModelTracker!ScrollbarModel playground;
+
+  /// Creates trackers with default models.
+  static ScrollbarsPageTrackers make() {
+    ScrollbarsPageTrackers t;
+    t.page = ModelTracker!ScrollbarsPageModel(new ScrollbarsPageModel());
+    t.playground = ModelTracker!ScrollbarModel(
+      new ScrollbarModel().withRange(0, 1000).withValue(200)
+        .withVisibleSize(200).withStepSize(50)
+    );
+    return t;
+  }
+
+  /// Copies `other` with independent per-holder versions.
+  static ScrollbarsPageTrackers from(ref ScrollbarsPageTrackers other) {
+    ScrollbarsPageTrackers t;
+    t.page = ModelTracker!ScrollbarsPageModel.from(other.page);
+    t.playground = ModelTracker!ScrollbarModel.from(other.playground);
+    return t;
+  }
+}
+
 /// Page 6 widget container showcasing horizontal and vertical Scrollbars.
 final class ScrollbarsPage {
-  /// Constructs ScrollbarsPage. `registry` is allowed to be null in headless
-  /// tests.
-  this(UiSystem ui, Widget parent, UiRegistry registry) {
+  @disable this();
+
+  /// Constructs ScrollbarsPage sharing models with `trackers`.
+  this(UiSystem ui, Widget parent, ref ScrollbarsPageTrackers trackers) {
     assert(ui !is null, "UiSystem must not be null");
     assert(parent !is null, "parent must not be null");
     this.ui = ui;
-    this.registry = (registry !is null) ? registry : ui;
-    tracker = ModelTracker!ScrollbarsPageModel(new ScrollbarsPageModel());
+    tracker = ModelTracker!ScrollbarsPageModel.from(trackers.page);
+    playgroundTracker = ModelTracker!ScrollbarModel.from(trackers.playground);
     root = new Widget(ui.nextWidgetId());
     root.name = "scrollbarsPage";
     root.rect = RectF(0, 0, 1280, 720);
@@ -63,10 +92,6 @@ final class ScrollbarsPage {
       new ScrollbarModel().withRange(0, 1000).withValue(250)
         .withVisibleSize(150).withStepSize(25).withReportOnReleaseOnly(true)
     );
-    playgroundTracker = ModelTracker!ScrollbarModel(
-      new ScrollbarModel().withRange(0, 1000).withValue(200)
-        .withVisibleSize(200).withStepSize(50)
-    );
 
     buildViewportSection();
     buildReportingModeSection();
@@ -78,33 +103,99 @@ final class ScrollbarsPage {
     assert(root !is null);
   }
 
-  ref ModelTracker!ScrollbarsPageModel getTracker() return {
-    return tracker;
-  }
-
+  /// Syncs widgets from the page and playground models when they changed.
   void update() {
-    import std.format : format;
-
-    if (!tracker.update()) {
+    const bool pageChanged = tracker.update();
+    const bool playgroundChanged = playgroundTracker.update();
+    if (!pageChanged && !playgroundChanged) {
       return;
     }
 
     const auto m = tracker.model;
+    updateViewport(m.hScroll, m.vScroll);
+    updateReportingLabels();
+    applyPlaygroundWidth(m.playgroundBarWidth);
+    if (playgroundStatusLabel !is null) {
+      updatePlaygroundStatus(m.playgroundValue);
+    }
+  }
+
+  /// Updates the playground status label for `playgroundValue`.
+  void updatePlaygroundStatus(long playgroundValue) {
+    import std.format : format;
+
+    const auto pm = playgroundTracker.model;
+    const double ratio = cast(double) pm.visibleSize /
+      cast(double) ((pm.max - pm.min) + pm.visibleSize);
+    playgroundStatusLabel.setCaption(
+      format(
+        "Value: %d | Range: [%d..%d] | VisibleSize: %d\n" ~
+          "Container Width: %.0fpx | Thumb Ratio: %.1f%% (min 20px)",
+        playgroundValue,
+        pm.min,
+        pm.max,
+        pm.visibleSize,
+        tracker.model.playgroundBarWidth,
+        ratio * 100.0
+      )
+    );
+  }
+
+  /// Returns the status bar text for this page.
+  string formatStatus() {
+    import std.format : format;
+
+    const auto m = tracker.model;
+    return format(
+      "Viewport: (%d,%d) | Live: %d (%d) | Rel: %d (%d)",
+      m.hScroll,
+      m.vScroll,
+      m.liveValue,
+      m.liveEventCount,
+      m.releaseValue,
+      m.releaseEventCount
+    );
+  }
+
+  /// Returns the page root widget.
+  Widget rootWidget() {
+    return root;
+  }
+
+  /// Shows or hides the page.
+  void setVisible(bool visible) {
+    root.setVisible(visible);
+  }
+
+  /// Returns whether the page is visible.
+  bool isVisible() const {
+    return root.visible;
+  }
+
+private:
+  void updateViewport(long hScroll, long vScroll) {
+    import std.format : format;
+
     if (viewportArea !is null) {
       viewportArea.setScrollOffset(
-        PointF(cast(float) m.hScroll, cast(float) m.vScroll)
+        PointF(cast(float) hScroll, cast(float) vScroll)
       );
     }
     if (viewportStatusLabel !is null) {
       viewportStatusLabel.setCaption(
         format(
           "Offset: (%d, %d) | Content: 1080x540 | Viewport: 538x176",
-          m.hScroll,
-          m.vScroll
+          hScroll,
+          vScroll
         )
       );
     }
+  }
 
+  void updateReportingLabels() {
+    import std.format : format;
+
+    const auto m = tracker.model;
     if (liveStatusLabel !is null) {
       liveStatusLabel.setCaption(
         format(
@@ -123,142 +214,17 @@ final class ScrollbarsPage {
         )
       );
     }
+  }
 
-    if (playgroundStatusLabel !is null) {
-      updatePlaygroundStatus(m.playgroundValue);
+  void applyPlaygroundWidth(float width) {
+    if (playgroundScrollbar is null ||
+        playgroundScrollbar.rect.width == width) {
+      return;
     }
+    playgroundScrollbar.rect.width = width;
+    playgroundScrollbar.update(WidgetUpdateScope.layout);
   }
 
-  void updatePlaygroundStatus(long playgroundValue) {
-    import std.format : format;
-
-    const auto pm = playgroundTracker.model;
-    const double ratio = cast(double) pm.visibleSize /
-      cast(double) ((pm.max - pm.min) + pm.visibleSize);
-    playgroundStatusLabel.setCaption(
-      format(
-        "Value: %d | Range: [%d..%d] | VisibleSize: %d\n" ~
-          "Container Width: %.0fpx | Thumb Ratio: %.1f%% (min 20px)",
-        playgroundValue,
-        pm.min,
-        pm.max,
-        pm.visibleSize,
-        getPlaygroundWidth(),
-        ratio * 100.0
-      )
-    );
-  }
-
-  string formatStatus() {
-    import std.format : format;
-
-    const auto m = tracker.model;
-    return format(
-      "Viewport: (%d,%d) | Live: %d (%d) | Rel: %d (%d)",
-      m.hScroll,
-      m.vScroll,
-      m.liveValue,
-      m.liveEventCount,
-      m.releaseValue,
-      m.releaseEventCount
-    );
-  }
-
-  void shrinkVisibleSize() {
-    auto m = playgroundTracker.edit();
-    if (m.visibleSize > 20) {
-      m.visibleSize = (m.visibleSize > 100) ? (m.visibleSize / 2) : 20;
-    }
-    playgroundTracker.commit(m);
-  }
-
-  void growVisibleSize() {
-    auto m = playgroundTracker.edit();
-    if (m.visibleSize < 1000) {
-      m.visibleSize = (m.visibleSize < 500) ? (m.visibleSize * 2) : 1000;
-    }
-    playgroundTracker.commit(m);
-  }
-
-  void togglePlaygroundRange() {
-    auto m = playgroundTracker.edit();
-    m.max = (m.max <= 1000) ? 10000 : 1000;
-    if (m.value > m.max) {
-      m.value = m.max;
-    }
-    playgroundTracker.commit(m);
-  }
-
-  long getPlaygroundValue() {
-    return playgroundTracker.model.value;
-  }
-
-  float narrowPlaygroundBar() {
-    if (playgroundScrollbar !is null) {
-      float curW = playgroundScrollbar.rect.width;
-      if (curW > 260.0f) {
-        curW -= 75.0f;
-        if (curW < 260.0f) {
-          curW = 260.0f;
-        }
-        playgroundScrollbar.rect.width = curW;
-        playgroundScrollbar.update(WidgetUpdateScope.layout);
-      }
-      return curW;
-    }
-    return 570.0f;
-  }
-
-  float widenPlaygroundBar() {
-    if (playgroundScrollbar !is null) {
-      float curW = playgroundScrollbar.rect.width;
-      if (curW < 570.0f) {
-        curW += 75.0f;
-        if (curW > 570.0f) {
-          curW = 570.0f;
-        }
-        playgroundScrollbar.rect.width = curW;
-        playgroundScrollbar.update(WidgetUpdateScope.layout);
-      }
-      return curW;
-    }
-    return 570.0f;
-  }
-
-  void resetPlayground() {
-    auto m = playgroundTracker.edit();
-    m.min = 0;
-    m.max = 1000;
-    m.value = 200;
-    m.visibleSize = 200;
-    m.stepSize = 50;
-    playgroundTracker.commit(m);
-    if (playgroundScrollbar !is null) {
-      playgroundScrollbar.rect.width = 570.0f;
-      playgroundScrollbar.update(WidgetUpdateScope.layout);
-    }
-  }
-
-  float getPlaygroundWidth() const {
-    if (playgroundScrollbar !is null) {
-      return playgroundScrollbar.rect.width;
-    }
-    return 570.0f;
-  }
-
-  Widget getRootWidget() {
-    return root;
-  }
-
-  void setVisible(bool visible) {
-    root.setVisible(visible);
-  }
-
-  bool isVisible() const {
-    return root.visible;
-  }
-
-private:
   void buildViewportSection() {
     auto card = makeSectionCard(
       ui,
@@ -287,14 +253,14 @@ private:
       .modelTracker(vScrollTracker)
       .event(page6VertScrollEvent)
       .direction(FlexDirection.column)
-      .build(ui, card, RectF(564, 40, 22, 178), registry);
+      .build(ui, card, RectF(564, 40, 22, 178), ui);
 
     ScrollbarBuilder hb;
     hb.name("sbViewportHBar")
       .modelTracker(hScrollTracker)
       .event(page6HorizScrollEvent)
       .direction(FlexDirection.row)
-      .build(ui, card, RectF(16, 224, 540, 22), registry);
+      .build(ui, card, RectF(16, 224, 540, 22), ui);
 
     viewportStatusLabel = WidgetBuilder.make(ui)
       .parent(card)
@@ -380,7 +346,7 @@ private:
       .modelTracker(liveTracker)
       .event(page6LiveScrollEvent)
       .direction(FlexDirection.row)
-      .build(ui, card, RectF(16, 70, 580, 24), registry);
+      .build(ui, card, RectF(16, 70, 580, 24), ui);
 
     releaseStatusLabel = WidgetBuilder.make(ui)
       .parent(card)
@@ -403,7 +369,7 @@ private:
       .event(page6ReleaseScrollEvent)
       .direction(FlexDirection.row)
       .style(amberStyle)
-      .build(ui, card, RectF(16, 142, 580, 24), registry);
+      .build(ui, card, RectF(16, 142, 580, 24), ui);
 
     buildReportingInfoBox(card);
   }
@@ -467,7 +433,7 @@ private:
       .event(page6PlaygroundScrollEvent)
       .direction(FlexDirection.row)
       .style(emeraldStyle)
-      .build(ui, card, RectF(16, 66, 570, 24), registry);
+      .build(ui, card, RectF(16, 66, playgroundDefaultWidth, 24), ui);
 
     buildPlaygroundButtons(card);
     buildPlaygroundInfoBox(card);
@@ -683,7 +649,6 @@ private:
   UiSystem ui;
   ModelTracker!ScrollbarsPageModel tracker;
   Widget root;
-  UiRegistry registry;
 
   ModelTracker!ScrollbarModel hScrollTracker;
   ModelTracker!ScrollbarModel vScrollTracker;
