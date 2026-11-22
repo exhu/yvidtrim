@@ -1,5 +1,10 @@
+- Decide on Widget.handleInput vs Widget.inputEnabled, how should keyboard
+events treated on Widgets regarding handleInput? Check where inputEnabled is
+used to track if Widget is hittable e.g. if handleInput is true, then the widget
+participates in mouse click test and prevents clicking through under the Widget
+behind it, while inputEnabled just optionally affects the visual state, and
+weather the clicks should generate attached view events.
 - build widget library
--- button with hover
 -- checkbox
 -- combobox
 -- focus system (tab/shift-tab)
@@ -17,7 +22,6 @@
 - extended font management (proper name, styles)
 - define modal controller rules (some controllers must still handle events, when modal is active)
 - add modal dialog displayed by model on key (and closed by click)
-- button
 - focus
 - modal dialog
 - text input

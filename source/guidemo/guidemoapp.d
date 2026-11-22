@@ -26,6 +26,9 @@
  *    - AlignItems: start, end, center, stretch.
  *    - Anchor: out-of-flow pinning (top, bottom, left, right) relative to
  *      parent bounds, including out-of-flow anchors inside flex containers.
+ * 3. controls/button.d:
+ *    - Plain push Button: press fade + caption sink animation, drag-off
+ *      cancel, release-inside click, disabled state, fixed/auto sizing.
  *
  * MAINTENANCE NOTE:
  * When adding new layout modes, drawing primitives, widgets, or components
@@ -33,10 +36,10 @@
  * update this demo with dedicated visual sections and interactive controls.
  *
  * KEYBOARD CONTROLS:
- *   [Tab]/[1-8]   Switch demo page (Page 1: Layout, Page 2: TextLabel,
+ *   [Tab]/[1-9]   Switch demo page (Page 1: Layout, Page 2: TextLabel,
  *                 Page 3: Hover Ctrl, Page 4: Hover System,
  *                 Page 5: TabControl, Page 6: Scrollbars, Page 7: VirtList,
- *                 Page 8: Knob / cursor lock)
+ *                 Page 8: Knob / cursor lock, Page 9: Button)
  *   [M]           Toggle multiline on interactive TextLabel
  *   [E]           Toggle overflow ellipsis on interactive TextLabel
  *   [L]           Cycle horizontal alignment (left -> center -> right)
@@ -57,9 +60,11 @@ import yguilib.widget : Widget;
 
 import guidemo.controller : DemoController, DemoControllerParams;
 import guidemo.hover_button : HoverButtonController;
+import yguilib.controls.button : ButtonSystem;
 import yguilib.controls.hover_button_system : AnimatedHoverButtonSystem;
 import guidemo.model : ButtonPageModel, ButtonSystemPageModel, DemoModel,
-  KnobPageModel, LayoutPainterPageModel, TextLabelPageModel;
+  KnobPageModel, LayoutPainterPageModel, SimpleButtonPageModel,
+  TextLabelPageModel;
 import guidemo.pages.button_controller : ButtonPageController;
 import guidemo.pages.button_page : ButtonPage;
 import guidemo.pages.button_system_controller : ButtonSystemPageController;
@@ -71,6 +76,9 @@ import guidemo.pages.layout_painter_page : LayoutPainterPage;
 import guidemo.pages.scrollbars_controller : ScrollbarsPageController;
 import guidemo.pages.scrollbars_page : ScrollbarsPage,
   ScrollbarsPageTrackers;
+import guidemo.pages.simple_button_controller :
+  SimpleButtonPageController;
+import guidemo.pages.simple_button_page : SimpleButtonPage;
 import guidemo.pages.tabcontrol_controller : TabControlPageController;
 import guidemo.pages.tabcontrol_page : TabControlPage,
   TabControlPageTrackers;
@@ -92,6 +100,7 @@ void main() {
   );
   // Register systems and reusable composite widget controllers.
   app.ui.registerWidgetSystem(new AnimatedHoverButtonSystem());
+  app.ui.registerWidgetSystem(new ButtonSystem());
   app.ui.registerWidgetSystem(new TooltipSystem());
   app.ui.pushController(registerTabControl(app.ui));
   app.ui.pushController(registerScrollbars(app.ui));
@@ -170,6 +179,7 @@ void registerDemoPages(
   );
 
   registerKnobPage(ui, demoTracker, rootWidget);
+  registerSimpleButtonPage(ui, demoTracker, rootWidget);
 }
 
 /**
@@ -276,4 +286,16 @@ void registerKnobPage(
     demoTracker,
     rootWidget
   );
+}
+
+void registerSimpleButtonPage(
+  UiSystem ui,
+  ref ModelTracker!DemoModel demoTracker,
+  Widget rootWidget
+) {
+  registerSimplePage!(
+    SimpleButtonPage,
+    SimpleButtonPageController,
+    SimpleButtonPageModel
+  )(ui, demoTracker, rootWidget);
 }

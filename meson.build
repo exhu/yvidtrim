@@ -57,6 +57,8 @@ guidemo_lib_src = files(
   'source/guidemo/pages/layout_painter_page.d',
   'source/guidemo/pages/scrollbars_controller.d',
   'source/guidemo/pages/scrollbars_page.d',
+  'source/guidemo/pages/simple_button_controller.d',
+  'source/guidemo/pages/simple_button_page.d',
   'source/guidemo/pages/tabcontrol_controller.d',
   'source/guidemo/pages/tabcontrol_page.d',
   'source/guidemo/pages/textlabel_controller.d',

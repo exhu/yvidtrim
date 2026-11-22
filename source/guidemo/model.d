@@ -27,6 +27,7 @@ enum DemoPage : size_t {
   scrollbars,
   virtList,
   knob,
+  simpleButton,
 }
 
 /// Display metadata for a single guidemo page.
@@ -45,6 +46,7 @@ immutable DemoPageMeta[DemoPage.max + 1] demoPages = [
   DemoPage.scrollbars: DemoPageMeta("Scrollbars", "Scrollbars"),
   DemoPage.virtList: DemoPageMeta("VirtList", "VirtList"),
   DemoPage.knob: DemoPageMeta("Knob (Lock)", "Knob"),
+  DemoPage.simpleButton: DemoPageMeta("Button", "Button"),
 ];
 
 /// Model holding shared global state for the demo.
@@ -129,4 +131,11 @@ final class VirtListPageModel : VersionedModel {
 final class KnobPageModel : VersionedModel {
   float value = 0.0f;
   bool dragging = false;
+}
+
+/// Model holding Page 9 (plain push Button showcase) state.
+final class SimpleButtonPageModel : VersionedModel {
+  size_t clickCount = 0;
+  bool targetEnabled = true;
+  string lastAction = "none";
 }

@@ -432,6 +432,18 @@ final class Widget {
     return true;
   }
 
+  /// Sets `inputEnabled` (the widget's enabled/disabled state). If unchanged
+  /// or released, returns false. If changed, marks visuals-dirty so systems
+  /// reacting to the state (e.g. muted button colours) run on the next frame.
+  bool setInputEnabled(bool enabled) {
+    if (fReleased || inputEnabled == enabled) {
+      return false;
+    }
+    inputEnabled = enabled;
+    update(WidgetUpdateScope.visuals);
+    return true;
+  }
+
   /// Sets scroll offset on ScrollableArea component. If unchanged or no
   /// ScrollableArea component, returns false. If changed, marks layout-dirty.
   bool setScrollOffset(PointF newOffset) {
@@ -565,7 +577,8 @@ final class Widget {
   RectF rect;
   /// it is not allowed to change available components after initialization
   WidgetComponents components;
-  bool handleInput;
+  /// marks Widget if it accepts touch/mouse input (e.g. mouse clicks)
+  bool handleInput = false;
   bool clipContents = true;
   bool clipChildren = false;
   bool visible = true;
@@ -975,6 +988,16 @@ unittest {
   assert(!item.visible);
   assert(item.dirty && item.layoutDirty);
   assert(root.layoutDirty);
+
+  // setInputEnabled
+  item.dirty = false;
+  item.layoutDirty = false;
+  item.inputEnabled = true;
+  assert(!item.setInputEnabled(true));
+  assert(!item.dirty);
+  assert(item.setInputEnabled(false));
+  assert(!item.inputEnabled);
+  assert(item.dirty && !item.layoutDirty);
 }
 
 // Verifies custom user-defined WidgetComponent storage in WidgetComponents.

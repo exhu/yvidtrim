@@ -27,12 +27,10 @@
 module yguilib.controls.hover_button_system;
 
 import std.math : PI, sin;
-import yguilib.allochelpers : ReusableArray;
-import yguilib.controls.common : ButtonFace, WidgetColors,
-  applyBgAndBorderColors, applyButtonFaceStyle, orDefault;
-import yguilib.controls.tooltip : Tooltip;
+import yguilib.controls.common : applyBgAndBorderColors;
+import yguilib.controls.internal.button_support : ActiveWidgets,
+  ButtonBaseConfig, ButtonBuilderCommon, PressTracker, emitButtonAction;
 import yguilib.events : AppEvent;
-import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, PointF, RectF, lerpColor,
   normalizedIn;
 import yguilib.timercontrol : TimerId, invalidTimerId;
@@ -40,26 +38,13 @@ import yguilib.timers : AnimationTimer, AnimationWrapMode, TimerIntervalMs,
   TimerMode;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, isEffectivelyVisible;
-import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.component : WidgetComponent;
-import yguilib.widget.layout_components : Anchor, Insets, Size;
 import yguilib.widget.system : SystemEventResult, SystemPhase, WidgetSystem,
   WidgetSystemContext, WidgetSystemHost;
-import yguilib.widget.visible : VisibleWidget, VisibleWidgets,
-  findTopmostWithComponent;
+import yguilib.widget.visible : VisibleWidget, VisibleWidgets;
 
 /// Widget construction styling options.
-struct HoverButtonConfig {
-  string text = "Button";
-  ColorF normalBg = ColorF(0.20f, 0.22f, 0.28f, 1.0f);
-  ColorF borderColor = ColorF(0.35f, 0.38f, 0.48f, 1.0f);
-  ColorF textColor = ColorF(0.95f, 0.95f, 0.95f, 1.0f);
-  float cornerRadius = 6.0f;
-  float borderWidth = 1.0f;
-  float fontSize = 13.0f;
-  Insets padding = Insets(6.0f, 14.0f, 6.0f, 14.0f);
-  string actionEvent = null;
-}
+alias HoverButtonConfig = ButtonBaseConfig;
 
 /// System-side animation and interactive options.
 struct HoverAnimConfig {
@@ -129,52 +114,8 @@ final class AnimatedHoverButtonComponent : WidgetComponent {
 
 /// Fluent builder for constructing animated hover buttons using components.
 struct AnimatedHoverButtonBuilder {
-  HoverButtonConfig config;
+  mixin ButtonBuilderCommon;
   HoverAnimConfig animConfig;
-  Size customSize = null;
-  Anchor customAnchor = null;
-  string widgetName = null;
-  bool hasTooltip = false;
-  string tooltipHint = null;
-
-  ref AnimatedHoverButtonBuilder name(string buttonName) return {
-    widgetName = buttonName;
-    return this;
-  }
-
-  ref AnimatedHoverButtonBuilder text(string caption) return {
-    config.text = caption;
-    return this;
-  }
-
-  ref AnimatedHoverButtonBuilder bg(ColorF color) return {
-    config.normalBg = color;
-    return this;
-  }
-
-  ref AnimatedHoverButtonBuilder border(ColorF color, float width) return {
-    config.borderColor = color;
-    config.borderWidth = width;
-    return this;
-  }
-
-  ref AnimatedHoverButtonBuilder radius(float r) return {
-    config.cornerRadius = r;
-    return this;
-  }
-
-  ref AnimatedHoverButtonBuilder padding(
-    float vertical,
-    float horizontal
-  ) return {
-    config.padding = Insets.vh(vertical, horizontal);
-    return this;
-  }
-
-  ref AnimatedHoverButtonBuilder fontSize(float pt) return {
-    config.fontSize = pt;
-    return this;
-  }
 
   ref AnimatedHoverButtonBuilder action(string eventName) return {
     config.actionEvent = eventName;
@@ -190,87 +131,14 @@ struct AnimatedHoverButtonBuilder {
     return this;
   }
 
-  ref AnimatedHoverButtonBuilder size(Size sz) return {
-    customSize = sz;
-    return this;
-  }
-
-  ref AnimatedHoverButtonBuilder fixedSize(float w, float h) return {
-    customSize = Size.fixed(w, h);
-    return this;
-  }
-
-  ref AnimatedHoverButtonBuilder autoSize() return {
-    customSize = Size.autoSize();
-    return this;
-  }
-
-  ref AnimatedHoverButtonBuilder anchor(Anchor a) return {
-    customAnchor = a;
-    return this;
-  }
-
-  /// Attaches a tooltip whose text is taken from the caption.
-  ref AnimatedHoverButtonBuilder captionTooltip() return {
-    hasTooltip = true;
-    tooltipHint = null;
-    return this;
-  }
-
-  /// Attaches a tooltip showing `hintText`.
-  ref AnimatedHoverButtonBuilder tooltipText(string hintText) return {
-    hasTooltip = true;
-    tooltipHint = hintText;
-    return this;
-  }
-
   Widget build(UiSystem ui, Widget parent, RectF rect) {
-    const float initW = rect.width > 0.0f ? rect.width : 100.0f;
-    const float initH = rect.height > 0.0f ? rect.height : 36.0f;
-    const string btnName = orDefault(widgetName, "animatedHoverButton");
-
-    auto b = WidgetBuilder.make(ui)
-      .parent(parent)
-      .name(btnName)
-      .rect(rect);
-
-    if (customSize !is null) {
-      b.sizeComponent(customSize);
-    } else {
-      b.fixedSize(initW, initH);
-    }
-    if (customAnchor !is null) {
-      b.anchorComponent(customAnchor);
-    }
-
-    b.padding(config.padding);
-    applyVisualStyle(b);
-
+    auto b = makeButtonBase(ui, parent, rect, "animatedHoverButton");
     auto comp = new AnimatedHoverButtonComponent(animConfig);
     comp.normalBg = config.normalBg;
     comp.normalBorder = config.borderColor;
     comp.colorsInitialized = true;
     b.component(comp);
-    if (hasTooltip) {
-      b.component(Tooltip.withText(tooltipHint));
-    }
-    b.inputEnabled(true);
-
     return b.build();
-  }
-
-private:
-  void applyVisualStyle(ref WidgetBuilder b) {
-    ButtonFace face;
-    face.colors = WidgetColors(
-      config.normalBg,
-      config.borderColor,
-      config.textColor
-    );
-    face.cornerRadius = config.cornerRadius;
-    face.borderWidth = config.borderWidth;
-    face.fontSize = config.fontSize;
-    applyButtonFaceStyle(b, config.text, face);
   }
 }
 
@@ -352,13 +220,11 @@ final class AnimatedHoverButtonSystem : WidgetSystem {
     if (w is null) {
       return;
     }
-    activeButtons.compact((const ref Widget item) => item !is w);
+    activeButtons.remove(w);
     if (hoveredWidget is w) {
       hoveredWidget = null;
     }
-    if (pressedWidget is w) {
-      pressedWidget = null;
-    }
+    press.forget(w);
     if (!isAnyAnimating()) {
       stopAnimTimer();
     }
@@ -387,10 +253,7 @@ private:
     ref WidgetSystemContext ctx
   ) {
     const p = PointF(event.mouse.x, event.mouse.y);
-    Widget hitWidget =
-      findTopmostWithComponent!AnimatedHoverButtonComponent(
-        ctx.visibleWidgets, p
-      );
+    Widget hitWidget = press.hitTest(ctx, p);
 
     if (hitWidget !is hoveredWidget) {
       if (hoveredWidget !is null) {
@@ -435,15 +298,12 @@ private:
       return SystemEventResult(false, false);
     }
     const p = PointF(event.mouse.x, event.mouse.y);
-    Widget hitWidget =
-      findTopmostWithComponent!AnimatedHoverButtonComponent(
-        ctx.visibleWidgets, p
-      );
+    Widget hitWidget = press.hitTest(ctx, p);
     if (hitWidget !is null) {
       auto comp = hitWidget.components.get!AnimatedHoverButtonComponent();
       if (comp !is null) {
         comp.isPressed = true;
-        pressedWidget = hitWidget;
+        press.begin(hitWidget);
         trackActiveButton(hitWidget);
         ensureAnimTimer(ctx.host);
       }
@@ -455,12 +315,11 @@ private:
     in AppEvent event,
     ref WidgetSystemContext ctx
   ) {
-    if (event.mouse.button != 1 || pressedWidget is null) {
+    if (event.mouse.button != 1 || press.pressed is null) {
       return SystemEventResult(false, false);
     }
 
-    Widget target = pressedWidget;
-    pressedWidget = null;
+    Widget target = press.end();
 
     auto comp = target.components.get!AnimatedHoverButtonComponent();
     if (comp !is null) {
@@ -469,12 +328,9 @@ private:
       ensureAnimTimer(ctx.host);
 
       const p = PointF(event.mouse.x, event.mouse.y);
-      Widget hitWidget =
-        findTopmostWithComponent!AnimatedHoverButtonComponent(
-          ctx.visibleWidgets, p
-        );
+      Widget hitWidget = press.hitTest(ctx, p);
       if (hitWidget is target && comp.animConfig.actionEvent.length > 0) {
-        triggerAction(target, comp.animConfig.actionEvent, ctx);
+        emitButtonAction(ctx, target, comp.animConfig.actionEvent);
       }
     }
 
@@ -494,44 +350,21 @@ private:
     return SystemEventResult(false, false);
   }
 
-  void triggerAction(
-    Widget target,
-    string actionEvent,
-    ref WidgetSystemContext ctx
-  ) {
-    if (ctx.host is null || actionEvent.length == 0) {
-      return;
-    }
-    auto ev = ViewAppEventBuilder(actionEvent)
-      .widget(target)
-      .build();
-    ctx.host.sendAppEvent(ev);
-  }
-
   void trackActiveButton(Widget w) {
-    if (w is null) {
-      return;
-    }
-    activeButtons.addUnique(w);
+    activeButtons.track(w);
   }
 
   void cleanInvisibleButtons() {
-    for (ptrdiff_t i = cast(ptrdiff_t) activeButtons.length - 1; i >= 0; --i) {
-      Widget w = activeButtons[i];
-      if (!isEffectivelyVisible(w)) {
-        auto comp = w.components.get!AnimatedHoverButtonComponent();
-        if (comp !is null) {
-          comp.resetToNormal(w);
-        }
-        activeButtons.removeAt(cast(size_t) i);
+    activeButtons.removeInvisible((Widget w) {
+      auto comp = w.components.get!AnimatedHoverButtonComponent();
+      if (comp !is null) {
+        comp.resetToNormal(w);
       }
-    }
+    });
     if (hoveredWidget !is null && !isEffectivelyVisible(hoveredWidget)) {
       hoveredWidget = null;
     }
-    if (pressedWidget !is null && !isEffectivelyVisible(pressedWidget)) {
-      pressedWidget = null;
-    }
+    press.forgetInvisible();
     if (!isAnyAnimating()) {
       stopAnimTimer();
     }
@@ -682,14 +515,15 @@ private:
   }
 
   Widget hoveredWidget = null;
-  Widget pressedWidget = null;
-  ReusableArray!Widget activeButtons;
+  PressTracker!AnimatedHoverButtonComponent press;
+  ActiveWidgets activeButtons;
   TimerId animTimerId = invalidTimerId;
 }
 
 // Unit tests for AnimatedHoverButtonComponent, Builder, and WidgetSystem
 unittest {
   import yguilib.controls.testing : DummyWidgetSystemHost;
+  import yguilib.controls.tooltip : Tooltip;
   import yguilib.internal.uisystem_impl : UiSystemImpl;
 
   auto host = new DummyWidgetSystemHost();
