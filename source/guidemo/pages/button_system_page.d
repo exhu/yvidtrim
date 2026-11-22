@@ -126,7 +126,7 @@ private:
     b1.name("sysFadeSlateBtn").text("Slate Button")
       .bg(ColorF(0.18f, 0.20f, 0.25f, 1.0f))
       .border(ColorF(0.30f, 0.35f, 0.45f, 1.0f), 1.0f)
-      .radius(6.0f).fixedSize(140.0f, 38.0f).anim(cfg1)
+      .radius(6.0f).fixedSize(140.0f, 38.0f).anim(cfg1).tooltip()
       .build(ui, btnRow, RectF(0, 0, 140, 38));
 
     HoverAnimConfig cfg2;
@@ -136,10 +136,13 @@ private:
     cfg2.hoverBorder = ColorF(0.35f, 0.85f, 0.55f, 1.0f);
     cfg2.actionEvent = sysBtnCountActionEvent;
     AnimatedHoverButtonBuilder b2;
-    b2.name("sysFadeEmeraldBtn").text("Emerald Confirm")
+    b2.name("sysFadeEmeraldBtn")
+      .text(
+        "Emerald Confirm Action With Long Truncated Caption For Tooltip"
+      )
       .bg(ColorF(0.12f, 0.24f, 0.18f, 1.0f))
       .border(ColorF(0.20f, 0.45f, 0.30f, 1.0f), 1.0f)
-      .radius(6.0f).fixedSize(150.0f, 38.0f).anim(cfg2)
+      .radius(6.0f).fixedSize(150.0f, 38.0f).anim(cfg2).tooltip()
       .build(ui, btnRow, RectF(0, 0, 150, 38));
 
     HoverAnimConfig cfg3;
@@ -152,7 +155,7 @@ private:
     b3.name("sysFadeCrimsonBtn").text("Crimson Delete")
       .bg(ColorF(0.26f, 0.12f, 0.14f, 1.0f))
       .border(ColorF(0.48f, 0.20f, 0.24f, 1.0f), 1.0f)
-      .radius(6.0f).fixedSize(140.0f, 38.0f).anim(cfg3)
+      .radius(6.0f).fixedSize(140.0f, 38.0f).anim(cfg3).tooltip()
       .build(ui, btnRow, RectF(0, 0, 140, 38));
   }
 
@@ -238,7 +241,7 @@ private:
     b1.name("sysGradCyanBtn").text("Cyan Wave")
       .bg(ColorF(0.10f, 0.20f, 0.28f, 1.0f))
       .border(ColorF(0.20f, 0.45f, 0.65f, 1.0f), 1.0f)
-      .radius(6.0f).fixedSize(140.0f, 38.0f).anim(cfg1)
+      .radius(6.0f).fixedSize(140.0f, 38.0f).anim(cfg1).tooltip()
       .build(ui, btnRow, RectF(0, 0, 140, 38));
 
     HoverAnimConfig cfg2;
@@ -252,7 +255,7 @@ private:
     b2.name("sysGradSunsetBtn").text("Sunset Glow")
       .bg(ColorF(0.26f, 0.20f, 0.10f, 1.0f))
       .border(ColorF(0.50f, 0.38f, 0.18f, 1.0f), 1.0f)
-      .radius(6.0f).fixedSize(145.0f, 38.0f).anim(cfg2)
+      .radius(6.0f).fixedSize(145.0f, 38.0f).anim(cfg2).tooltip()
       .build(ui, btnRow, RectF(0, 0, 145, 38));
 
     HoverAnimConfig cfg3;
@@ -266,7 +269,7 @@ private:
     b3.name("sysGradAuroraBtn").text("Purple Aurora")
       .bg(ColorF(0.22f, 0.12f, 0.28f, 1.0f))
       .border(ColorF(0.42f, 0.22f, 0.55f, 1.0f), 1.0f)
-      .radius(6.0f).fixedSize(145.0f, 38.0f).anim(cfg3)
+      .radius(6.0f).fixedSize(145.0f, 38.0f).anim(cfg3).tooltip()
       .build(ui, btnRow, RectF(0, 0, 145, 38));
   }
 
@@ -351,7 +354,7 @@ private:
     b1.name("sysIncrementBtn").text("+ Click Increment")
       .bg(ColorF(0.15f, 0.30f, 0.55f, 1.0f))
       .border(ColorF(0.30f, 0.55f, 0.95f, 1.0f), 1.5f)
-      .radius(8.0f).fixedSize(180.0f, 42.0f).anim(cfg1)
+      .radius(8.0f).fixedSize(180.0f, 42.0f).anim(cfg1).tooltip()
       .build(ui, actionRow, RectF(0, 0, 180, 42));
 
     HoverAnimConfig cfg2;
@@ -364,7 +367,7 @@ private:
     b2.name("sysResetCounterBtn").text("Reset Counter")
       .bg(ColorF(0.20f, 0.22f, 0.26f, 1.0f))
       .border(ColorF(0.35f, 0.38f, 0.45f, 1.0f), 1.0f)
-      .radius(8.0f).fixedSize(140.0f, 42.0f).anim(cfg2)
+      .radius(8.0f).fixedSize(140.0f, 42.0f).anim(cfg2).tooltip()
       .build(ui, actionRow, RectF(0, 0, 140, 42));
   }
 
@@ -451,7 +454,7 @@ private:
     p1.name("sysPillFadeBtn").text("Pill Button (r=18)")
       .bg(ColorF(0.22f, 0.16f, 0.32f, 1.0f))
       .border(ColorF(0.45f, 0.32f, 0.65f, 1.5f), 1.5f)
-      .radius(18.0f).fixedSize(170.0f, 36.0f).anim(pillCfg1)
+      .radius(18.0f).fixedSize(170.0f, 36.0f).anim(pillCfg1).tooltip()
       .build(ui, pillRow, RectF(0, 0, 170, 36));
 
     HoverAnimConfig pillCfg2;
@@ -465,7 +468,7 @@ private:
     p2.name("sysPillWaveBtn").text("Pill Wave (r=18)")
       .bg(ColorF(0.14f, 0.26f, 0.24f, 1.0f))
       .border(ColorF(0.28f, 0.55f, 0.50f, 1.5f), 1.5f)
-      .radius(18.0f).fixedSize(170.0f, 36.0f).anim(pillCfg2)
+      .radius(18.0f).fixedSize(170.0f, 36.0f).anim(pillCfg2).tooltip()
       .build(ui, pillRow, RectF(0, 0, 170, 36));
   }
 
@@ -510,4 +513,40 @@ private:
   ModelTracker!ButtonSystemPageModel tracker;
   Widget root;
   Widget counterLabel;
+}
+
+unittest {
+  import yguilib.controls.hover_button_system : AnimatedHoverButtonComponent;
+  import yguilib.controls.tooltip : Tooltip;
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+
+  void checkButtons(Widget node, ref size_t count, ref bool foundLong) {
+    if (node is null) {
+      return;
+    }
+    if (node.components.has!AnimatedHoverButtonComponent()) {
+      count++;
+      assert(node.components.has!Tooltip());
+      assert(node.components.textLabel !is null);
+      const string resolved = node.components.get!Tooltip().resolveText(node);
+      assert(resolved == node.components.textLabel.caption);
+      if (node.name == "sysFadeEmeraldBtn") {
+        assert(resolved.length > 30);
+        foundLong = true;
+      }
+    }
+    foreach (child; node.children) {
+      checkButtons(child, count, foundLong);
+    }
+  }
+
+  auto ui = new UiSystemImpl(null);
+  auto parent = new Widget(ui.nextWidgetId());
+  auto page = new ButtonSystemPage(ui, parent);
+
+  size_t buttonCount = 0;
+  bool foundLongCaption = false;
+  checkButtons(page.getRootWidget(), buttonCount, foundLongCaption);
+  assert(buttonCount >= 10);
+  assert(foundLongCaption);
 }

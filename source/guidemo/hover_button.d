@@ -49,6 +49,7 @@ module guidemo.hover_button;
 
 import std.math : PI, abs, sin;
 import yguilib.controller : DefaultController, HandleResult;
+import yguilib.controls.tooltip : Tooltip;
 import yguilib.events : AppEvent;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, RectF;
@@ -82,6 +83,8 @@ struct HoverButtonBuilder {
   Size customSize = null;
   Anchor customAnchor = null;
   string widgetName = null;
+  bool hasTooltip = false;
+  string tooltipText = null;
 
   ref HoverButtonBuilder name(string buttonName) return {
     widgetName = buttonName;
@@ -141,6 +144,18 @@ struct HoverButtonBuilder {
 
   ref HoverButtonBuilder anchor(Anchor a) return {
     customAnchor = a;
+    return this;
+  }
+
+  ref HoverButtonBuilder tooltip() return {
+    hasTooltip = true;
+    tooltipText = null;
+    return this;
+  }
+
+  ref HoverButtonBuilder tooltip(string hintText) return {
+    hasTooltip = true;
+    tooltipText = hintText;
     return this;
   }
 
@@ -220,6 +235,10 @@ private:
       .onMouseDown("mouseDown")
       .onMouseUp("mouseUp")
       .onMouseMove("mouseMove");
+
+    if (hasTooltip) {
+      cb.component(Tooltip.withText(tooltipText));
+    }
   }
 }
 
@@ -829,4 +848,31 @@ unittest {
   gradController.onWidgetReleased(btnRoot);
   assert(gradController.entries.length == 0);
   assert(!testUi.isTimerActive(gradController.animTimerId));
+
+  // Test 6: .tooltip() attaches Tooltip to visual child widget
+  HoverButtonBuilder tb;
+  auto tipRoot = tb
+    .name("tipHoverBtn")
+    .text("Hover Caption")
+    .tooltip()
+    .build(testUi, null, RectF(0, 0, 100, 32));
+  assert(!tipRoot.components.has!Tooltip());
+  auto tipVisual = tipRoot.children[0];
+  assert(tipVisual.components.has!Tooltip());
+  assert(
+    tipVisual.components.get!Tooltip().resolveText(tipVisual) == "Hover Caption"
+  );
+
+  HoverButtonBuilder tbCustom;
+  auto tipCustomRoot = tbCustom
+    .name("tipHoverBtnCustom")
+    .text("Short")
+    .tooltip("Custom Hover Hint")
+    .build(testUi, null, RectF(0, 0, 100, 32));
+  auto tipCustomVisual = tipCustomRoot.children[0];
+  assert(tipCustomVisual.components.has!Tooltip());
+  assert(
+    tipCustomVisual.components.get!Tooltip().resolveText(tipCustomVisual) ==
+      "Custom Hover Hint"
+  );
 }

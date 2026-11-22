@@ -74,6 +74,7 @@ import guidemo.pages.virtlist_controller : VirtListPageController;
 import guidemo.pages.virtlist_page : VirtListPage;
 import yguilib.controls.scrollbars : registerScrollbars;
 import yguilib.controls.tabcontrol : TabsModel, registerTabControl;
+import yguilib.controls.tooltip : TooltipLayerBuilder, TooltipSystem;
 import guidemo.view : DemoView, createHeaderTabsModel;
 import yguilib.controls.virtlist : registerVirtList;
 
@@ -85,6 +86,7 @@ void main() {
   );
   // Register systems and reusable composite widget controllers.
   app.ui.registerWidgetSystem(new AnimatedHoverButtonSystem());
+  app.ui.registerWidgetSystem(new TooltipSystem());
   app.ui.pushController(registerTabControl(app.ui));
   app.ui.pushController(registerScrollbars(app.ui));
   app.ui.pushController(registerVirtList(app.ui));
@@ -107,6 +109,8 @@ void main() {
   app.ui.pushController(demoController);
 
   registerDemoPages(app.ui, demoTracker, rootWidget, hoverBtnController);
+  TooltipLayerBuilder tooltipLayerBuilder;
+  tooltipLayerBuilder.name("demoTooltipLayer").build(app.ui, rootWidget);
   demoView.update();
 
   infof("ui = %s", app.ui.dumpInfo());

@@ -30,6 +30,7 @@ import std.math : PI, sin;
 import yguilib.allochelpers : ReusableArray;
 import yguilib.controls.common : ButtonFace, WidgetColors,
   applyBgAndBorderColors, applyButtonFaceStyle, orDefault;
+import yguilib.controls.tooltip : Tooltip;
 import yguilib.events : AppEvent;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, PointF, RectF, lerpColor,
@@ -133,6 +134,8 @@ struct AnimatedHoverButtonBuilder {
   Size customSize = null;
   Anchor customAnchor = null;
   string widgetName = null;
+  bool hasTooltip = false;
+  string tooltipText = null;
 
   ref AnimatedHoverButtonBuilder name(string buttonName) return {
     widgetName = buttonName;
@@ -207,6 +210,18 @@ struct AnimatedHoverButtonBuilder {
     return this;
   }
 
+  ref AnimatedHoverButtonBuilder tooltip() return {
+    hasTooltip = true;
+    tooltipText = null;
+    return this;
+  }
+
+  ref AnimatedHoverButtonBuilder tooltip(string hintText) return {
+    hasTooltip = true;
+    tooltipText = hintText;
+    return this;
+  }
+
   Widget build(UiSystem ui, Widget parent, RectF rect) {
     const float initW = rect.width > 0.0f ? rect.width : 100.0f;
     const float initH = rect.height > 0.0f ? rect.height : 36.0f;
@@ -234,6 +249,9 @@ struct AnimatedHoverButtonBuilder {
     comp.normalBorder = config.borderColor;
     comp.colorsInitialized = true;
     b.component(comp);
+    if (hasTooltip) {
+      b.component(Tooltip.withText(tooltipText));
+    }
     b.inputEnabled(true);
 
     return b.build();
@@ -856,4 +874,28 @@ unittest {
   }
   assert(!sys.isAnyAnimating());
   assert(sys.animTimerId == invalidTimerId);
+
+  // Test 5: .tooltip() attaches Tooltip component
+  AnimatedHoverButtonBuilder tb1;
+  auto tipBtn = tb1
+    .name("tipBtn")
+    .text("Fallback Caption")
+    .tooltip()
+    .build(testUi, null, RectF(0, 0, 100, 32));
+  assert(tipBtn.components.has!Tooltip());
+  assert(
+    tipBtn.components.get!Tooltip().resolveText(tipBtn) == "Fallback Caption"
+  );
+
+  AnimatedHoverButtonBuilder tb2;
+  auto tipBtnCustom = tb2
+    .name("tipBtnCustom")
+    .text("Short")
+    .tooltip("Explicit Tooltip Hint")
+    .build(testUi, null, RectF(0, 0, 100, 32));
+  assert(tipBtnCustom.components.has!Tooltip());
+  assert(
+    tipBtnCustom.components.get!Tooltip().resolveText(tipBtnCustom) ==
+      "Explicit Tooltip Hint"
+  );
 }

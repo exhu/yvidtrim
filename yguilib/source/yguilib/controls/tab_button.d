@@ -5,6 +5,7 @@ module yguilib.controls.tab_button;
 
 import yguilib.controls.common : ButtonFace, WidgetColors, applyColors,
   orDefault, styledButton;
+import yguilib.controls.tooltip : Tooltip;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget;
@@ -88,6 +89,7 @@ Widget createTabButton(
   const string btnName = orDefault(name, "tabButton");
   return styledButton(ui, parent, btnName, label, face)
     .onMouseDown(eventName)
+    .component(new Tooltip())
     .build();
 }
 
@@ -131,6 +133,10 @@ unittest {
   assert(btnActive.components.textLabel !is null);
   assert(btnActive.components.textLabel.caption == "Active Tab");
   assert(btnActive.components.textLabel.color == tabActiveText);
+  assert(btnActive.components.has!Tooltip());
+  assert(
+    btnActive.components.get!Tooltip().resolveText(btnActive) == "Active Tab"
+  );
 
   // 2. Create inactive tab button with custom name
   auto btnInactive = createTabButton(

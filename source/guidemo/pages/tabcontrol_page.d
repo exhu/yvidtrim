@@ -537,6 +537,7 @@ private:
       .border(cfg.hoverBorder, 1.0f)
       .fixedSize(width, 34.0f)
       .anim(cfg)
+      .tooltip()
       .build(ui, parent, RectF(0, 0, width, 34));
   }
 
@@ -725,4 +726,85 @@ private:
   Widget verticalTitleLabel;
   Widget verticalDescLabel;
   Widget verticalIndexLabel;
+}
+
+unittest {
+  import yguilib.controls.tabcontrol : registerTabControl;
+  import yguilib.controls.tooltip : Tooltip;
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+
+  Widget findByName(Widget node, string targetName) {
+    if (node is null) {
+      return null;
+    }
+    if (node.name == targetName) {
+      return node;
+    }
+    foreach (child; node.children) {
+      if (auto found = findByName(child, targetName)) {
+        return found;
+      }
+    }
+    return null;
+  }
+
+  Widget findWidgetArray(Widget node) {
+    if (node is null) {
+      return null;
+    }
+    if (node.components.widgetArray !is null) {
+      return node;
+    }
+    foreach (child; node.children) {
+      if (auto found = findWidgetArray(child)) {
+        return found;
+      }
+    }
+    return null;
+  }
+
+  auto ui = new UiSystemImpl(null);
+  registerTabControl(ui);
+  auto parent = new Widget(ui.nextWidgetId());
+  parent.rect = RectF(0, 0, 1280, 720);
+  auto page = new TabControlPage(ui, parent, ui);
+
+  // Verify mutation buttons have Tooltip components
+  static immutable string[5] mutNames = [
+    "addTabBtn",
+    "removeTabBtn",
+    "resetTabsBtn",
+    "narrowViewportBtn",
+    "widenViewportBtn",
+  ];
+  foreach (btnName; mutNames) {
+    auto btn = findByName(page.getRootWidget(), btnName);
+    assert(btn !is null);
+    assert(btn.components.has!Tooltip());
+    assert(btn.components.get!Tooltip().resolveText(btn).length > 0);
+  }
+
+  // Materialize TabControl tab buttons via provider and verify Tooltip
+  auto subCtrl = findByName(page.getRootWidget(), "subTabControl");
+  assert(subCtrl !is null);
+  auto tabsContainer = findWidgetArray(subCtrl);
+  assert(tabsContainer !is null);
+  auto wa = tabsContainer.components.widgetArray;
+  assert(wa.itemsCount == 3);
+  foreach (_; 0 .. wa.itemsCount) {
+    wa.provider.addWidget(tabsContainer);
+  }
+  foreach (i, child; tabsContainer.children) {
+    wa.provider.updateWidgetAt(child, i);
+  }
+  assert(tabsContainer.children.length == 3);
+  foreach (tabBtn; tabsContainer.children) {
+    assert(tabBtn.components.has!Tooltip());
+    assert(tabBtn.components.get!Tooltip().resolveText(tabBtn).length > 0);
+  }
+  assert(
+    tabsContainer.children[0].components.get!Tooltip().resolveText(
+      tabsContainer.children[0]
+    ) == "Overview"
+  );
 }

@@ -145,7 +145,7 @@ private:
       .border(ColorF(0.30f, 0.35f, 0.45f, 1.0f), 1.0f)
       .radius(6.0f)
       .fixedSize(140.0f, 38.0f)
-      .action("fadeBtn1Click");
+      .action("fadeBtn1Click").tooltip();
     HoverAnimConfig cfg1;
     cfg1.style = HoverAnimConfig.AnimStyle.fade;
     cfg1.hoverBg = ColorF(0.28f, 0.38f, 0.55f, 1.0f);
@@ -156,12 +156,12 @@ private:
 
     HoverButtonBuilder b2;
     b2.name("fadeEmeraldBtn")
-      .text("Emerald Confirm")
+      .text("Emerald Confirm Action With Long Truncated Caption For Tooltip")
       .bg(ColorF(0.12f, 0.24f, 0.18f, 1.0f))
       .border(ColorF(0.20f, 0.45f, 0.30f, 1.0f), 1.0f)
       .radius(6.0f)
       .fixedSize(150.0f, 38.0f)
-      .action("btnCountAction");
+      .action("btnCountAction").tooltip();
     HoverAnimConfig cfg2;
     cfg2.style = HoverAnimConfig.AnimStyle.fade;
     cfg2.hoverBg = ColorF(0.18f, 0.55f, 0.35f, 1.0f);
@@ -177,7 +177,7 @@ private:
       .border(ColorF(0.48f, 0.20f, 0.24f, 1.0f), 1.0f)
       .radius(6.0f)
       .fixedSize(140.0f, 38.0f)
-      .action("btnCountAction");
+      .action("btnCountAction").tooltip();
     HoverAnimConfig cfg3;
     cfg3.style = HoverAnimConfig.AnimStyle.fade;
     cfg3.hoverBg = ColorF(0.65f, 0.20f, 0.25f, 1.0f);
@@ -276,7 +276,8 @@ private:
       .border(borderCol, 1.0f)
       .radius(6.0f)
       .fixedSize(width, 38.0f)
-      .action("btnCountAction");
+      .action("btnCountAction")
+      .tooltip();
     HoverAnimConfig cfg;
     cfg.style = HoverAnimConfig.AnimStyle.gradientPlay;
     cfg.hoverBg = hoverBg;
@@ -386,7 +387,8 @@ private:
       .border(ColorF(0.30f, 0.55f, 0.95f, 1.0f), 1.5f)
       .radius(8.0f)
       .fixedSize(180.0f, 42.0f)
-      .action("btnCountAction");
+      .action("btnCountAction")
+      .tooltip();
     HoverAnimConfig cfg1;
     cfg1.style = HoverAnimConfig.AnimStyle.fade;
     cfg1.hoverBg = ColorF(0.25f, 0.45f, 0.80f, 1.0f);
@@ -402,7 +404,8 @@ private:
       .border(ColorF(0.35f, 0.38f, 0.45f, 1.0f), 1.0f)
       .radius(8.0f)
       .fixedSize(140.0f, 42.0f)
-      .action("btnCountReset");
+      .action("btnCountReset")
+      .tooltip();
     HoverAnimConfig cfg2;
     cfg2.style = HoverAnimConfig.AnimStyle.fade;
     cfg2.hoverBg = ColorF(0.30f, 0.34f, 0.40f, 1.0f);
@@ -491,7 +494,8 @@ private:
       .border(ColorF(0.45f, 0.32f, 0.65f, 1.0f), 1.5f)
       .radius(18.0f)
       .fixedSize(170.0f, 36.0f)
-      .action("btnCountAction");
+      .action("btnCountAction")
+      .tooltip();
     HoverAnimConfig pillCfg1;
     pillCfg1.style = HoverAnimConfig.AnimStyle.fade;
     pillCfg1.hoverBg = ColorF(0.40f, 0.28f, 0.60f, 1.0f);
@@ -507,7 +511,8 @@ private:
       .border(ColorF(0.28f, 0.55f, 0.50f, 1.0f), 1.5f)
       .radius(18.0f)
       .fixedSize(170.0f, 36.0f)
-      .action("btnCountAction");
+      .action("btnCountAction")
+      .tooltip();
     HoverAnimConfig pillCfg2;
     pillCfg2.style = HoverAnimConfig.AnimStyle.gradientPlay;
     pillCfg2.hoverBg = ColorF(0.15f, 0.50f, 0.35f, 1.0f);
@@ -560,4 +565,28 @@ private:
   Widget counterLabel;
   Widget[] managedButtons;
   HoverAnimConfig[] managedAnimConfigs;
+}
+
+unittest {
+  import yguilib.controls.tooltip : Tooltip;
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+
+  auto ui = new UiSystemImpl(null);
+  auto page = new ButtonPage(ui, null);
+
+  assert(page.managedButtons.length > 0);
+  bool foundLongCaption = false;
+  foreach (btn; page.managedButtons) {
+    assert(btn.children.length > 0);
+    auto visual = btn.children[0];
+    assert(visual.components.has!Tooltip());
+    assert(visual.components.textLabel !is null);
+    const string resolved = visual.components.get!Tooltip().resolveText(visual);
+    assert(resolved == visual.components.textLabel.caption);
+    if (btn.name == "fadeEmeraldBtn") {
+      assert(resolved.length > 30);
+      foundLongCaption = true;
+    }
+  }
+  assert(foundLongCaption);
 }

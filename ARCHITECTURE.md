@@ -47,6 +47,7 @@ yvidtrim/
 │   │   │   ├── tab_button.d          # Styled tab button factory & helpers
 │   │   │   ├── tabcontrol.d          # Composite TabControl widget & view
 │   │   │   ├── testing.d             # Shared unittest helpers & mock hosts
+│   │   │   ├── tooltip.d             # Tooltip component, overlay & system
 │   │   │   └── virtlist.d            # Composite VirtList widget & view
 │   │   ├── events/        # AppEvent, builder, and thread-safe MessageBus
 │   │   ├── render/        # Hardware Renderer, FontManager, shader pipelines

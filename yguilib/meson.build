@@ -21,6 +21,7 @@ yguilib_src = files(
   'source/yguilib/controls/tab_button.d',
   'source/yguilib/controls/tabcontrol.d',
   'source/yguilib/controls/testing.d',
+  'source/yguilib/controls/tooltip.d',
   'source/yguilib/controls/virtlist.d',
   'source/yguilib/events/builder.d',
   'source/yguilib/events/internal/message_bus.d',
