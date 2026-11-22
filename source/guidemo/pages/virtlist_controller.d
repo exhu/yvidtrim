@@ -3,7 +3,7 @@
  */
 module guidemo.pages.virtlist_controller;
 
-import guidemo.common : syncPageShell;
+import guidemo.common : syncPageShellView, syncPageStatus;
 import guidemo.demo_model_helpers : isPageActive;
 import guidemo.model : DemoModel, DemoPage, VirtListPageModel;
 import guidemo.pages.virtlist_page : VirtListPage, page7ExpandRowEvent,
@@ -44,10 +44,14 @@ final class VirtListPageController : DefaultController {
     this.page = page;
     this.tracker = ModelTracker!VirtListPageModel.from(page.getTracker());
     syncAnimTimer();
-    syncPageShell(
+    syncPageShellView(
+      this.demoTracker.model,
+      DemoPage.virtList,
+      page.getRootWidget()
+    );
+    syncPageStatus(
       this.demoTracker,
       DemoPage.virtList,
-      page.getRootWidget(),
       page.formatStatus()
     );
   }
@@ -62,22 +66,27 @@ final class VirtListPageController : DefaultController {
 
   override bool update() {
     const bool demoChanged = demoTracker.update();
+    const bool pageChanged = tracker.update();
     const bool telemetryChanged = page.syncTelemetry();
     syncAnimTimer();
-    return demoChanged || telemetryChanged;
+    const bool statusChanged = syncPageStatus(
+      demoTracker,
+      DemoPage.virtList,
+      page.formatStatus()
+    );
+    if (statusChanged) {
+      sendUpdate();
+    }
+    return demoChanged || pageChanged || telemetryChanged || statusChanged;
   }
 
   override bool updateView() {
     page.update();
-    syncAnimTimer();
-    if (syncPageShell(
-        demoTracker,
-        DemoPage.virtList,
-        page.getRootWidget(),
-        page.formatStatus()
-      )) {
-      sendUpdate();
-    }
+    syncPageShellView(
+      demoTracker.model,
+      DemoPage.virtList,
+      page.getRootWidget()
+    );
     return true;
   }
 
@@ -101,16 +110,11 @@ final class VirtListPageController : DefaultController {
     const string eventName = ev.view.eventName;
     if (eventName == page7VertChangedEvent ||
         eventName == page7HorizChangedEvent) {
-      page.syncTelemetry();
-      syncAnimTimer();
-      return HandleResult(HandleResult.Result.updateView, false);
+      return HandleResult(HandleResult.Result.update, false);
     }
 
     if (handleVerticalAction(eventName) || handleHorizontalAction(eventName)) {
-      page.syncTelemetry();
-      syncAnimTimer();
-      sendUpdate();
-      return HandleResult(HandleResult.Result.updateView, true);
+      return HandleResult(HandleResult.Result.update, true);
     }
     return super.handleEvent(ev);
   }
@@ -199,16 +203,19 @@ unittest {
   assert(
     ctrl.handleEvent(ViewAppEventBuilder(page7InsertAboveEvent).build()).consume
   );
+  assert(ctrl.update());
   assert(page.getTracker().model.vItemsCount == 10001);
 
   assert(
     ctrl.handleEvent(ViewAppEventBuilder(page7InsertHereEvent).build()).consume
   );
+  assert(ctrl.update());
   assert(page.getTracker().model.vItemsCount == 10002);
 
   assert(
     ctrl.handleEvent(ViewAppEventBuilder(page7RemoveHereEvent).build()).consume
   );
+  assert(ctrl.update());
   assert(page.getTracker().model.vItemsCount == 10001);
 
   assert(
@@ -217,13 +224,19 @@ unittest {
   assert(vlCtrl.updateView());
 
   assert(
-    ctrl.handleEvent(ViewAppEventBuilder(page7HorizInsertEvent).build()).consume
+    ctrl.handleEvent(
+      ViewAppEventBuilder(page7HorizInsertEvent).build()
+    ).consume
   );
+  assert(ctrl.update());
   assert(page.getTracker().model.hItemsCount == 1201);
 
   assert(
-    ctrl.handleEvent(ViewAppEventBuilder(page7HorizRemoveEvent).build()).consume
+    ctrl.handleEvent(
+      ViewAppEventBuilder(page7HorizRemoveEvent).build()
+    ).consume
   );
+  assert(ctrl.update());
   assert(page.getTracker().model.hItemsCount == 1200);
 
   assert(
@@ -320,7 +333,9 @@ unittest {
         if (m.activeVideosCount > 0 &&
             uiSystem.isTimerActive(target.animTimerId)) {
           assert(target.onTimer(target.animTimerId, 0.05f));
-          target.handleEvent(ViewAppEventBuilder(page7Jump5000Event).build());
+          uiSystem.sendAppEvent(
+            ViewAppEventBuilder(page7Jump5000Event).build()
+          );
           step = 2;
         }
         return false;

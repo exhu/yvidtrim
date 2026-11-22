@@ -3,7 +3,7 @@
  */
 module guidemo.pages.tabcontrol_controller;
 
-import guidemo.common : syncPageShell;
+import guidemo.common : syncPageShellView, syncPageStatus;
 import guidemo.model : DemoModel, DemoPage, TabControlPageModel;
 import guidemo.pages.tabcontrol_page : TabControlPage, dynamicTabSwitchEvent,
   page5AddTabEvent, page5NarrowViewportEvent, page5RemoveTabEvent,
@@ -37,10 +37,14 @@ final class TabControlPageController : DefaultController {
     this.demoTracker = ModelTracker!DemoModel.from(demoTracker);
     this.page = page;
     this.tracker = ModelTracker!TabControlPageModel.from(page.getTracker());
-    syncPageShell(
+    syncPageShellView(
+      this.demoTracker.model,
+      DemoPage.tabControl,
+      page.getRootWidget()
+    );
+    syncPageStatus(
       this.demoTracker,
       DemoPage.tabControl,
-      page.getRootWidget(),
       page.formatStatus()
     );
   }
@@ -50,19 +54,26 @@ final class TabControlPageController : DefaultController {
   }
 
   override bool update() {
-    return demoTracker.update();
+    const bool demoChanged = demoTracker.update();
+    const bool pageChanged = tracker.update();
+    const bool statusChanged = syncPageStatus(
+      demoTracker,
+      DemoPage.tabControl,
+      page.formatStatus()
+    );
+    if (statusChanged) {
+      sendUpdate();
+    }
+    return demoChanged || pageChanged || statusChanged;
   }
 
   override bool updateView() {
     page.update();
-    if (syncPageShell(
-        demoTracker,
-        DemoPage.tabControl,
-        page.getRootWidget(),
-        page.formatStatus()
-      )) {
-      sendUpdate();
-    }
+    syncPageShellView(
+      demoTracker.model,
+      DemoPage.tabControl,
+      page.getRootWidget()
+    );
     return true;
   }
 
@@ -77,13 +88,13 @@ final class TabControlPageController : DefaultController {
         eventName == dynamicTabSwitchEvent ||
         eventName == verticalTabSwitchEvent) {
       if (handleTabSwitch(eventName, idx)) {
-        return HandleResult(HandleResult.Result.updateView, false);
+        return HandleResult(HandleResult.Result.update, false);
       }
       return super.handleEvent(ev);
     }
 
     if (handleMutation(eventName)) {
-      return HandleResult(HandleResult.Result.updateView, true);
+      return HandleResult(HandleResult.Result.update, true);
     }
     return super.handleEvent(ev);
   }
@@ -127,9 +138,6 @@ private:
       handled = false;
     }
     tracker.commit(model);
-    if (handled) {
-      sendUpdate();
-    }
     return handled;
   }
 
@@ -152,26 +160,26 @@ unittest {
   // on the stack also receives them.
   auto evSub = ViewAppEventBuilder(pageTabSwitchEvent).value(2).build();
   auto hrSub = ctrl.handleEvent(evSub);
-  assert(hrSub.result == HandleResult.Result.updateView);
+  assert(hrSub.result == HandleResult.Result.update);
   assert(!hrSub.consume);
   assert(page.getTracker().model.subTab == 2);
 
   auto evDyn = ViewAppEventBuilder(dynamicTabSwitchEvent).value(1).build();
   auto hrDyn = ctrl.handleEvent(evDyn);
-  assert(hrDyn.result == HandleResult.Result.updateView);
+  assert(hrDyn.result == HandleResult.Result.update);
   assert(!hrDyn.consume);
   assert(page.getTracker().model.dynamicTab == 1);
 
   auto evVert = ViewAppEventBuilder(verticalTabSwitchEvent).value(3).build();
   auto hrVert = ctrl.handleEvent(evVert);
-  assert(hrVert.result == HandleResult.Result.updateView);
+  assert(hrVert.result == HandleResult.Result.update);
   assert(!hrVert.consume);
   assert(page.getTracker().model.verticalTab == 3);
 
   // Mutation events are consumed
   auto evAdd = ViewAppEventBuilder(page5AddTabEvent).build();
   auto hrAdd = ctrl.handleEvent(evAdd);
-  assert(hrAdd.result == HandleResult.Result.updateView);
+  assert(hrAdd.result == HandleResult.Result.update);
   assert(hrAdd.consume);
   assert(page.getTracker().model.dynamicTabCount == 7);
 

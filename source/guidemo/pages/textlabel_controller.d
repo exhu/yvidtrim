@@ -3,7 +3,7 @@
  */
 module guidemo.pages.textlabel_controller;
 
-import guidemo.common : isKey, syncPageShell;
+import guidemo.common : isKey, syncPageShellView, syncPageStatus;
 import guidemo.demo_model_helpers : isPageActive;
 import guidemo.model : DemoModel, DemoPage, TextLabelPageModel;
 import guidemo.pages.textlabel_page : TextLabelPage;
@@ -29,10 +29,14 @@ final class TextLabelPageController : DefaultController {
     this.demoTracker = ModelTracker!DemoModel.from(demoTracker);
     this.page = page;
     this.tracker = ModelTracker!TextLabelPageModel.from(page.getTracker());
-    syncPageShell(
+    syncPageShellView(
+      this.demoTracker.model,
+      DemoPage.textLabel,
+      page.getRootWidget()
+    );
+    syncPageStatus(
       this.demoTracker,
       DemoPage.textLabel,
-      page.getRootWidget(),
       page.formatStatus()
     );
   }
@@ -42,19 +46,26 @@ final class TextLabelPageController : DefaultController {
   }
 
   override bool update() {
-    return demoTracker.update();
+    const bool demoChanged = demoTracker.update();
+    const bool pageChanged = tracker.update();
+    const bool statusChanged = syncPageStatus(
+      demoTracker,
+      DemoPage.textLabel,
+      page.formatStatus()
+    );
+    if (statusChanged) {
+      sendUpdate();
+    }
+    return demoChanged || pageChanged || statusChanged;
   }
 
   override bool updateView() {
     page.update();
-    if (syncPageShell(
-        demoTracker,
-        DemoPage.textLabel,
-        page.getRootWidget(),
-        page.formatStatus()
-      )) {
-      sendUpdate();
-    }
+    syncPageShellView(
+      demoTracker.model,
+      DemoPage.textLabel,
+      page.getRootWidget()
+    );
     return true;
   }
 
@@ -62,7 +73,7 @@ final class TextLabelPageController : DefaultController {
     if (ev.kind == AppEvent.Kind.keyDown &&
         isPageActive(demoTracker.model, DemoPage.textLabel)) {
       if (handlePageKey(ev)) {
-        return HandleResult(HandleResult.Result.updateView, true);
+        return HandleResult(HandleResult.Result.update, true);
       }
     }
     return super.handleEvent(ev);
@@ -129,7 +140,7 @@ unittest {
   assert(page.isVisible());
 
   auto hrM = ctrl.handleEvent(makeKeyDown(Keycode.m, Scancode.m));
-  assert(hrM.result == HandleResult.Result.updateView);
+  assert(hrM.result == HandleResult.Result.update);
   assert(hrM.consume);
   assert(!page.getTracker().model.labelMultiline);
 

@@ -3,7 +3,7 @@
  */
 module guidemo.pages.layout_painter_controller;
 
-import guidemo.common : isKey, syncPageShell;
+import guidemo.common : isKey, syncPageShellView, syncPageStatus;
 import guidemo.demo_model_helpers : isPageActive;
 import guidemo.model : DemoModel, DemoPage, LayoutPainterPageModel;
 import guidemo.pages.layout_painter_page : LayoutPainterPage;
@@ -41,10 +41,14 @@ final class LayoutPainterPageController : DefaultController {
     alphaTimer.setPause(!onPage);
     wasOnPage1 = onPage;
     syncAlphaTimer();
-    syncPageShell(
+    syncPageShellView(
+      this.demoTracker.model,
+      DemoPage.layoutPainter,
+      page.getRootWidget()
+    );
+    syncPageStatus(
       this.demoTracker,
       DemoPage.layoutPainter,
-      page.getRootWidget(),
       page.formatStatus()
     );
   }
@@ -59,25 +63,27 @@ final class LayoutPainterPageController : DefaultController {
 
   override bool updateView() {
     page.update();
-    // TODO split into model update and view update,
-    // model updates are in update() method,
-    // view updates (calls to widget methods) are only in updateView
-    if (syncPageShell(
-        demoTracker,
-        DemoPage.layoutPainter,
-        page.getRootWidget(),
-        page.formatStatus()
-      )) {
-      // TODO this is not supposed to be called from updateView
-      sendUpdate();
-    }
+    syncPageShellView(
+      demoTracker.model,
+      DemoPage.layoutPainter,
+      page.getRootWidget()
+    );
     return true;
   }
 
   override bool update() {
-    const bool demoChanged = demoTracker.update() | tracker.update();
+    const bool demoChanged = demoTracker.update();
+    const bool pageChanged = tracker.update();
     syncAlphaTimer();
-    return demoChanged;
+    const bool statusChanged = syncPageStatus(
+      demoTracker,
+      DemoPage.layoutPainter,
+      page.formatStatus()
+    );
+    if (statusChanged) {
+      sendUpdate();
+    }
+    return demoChanged || pageChanged || statusChanged;
   }
 
   override bool onTimer(TimerId id, float dt) {
@@ -94,8 +100,7 @@ final class LayoutPainterPageController : DefaultController {
     auto model = tracker.edit();
     model.alphaValue = alphaTimer.map(0.2f, 1.0f);
     tracker.commit(model);
-    sendUpdate();
-    return false;
+    return true;
   }
 
   override HandleResult handleEvent(AppEvent ev) {
@@ -106,7 +111,7 @@ final class LayoutPainterPageController : DefaultController {
 
     if (ev.kind == AppEvent.Kind.keyDown && onPage1) {
       if (handlePageKey(ev)) {
-        return HandleResult(HandleResult.Result.updateView, true);
+        return HandleResult(HandleResult.Result.update, true);
       }
     }
 
@@ -193,9 +198,12 @@ unittest {
 
   // Page 1 active: [D] toggles FlexDirection and consumes event
   auto hrD = ctrl.handleEvent(makeKeyDown(Keycode.d, Scancode.d));
-  assert(hrD.result == HandleResult.Result.updateView);
+  assert(hrD.result == HandleResult.Result.update);
   assert(hrD.consume);
   assert(page.getTracker().model.direction == FlexDirection.column);
+  assert(ctrl.update());
+  assert(ctrl.updateView());
+  assert(demoTracker.model.statusText.length > 0);
 
   // Page 1 active: [M] is unrelated and must not be consumed or trigger update
   auto hrM = ctrl.handleEvent(makeKeyDown(Keycode.m, Scancode.m));

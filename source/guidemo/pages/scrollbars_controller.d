@@ -3,7 +3,7 @@
  */
 module guidemo.pages.scrollbars_controller;
 
-import guidemo.common : syncPageShell;
+import guidemo.common : syncPageShellView, syncPageStatus;
 import guidemo.model : DemoModel, DemoPage, ScrollbarsPageModel;
 import guidemo.pages.scrollbars_page : ScrollbarsPage, page6HorizScrollEvent,
   page6LiveScrollEvent, page6NarrowBarEvent, page6PlaygroundScrollEvent,
@@ -37,10 +37,14 @@ final class ScrollbarsPageController : DefaultController {
     this.demoTracker = ModelTracker!DemoModel.from(demoTracker);
     this.page = page;
     this.tracker = ModelTracker!ScrollbarsPageModel.from(page.getTracker());
-    syncPageShell(
+    syncPageShellView(
+      this.demoTracker.model,
+      DemoPage.scrollbars,
+      page.getRootWidget()
+    );
+    syncPageStatus(
       this.demoTracker,
       DemoPage.scrollbars,
-      page.getRootWidget(),
       page.formatStatus()
     );
   }
@@ -50,19 +54,26 @@ final class ScrollbarsPageController : DefaultController {
   }
 
   override bool update() {
-    return demoTracker.update();
+    const bool demoChanged = demoTracker.update();
+    const bool pageChanged = tracker.update();
+    const bool statusChanged = syncPageStatus(
+      demoTracker,
+      DemoPage.scrollbars,
+      page.formatStatus()
+    );
+    if (statusChanged) {
+      sendUpdate();
+    }
+    return demoChanged || pageChanged || statusChanged;
   }
 
   override bool updateView() {
     page.update();
-    if (syncPageShell(
-        demoTracker,
-        DemoPage.scrollbars,
-        page.getRootWidget(),
-        page.formatStatus()
-      )) {
-      sendUpdate();
-    }
+    syncPageShellView(
+      demoTracker.model,
+      DemoPage.scrollbars,
+      page.getRootWidget()
+    );
     return true;
   }
 
@@ -74,7 +85,7 @@ final class ScrollbarsPageController : DefaultController {
     const string eventName = ev.view.eventName;
     const long val = cast(long) ev.view.value[0];
     if (handleScrollEvent(eventName, val) || handleMutation(eventName)) {
-      return HandleResult(HandleResult.Result.updateView, true);
+      return HandleResult(HandleResult.Result.update, true);
     }
     return super.handleEvent(ev);
   }
@@ -123,9 +134,6 @@ private:
       handled = false;
     }
     tracker.commit(model);
-    if (handled) {
-      sendUpdate();
-    }
     return handled;
   }
 

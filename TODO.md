@@ -1,4 +1,5 @@
-- guidemo: fix issues described in updateView TODO comments in `source/guidemo/pages/layout_painter_controller.d`
+- in guidemo `button_controller.d` sendUpdate is called from update(), it's an error, update after update
+does not make sense, see other classes in source/guidemo/pages/ for similar mistake.
 
 - guidemo: text hint (tooltip) popup layer widget, controller, system and component with
 hint displayed and animated transparency when cursor delays over a control to

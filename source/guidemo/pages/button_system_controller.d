@@ -3,7 +3,7 @@
  */
 module guidemo.pages.button_system_controller;
 
-import guidemo.common : syncPageShell;
+import guidemo.common : syncPageShellView, syncPageStatus;
 import guidemo.model : ButtonSystemPageModel, DemoModel, DemoPage;
 import guidemo.pages.button_system_page : ButtonSystemPage,
   sysBtnCountActionEvent, sysBtnCountResetEvent;
@@ -35,10 +35,14 @@ final class ButtonSystemPageController : DefaultController {
     this.demoTracker = ModelTracker!DemoModel.from(demoTracker);
     this.page = page;
     this.tracker = ModelTracker!ButtonSystemPageModel.from(page.getTracker());
-    syncPageShell(
+    syncPageShellView(
+      this.demoTracker.model,
+      DemoPage.buttonSystem,
+      page.getRootWidget()
+    );
+    syncPageStatus(
       this.demoTracker,
       DemoPage.buttonSystem,
-      page.getRootWidget(),
       page.formatStatus()
     );
   }
@@ -48,19 +52,26 @@ final class ButtonSystemPageController : DefaultController {
   }
 
   override bool update() {
-    return demoTracker.update();
+    const bool demoChanged = demoTracker.update();
+    const bool pageChanged = tracker.update();
+    const bool statusChanged = syncPageStatus(
+      demoTracker,
+      DemoPage.buttonSystem,
+      page.formatStatus()
+    );
+    if (statusChanged) {
+      sendUpdate();
+    }
+    return demoChanged || pageChanged || statusChanged;
   }
 
   override bool updateView() {
     page.update();
-    if (syncPageShell(
-        demoTracker,
-        DemoPage.buttonSystem,
-        page.getRootWidget(),
-        page.formatStatus()
-      )) {
-      sendUpdate();
-    }
+    syncPageShellView(
+      demoTracker.model,
+      DemoPage.buttonSystem,
+      page.getRootWidget()
+    );
     return true;
   }
 
@@ -74,13 +85,13 @@ final class ButtonSystemPageController : DefaultController {
       auto model = tracker.edit();
       model.buttonClickCount += 1;
       tracker.commit(model);
-      return HandleResult(HandleResult.Result.updateView, true);
+      return HandleResult(HandleResult.Result.update, true);
     }
     if (eventName == sysBtnCountResetEvent) {
       auto model = tracker.edit();
       model.buttonClickCount = 0;
       tracker.commit(model);
-      return HandleResult(HandleResult.Result.updateView, true);
+      return HandleResult(HandleResult.Result.update, true);
     }
     return super.handleEvent(ev);
   }
@@ -103,7 +114,7 @@ unittest {
 
   auto evInc = ViewAppEventBuilder(sysBtnCountActionEvent).build();
   auto hrInc = ctrl.handleEvent(evInc);
-  assert(hrInc.result == HandleResult.Result.updateView);
+  assert(hrInc.result == HandleResult.Result.update);
   assert(hrInc.consume);
   assert(page.getTracker().model.buttonClickCount == 1);
 

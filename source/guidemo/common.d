@@ -92,29 +92,39 @@ void syncPageDebugDraw(Widget pageRoot, DebugDrawMode mode, bool isActive) {
   }
 }
 
-/// Synchronizes a page's visibility, debug draw component, and status text
-/// with the shared DemoModel. Returns true if statusText was updated.
-bool syncPageShell(
+/// Synchronizes the shared `DemoModel.statusText` for an active page.
+/// Returns true if `statusText` was updated.
+bool syncPageStatus(
   ref ModelTracker!DemoModel demoTracker,
   DemoPage page,
-  Widget pageRoot,
   string statusDetails
 ) {
-  assert(pageRoot !is null, "pageRoot must not be null");
   const auto m = demoTracker.model;
+  if (!isPageActive(m, page)) {
+    return false;
+  }
+  const string statusText = formatPageStatus(page, statusDetails);
+  if (m.statusText == statusText) {
+    return false;
+  }
+  auto dm = demoTracker.edit();
+  dm.statusText = statusText;
+  demoTracker.commit(dm);
+  return true;
+}
+
+/// Synchronizes a page's visibility and debug draw component with `DemoModel`
+/// (view-only update).
+void syncPageShellView(
+  const DemoModel m,
+  DemoPage page,
+  Widget pageRoot
+) {
+  assert(m !is null, "m must not be null");
+  assert(pageRoot !is null, "pageRoot must not be null");
   const bool isActive = isPageActive(m, page);
   pageRoot.setVisible(isActive);
   syncPageDebugDraw(pageRoot, m.debugDrawMode, isActive);
-  if (isActive) {
-    const string statusText = formatPageStatus(page, statusDetails);
-    if (m.statusText != statusText) {
-      auto dm = demoTracker.edit();
-      dm.statusText = statusText;
-      demoTracker.commit(dm);
-      return true;
-    }
-  }
-  return false;
 }
 
 unittest {
@@ -131,19 +141,20 @@ unittest {
   );
 
   // Initially active (layoutPainter): visible, no debugDraw, status published
-  assert(syncPageShell(tracker, DemoPage.layoutPainter, pageRoot, "status"));
+  syncPageShellView(tracker.model, DemoPage.layoutPainter, pageRoot);
+  assert(syncPageStatus(tracker, DemoPage.layoutPainter, "status"));
   assert(pageRoot.visible);
   assert(pageRoot.components.debugDraw is null);
   assert(tracker.model.statusText == expectedStatus);
 
   // Second call with same statusDetails does not re-dirty
-  assert(!syncPageShell(tracker, DemoPage.layoutPainter, pageRoot, "status"));
+  assert(!syncPageStatus(tracker, DemoPage.layoutPainter, "status"));
 
   // Enable activePageVisible debugDraw mode
   auto m = tracker.edit();
   m.debugDrawMode = DebugDrawMode.activePageVisible;
   tracker.commit(m);
-  syncPageShell(tracker, DemoPage.layoutPainter, pageRoot, "status");
+  syncPageShellView(tracker.model, DemoPage.layoutPainter, pageRoot);
   assert(pageRoot.components.debugDraw !is null);
   assert(pageRoot.components.debugDraw.enabled);
   assert(!pageRoot.components.debugDraw.drawHidden);
@@ -152,7 +163,7 @@ unittest {
   m = tracker.edit();
   m.debugDrawMode = DebugDrawMode.activePageWithHidden;
   tracker.commit(m);
-  syncPageShell(tracker, DemoPage.layoutPainter, pageRoot, "status");
+  syncPageShellView(tracker.model, DemoPage.layoutPainter, pageRoot);
   assert(pageRoot.components.debugDraw !is null);
   assert(pageRoot.components.debugDraw.drawHidden);
 
@@ -160,7 +171,8 @@ unittest {
   m = tracker.edit();
   m.activePage = DemoPage.textLabel;
   tracker.commit(m);
-  assert(!syncPageShell(tracker, DemoPage.layoutPainter, pageRoot, "status"));
+  assert(!syncPageStatus(tracker, DemoPage.layoutPainter, "status"));
+  syncPageShellView(tracker.model, DemoPage.layoutPainter, pageRoot);
   assert(!pageRoot.visible);
   assert(pageRoot.components.debugDraw is null);
 }
