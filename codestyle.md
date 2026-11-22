@@ -4,6 +4,8 @@
 - Indent with 2 spaces; use LF line endings; max 80 chars per line.
 - Put opening `{` on the same line as declarations and control statements.
 - Use lowercase-only file names.
+- Use multiline doc comments `/** Comment. */` and `/// Comment.` for single
+  line.
 
 ## 2. D Naming & Function Signatures
 - **Symbol casing:**
