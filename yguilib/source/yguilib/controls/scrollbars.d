@@ -7,7 +7,8 @@ module yguilib.controls.scrollbars;
 import std.math.rounding : round;
 import std.typecons : Nullable, nullable;
 import yguilib.controller : HandleResult;
-import yguilib.controls.button : ButtonBuilder, ButtonStyle, ButtonTrigger;
+import yguilib.controls.button : ButtonBuilder, ButtonRepeat, ButtonStyle,
+  ButtonTrigger;
 import yguilib.controls.common : WidgetColors, applyBgAndBorderColors,
   defaultDisabledColors, emitViewValueEvent, findArrowComposite,
   findWidgetView, firstPositive, orDefault, registerWidgetViewPair;
@@ -201,6 +202,8 @@ struct ScrollbarStyle {
     ColorF(1.0f, 1.0f, 1.0f, 1.0f)
   );
   WidgetColors disabled = defaultDisabledColors;
+  /// Auto-repeat of the dec/inc arrow buttons while held.
+  ButtonRepeat arrowRepeat = ButtonRepeat(true, 400, 50);
 }
 
 /// Internal bookkeeping entry tracking a registered Scrollbar composite.
@@ -941,6 +944,7 @@ private:
       .disabledColors(cfg.disabled)
       .sink(1.0f)
       .trigger(ButtonTrigger.press)
+      .repeat(cfg.arrowRepeat)
       .action(eventName)
       .build(ui, root, RectF(0, 0, w, h));
   }
@@ -1132,6 +1136,14 @@ unittest {
   );
   assert(!decBtn.inputEnabled);
   assert(incBtn.inputEnabled);
+  foreach (arrow; [decBtn, incBtn]) {
+    import yguilib.controls.button : ButtonComponent;
+
+    auto comp = arrow.components.get!ButtonComponent();
+    assert(comp !is null);
+    assert(comp.repeat.enabled);
+    assert(comp.repeat == ButtonRepeat(true, 400, 50));
+  }
 
   AppEvent translateChildEv(Widget root, AppEvent ev) {
     sbView.translateEventForViewWidget(ev, root);

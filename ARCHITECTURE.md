@@ -125,6 +125,9 @@ Phase 1: UiSystemImpl.drainMessageBus()
 arrows. `ButtonTrigger.release` (default) or `.press` picks when
 `actionEvent` fires; `postLayout` applies normal/disabled colours from
 `inputEnabled`, so controls only call `Widget.setInputEnabled`.
+Optional `ButtonRepeat` auto-repeat (press trigger only) re-sends
+`actionEvent` while held: a oneShot delay timer, then an interval timer,
+stopped on release/disable/hide; used by TabControl and Scrollbar arrows.
 
 **Input flags**: `Widget.handleInput` (default false) makes a widget
 hittable: it takes part in pointer hit-tests and blocks click/hover-through

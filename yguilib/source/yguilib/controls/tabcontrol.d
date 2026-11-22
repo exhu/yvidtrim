@@ -5,8 +5,8 @@
 module yguilib.controls.tabcontrol;
 
 import yguilib.controller : HandleResult;
-import yguilib.controls.button : ButtonBuilder, ButtonStyle, ButtonTrigger,
-  setButtonRestColors;
+import yguilib.controls.button : ButtonBuilder, ButtonRepeat, ButtonStyle,
+  ButtonTrigger, setButtonRestColors;
 import yguilib.controls.common : WidgetColors, defaultDisabledColors,
   findArrowComposite, findWidgetView, firstPositive, orDefault,
   registerWidgetViewPair;
@@ -116,6 +116,8 @@ struct TabControlStyle {
   WidgetColors disabled = defaultDisabledColors;
   float arrowButtonSize = 26.0f;
   float arrowGap = 6.0f;
+  /// Auto-repeat of the scroll arrows while held (tab buttons never repeat).
+  ButtonRepeat arrowRepeat = ButtonRepeat(true);
 }
 
 /**
@@ -1038,6 +1040,7 @@ private:
       .border(bs.inactive.border, 1.0f)
       .disabledColors(btnStyle.disabled)
       .trigger(ButtonTrigger.press)
+      .repeat(btnStyle.arrowRepeat)
       .action(eventName)
       .enabled(false)
       .visible(false)
@@ -1472,6 +1475,7 @@ unittest {
     auto comp = tab.components.get!ButtonComponent();
     assert(comp !is null);
     assert(comp.trigger == ButtonTrigger.press);
+    assert(!comp.repeat.enabled);
     assert(comp.actionEvent == tabButtonPressEvent);
   }
 
@@ -1487,11 +1491,13 @@ unittest {
   assert(activeTab.components.get!ButtonComponent().style.normal ==
     tabActiveColors);
 
-  // Arrow buttons: press trigger, built disabled and hidden
+  // Arrow buttons: press trigger with auto-repeat, built disabled and hidden
   foreach (arrow; [view.getLeftButton(tabRoot), view.getRightButton(tabRoot)]) {
     auto comp = arrow.components.get!ButtonComponent();
     assert(comp !is null);
     assert(comp.trigger == ButtonTrigger.press);
+    assert(comp.repeat.enabled);
+    assert(comp.repeat == TabControlStyle.init.arrowRepeat);
     assert(!arrow.inputEnabled && !arrow.visible);
     assert(comp.style.normal == tabInactiveColors);
     assert(comp.style.disabled == TabControlStyle.init.disabled);

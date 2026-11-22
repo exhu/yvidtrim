@@ -33,8 +33,16 @@
  *   ignores buttons with `inputEnabled == false`, and in `postLayout` syncs
  *   visible buttons whose flag changed: muted `ButtonStyle.disabled`
  *   colours are applied (or normal ones restored) and any press cancelled.
+ * - Repeat: a `ButtonTrigger.press` button with `ButtonComponent.repeat`
+ *   enabled sends `actionEvent` on press, again after `repeat.delayMs`
+ *   (oneShot timer) and then every `repeat.intervalMs` (repeat timer)
+ *   until release. While dragged off, the timer keeps running but events
+ *   are skipped; dragging back resumes them. Repeat stops on release,
+ *   disable, hide, widget release, a press on another button and system
+ *   unregister.
  * - Timers: the system runs a 60 FPS repeat timer only while some button
- *   animates and stops it once all settle (0% CPU when idle).
+ *   animates and stops it once all settle (0% CPU when idle). The auto-
+ *   repeat timer runs only while a repeat button is held.
  */
 module yguilib.controls.button;
 
@@ -85,6 +93,15 @@ struct ButtonStyle {
 /// When a button sends its `actionEvent`.
 enum ButtonTrigger { release, press }
 
+/// Auto-repeat of the press-trigger action while a button is held.
+struct ButtonRepeat {
+  bool enabled = false;
+  /// Delay before the first repeated event.
+  uint delayMs = 400;
+  /// Interval between subsequent repeated events.
+  uint intervalMs = 80;
+}
+
 /// Component marking a widget as a push button handled by `ButtonSystem`.
 final class ButtonComponent : WidgetComponent {
   ButtonStyle style;
@@ -92,6 +109,8 @@ final class ButtonComponent : WidgetComponent {
   string actionEvent = null;
   /// Whether `actionEvent` is sent on release (default) or on press.
   ButtonTrigger trigger = ButtonTrigger.release;
+  /// Auto-repeat of `actionEvent` while held (press trigger only).
+  ButtonRepeat repeat;
   /// `inputEnabled` state the current colours were applied for.
   bool appliedEnabled = true;
   /// True while the primary button is held and the pointer is over it.
@@ -163,6 +182,7 @@ struct ButtonBuilder {
   bool isEnabled = true;
   bool isVisible = true;
   ButtonTrigger buttonTrigger = ButtonTrigger.release;
+  ButtonRepeat buttonRepeat;
 
   /// Sets the view event name sent on click.
   ref ButtonBuilder action(string eventName) return {
@@ -205,6 +225,19 @@ struct ButtonBuilder {
     return this;
   }
 
+  /// Enables auto-repeat with `delayMs` before the first repeated event
+  /// and `intervalMs` between later ones (needs `ButtonTrigger.press`).
+  ref ButtonBuilder repeatWithTiming(uint delayMs, uint intervalMs) return {
+    buttonRepeat = ButtonRepeat(true, delayMs, intervalMs);
+    return this;
+  }
+
+  /// Sets the auto-repeat settings; enabled needs `ButtonTrigger.press`.
+  ref ButtonBuilder repeat(in ButtonRepeat r) return {
+    buttonRepeat = r;
+    return this;
+  }
+
   /// Sets the initial enabled state (`Widget.inputEnabled`).
   ref ButtonBuilder enabled(bool on) return {
     isEnabled = on;
@@ -219,6 +252,10 @@ struct ButtonBuilder {
 
   /// Builds the button widget; `parent` may be null.
   Widget build(UiSystem ui, Widget parent, RectF rect) {
+    assert(
+      !buttonRepeat.enabled || buttonTrigger == ButtonTrigger.press,
+      "repeat requires ButtonTrigger.press"
+    );
     auto b = makeButtonBase(ui, parent, rect, "button");
     auto comp = new ButtonComponent();
     comp.style = buttonStyle;
@@ -229,6 +266,7 @@ struct ButtonBuilder {
     );
     comp.actionEvent = config.actionEvent;
     comp.trigger = buttonTrigger;
+    comp.repeat = buttonRepeat;
     comp.basePadding = config.padding;
     comp.appliedEnabled = isEnabled;
     b.component(comp);
@@ -293,6 +331,7 @@ final class ButtonSystem : WidgetSystem {
   override void onRegister(WidgetSystemHost newHost) {
     if (host !is null && host !is newHost) {
       stopAnimTimer();
+      stopRepeat();
     }
     super.onRegister(newHost);
     if (newHost !is null) {
@@ -302,6 +341,7 @@ final class ButtonSystem : WidgetSystem {
 
   override void onUnregister() {
     stopAnimTimer();
+    stopRepeat();
     super.onUnregister();
   }
 
@@ -329,6 +369,10 @@ final class ButtonSystem : WidgetSystem {
   }
 
   override void onTimer(ref WidgetSystemContext ctx, TimerId id, float dt) {
+    if (id != invalidTimerId && id == repeatTimerId) {
+      onRepeatTimer(ctx);
+      return;
+    }
     stepActiveButtons(dt);
     if (!isAnyAnimating()) {
       stopAnimTimer();
@@ -343,7 +387,11 @@ final class ButtonSystem : WidgetSystem {
         comp.resetPress(w);
       }
     });
+    const bool hadPress = press.pressed !is null;
     press.forgetInvisible();
+    if (hadPress && press.pressed is null) {
+      stopRepeat();
+    }
     if (!isAnyAnimating()) {
       stopAnimTimer();
     }
@@ -354,6 +402,9 @@ final class ButtonSystem : WidgetSystem {
       return;
     }
     activeButtons.remove(w);
+    if (press.pressed is w) {
+      stopRepeat();
+    }
     press.forget(w);
     if (!isAnyAnimating()) {
       stopAnimTimer();
@@ -379,6 +430,39 @@ private:
     stopTimer(animTimerId);
   }
 
+  /// Starts the oneShot delay timer of `comp`'s auto-repeat (restarting).
+  void startRepeat(ButtonComponent comp) {
+    stopRepeat();
+    if (host is null) {
+      return;
+    }
+    repeatTimerId = startTimer(comp.repeat.delayMs, TimerMode.oneShot);
+    repeatInDelay = true;
+  }
+
+  void stopRepeat() {
+    stopTimer(repeatTimerId);
+    repeatInDelay = false;
+  }
+
+  /// Handles the auto-repeat timer: after the delay switches to the
+  /// interval timer; emits the action while the pointer is over the button.
+  void onRepeatTimer(ref WidgetSystemContext ctx) {
+    auto comp = pressedComponent();
+    if (comp is null) {
+      stopRepeat();
+      return;
+    }
+    if (repeatInDelay) {
+      // The oneShot delay timer has expired: no stop needed.
+      repeatTimerId = startTimer(comp.repeat.intervalMs, TimerMode.repeat);
+      repeatInDelay = false;
+    }
+    if (comp.isPressed) {
+      emitButtonAction(ctx, press.pressed, comp.actionEvent);
+    }
+  }
+
   /// Applies disabled/normal colours to visible buttons whose
   /// `inputEnabled` changed since their colours were last applied.
   static void syncEnabledStates(ref WidgetSystemContext ctx) {
@@ -401,6 +485,7 @@ private:
     auto comp = press.pressed.components.get!ButtonComponent();
     if (comp is null || !press.pressed.inputEnabled) {
       press.end();
+      stopRepeat();
       return null;
     }
     return comp;
@@ -424,6 +509,11 @@ private:
     setActive(hit, ctx.host);
     if (comp.trigger == ButtonTrigger.press) {
       emitButtonAction(ctx, hit, comp.actionEvent);
+    }
+    if (comp.trigger == ButtonTrigger.press && comp.repeat.enabled) {
+      startRepeat(comp);
+    } else {
+      stopRepeat();
     }
   }
 
@@ -449,6 +539,7 @@ private:
       return;
     }
     Widget target = press.end();
+    stopRepeat();
     comp.isPressed = false;
     setActive(target, ctx.host);
 
@@ -515,6 +606,8 @@ private:
   PressTracker!ButtonComponent press;
   ActiveWidgets activeButtons;
   TimerId animTimerId = invalidTimerId;
+  TimerId repeatTimerId = invalidTimerId;
+  bool repeatInDelay = false;
 }
 
 // Unit tests for ButtonBuilder, enabled state, and ButtonSystem
@@ -897,4 +990,133 @@ unittest {
   assert(host.sentEvents[0].view.viewWidget is viewRoot);
   settle(sys, ctx);
   sys.onUnregister();
+}
+
+// Unit tests for ButtonRepeat: builder, delay/interval timeline, drag-off
+// skip and stop conditions (release, disable, widget release, hide)
+unittest {
+  import yguilib.controls.testing : DummyWidgetSystemHost;
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.widget.visible : VisibleWidget;
+
+  auto host = new DummyWidgetSystemHost();
+  auto testUi = new UiSystemImpl(null);
+
+  AppEvent mouseEv(AppEvent.Kind kind, float x, float y) {
+    AppEvent ev;
+    ev.kind = kind;
+    ev.mouse.x = x;
+    ev.mouse.y = y;
+    ev.mouse.button = 1;
+    return ev;
+  }
+
+  // Builder: repeatWithTiming / repeat set comp.repeat; default is off
+  ButtonBuilder db;
+  auto plain = db.trigger(ButtonTrigger.press).action("plain")
+    .build(testUi, null, RectF(200, 0, 80, 30));
+  auto plainComp = plain.components.get!ButtonComponent();
+  assert(!plainComp.repeat.enabled);
+  ButtonBuilder sb;
+  auto viaStruct = sb.trigger(ButtonTrigger.press)
+    .repeat(ButtonRepeat(true))
+    .build(testUi, null, RectF(0, 0, 80, 30));
+  auto vsComp = viaStruct.components.get!ButtonComponent();
+  assert(vsComp.repeat == ButtonRepeat(true, 400, 80));
+  ButtonBuilder b;
+  auto btn = b
+    .action("step")
+    .trigger(ButtonTrigger.press)
+    .repeatWithTiming(300, 50)
+    .build(testUi, null, RectF(0, 0, 80, 30));
+  auto comp = btn.components.get!ButtonComponent();
+  assert(comp.repeat == ButtonRepeat(true, 300, 50));
+
+  auto sys = new ButtonSystem();
+  sys.onRegister(host);
+  WidgetSystemContext ctx;
+  ctx.host = host;
+
+  // Non-repeat press-trigger button starts no repeat timer
+  ctx.visibleWidgets = [
+    VisibleWidget(plain, RectF(200, 0, 80, 30), false, RectF.init),
+  ];
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonDown, 240, 15), ctx);
+  assert(host.sentEvents.length == 1);
+  assert(sys.repeatTimerId == invalidTimerId);
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonUp, 240, 15), ctx);
+
+  ctx.visibleWidgets = [
+    VisibleWidget(btn, RectF(0, 0, 80, 30), false, RectF.init),
+  ];
+
+  // Press -> 1 event, delay timer; delay fire -> 2 events, interval timer
+  host.sentEvents = null;
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonDown, 40, 15), ctx);
+  assert(host.sentEvents.length == 1);
+  assert(host.sentEvents[0].view.eventName == "step");
+  assert(host.isTimerActive(sys.repeatTimerId));
+  const TimerId delayId = sys.repeatTimerId;
+  sys.onTimer(ctx, delayId, 0.3f);
+  assert(host.sentEvents.length == 2);
+  assert(host.sentEvents[1].view.widget is btn);
+  assert(sys.repeatTimerId != delayId);
+  assert(host.isTimerActive(sys.repeatTimerId));
+  sys.onTimer(ctx, sys.repeatTimerId, 0.05f);
+  sys.onTimer(ctx, sys.repeatTimerId, 0.05f);
+  assert(host.sentEvents.length == 4);
+
+  // Animation timer ticks emit nothing
+  assert(host.isTimerActive(sys.animTimerId));
+  sys.onTimer(ctx, sys.animTimerId, 0.016f);
+  assert(host.sentEvents.length == 4);
+
+  // Dragged off: fire skipped, timer kept; dragged back: fire emits
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseMotion, 300, 15), ctx);
+  sys.onTimer(ctx, sys.repeatTimerId, 0.05f);
+  assert(host.sentEvents.length == 4);
+  assert(host.isTimerActive(sys.repeatTimerId));
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseMotion, 40, 15), ctx);
+  sys.onTimer(ctx, sys.repeatTimerId, 0.05f);
+  assert(host.sentEvents.length == 5);
+
+  // Release stops the repeat timer
+  const TimerId intervalId = sys.repeatTimerId;
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonUp, 40, 15), ctx);
+  assert(sys.repeatTimerId == invalidTimerId);
+  assert(!host.isTimerActive(intervalId));
+  assert(host.sentEvents.length == 5);
+
+  // Disabled mid-hold: next fire emits nothing and stops the timer
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonDown, 40, 15), ctx);
+  assert(host.sentEvents.length == 6);
+  TimerId heldId = sys.repeatTimerId;
+  assert(host.isTimerActive(heldId));
+  assert(btn.setInputEnabled(false));
+  sys.onTimer(ctx, heldId, 0.3f);
+  assert(host.sentEvents.length == 6);
+  assert(sys.repeatTimerId == invalidTimerId);
+  assert(!host.isTimerActive(heldId));
+  assert(btn.setInputEnabled(true));
+  sys.postLayout(ctx);
+
+  // Widget release stops the repeat timer
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonDown, 40, 15), ctx);
+  heldId = sys.repeatTimerId;
+  assert(host.isTimerActive(heldId));
+  sys.onWidgetReleased(btn);
+  assert(sys.repeatTimerId == invalidTimerId);
+  assert(!host.isTimerActive(heldId));
+
+  // Hidden button: postLayout forgets the press and stops the timer
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonDown, 40, 15), ctx);
+  heldId = sys.repeatTimerId;
+  assert(host.isTimerActive(heldId));
+  btn.visible = false;
+  sys.postLayout(ctx);
+  assert(sys.press.pressed is null);
+  assert(sys.repeatTimerId == invalidTimerId);
+  assert(!host.isTimerActive(heldId));
+  sys.onUnregister();
+  assert(sys.repeatTimerId == invalidTimerId);
 }
