@@ -203,10 +203,8 @@ class UiSystemImpl : UiSystem {
     auto sysCtrl = new UiSystemController(this, pipeline);
     pushController(sysCtrl);
     scope (exit) {
-      if (controllers.getActiveOrNull() is sysCtrl) {
+      while (getActiveControllerOrNull() !is null) {
         popController();
-      } else {
-        timerService.stopTimersForOwner(sysCtrl);
       }
     }
 
@@ -1701,4 +1699,60 @@ unittest {
   assert(!ui.isTimerActive(sys.t1));
   assert(!ui.isTimerActive(sys.t2));
   assert(ui.nextWaitTimeoutMs() == -1);
+}
+
+// Verifies mainEventLoop() pops all remaining controllers in LIFO order on
+// exit and stops all of their active timers.
+unittest {
+  import yguilib.timercontrol : invalidTimerId;
+
+  final class LifoPopTestController : DefaultController {
+    string name;
+    string[]* popLog;
+    TimerId timerId = invalidTimerId;
+
+    this(UiSystem ui, string name, string[]* popLog) {
+      assert(ui !is null);
+      assert(popLog !is null);
+      super(ui);
+      this.name = name;
+      this.popLog = popLog;
+    }
+
+    override void onPush() {
+      timerId = startTimer(10, TimerMode.repeat);
+    }
+
+    override void onPop() {
+      *popLog ~= name ~ ":onPop";
+    }
+
+    override HandleResult handleEvent(AppEvent ev) {
+      if (ev.kind == AppEvent.Kind.user && ev.user.eventId == 999) {
+        return HandleResult(HandleResult.Result.quit);
+      }
+      return super.handleEvent(ev);
+    }
+  }
+
+  string[] popLog;
+  auto ui = new UiSystemImpl(null);
+  auto c1 = new LifoPopTestController(ui, "c1", &popLog);
+  auto c2 = new LifoPopTestController(ui, "c2", &popLog);
+
+  ui.pushController(c1);
+  ui.pushController(c2);
+
+  assert(c1.timerId != invalidTimerId);
+  assert(c2.timerId != invalidTimerId);
+  assert(ui.isTimerActive(c1.timerId));
+  assert(ui.isTimerActive(c2.timerId));
+
+  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(999)));
+  ui.mainEventLoop();
+
+  assert(ui.getActiveControllerOrNull() is null);
+  assert(popLog == ["c2:onPop", "c1:onPop"]);
+  assert(!ui.isTimerActive(c1.timerId));
+  assert(!ui.isTimerActive(c2.timerId));
 }

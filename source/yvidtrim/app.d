@@ -11,7 +11,8 @@ void main() {
   auto app = App.makeAppWithTitleWh("yvidtrim", 1280, 720);
   auto tracker = ModelTracker!MainModel(new MainModel());
   auto view = new MainView(app.ui, tracker);
-  app.ui.mainWindow().rootWidget = view.rootWidget();
+  app.withRootWidget(view.rootWidget());
   auto controller = new MainController(app.ui, tracker, view);
-  app.run(controller);
+  app.ui.pushController(controller);
+  app.run();
 }

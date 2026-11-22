@@ -182,7 +182,7 @@ unittest {
   auto tabsTracker = ModelTracker!TabsModel(createHeaderTabsModel());
   auto demoView = new DemoView(ui, demoTracker, tabsTracker);
   auto root = demoView.getRootWidget();
-  ui.mainWindow().rootWidget = root;
+  app.withRootWidget(root);
 
   DemoControllerParams params;
   params.withUi(ui)
@@ -232,12 +232,11 @@ unittest {
   }
 
   ui.pushController(demoCtrl);
-  scope (exit) ui.popController();
   ui.pushController(btnCtrl);
-  scope (exit) ui.popController();
 
   auto harness = new HarnessController(ui);
-  app.run(harness);
+  ui.pushController(harness);
+  app.run();
 
   assert(harness.passed);
   assert(harness.updateCount == 1);

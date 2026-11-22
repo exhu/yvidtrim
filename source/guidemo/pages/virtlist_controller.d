@@ -286,7 +286,7 @@ unittest {
 
   auto root = new Widget(ui.nextWidgetId());
   root.name = "testDemoRoot";
-  ui.mainWindow().rootWidget = root;
+  app.withRootWidget(root);
 
   auto demoTracker = ModelTracker!DemoModel(new DemoModel());
   auto page = new VirtListPage(ui, root, ui);
@@ -364,6 +364,7 @@ unittest {
 
   ui.pushController(pageCtrl);
   auto harness = new Page7HarnessController(ui, pageCtrl, page);
-  app.run(harness);
+  ui.pushController(harness);
+  app.run();
   assert(harness.passed);
 }

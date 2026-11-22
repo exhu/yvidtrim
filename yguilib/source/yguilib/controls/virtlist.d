@@ -1085,7 +1085,7 @@ private:
       .defaultItemSize(40.0f)
       .build(ui, null, RectF(0, 0, 400, 300), ui);
     verifyAllNamed(vlRoot);
-    ui.mainWindow().rootWidget = vlRoot;
+    app.withRootWidget(vlRoot);
 
     Widget vp = vlView.getViewport(vlRoot);
     Widget mainSb = vlView.getMainScrollbar(vlRoot);
@@ -1101,7 +1101,8 @@ private:
     testCtrl.crossSb = crossSb;
     testCtrl.tracker = ModelTracker!VirtListModel.from(tracker);
     testCtrl.provider = provider;
-    app.run(testCtrl);
+    ui.pushController(testCtrl);
+    app.run();
     assert(testCtrl.completed);
     ui.releaseWidget(vlRoot);
     assert(!vlView.isWidgetRegistered(vlRoot));

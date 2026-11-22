@@ -50,7 +50,7 @@ between threads via sendAppEvent.
   before the `Controller`, and pass `ModelTracker!M` explicitly to both
   `View(ui, tracker)` and `Controller(ui, tracker, view)`. Controllers must
   not instantiate their `View` internally or depend on `App`/`Window`; assign
-  `app.ui.mainWindow().rootWidget = view.rootWidget()` in `main()` so views
+  `app.withRootWidget(view.rootWidget())` in `main()` so views
   and controllers can be unit-tested headlessly with `UiSystemImpl(null)`.
 - **Pointer Motion Fidelity**: Never merge or coalesce `mouseMotion` events
   into a single vector or endpoint; curved cursor sweeps within one frame must

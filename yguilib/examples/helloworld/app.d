@@ -11,9 +11,10 @@ void main() {
 
   auto tracker = ModelTracker!HelloModel(new HelloModel());
   auto view = new HelloView(app.ui, tracker);
-  app.ui.mainWindow().rootWidget = view.rootWidget();
+  app.withRootWidget(view.rootWidget());
 
   auto controller = new HelloController(app.ui, tracker, view);
+  app.ui.pushController(controller);
   view.update();
-  app.run(controller);
+  app.run();
 }
