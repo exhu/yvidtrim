@@ -62,7 +62,7 @@ final class TabControlPageController : DefaultController {
       page.formatStatus()
     );
     if (statusChanged) {
-      sendUpdate();
+      demoTracker.update();
     }
     return demoChanged || pageChanged || statusChanged;
   }
@@ -198,6 +198,7 @@ unittest {
   dm.activePage = DemoPage.tabControl;
   demoTracker.commit(dm);
   assert(ctrl2.update());
+  assert(!ctrl2.update());
   ctrl2.updateView();
   assert(page2.isVisible());
 }

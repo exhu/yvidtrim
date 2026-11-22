@@ -118,8 +118,9 @@ class DefaultController : Controller {
     uiSystem.sendAppEvent(ev);
   }
 
-  /// request additional update (e.g. when thread updated the model, or there's
-  /// shared model in controllers)
+  /// Request update for when thread updated the model, or onTimer, or there's
+  /// shared model in controllers, usually should not be called from
+  /// Controller.update.
   void sendUpdate() {
     sendAppEvent(AppEvent.makeNoRepeat(AppEvent.Kind.update));
   }

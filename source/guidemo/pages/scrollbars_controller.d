@@ -62,7 +62,7 @@ final class ScrollbarsPageController : DefaultController {
       page.formatStatus()
     );
     if (statusChanged) {
-      sendUpdate();
+      demoTracker.update();
     }
     return demoChanged || pageChanged || statusChanged;
   }
@@ -178,6 +178,7 @@ unittest {
   dm.activePage = DemoPage.scrollbars;
   demoTracker.commit(dm);
   assert(ctrl2.update());
+  assert(!ctrl2.update());
   ctrl2.updateView();
   assert(page2.isVisible());
 }

@@ -81,7 +81,7 @@ final class LayoutPainterPageController : DefaultController {
       page.formatStatus()
     );
     if (statusChanged) {
-      sendUpdate();
+      demoTracker.update();
     }
     return demoChanged || pageChanged || statusChanged;
   }
@@ -202,6 +202,7 @@ unittest {
   assert(hrD.consume);
   assert(page.getTracker().model.direction == FlexDirection.column);
   assert(ctrl.update());
+  assert(!ctrl.update());
   assert(ctrl.updateView());
   assert(demoTracker.model.statusText.length > 0);
 

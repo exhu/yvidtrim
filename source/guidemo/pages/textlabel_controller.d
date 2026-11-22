@@ -54,7 +54,7 @@ final class TextLabelPageController : DefaultController {
       page.formatStatus()
     );
     if (statusChanged) {
-      sendUpdate();
+      demoTracker.update();
     }
     return demoChanged || pageChanged || statusChanged;
   }
@@ -136,6 +136,7 @@ unittest {
   demoTracker.commit(dm);
 
   assert(ctrl.update());
+  assert(!ctrl.update());
   ctrl.updateView();
   assert(page.isVisible());
 

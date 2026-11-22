@@ -104,8 +104,18 @@ void main() {
     .withView(demoView)
     .withTabsTracker(tabsTracker);
   auto demoController = new DemoController(params);
+  app.ui.pushController(demoController);
+  scope (exit) app.ui.popController();
 
-  registerDemoPages(app.ui, demoTracker, rootWidget, hoverBtnController);
+  const size_t pushedPages = registerDemoPages(
+    app.ui, demoTracker, rootWidget, hoverBtnController
+  );
+  scope (exit) {
+    foreach (_; 0 .. pushedPages) {
+      app.ui.popController();
+    }
+  }
+  demoView.update();
 
   infof("ui = %s", app.ui.dumpInfo());
   infof("root = %s", app.ui.mainWindow.rootWidget.dumpTree(true));
@@ -113,12 +123,12 @@ void main() {
     "root simple = %s",
     app.ui.mainWindow.rootWidget.dumpSimpleTree(true)
   );
-  app.run(demoController);
+  app.ui.mainEventLoop();
 }
 
 private:
 
-void registerDemoPages(
+size_t registerDemoPages(
   UiSystem ui,
   ref ModelTracker!DemoModel demoTracker,
   Widget rootWidget,
@@ -128,39 +138,50 @@ void registerDemoPages(
   assert(rootWidget !is null, "rootWidget must not be null");
   assert(hoverBtnController !is null, "hoverBtnController must not be null");
 
+  size_t pushedCount = 0;
+
   auto layoutPage = new LayoutPainterPage(ui, rootWidget);
   ui.pushController(
     new LayoutPainterPageController(ui, demoTracker, layoutPage)
   );
+  pushedCount++;
 
   auto textPage = new TextLabelPage(ui, rootWidget);
   ui.pushController(
     new TextLabelPageController(ui, demoTracker, textPage)
   );
+  pushedCount++;
 
   auto buttonPage = new ButtonPage(ui, rootWidget);
   buttonPage.registerWithController(hoverBtnController);
   ui.pushController(
     new ButtonPageController(ui, demoTracker, buttonPage)
   );
+  pushedCount++;
 
   auto buttonSysPage = new ButtonSystemPage(ui, rootWidget);
   ui.pushController(
     new ButtonSystemPageController(ui, demoTracker, buttonSysPage)
   );
+  pushedCount++;
 
   auto tabPage = new TabControlPage(ui, rootWidget, ui);
   ui.pushController(
     new TabControlPageController(ui, demoTracker, tabPage)
   );
+  pushedCount++;
 
   auto scrollPage = new ScrollbarsPage(ui, rootWidget, ui);
   ui.pushController(
     new ScrollbarsPageController(ui, demoTracker, scrollPage)
   );
+  pushedCount++;
 
   auto virtListPage = new VirtListPage(ui, rootWidget, ui);
   ui.pushController(
     new VirtListPageController(ui, demoTracker, virtListPage)
   );
+  pushedCount++;
+
+  return pushedCount;
 }

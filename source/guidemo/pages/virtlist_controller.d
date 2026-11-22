@@ -66,8 +66,8 @@ final class VirtListPageController : DefaultController {
 
   override bool update() {
     const bool demoChanged = demoTracker.update();
-    const bool pageChanged = tracker.update();
     const bool telemetryChanged = page.syncTelemetry();
+    const bool pageChanged = tracker.update();
     syncAnimTimer();
     const bool statusChanged = syncPageStatus(
       demoTracker,
@@ -75,7 +75,7 @@ final class VirtListPageController : DefaultController {
       page.formatStatus()
     );
     if (statusChanged) {
-      sendUpdate();
+      demoTracker.update();
     }
     return demoChanged || pageChanged || telemetryChanged || statusChanged;
   }
@@ -261,6 +261,7 @@ unittest {
   dm.activePage = DemoPage.virtList;
   demoTracker.commit(dm);
   assert(ctrl.update());
+  assert(!ctrl.update());
   ctrl.updateView();
   assert(page.isVisible());
 

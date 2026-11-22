@@ -60,7 +60,7 @@ final class ButtonPageController : DefaultController {
       page.formatStatus()
     );
     if (statusChanged) {
-      sendUpdate();
+      demoTracker.update();
     }
     return demoChanged || pageChanged || statusChanged;
   }
@@ -138,6 +138,110 @@ unittest {
   dm.activePage = DemoPage.button;
   demoTracker.commit(dm);
   assert(ctrl2.update());
+  assert(!ctrl2.update());
   ctrl2.updateView();
   assert(page2.isVisible());
+}
+
+// End-to-end App test: verifies single-pass update (no update-after-update)
+// and same-frame DemoView status bar sync when DemoController is below page.
+unittest {
+  import std.algorithm.searching : canFind;
+  import guidemo.controller : DemoController, DemoControllerParams;
+  import guidemo.view : DemoView, createHeaderTabsModel;
+  import yguilib.app : App;
+  import yguilib.controls.tabcontrol : TabsModel;
+  import yguilib.events.builder : ViewAppEventBuilder;
+  import yguilib.model : ModelTracker;
+  import yguilib.timercontrol : TimerId, invalidTimerId;
+  import yguilib.timers : TimerMode;
+  import yguilib.widget : Widget;
+
+  Widget findByName(Widget root, string targetName) {
+    if (root is null) {
+      return null;
+    }
+    if (root.name == targetName) {
+      return root;
+    }
+    foreach (child; root.children) {
+      if (auto found = findByName(child, targetName)) {
+        return found;
+      }
+    }
+    return null;
+  }
+
+  auto app = App.makeAppWithTitleWh("button_controller_test", 640, 480);
+  auto ui = app.ui;
+  auto demoTracker = ModelTracker!DemoModel(new DemoModel());
+  auto dmInit = demoTracker.edit();
+  dmInit.activePage = DemoPage.button;
+  demoTracker.commit(dmInit);
+
+  auto tabsTracker = ModelTracker!TabsModel(createHeaderTabsModel());
+  auto demoView = new DemoView(ui, demoTracker, tabsTracker);
+  auto root = demoView.getRootWidget();
+  ui.mainWindow().rootWidget = root;
+
+  DemoControllerParams params;
+  params.withUi(ui)
+    .withTracker(demoTracker)
+    .withView(demoView)
+    .withTabsTracker(tabsTracker);
+  auto demoCtrl = new DemoController(params);
+
+  auto page = new ButtonPage(ui, root);
+  auto btnCtrl = new ButtonPageController(ui, demoTracker, page);
+
+  final class HarnessController : DefaultController {
+    int updateCount = 0;
+    TimerId checkTimer = invalidTimerId;
+    bool passed = false;
+
+    this(UiSystem sys) {
+      assert(sys !is null, "sys must not be null");
+      super(sys);
+    }
+
+    override void onPush() {
+      sendAppEvent(ViewAppEventBuilder(btnCountActionEvent).build());
+      checkTimer = startTimer(20, TimerMode.repeat);
+    }
+
+    override void onPop() {
+      stopTimer(checkTimer);
+    }
+
+    override bool update() {
+      updateCount++;
+      return false;
+    }
+
+    override bool onTimer(TimerId id, float dt) {
+      if (id == invalidTimerId || id != checkTimer) {
+        return false;
+      }
+      if (updateCount >= 1) {
+        passed = true;
+        stopTimer(checkTimer);
+        sendQuit();
+      }
+      return false;
+    }
+  }
+
+  ui.pushController(demoCtrl);
+  scope (exit) ui.popController();
+  ui.pushController(btnCtrl);
+  scope (exit) ui.popController();
+
+  auto harness = new HarnessController(ui);
+  app.run(harness);
+
+  assert(harness.passed);
+  assert(harness.updateCount == 1);
+  auto statusLbl = findByName(root, "statusLabel");
+  assert(statusLbl !is null && statusLbl.components.textLabel !is null);
+  assert(statusLbl.components.textLabel.caption.canFind("Clicks: 1"));
 }

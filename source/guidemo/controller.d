@@ -81,7 +81,7 @@ final class DemoController : DefaultController {
   override HandleResult handleEvent(AppEvent ev) {
     if (ev.kind == AppEvent.Kind.view) {
       if (handleHeaderTabEvent(ev)) {
-        return HandleResult(HandleResult.Result.updateView, false);
+        return HandleResult(HandleResult.Result.update, false);
       }
     }
 
@@ -95,7 +95,7 @@ final class DemoController : DefaultController {
         return HandleResult(HandleResult.Result.quit, true);
       }
       if (handleGlobalKeyDown(ev)) {
-        return HandleResult(HandleResult.Result.updateView, true);
+        return HandleResult(HandleResult.Result.update, true);
       }
     }
 
@@ -117,7 +117,6 @@ private:
     tracker.commit(model);
     if (newPage != prevPage) {
       syncActiveTab(newPage);
-      sendUpdate();
     }
     return true;
   }
@@ -130,7 +129,6 @@ private:
     if (isKey(ev, Keycode.f12, Scancode.f12)) {
       toggleDebugDraw(model);
       tracker.commit(model);
-      sendUpdate();
       return true;
     }
     if (isKey(ev, Keycode.tab, Scancode.tab)) {
@@ -163,7 +161,6 @@ private:
     tracker.commit(model);
     if (newPage != prevPage) {
       syncActiveTab(newPage);
-      sendUpdate();
     }
     return consumed;
   }
@@ -225,10 +222,12 @@ unittest {
   // Header TabControl switch event verification
   auto evHeader = ViewAppEventBuilder(headerTabSwitchEvent).value(3).build();
   auto hrHeader = demoCtrl.handleEvent(evHeader);
-  assert(hrHeader.result == HandleResult.Result.updateView);
+  assert(hrHeader.result == HandleResult.Result.update);
   assert(!hrHeader.consume);
   assert(demoCtrl.tracker.model.activePage == 3);
   assert(demoCtrl.tabsTracker.model.activeTab == 3);
+  assert(demoCtrl.update());
+  assert(!demoCtrl.update());
 
   // F12 cycles DebugDrawMode through all 5 states
   assert(demoCtrl.tracker.model.debugDrawMode == DebugDrawMode.off);
@@ -242,9 +241,11 @@ unittest {
   foreach (expected; expectedModes) {
     auto evF12 = makeKeyDown(Keycode.f12, Scancode.f12);
     auto hrF12 = demoCtrl.handleEvent(evF12);
-    assert(hrF12.result == HandleResult.Result.updateView);
+    assert(hrF12.result == HandleResult.Result.update);
     assert(hrF12.consume);
     assert(demoCtrl.tracker.model.debugDrawMode == expected);
+    assert(demoCtrl.update());
+    assert(demoCtrl.updateView());
   }
 
   // Page 6 key switch
