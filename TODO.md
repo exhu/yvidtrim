@@ -1,5 +1,3 @@
-- already implemented? mouse capture component to capture mouse (and hide cursor) to implement
-knobs
 - build widget library
 -- button with hover
 -- checkbox

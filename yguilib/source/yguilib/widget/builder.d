@@ -8,7 +8,8 @@ import yguilib.widget.data_components : WidgetArrayComponent,
   WidgetArrayProvider;
 import yguilib.widget.drawing_components : Background, Border, CustomDraw,
   DebugDrawComponent, TextLabel;
-import yguilib.widget.input_components : DefaultButton, Focus, MouseEvent;
+import yguilib.widget.input_components : CursorCapture, DefaultButton, Focus,
+  MouseEvent;
 import yguilib.widget.layout_components : AlignItems, Anchor, Dimension,
   FlexContainer, FlexDirection, Insets, JustifyContent, Size, SizingMode;
 import yguilib.widget.scroll_components : ScrollableArea;
@@ -588,17 +589,17 @@ final class WidgetBuilder {
 
   /// Sets the mouse-drag view event name, enables input, and sets cursor
   /// capture.
-  WidgetBuilder onMouseDrag(string eventName, bool capture) {
+  WidgetBuilder onMouseDrag(string eventName, CursorCapture capture) {
     fWidget.inputEnabled = true;
     auto me = ensureMouseEvent();
     me.mouseDrag = eventName;
-    me.captureCursor = capture;
+    me.cursorCapture = capture;
     return this;
   }
 
-  /// Enables or disables cursor capture on mouse press for this widget.
-  WidgetBuilder captureCursor(bool capture) {
-    ensureMouseEvent().captureCursor = capture;
+  /// Sets the cursor capture mode on mouse press for this widget.
+  WidgetBuilder cursorCapture(CursorCapture capture) {
+    ensureMouseEvent().cursorCapture = capture;
     return this;
   }
 

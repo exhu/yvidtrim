@@ -454,3 +454,26 @@ int yguilib_sdl3_capture_mouse(int enabled) {
   }
   return SDL_CaptureMouse(enabled != 0) ? 0 : -1;
 }
+
+int yguilib_sdl3_set_relative_mouse_mode(uint32_t window_id, int enabled) {
+  if (!g_sdl_initialized) {
+    return -1;
+  }
+  SDL_Window *win = SDL_GetWindowFromID(window_id);
+  if (win == NULL) {
+    return -1;
+  }
+  return SDL_SetWindowRelativeMouseMode(win, enabled != 0) ? 0 : -1;
+}
+
+int yguilib_sdl3_warp_mouse_in_window(uint32_t window_id, float x, float y) {
+  if (!g_sdl_initialized) {
+    return -1;
+  }
+  SDL_Window *win = SDL_GetWindowFromID(window_id);
+  if (win == NULL) {
+    return -1;
+  }
+  SDL_WarpMouseInWindow(win, x, y);
+  return 0;
+}

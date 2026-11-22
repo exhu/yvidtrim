@@ -26,6 +26,7 @@ enum DemoPage : size_t {
   tabControl,
   scrollbars,
   virtList,
+  knob,
 }
 
 /// Display metadata for a single guidemo page.
@@ -43,6 +44,7 @@ immutable DemoPageMeta[DemoPage.max + 1] demoPages = [
   DemoPage.tabControl: DemoPageMeta("TabControl", "TabControl"),
   DemoPage.scrollbars: DemoPageMeta("Scrollbars", "Scrollbars"),
   DemoPage.virtList: DemoPageMeta("VirtList", "VirtList"),
+  DemoPage.knob: DemoPageMeta("Knob (Lock)", "Knob"),
 ];
 
 /// Model holding shared global state for the demo.
@@ -118,4 +120,10 @@ final class VirtListPageModel : VersionedModel {
   size_t hPooledWidgets = 0;
   size_t recycledStopsCount = 0;
   size_t activeVideosCount = 0;
+}
+
+/// Model holding Page 8 (Knob / cursor lock showcase) state.
+final class KnobPageModel : VersionedModel {
+  float value = 0.0f;
+  bool dragging = false;
 }

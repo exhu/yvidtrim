@@ -720,6 +720,8 @@ extern(C) {
   uint yguilib_sdl3_get_scancode_from_name(const(char)* name);
   const(char)* yguilib_sdl3_get_scancode_name(uint scancode);
   int yguilib_sdl3_capture_mouse(int enabled);
+  int yguilib_sdl3_set_relative_mouse_mode(uint window_id, int enabled);
+  int yguilib_sdl3_warp_mouse_in_window(uint window_id, float x, float y);
 }
 
 unittest {

@@ -84,6 +84,15 @@ int main(void) {
   // Release mouse capture (returns 0 on desktop backends, or -1 if unsupported)
   (void)yguilib_sdl3_capture_mouse(0);
 
+  // Invalid window id must fail for relative mode and warp
+  assert(yguilib_sdl3_set_relative_mouse_mode(0, 1) == -1);
+  assert(yguilib_sdl3_warp_mouse_in_window(0, 1.0f, 1.0f) == -1);
+
+  // Relative mode may be unsupported on the dummy driver; ignore result
+  (void)yguilib_sdl3_set_relative_mouse_mode(wid, 1);
+  (void)yguilib_sdl3_set_relative_mouse_mode(wid, 0);
+  assert(yguilib_sdl3_warp_mouse_in_window(wid, 10.0f, 10.0f) == 0);
+
   yguilib_sdl3_gl_destroy_context(ctx);
   yguilib_sdl3_destroy_window(win);
 

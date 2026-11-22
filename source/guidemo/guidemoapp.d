@@ -33,9 +33,10 @@
  * update this demo with dedicated visual sections and interactive controls.
  *
  * KEYBOARD CONTROLS:
- *   [Tab]/[1-7]   Switch demo page (Page 1: Layout, Page 2: TextLabel,
+ *   [Tab]/[1-8]   Switch demo page (Page 1: Layout, Page 2: TextLabel,
  *                 Page 3: Hover Ctrl, Page 4: Hover System,
- *                 Page 5: TabControl, Page 6: Scrollbars, Page 7: VirtList)
+ *                 Page 5: TabControl, Page 6: Scrollbars, Page 7: VirtList,
+ *                 Page 8: Knob / cursor lock)
  *   [M]           Toggle multiline on interactive TextLabel
  *   [E]           Toggle overflow ellipsis on interactive TextLabel
  *   [L]           Cycle horizontal alignment (left -> center -> right)
@@ -57,11 +58,13 @@ import yguilib.widget : Widget;
 import guidemo.controller : DemoController, DemoControllerParams;
 import guidemo.hover_button : HoverButtonController;
 import yguilib.controls.hover_button_system : AnimatedHoverButtonSystem;
-import guidemo.model : DemoModel;
+import guidemo.model : DemoModel, KnobPageModel;
 import guidemo.pages.button_controller : ButtonPageController;
 import guidemo.pages.button_page : ButtonPage;
 import guidemo.pages.button_system_controller : ButtonSystemPageController;
 import guidemo.pages.button_system_page : ButtonSystemPage;
+import guidemo.pages.knob_controller : KnobPageController;
+import guidemo.pages.knob_page : KnobPage;
 import guidemo.pages.layout_painter_controller : LayoutPainterPageController;
 import guidemo.pages.layout_painter_page : LayoutPainterPage;
 import guidemo.pages.scrollbars_controller : ScrollbarsPageController;
@@ -168,5 +171,11 @@ void registerDemoPages(
   auto virtListPage = new VirtListPage(ui, rootWidget, ui);
   ui.pushController(
     new VirtListPageController(ui, demoTracker, virtListPage)
+  );
+
+  auto knobTracker = ModelTracker!KnobPageModel(new KnobPageModel());
+  auto knobPage = new KnobPage(ui, rootWidget, knobTracker);
+  ui.pushController(
+    new KnobPageController(ui, demoTracker, knobTracker, knobPage)
   );
 }

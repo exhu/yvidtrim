@@ -392,6 +392,26 @@ const char *yguilib_sdl3_get_scancode_name(uint32_t scancode);
  */
 int yguilib_sdl3_capture_mouse(int enabled);
 
+/**
+ * Enables or disables SDL relative mouse mode for a window. While enabled the
+ * cursor is hidden and confined, and motion is reported as relative deltas.
+ *
+ * @param window_id SDL window id of the target window.
+ * @param enabled Non-zero to enable relative mode, 0 to disable it.
+ * @return 0 on success, or -1 on failure.
+ */
+int yguilib_sdl3_set_relative_mouse_mode(uint32_t window_id, int enabled);
+
+/**
+ * Moves the mouse cursor to a window-relative position.
+ *
+ * @param window_id SDL window id of the target window.
+ * @param x Window-relative X coordinate.
+ * @param y Window-relative Y coordinate.
+ * @return 0 on success, or -1 on failure.
+ */
+int yguilib_sdl3_warp_mouse_in_window(uint32_t window_id, float x, float y);
+
 #ifdef __cplusplus
 }
 #endif

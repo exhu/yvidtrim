@@ -27,6 +27,20 @@ final class KeyboardEvent : WidgetComponent {
 
 import yguilib.events : AppEvent;
 
+/// Cursor capture mode applied while a button pressed on a widget is held.
+enum CursorCapture {
+  /// No capture: drag/release outside the window are not tracked.
+  none,
+  /// Captures the mouse to the window (SDL_CaptureMouse) while pressed so
+  /// drag and release events are tracked outside window bounds.
+  capture,
+  /// Hides the cursor and enables relative mouse mode while pressed: drag
+  /// events carry unbounded deltas in relX/relY while local/window
+  /// coordinates stay at the press point; the cursor is warped back to the
+  /// press point on release. Implies `capture`.
+  lock,
+}
+
 final class MouseEvent : WidgetComponent {
   /// Packed value passed in AppEvent.ViewData.value to avoid heap
   /// allocations during frequent mouse events.
@@ -120,7 +134,7 @@ final class MouseEvent : WidgetComponent {
   /// Sent on mouse motion while a button pressed on this widget is held down
   /// (continues firing even when cursor moves outside the widget).
   string mouseDrag;
-  /// When true, captures mouse cursor to the window while pressed on this
-  /// widget so drag and release events are tracked outside window bounds.
-  bool captureCursor = false;
+  /// Cursor capture mode while a button pressed on this widget is held
+  /// down; see `CursorCapture`.
+  CursorCapture cursorCapture = CursorCapture.none;
 }

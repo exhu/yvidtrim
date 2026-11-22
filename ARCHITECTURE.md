@@ -28,6 +28,7 @@ yvidtrim/
 │       ├── controller.d   # Shared demo controller, quit, F12, page switch
 │       ├── hover_button.d # Controller-based hover button demo
 │       └── pages/         # Showcase views and per-page controllers
+│                          # (incl. knob_page.d: CursorCapture.lock demo)
 ├── yguilib/               # Independent GUI library (no yvidtrim dependency)
 │   ├── source/yguilib/
 │   │   ├── allochelpers.d # SmallBuffer, RingBuffer, ReusableArray containers
@@ -108,6 +109,17 @@ Phase 1: UiSystemImpl.drainMessageBus()
               └─► InputSystem (priority 0) ──► bubbles MouseEvent through
                     ViewComponent.renameEvents ──► UiSystem.sendAppEvent()
 ```
+
+**Cursor capture modes** (`MouseEvent.cursorCapture`, `CursorCapture` enum,
+set via `WidgetBuilder.onMouseDrag(name, mode)`), applied by
+`InputSystem.syncCursorCapture` while a button pressed on the widget is held:
+- `none`: no capture; drag/release outside the window are lost.
+- `capture`: `SDL_CaptureMouse` keeps drag/release tracked outside the
+  window (scrollbar thumbs).
+- `lock`: relative mouse mode, cursor hidden; `mouseDrag` carries unbounded
+  `relX/relY` deltas with local/window coords pinned to the press point; on
+  release (or widget removal/disable) the cursor is warped back to the press
+  point. Used by knob / drag-value controls (guidemo `knob_page.d`).
 
 ### 2. Phase 2 Sync, Timers & Model-View-Controller Loop
 ```

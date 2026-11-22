@@ -662,10 +662,10 @@ private:
         "1. Tree: Root Flex (View) -> DecBtn, Track (ScrollableArea), " ~
           "IncBtn;\n" ~
           "   Track holds Thumb (Anchor + MouseEvent.mouseDrag + " ~
-          "captureCursor).\n" ~
+          "cursorCapture).\n" ~
           "2. Drag Capture: InputSystem tracks pressedWidgets across " ~
           "motion,\n" ~
-          "   calling yguilib_sdl3_capture_mouse() while captureCursor " ~
+          "   calling yguilib_sdl3_capture_mouse() while cursorCapture " ~
           "is set.\n" ~
           "3. Sizing: Thumb ratio = visibleSize / ((max - min) + " ~
           "visibleSize),\n" ~

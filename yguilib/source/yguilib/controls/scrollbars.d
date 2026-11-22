@@ -22,7 +22,7 @@ import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.uisystem : UiRegistry, UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
-import yguilib.widget.input_components : MouseEvent;
+import yguilib.widget.input_components : CursorCapture, MouseEvent;
 import yguilib.widget.layout_components : AlignItems, Dimension,
   FlexDirection, JustifyContent, Size, SizingMode;
 import yguilib.widget.scroll_components : ScrollableArea;
@@ -1003,7 +1003,7 @@ private:
       .border(cfg.thumb.border)
       .borderWidth(1.0f)
       .onMouseDown(scrollbarThumbDownEvent)
-      .onMouseDrag(scrollbarThumbDragEvent, true)
+      .onMouseDrag(scrollbarThumbDragEvent, CursorCapture.capture)
       .onMouseUp(scrollbarThumbUpEvent);
 
     if (ax.isRow) {

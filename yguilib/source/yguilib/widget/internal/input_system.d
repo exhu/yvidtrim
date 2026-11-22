@@ -3,7 +3,8 @@ module yguilib.widget.internal.input_system;
 package(yguilib):
 
 import yguilib.allochelpers : ReusableArray;
-import yguilib.clibs.sdl3 : yguilib_sdl3_capture_mouse;
+import yguilib.clibs.sdl3 : yguilib_sdl3_capture_mouse,
+  yguilib_sdl3_set_relative_mouse_mode, yguilib_sdl3_warp_mouse_in_window;
 import yguilib.widget.internal.focus_system;
 import yguilib.widget.system : SystemEventResult, SystemPhase,
   WidgetSystem, WidgetSystemContext, WidgetSystemHost;
@@ -12,7 +13,7 @@ import yguilib.events;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types;
 import yguilib.widget : Widget, ViewComponent, WidgetUpdateScope;
-import yguilib.widget.input_components : MouseEvent;
+import yguilib.widget.input_components : CursorCapture, MouseEvent;
 import yguilib.widget.widget_view : WidgetView, renameViewWidgetEvent,
   passViewEvent;
 import std.logger;
@@ -77,9 +78,16 @@ final class InputSystem : WidgetSystem {
     syncCursorCapture();
   }
 
-  /// Returns true if cursor capture is currently active on the window.
+  /// Returns true if cursor capture is currently active on the window
+  /// (for both `CursorCapture.capture` and `CursorCapture.lock`).
   @property bool isCursorCaptured() const nothrow @safe {
     return hasCursorCapture;
+  }
+
+  /// Returns true if the cursor is currently locked (hidden, relative mouse
+  /// mode) by a pressed widget with `CursorCapture.lock`.
+  @property bool isCursorLocked() const nothrow @safe {
+    return hasCursorLock;
   }
 
   /// Handles incoming input events.
@@ -96,6 +104,11 @@ final class InputSystem : WidgetSystem {
       return false;
     // TODO call to focus system
     if (event.isMouseEvent()) {
+      if (event.kind == AppEvent.Kind.mouseMotion ||
+          event.kind == AppEvent.Kind.mouseButtonDown ||
+          event.kind == AppEvent.Kind.mouseButtonUp) {
+        lastWindowId = event.mouse.windowId;
+      }
       if (event.kind == AppEvent.Kind.mouseMotion) {
         handleMouseMotion(event, widgets);
         return false;
@@ -142,6 +155,7 @@ private:
 
         if (btn < maxMouseButtons) {
           pressedWidgets[btn] = w;
+          lastPressPos = p;
           syncCursorCapture();
         }
 
@@ -164,10 +178,13 @@ private:
     }
   }
 
-  void handleMouseUp(PointF p, ubyte btn, VisibleWidgets widgets) {
+  void handleMouseUp(PointF upPos, ubyte btn, VisibleWidgets widgets) {
     if (btn >= maxMouseButtons || pressedWidgets[btn] is null)
       return;
 
+    // While locked the reported pointer position is meaningless; the cursor
+    // is restored to the press point, so report mouseUp there.
+    const PointF p = hasCursorLock ? lockOrigin : upPos;
     Widget target = pressedWidgets[btn];
     pressedWidgets[btn] = null;
     syncCursorCapture();
@@ -195,15 +212,18 @@ private:
   // - build a uniform-grid spatial index in collectVisible for O(1)
   //   hit-test candidates when thousands of widgets are visible.
   void handleMouseMotion(in AppEvent event, VisibleWidgets widgets) {
+    const rel = PointF(event.mouse.xrel, event.mouse.yrel);
+    if (hasCursorLock) {
+      // Locked: position stays at the press point, only deltas matter;
+      // hover state is frozen. Each motion event is dispatched on its own.
+      dispatchMouseDrag(lockOrigin, rel, widgets);
+      return;
+    }
     const p = PointF(event.mouse.x, event.mouse.y);
     lastMousePos = p;
     hasLastMousePos = true;
     updateHoverState(p, widgets, true);
-    dispatchMouseDrag(
-      p,
-      PointF(event.mouse.xrel, event.mouse.yrel),
-      widgets
-    );
+    dispatchMouseDrag(p, rel, widgets);
   }
 
   void dispatchMouseDrag(
@@ -211,8 +231,13 @@ private:
     PointF rel,
     VisibleWidgets widgets
   ) {
+    bool hasStale = false;
     foreach (size_t i, Widget target; pressedWidgets) {
-      if (target is null || target.released || !target.inputEnabled) {
+      if (target is null) {
+        continue;
+      }
+      if (target.released || !target.inputEnabled) {
+        hasStale = true;
         continue;
       }
       auto me = target.components.mouseEvent;
@@ -228,6 +253,10 @@ private:
         lx, ly, cast(ubyte) i, hit.inside, rel.x, rel.y, p.x, p.y
       );
       sendMouseEvent(target, me.mouseDrag, val);
+    }
+    // Drop a lock (or capture) held by a widget that became inactive.
+    if (hasStale && hasCursorCapture) {
+      syncCursorCapture();
     }
   }
 
@@ -249,19 +278,35 @@ private:
     return WidgetHitInfo(targetRect, targetRect.contains(p));
   }
 
+  // Applies the strongest CursorCapture mode wanted by active pressed
+  // widgets. SDL return values are ignored (they fail in headless tests).
   void syncCursorCapture() {
-    bool shouldCapture = false;
+    CursorCapture wanted = CursorCapture.none;
     foreach (pw; pressedWidgets) {
       if (pw !is null && !pw.released && pw.inputEnabled &&
           pw.components.mouseEvent !is null &&
-          pw.components.mouseEvent.captureCursor) {
-        shouldCapture = true;
-        break;
+          pw.components.mouseEvent.cursorCapture > wanted) {
+        wanted = pw.components.mouseEvent.cursorCapture;
       }
     }
+    const bool shouldCapture = wanted >= CursorCapture.capture;
+    const bool shouldLock = wanted >= CursorCapture.lock;
     if (shouldCapture != hasCursorCapture) {
       hasCursorCapture = shouldCapture;
       yguilib_sdl3_capture_mouse(shouldCapture ? 1 : 0);
+    }
+    if (shouldLock && !hasCursorLock) {
+      hasCursorLock = true;
+      lockWindowId = lastWindowId;
+      lockOrigin = lastPressPos;
+      yguilib_sdl3_set_relative_mouse_mode(lockWindowId, 1);
+    } else if (!shouldLock && hasCursorLock) {
+      hasCursorLock = false;
+      yguilib_sdl3_set_relative_mouse_mode(lockWindowId, 0);
+      yguilib_sdl3_warp_mouse_in_window(
+        lockWindowId, lockOrigin.x, lockOrigin.y
+      );
+      lastMousePos = lockOrigin;
     }
   }
 
@@ -369,6 +414,11 @@ private:
   ReusableArray!HoverEntry hoverScratch;
   Widget[maxMouseButtons] pressedWidgets;
   bool hasCursorCapture = false;
+  bool hasCursorLock = false;
+  uint lockWindowId = 0;
+  PointF lockOrigin;
+  PointF lastPressPos;
+  uint lastWindowId = 0;
   PointF lastMousePos;
   bool hasLastMousePos = false;
   FocusSystem focusSystem;
@@ -1096,7 +1146,7 @@ unittest {
   dragBox.components.mouseEvent.mouseDown = "dragDown";
   dragBox.components.mouseEvent.mouseDrag = "dragMove";
   dragBox.components.mouseEvent.mouseUp = "dragUp";
-  dragBox.components.mouseEvent.captureCursor = true;
+  dragBox.components.mouseEvent.cursorCapture = CursorCapture.capture;
 
   VisibleWidgets vis = [
     VisibleWidget(dragBox, RectF(20, 30, 80, 40), false, RectF.init)
@@ -1110,6 +1160,7 @@ unittest {
   );
   inputSys.handleEventAndUpdateView(downEv, vis);
   assert(inputSys.isCursorCaptured);
+  assert(!inputSys.isCursorLocked);
   assert(testUi.sentEvents.length == 1);
   assert(testUi.sentEvents[0].view.eventName == "dragDown");
   auto downVal = MouseEvent.AppEventViewValue.fromRaw(
@@ -1154,5 +1205,140 @@ unittest {
   inputSys.handleEventAndUpdateView(downEv, vis);
   assert(inputSys.isCursorCaptured);
   inputSys.onWidgetReleased(dragBox);
+  assert(!inputSys.isCursorCaptured);
+}
+
+// Verifies CursorCapture.lock: frozen position, relative deltas, no hover
+// changes while locked, and unlock on mouseUp / widget release.
+unittest {
+  import yguilib.widget.test_fixture : WidgetFixture;
+
+  auto fix = new WidgetFixture();
+  auto testUi = new TestUiSystem;
+  auto inputSys = new InputSystem(testUi);
+
+  auto knob = fix.makeRootWithRect(RectF(20, 30, 80, 40));
+  knob.inputEnabled = true;
+  knob.components.mouseEvent = new MouseEvent;
+  knob.components.mouseEvent.mouseDown = "knobDown";
+  knob.components.mouseEvent.mouseDrag = "knobDrag";
+  knob.components.mouseEvent.mouseUp = "knobUp";
+  knob.components.mouseEvent.cursorCapture = CursorCapture.lock;
+
+  auto other = fix.makeRootWithRect(RectF(200, 200, 50, 50));
+  other.inputEnabled = true;
+  other.components.mouseEvent = new MouseEvent;
+  other.components.mouseEvent.mouseEnter = "otherEnter";
+
+  VisibleWidgets vis = [
+    VisibleWidget(knob, RectF(20, 30, 80, 40), false, RectF.init),
+    VisibleWidget(other, RectF(200, 200, 50, 50), false, RectF.init)
+  ];
+
+  auto downEv = AppEvent.mouseEvent(
+    AppEvent.Kind.mouseButtonDown,
+    AppEvent.MouseData(1, 50.0f, 45.0f, 0, 0, 0, 1, true, 1)
+  );
+  assert(!inputSys.isCursorLocked);
+  inputSys.handleEventAndUpdateView(downEv, vis);
+  assert(inputSys.isCursorLocked);
+  assert(inputSys.isCursorCaptured);
+  assert(testUi.sentEvents.length == 1);
+  assert(testUi.sentEvents[0].view.eventName == "knobDown");
+
+  // Motion over `other` with deltas: drag stays at press point, no enter
+  testUi.sentEvents = null;
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseMotion,
+      AppEvent.MouseData(1, 220.0f, 220.0f, 1, 7.0f, -3.0f, 0, false, 0)
+    ),
+    vis
+  );
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseMotion,
+      AppEvent.MouseData(1, 900.0f, -50.0f, 1, -2.0f, 11.0f, 0, false, 0)
+    ),
+    vis
+  );
+  assert(testUi.sentEvents.length == 2);
+  foreach (idx, ref ev; testUi.sentEvents) {
+    assert(ev.view.eventName == "knobDrag");
+    auto v = MouseEvent.AppEventViewValue.fromRaw(ev.view.value);
+    assert(v.windowX == 50.0f && v.windowY == 45.0f);
+    assert(v.localX == 30.0f && v.localY == 15.0f);
+    assert(v.inside);
+    if (idx == 0) {
+      assert(v.relX == 7.0f && v.relY == -3.0f);
+    } else {
+      assert(v.relX == -2.0f && v.relY == 11.0f);
+    }
+  }
+
+  // mouseUp at an arbitrary position: unlocked, payload at press point
+  testUi.sentEvents = null;
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseButtonUp,
+      AppEvent.MouseData(1, 900.0f, -50.0f, 0, 0, 0, 1, false, 1)
+    ),
+    vis
+  );
+  assert(!inputSys.isCursorLocked);
+  assert(!inputSys.isCursorCaptured);
+  assert(testUi.sentEvents.length == 1);
+  assert(testUi.sentEvents[0].view.eventName == "knobUp");
+  auto upVal = MouseEvent.AppEventViewValue.fromRaw(
+    testUi.sentEvents[0].view.value
+  );
+  assert(upVal.windowX == 50.0f && upVal.windowY == 45.0f);
+  assert(upVal.localX == 30.0f && upVal.localY == 15.0f);
+  assert(upVal.inside);
+
+  // Releasing the locked widget mid-drag clears the lock
+  inputSys.handleEventAndUpdateView(downEv, vis);
+  assert(inputSys.isCursorLocked);
+  inputSys.onWidgetReleased(knob);
+  assert(!inputSys.isCursorLocked);
+  assert(!inputSys.isCursorCaptured);
+}
+
+// Verifies a disabled locked widget drops the lock on the next motion.
+unittest {
+  import yguilib.widget.test_fixture : WidgetFixture;
+
+  auto fix = new WidgetFixture();
+  auto testUi = new TestUiSystem;
+  auto inputSys = new InputSystem(testUi);
+
+  auto knob = fix.makeRootWithRect(RectF(0, 0, 50, 50));
+  knob.inputEnabled = true;
+  knob.components.mouseEvent = new MouseEvent;
+  knob.components.mouseEvent.mouseDrag = "knobDrag";
+  knob.components.mouseEvent.cursorCapture = CursorCapture.lock;
+  VisibleWidgets vis = [
+    VisibleWidget(knob, RectF(0, 0, 50, 50), false, RectF.init)
+  ];
+
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseButtonDown,
+      AppEvent.MouseData(1, 10.0f, 10.0f, 0, 0, 0, 1, true, 1)
+    ),
+    vis
+  );
+  assert(inputSys.isCursorLocked);
+  knob.inputEnabled = false;
+  testUi.sentEvents = null;
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseMotion,
+      AppEvent.MouseData(1, 10.0f, 10.0f, 1, 4.0f, 0.0f, 0, false, 0)
+    ),
+    vis
+  );
+  assert(testUi.sentEvents.length == 0);
+  assert(!inputSys.isCursorLocked);
   assert(!inputSys.isCursorCaptured);
 }
