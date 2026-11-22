@@ -62,6 +62,12 @@ interface TimerControl {
    * If `tick(dt)` returns `true`, `target.updateView()` is scheduled for
    * Phase 3. Automatically cancelled when `target` is popped from
    * `ControllerStack`.
+   *
+   * Note: Timers are not deduplicated per `target`. Calling this multiple
+   * times for the same `Controller` registers independent timers; if
+   * multiple are due in the same event-loop step, `target.tick(dt)` is
+   * called once per due timer (each with that timer's `dt`), while
+   * `target.updateView()` is still invoked at most once in Phase 3.
    */
   TimerId startControllerTimer(
     Controller target,
@@ -75,6 +81,11 @@ interface TimerControl {
    * `target.update(ctx, dt)` before Phase 3 layout and rendering.
    * Automatically cancelled when `target` is unregistered from the
    * pipeline.
+   *
+   * Note: Timers are not deduplicated per `target`. Calling this multiple
+   * times for the same `WidgetSystem` registers independent timers; if
+   * multiple are due in the same event-loop step, `target.update(ctx, dt)`
+   * is called once per due timer (each with that timer's `dt`).
    */
   TimerId startSystemTimer(
     WidgetSystem target,
