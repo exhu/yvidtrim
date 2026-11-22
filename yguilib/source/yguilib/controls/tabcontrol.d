@@ -138,6 +138,11 @@ final class TabControlEntry {
   PointF lastContentSize = PointF(0.0f, 0.0f);
   PointF lastViewportSize = PointF(0.0f, 0.0f);
   bool viewDirty = false;
+  /// Last `activeTab` observed from the model, used to detect changes.
+  size_t lastActiveTab = size_t.max;
+  /// True when the active tab must be scrolled into view as soon as tab
+  /// button rects and viewport metrics are available.
+  bool revealPending = false;
 
   this(ref ModelTracker!TabsModel tracker) {
     this.tracker = ModelTracker!TabsModel.from(tracker);
@@ -174,6 +179,8 @@ final class TabControlWidgetView : WidgetViewBase {
     entry.rightBtn = rightBtn;
     entry.style = style;
     entry.direction = direction;
+    entry.lastActiveTab = entry.tracker.model.activeTab;
+    entry.revealPending = true;
     tabEntries[viewWidget] = entry;
     syncTabsCount(entry);
   }
@@ -209,6 +216,8 @@ final class TabControlWidgetView : WidgetViewBase {
     ensureViewWidgetRegistered(this, viewWidget);
     if (auto entry = findEntry(tabEntries, viewWidget)) {
       entry.tracker = ModelTracker!TabsModel.from(tracker);
+      entry.lastActiveTab = entry.tracker.model.activeTab;
+      entry.revealPending = true;
       syncTabsCount(entry);
       return;
     }
@@ -342,8 +351,9 @@ final class TabControlWidgetView : WidgetViewBase {
 
   /**
    * Handles layout feedback from ScrollableArea: auto-hides arrow buttons
-   * when tabs fit, enables/disables arrows based on scroll bounds, and snaps
-   * the scroll offset to the nearest tab left edge on viewport resize.
+   * when tabs fit, enables/disables arrows based on scroll bounds, snaps
+   * the scroll offset to the nearest tab left edge on viewport resize, and
+   * completes a pending scroll of the active tab into view.
    */
   bool handleScrollChanged(
     Widget viewWidget,
@@ -373,9 +383,15 @@ final class TabControlWidgetView : WidgetViewBase {
 
     if (contentMain <= fullAvailable + 0.5f) {
       applyFittingScrollState(entry, viewportMain);
+      if (entry.revealPending && activeTabSpan(entry).valid) {
+        // Every tab is visible while the content fits.
+        entry.revealPending = false;
+      }
       return true;
     }
 
+    const bool arrowsAppeared =
+      entry.leftBtn !is null && !entry.leftBtn.visible;
     setArrowsVisible(entry, true);
     const float maxScroll = max(0.0f, contentMain - viewportMain);
     float currentOffset = ax.mainCoord(val.offset);
@@ -392,12 +408,39 @@ final class TabControlWidgetView : WidgetViewBase {
 
     entry.lastViewportMain = viewportMain;
     updateArrowButtonStates(entry, currentOffset, maxScroll);
+
+    if (arrowsAppeared) {
+      // Showing the arrows shrinks the viewport on the next layout pass;
+      // defer the reveal until that pass reports the final viewport size.
+      entry.revealPending = true;
+    } else if (entry.revealPending) {
+      revealActiveTab(entry);
+    }
     return true;
+  }
+
+  /**
+   * Scrolls the viewport of `viewWidget` so that the active tab button is
+   * fully visible. Returns true if the scroll offset changed.
+   */
+  bool revealActiveTab(Widget viewWidget) {
+    assert(viewWidget !is null, "viewWidget must not be null");
+    auto entry = findEntry(tabEntries, viewWidget);
+    return (entry !is null) && revealActiveTab(entry);
   }
 
   override bool update() {
     return updateCompositeEntries(tabEntries, (TabControlEntry entry) {
-      return syncTabsCount(entry);
+      const bool synced = syncTabsCount(entry);
+      const size_t active = entry.tracker.model.activeTab;
+      if (active != entry.lastActiveTab) {
+        entry.lastActiveTab = active;
+        entry.revealPending = true;
+      }
+      if (entry.revealPending) {
+        revealActiveTab(entry);
+      }
+      return synced;
     });
   }
 
@@ -413,6 +456,13 @@ private:
     float contentMain;
     float viewportMain;
     float maxScroll;
+  }
+
+  /// Main-axis position and size of the active tab button.
+  struct TabSpan {
+    bool valid;
+    float pos;
+    float size;
   }
 
   TabControlEntry[Widget] tabEntries;
@@ -452,8 +502,95 @@ private:
       ax.withMainCoord(sa.offset, targetOrigin)
     );
     updateArrowButtonStates(entry, targetOrigin, sm.maxScroll);
+    // Explicit user scrolling wins over a not yet completed reveal.
+    entry.revealPending = false;
     entry.viewDirty = true;
     return true;
+  }
+
+  /**
+   * Returns the active tab button span within the tabs container, or an
+   * invalid span while the buttons are not created or laid out yet.
+   */
+  static TabSpan activeTabSpan(TabControlEntry entry) {
+    if (entry.tabsContainer is null) {
+      return TabSpan.init;
+    }
+    const size_t idx = entry.tracker.model.activeTab;
+    auto children = entry.tabsContainer.children;
+    if (children.length != entry.tracker.model.tabNames.length ||
+        idx >= children.length) {
+      return TabSpan.init;
+    }
+    Widget tab = children[idx];
+    const Axis ax = Axis.of(entry.direction);
+    const float size = ax.mainSize(tab.rect);
+    if (!tab.visible || size <= 0.0f) {
+      return TabSpan.init;
+    }
+    return TabSpan(true, ax.mainPos(tab.rect), size);
+  }
+
+  /**
+   * Scrolls so the active tab is fully visible, keeping the viewport start
+   * aligned to a tab origin like arrow navigation does. Clears
+   * `revealPending` once tab and viewport metrics are available.
+   */
+  static bool revealActiveTab(TabControlEntry entry) {
+    import std.math.algebraic : abs;
+
+    if (entry.scrollViewport is null || entry.tabsContainer is null) {
+      return false;
+    }
+    auto sa = entry.scrollViewport.components.scrollableArea;
+    if (sa is null) {
+      return false;
+    }
+    const TabSpan span = activeTabSpan(entry);
+    const ScrollMetrics sm = getScrollMetrics(entry);
+    if (!span.valid || sm.viewportMain <= 0.0f) {
+      return false;
+    }
+    entry.revealPending = false;
+
+    const Axis ax = Axis.of(entry.direction);
+    const float target = calcRevealOffset(entry.tabsContainer, ax, span, sm);
+    if (abs(target - sm.currentOffset) <= 0.5f) {
+      return false;
+    }
+    entry.scrollViewport.setScrollOffset(ax.withMainCoord(sa.offset, target));
+    updateArrowButtonStates(entry, target, sm.maxScroll);
+    entry.viewDirty = true;
+    return true;
+  }
+
+  /// Computes the scroll offset that makes `span` fully visible with the
+  /// smallest movement, snapped to a tab origin when scrolling forward.
+  static float calcRevealOffset(
+    Widget tabsContainer,
+    Axis ax,
+    in TabSpan span,
+    in ScrollMetrics sm
+  ) {
+    import std.algorithm.comparison : clamp, min;
+
+    if (span.pos < sm.currentOffset - 0.5f) {
+      return clamp(span.pos, 0.0f, sm.maxScroll);
+    }
+    const float spanEnd = span.pos + span.size;
+    if (spanEnd <= sm.currentOffset + sm.viewportMain + 0.5f) {
+      return sm.currentOffset;
+    }
+    const float minOffset = spanEnd - sm.viewportMain;
+    const float snapped = findOrigin(
+      tabsContainer,
+      ax,
+      minOffset - 1.0f,
+      sm.maxScroll,
+      OriginSearchMode.next
+    );
+    // A tab wider than the viewport shows its start edge.
+    return clamp(min(snapped, span.pos), 0.0f, sm.maxScroll);
   }
 
   static bool syncTabsCount(TabControlEntry entry) {
@@ -1142,4 +1279,90 @@ unittest {
   assert(registeredView.getLeftButton(tabRoot) is null);
   assert(tabRoot.released);
   assert(tabsContainer.released);
+}
+
+// Active tab changed through the model (e.g. keyboard page switching)
+// scrolls the tab strip so the active tab is fully visible.
+unittest {
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+
+  auto ui = new UiSystemImpl(null);
+  auto ctrl = registerTabControl(ui);
+  auto view = cast(TabControlWidgetView)
+    ui.widgetViews.getByName(tabControlWidgetViewName);
+  assert(view !is null);
+
+  auto model = new TabsModel(["A", "B", "C", "D", "E"], 0);
+  auto tracker = ModelTracker!TabsModel(model);
+  TabControlBuilder builder;
+  Widget tabRoot = builder
+    .modelTracker(tracker)
+    .buttonSize(120.0f, 28.0f)
+    .gap(8.0f)
+    .build(ui, null, RectF(0, 0, 400, 32), null);
+
+  Widget tabsContainer = view.getTabsContainer(tabRoot);
+  Widget leftBtn = view.getLeftButton(tabRoot);
+  Widget rightBtn = view.getRightButton(tabRoot);
+  auto sa = view.getScrollViewport(tabRoot).components.scrollableArea;
+  auto provider = tabsContainer.components.widgetArray.provider;
+  foreach (i; 0 .. 5) {
+    provider.addWidget(tabsContainer);
+    provider.updateWidgetAt(tabsContainer.children[i], i);
+    // Origins 0, 128, 256, 384, 512 -> content width 632
+    tabsContainer.children[i].rect = RectF(i * 128.0f, 0, 120, 28);
+  }
+
+  // Overflow: viewport 336 -> maxScroll = 632 - 336 = 296
+  void reportLayout() {
+    view.handleScrollChanged(
+      tabRoot,
+      ScrollableArea.AppEventViewValue.fromRaw(
+        ScrollableArea.AppEventViewValue.pack(
+          PointF(632, 28),
+          PointF(336, 28),
+          sa.offset
+        )
+      )
+    );
+  }
+
+  reportLayout();
+  assert(leftBtn.visible && rightBtn.visible);
+  reportLayout();
+  assert(sa.offset.x == 0.0f);
+
+  void setActive(size_t idx) {
+    auto m = tracker.edit();
+    m.activeTab = idx;
+    tracker.commit(m);
+    ctrl.updateView();
+  }
+
+  // Tab 2 (256..376) is partially hidden: scroll to the next origin >= 40
+  setActive(2);
+  assert(sa.offset.x == 128.0f);
+  assert(leftBtn.inputEnabled && rightBtn.inputEnabled);
+
+  // Tab 1 (128..248) is already visible: offset unchanged
+  setActive(1);
+  assert(sa.offset.x == 128.0f);
+
+  // Tab 4 (512..632) needs offset 296; origin 384 clamps to maxScroll
+  setActive(4);
+  assert(sa.offset.x == 296.0f);
+  assert(!rightBtn.inputEnabled);
+
+  // Tab 0 (0..120) lies before the viewport: scroll back to its origin
+  setActive(0);
+  assert(sa.offset.x == 0.0f);
+  assert(!leftBtn.inputEnabled);
+
+  // Arrow scrolling is not undone by later layout feedback
+  view.scrollNext(tabRoot);
+  assert(sa.offset.x == 128.0f);
+  reportLayout();
+  assert(sa.offset.x == 128.0f);
+
+  ui.releaseWidget(tabRoot);
 }
