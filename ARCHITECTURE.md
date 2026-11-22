@@ -47,13 +47,12 @@ yvidtrim/
 │   │   ├── controller/    # Controller interfaces and ControllerStack
 │   │   ├── controls/      # Reusable UI controls (no package.d facade)
 │   │   │   ├── button.d              # Push button component & press-anim sys
-│   │   │   ├── common.d              # Shared colors, buttons, view helpers
+│   │   │   ├── common.d              # Shared colors, button face, view helpers
 │   │   │   ├── composite_view.d      # Free helpers for composite views
 │   │   │   ├── hover_button_system.d # ECS hover button & animation system
 │   │   │   ├── internal/axis.d       # Row/column axis projection helper
 │   │   │   ├── internal/button_support.d # Shared button builder/press helpers
 │   │   │   ├── scrollbars.d          # Composite Scrollbar widget & view
-│   │   │   ├── tab_button.d          # Styled tab button factory & helpers
 │   │   │   ├── tabcontrol.d          # Composite TabControl widget & view
 │   │   │   ├── testing.d             # Shared unittest helpers & mock hosts
 │   │   │   ├── tooltip.d             # Tooltip component, overlay & system
@@ -114,9 +113,18 @@ Phase 1: UiSystemImpl.drainMessageBus()
   └─► UiSystemController
         └─► WidgetSystemPipeline.handleEvent()
               ├─► FocusSystem (priority -100)
-              └─► InputSystem (priority 0) ──► bubbles MouseEvent through
-                    ViewComponent.renameEvents ──► UiSystem.sendAppEvent()
+              ├─► InputSystem (priority 0) ──► bubbles MouseEvent through
+              │     ViewComponent.renameEvents ──► UiSystem.sendAppEvent()
+              └─► ButtonSystem (built in) ──► press anim + actionEvent
+                    via passViewEvent (release or press trigger)
 ```
+
+**Buttons**: `ButtonSystem` is a built-in pipeline system (registered by
+`UiSystemImpl`) driving every `ButtonComponent` widget made by
+`ButtonBuilder`: plain buttons, TabControl tabs/arrows and Scrollbar
+arrows. `ButtonTrigger.release` (default) or `.press` picks when
+`actionEvent` fires; `postLayout` applies normal/disabled colours from
+`inputEnabled`, so controls only call `Widget.setInputEnabled`.
 
 **Input flags**: `Widget.handleInput` (default false) makes a widget
 hittable: it takes part in pointer hit-tests and blocks click/hover-through

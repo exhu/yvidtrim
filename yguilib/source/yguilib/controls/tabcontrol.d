@@ -5,19 +5,19 @@
 module yguilib.controls.tabcontrol;
 
 import yguilib.controller : HandleResult;
-import yguilib.controls.common : ButtonFace, WidgetColors, applyEnabledState,
-  defaultDisabledColors, findArrowComposite, findWidgetView, firstPositive,
-  orDefault, registerWidgetViewPair, styledButton;
+import yguilib.controls.button : ButtonBuilder, ButtonStyle, ButtonTrigger,
+  setButtonRestColors;
+import yguilib.controls.common : WidgetColors, defaultDisabledColors,
+  findArrowComposite, findWidgetView, firstPositive, orDefault,
+  registerWidgetViewPair;
 import yguilib.controls.composite_view : bindCompositeModel,
   ensureDefaultModelTracker, ensureViewWidgetRegistered, findEntry,
   findOwningView, getEntryField, resolveBuilderRegistry, setBuilderModel,
   setBuilderTracker, unregisterCompositeWidget, updateCompositeEntries;
 import yguilib.controls.internal.axis : Axis;
-import yguilib.controls.tab_button : TabButtonStyle, createTabButton,
-  updateTabButtonState;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker, VersionedModel;
-import yguilib.render.render_types : PointF, RectF;
+import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.uisystem : UiRegistry, UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
@@ -27,9 +27,9 @@ import yguilib.widget.layout_components : AlignItems, FlexDirection, Insets,
 import yguilib.widget.scroll_components : ScrollableArea;
 import yguilib.widget.widget_view : WidgetViewBase, WidgetViewControllerBase;
 
-/// Internal mouseDown event name emitted by individual tab button children
+/// Internal press event name emitted by individual tab button children
 /// before translation by TabControlWidgetView.
-enum tabButtonMouseDownEvent = "tabBtnDown";
+enum tabButtonPressEvent = "tabBtnPress";
 
 /// Internal view event emitted when clicking the left scroll button.
 enum tabScrollLeftEvent = "tabScrollLeft";
@@ -59,6 +59,54 @@ final class TabsModel : VersionedModel {
   this(string[] names, size_t initialActiveTab) {
     this.tabNames = names.dup;
     this.activeTab = initialActiveTab;
+  }
+}
+
+/// Default visual dimensions and font metrics for header tab buttons.
+enum defaultTabButtonWidth = 138.0f;
+enum defaultTabButtonHeight = 30.0f;
+enum defaultTabButtonRadius = 4.0f;
+enum defaultTabButtonFontSize = 13.0f;
+
+/// Visual colors for active and inactive tab buttons.
+enum tabActiveBg = ColorF(0.20f, 0.45f, 0.85f, 1.0f);
+enum tabActiveBorder = ColorF(0.40f, 0.70f, 1.0f, 1.0f);
+enum tabActiveText = ColorF(1.0f, 1.0f, 1.0f, 1.0f);
+
+enum tabInactiveBg = ColorF(0.16f, 0.18f, 0.23f, 1.0f);
+enum tabInactiveBorder = ColorF(0.30f, 0.35f, 0.45f, 1.0f);
+enum tabInactiveText = ColorF(0.80f, 0.85f, 0.95f, 1.0f);
+
+/// Color triplets for active and inactive tab button states.
+enum tabActiveColors = WidgetColors(
+  tabActiveBg,
+  tabActiveBorder,
+  tabActiveText
+);
+enum tabInactiveColors = WidgetColors(
+  tabInactiveBg,
+  tabInactiveBorder,
+  tabInactiveText
+);
+
+/// Visual styling and sizing configuration for tab buttons.
+struct TabButtonStyle {
+  float width = defaultTabButtonWidth;
+  float height = defaultTabButtonHeight;
+  float cornerRadius = defaultTabButtonRadius;
+  float fontSize = defaultTabButtonFontSize;
+  Insets padding = Insets(5, 8, 5, 8);
+  WidgetColors active = tabActiveColors;
+  WidgetColors inactive = tabInactiveColors;
+  /// Pressed colours, press timing and caption sink of tab and arrow
+  /// buttons (`normal` is replaced by `active` / `inactive`).
+  ButtonStyle press = ButtonStyle.init;
+
+  /// Returns `press` with its resting colours replaced by `normal`.
+  ButtonStyle pressStyleWith(in WidgetColors normal) const {
+    ButtonStyle s = press;
+    s.normal = normal;
+    return s;
   }
 }
 
@@ -94,15 +142,21 @@ final class TabButtonsProvider : WidgetArrayProvider {
 
   override void addWidget(Widget parent) {
     assert(parent !is null, "parent must not be null");
-    createTabButton(
-      ui,
-      parent,
-      null,
-      tabButtonMouseDownEvent,
-      false,
-      style.button,
-      "tabButton"
-    );
+    const TabButtonStyle bs = style.button;
+    ButtonBuilder b;
+    b.name("tabButton")
+      .text("")
+      .fixedSize(bs.width, bs.height)
+      .radius(bs.cornerRadius)
+      .fontSize(bs.fontSize)
+      .padding(bs.padding.top, bs.padding.left)
+      .style(bs.pressStyleWith(bs.inactive))
+      .border(bs.inactive.border, 1.0f)
+      .disabledColors(style.disabled)
+      .captionTooltip()
+      .trigger(ButtonTrigger.press)
+      .action(tabButtonPressEvent)
+      .build(ui, parent, RectF(0, 0, bs.width, bs.height));
   }
 
   override void updateWidgetAt(Widget w, size_t index) {
@@ -110,13 +164,14 @@ final class TabButtonsProvider : WidgetArrayProvider {
 
     assert(w !is null, "w must not be null");
     assert(index < model.tabNames.length, "tab index out of bounds");
-    assert(w.components.mouseEvent !is null);
 
     const bool isActive = (index == model.activeTab);
     w.name = format("tabButton_%d", index);
     w.setCaption(model.tabNames[index]);
-    w.components.mouseEvent.mouseDown = tabButtonMouseDownEvent;
-    updateTabButtonState(w, isActive, style.button);
+    setButtonRestColors(
+      w,
+      isActive ? style.button.active : style.button.inactive
+    );
   }
 
 private:
@@ -151,7 +206,7 @@ final class TabControlEntry {
 
 /**
  * WidgetView managing registered TabControl root widgets, translating child
- * button mouseDown events to carry the clicked tab index in
+ * button press events to carry the clicked tab index in
  * `AppEvent.view.value[0]`, driving scroll navigation buttons, and
  * synchronizing `WidgetArrayComponent` when bound `TabsModel` changes.
  */
@@ -274,7 +329,7 @@ final class TabControlWidgetView : WidgetViewBase {
   }
 
   /**
-   * Translates a child tab button's mouseDown event to the custom event name
+   * Translates a child tab button's press event to the custom event name
    * configured on `viewWidget.components.view.renameEvents` and puts the
    * clicked button's tab index into `sourceEvent.view.value[0]`.
    */
@@ -285,7 +340,7 @@ final class TabControlWidgetView : WidgetViewBase {
     assert(viewWidget !is null, "viewWidget must not be null");
     const string originalName = sourceEvent.view.eventName;
 
-    if (originalName == tabButtonMouseDownEvent) {
+    if (originalName == tabButtonPressEvent) {
       size_t tabIndex = 0;
       const Widget clickedBtn = sourceEvent.view.widget;
       auto entry = findEntry(tabEntries, viewWidget);
@@ -761,14 +816,13 @@ private:
   ) {
     const bool canScrollLeft = (currentOffset > 0.5f);
     const bool canScrollRight = (currentOffset < maxScroll - 0.5f);
-    applyEnabledState(
-      entry.leftBtn, canScrollLeft, entry.style.button.inactive,
-      entry.style.disabled
-    );
-    applyEnabledState(
-      entry.rightBtn, canScrollRight, entry.style.button.inactive,
-      entry.style.disabled
-    );
+    // ButtonSystem applies normal/disabled colours in postLayout.
+    if (entry.leftBtn !is null) {
+      entry.leftBtn.setInputEnabled(canScrollLeft);
+    }
+    if (entry.rightBtn !is null) {
+      entry.rightBtn.setInputEnabled(canScrollRight);
+    }
   }
 }
 
@@ -897,7 +951,7 @@ struct TabControlBuilder {
       eventName, defaultTabControlEventName
     );
     const string[string] renameMap = [
-      tabButtonMouseDownEvent: targetEvent,
+      tabButtonPressEvent: targetEvent,
       tabScrollLeftEvent: tabScrollLeftEvent,
       tabScrollRightEvent: tabScrollRightEvent,
       tabScrollChangedEvent: tabScrollChangedEvent,
@@ -972,19 +1026,22 @@ private:
     string label,
     string eventName
   ) {
-    ButtonFace face;
-    face.colors = btnStyle.disabled;
-    face.width = w;
-    face.height = h;
-    face.cornerRadius = btnStyle.button.cornerRadius;
-    face.borderWidth = 1.0f;
-    face.fontSize = btnStyle.button.fontSize;
-    face.padding = Insets(2, 4, 2, 4);
-    return styledButton(ui, root, name, label, face)
-      .onMouseDown(eventName)
-      .inputEnabled(false)
+    const TabButtonStyle bs = btnStyle.button;
+    ButtonBuilder b;
+    return b.name(name)
+      .text(label)
+      .fixedSize(w, h)
+      .radius(bs.cornerRadius)
+      .fontSize(bs.fontSize)
+      .padding(2.0f, 4.0f)
+      .style(bs.pressStyleWith(bs.inactive))
+      .border(bs.inactive.border, 1.0f)
+      .disabledColors(btnStyle.disabled)
+      .trigger(ButtonTrigger.press)
+      .action(eventName)
+      .enabled(false)
       .visible(false)
-      .build();
+      .build(ui, root, RectF(0, 0, w, h));
   }
 
   ViewportBuildResult buildViewport(
@@ -1070,7 +1127,6 @@ TabControlWidgetViewController registerTabControl(UiSystem ui) {
 }
 
 unittest {
-  import yguilib.controls.tab_button : tabActiveBg, tabInactiveBg;
   import yguilib.events.builder : ViewAppEventBuilder;
   import yguilib.internal.uisystem_impl : UiSystemImpl;
 
@@ -1102,7 +1158,7 @@ unittest {
   assert(tabRoot.components.view !is null);
   assert(tabRoot.components.view.widgetViewName == tabControlWidgetViewName);
   assert(
-    tabRoot.components.view.renameEvents[tabButtonMouseDownEvent] ==
+    tabRoot.components.view.renameEvents[tabButtonPressEvent] ==
       "customTabSwitch"
   );
   assert(
@@ -1169,8 +1225,8 @@ unittest {
   assert(!leftBtn.visible);
   assert(!rightBtn.visible);
 
-  // 2. Translate mouseDown on child button index 2
-  AppEvent rawEv = ViewAppEventBuilder(tabButtonMouseDownEvent)
+  // 2. Translate press event on child button index 2
+  AppEvent rawEv = ViewAppEventBuilder(tabButtonPressEvent)
     .widget(tabsContainer.children[2])
     .build();
   registeredView.translateEventForViewWidget(rawEv, tabRoot);
@@ -1363,6 +1419,129 @@ unittest {
   assert(sa.offset.x == 128.0f);
   reportLayout();
   assert(sa.offset.x == 128.0f);
+
+  ui.releaseWidget(tabRoot);
+}
+
+// Tab and arrow buttons are ButtonBuilder buttons firing on press: default
+// size, names, caption tooltip, active/inactive colours, and a headless
+// ButtonSystem press sending the renamed, index-carrying event.
+unittest {
+  import yguilib.controls.button : ButtonComponent, ButtonSystem;
+  import yguilib.controls.testing : DummyWidgetSystemHost;
+  import yguilib.controls.tooltip : Tooltip;
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.widget.layout_components : SizingMode;
+  import yguilib.widget.system : WidgetSystemContext;
+  import yguilib.widget.visible : VisibleWidget;
+
+  auto ui = new UiSystemImpl(null);
+  auto ctrl = registerTabControl(ui);
+  auto view = cast(TabControlWidgetView)
+    ui.widgetViews.getByName(tabControlWidgetViewName);
+  assert(view !is null);
+
+  auto model = new TabsModel(["One", "Two", "Three"], 1);
+  auto tracker = ModelTracker!TabsModel(model);
+  TabControlBuilder builder;
+  Widget tabRoot = builder
+    .modelTracker(tracker)
+    .event("pressTabSwitch")
+    .build(ui, null, RectF(0, 0, 600, 40), null);
+  Widget tabsContainer = view.getTabsContainer(tabRoot);
+  auto provider = tabsContainer.components.widgetArray.provider;
+  foreach (i; 0 .. 3) {
+    provider.addWidget(tabsContainer);
+    assert(tabsContainer.children[i].name == "tabButton");
+    provider.updateWidgetAt(tabsContainer.children[i], i);
+  }
+
+  // Default size, names, tooltip and press trigger
+  foreach (i, tab; tabsContainer.children) {
+    assert(tab.name == (i == 0 ? "tabButton_0"
+      : i == 1 ? "tabButton_1" : "tabButton_2"));
+    assert(tab.rect.width == defaultTabButtonWidth);
+    assert(tab.rect.height == defaultTabButtonHeight);
+    assert(tab.components.size.width.mode == SizingMode.fixed);
+    assert(tab.components.size.width.value == defaultTabButtonWidth);
+    assert(tab.components.size.height.value == defaultTabButtonHeight);
+    assert(tab.components.size.padding == TabButtonStyle.init.padding);
+    assert(tab.components.has!Tooltip());
+    assert(tab.components.get!Tooltip().resolveText(tab) ==
+      model.tabNames[i]);
+    auto comp = tab.components.get!ButtonComponent();
+    assert(comp !is null);
+    assert(comp.trigger == ButtonTrigger.press);
+    assert(comp.actionEvent == tabButtonPressEvent);
+  }
+
+  // Active / inactive colours
+  Widget inactiveTab = tabsContainer.children[0];
+  Widget activeTab = tabsContainer.children[1];
+  assert(activeTab.components.background.color == tabActiveBg);
+  assert(activeTab.components.border.color == tabActiveBorder);
+  assert(activeTab.components.textLabel.color == tabActiveText);
+  assert(inactiveTab.components.background.color == tabInactiveBg);
+  assert(inactiveTab.components.border.color == tabInactiveBorder);
+  assert(inactiveTab.components.textLabel.color == tabInactiveText);
+  assert(activeTab.components.get!ButtonComponent().style.normal ==
+    tabActiveColors);
+
+  // Arrow buttons: press trigger, built disabled and hidden
+  foreach (arrow; [view.getLeftButton(tabRoot), view.getRightButton(tabRoot)]) {
+    auto comp = arrow.components.get!ButtonComponent();
+    assert(comp !is null);
+    assert(comp.trigger == ButtonTrigger.press);
+    assert(!arrow.inputEnabled && !arrow.visible);
+    assert(comp.style.normal == tabInactiveColors);
+    assert(comp.style.disabled == TabControlStyle.init.disabled);
+    assert(arrow.components.background.color ==
+      TabControlStyle.init.disabled.bg);
+  }
+  assert(view.getLeftButton(tabRoot).components.get!ButtonComponent()
+    .actionEvent == tabScrollLeftEvent);
+  assert(view.getRightButton(tabRoot).components.get!ButtonComponent()
+    .actionEvent == tabScrollRightEvent);
+
+  // Headless ButtonSystem: mouseButtonDown over tab 2 sends the renamed
+  // event carrying the tab index
+  auto host = new DummyWidgetSystemHost();
+  host.widgetViews.register(tabControlWidgetViewName, view);
+  auto sys = new ButtonSystem();
+  sys.onRegister(host);
+  // Dynamically added tabs get their parentView on the next update pass.
+  tabRoot.update(WidgetUpdateScope.parentView);
+  Widget tab2 = tabsContainer.children[2];
+  tab2.rect = RectF(296, 0, 138, 30);
+  WidgetSystemContext ctx;
+  ctx.host = host;
+  ctx.visibleWidgets = [
+    VisibleWidget(tab2, tab2.rect, false, RectF.init),
+  ];
+  AppEvent down;
+  down.kind = AppEvent.Kind.mouseButtonDown;
+  down.mouse.x = 350;
+  down.mouse.y = 15;
+  down.mouse.button = 1;
+  sys.handleEvent(down, ctx);
+  assert(host.sentEvents.length == 1);
+  AppEvent sent = host.sentEvents[0];
+  assert(sent.kind == AppEvent.Kind.view);
+  assert(sent.view.eventName == "pressTabSwitch");
+  assert(sent.view.widget is tab2);
+  assert(sent.view.viewWidget is tabRoot);
+  assert(sent.view.value[0] == 2);
+  sys.onWidgetReleased(tab2);
+  sys.onUnregister();
+
+  // Controller selects the pressed tab; provider swaps rest colours
+  ctrl.handleEvent(sent);
+  assert(model.activeTab == 2);
+  foreach (i, child; tabsContainer.children) {
+    provider.updateWidgetAt(child, i);
+  }
+  assert(tab2.components.background.color == tabActiveBg);
+  assert(activeTab.components.background.color == tabInactiveBg);
 
   ui.releaseWidget(tabRoot);
 }

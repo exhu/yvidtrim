@@ -16,10 +16,16 @@
  *   `pressOutSec`: the press `AnimationTimer` runs over a normalized
  *   duration of 1.0 and is stepped with `dt / pressInSec` or
  *   `dt / pressOutSec` depending on direction.
- * - Action: releasing the primary button over the same button that was
- *   pressed sends a view event named `actionEvent` with `view.widget` set
- *   to the button. Dragging off un-sinks the button and cancels the action
- *   unless the pointer is dragged back before release.
+ * - Action: with `ButtonTrigger.release` (default), releasing the primary
+ *   button over the same button that was pressed sends a view event named
+ *   `actionEvent` with `view.widget` set to the button. Dragging off
+ *   un-sinks the button and cancels the action unless the pointer is
+ *   dragged back before release. With `ButtonTrigger.press` the event is
+ *   sent once on the primary button press; release only un-sinks. The
+ *   event bubbles through parent ViewComponents (`passViewEvent`), so
+ *   composite views can rename it.
+ * - Rest colours: `setButtonRestColors` replaces `ButtonStyle.normal` at
+ *   runtime (e.g. active/inactive tab), applying it at once when idle.
  * - Disabled state: `Widget.inputEnabled` is the enabled flag; change it
  *   with `Widget.setInputEnabled` (marks the widget dirty). Hittability is
  *   the separate `Widget.handleInput` flag (set by the button builder), so
@@ -76,11 +82,16 @@ struct ButtonStyle {
   float pressOutSec = 0.15f;
 }
 
+/// When a button sends its `actionEvent`.
+enum ButtonTrigger { release, press }
+
 /// Component marking a widget as a push button handled by `ButtonSystem`.
 final class ButtonComponent : WidgetComponent {
   ButtonStyle style;
   /// View event name sent on click; empty disables the event.
   string actionEvent = null;
+  /// Whether `actionEvent` is sent on release (default) or on press.
+  ButtonTrigger trigger = ButtonTrigger.release;
   /// `inputEnabled` state the current colours were applied for.
   bool appliedEnabled = true;
   /// True while the primary button is held and the pointer is over it.
@@ -150,6 +161,8 @@ struct ButtonBuilder {
   mixin ButtonBuilderCommon;
   ButtonStyle buttonStyle;
   bool isEnabled = true;
+  bool isVisible = true;
+  ButtonTrigger buttonTrigger = ButtonTrigger.release;
 
   /// Sets the view event name sent on click.
   ref ButtonBuilder action(string eventName) return {
@@ -174,9 +187,33 @@ struct ButtonBuilder {
     return this;
   }
 
+  /// Sets the colours shown while the button is disabled.
+  ref ButtonBuilder disabledColors(in WidgetColors c) return {
+    buttonStyle.disabled = c;
+    return this;
+  }
+
+  /// Sets the caption sink distance in pixels when fully pressed.
+  ref ButtonBuilder sink(float px) return {
+    buttonStyle.sinkPx = px;
+    return this;
+  }
+
+  /// Sets when the action event is sent (release by default).
+  ref ButtonBuilder trigger(ButtonTrigger t) return {
+    buttonTrigger = t;
+    return this;
+  }
+
   /// Sets the initial enabled state (`Widget.inputEnabled`).
   ref ButtonBuilder enabled(bool on) return {
     isEnabled = on;
+    return this;
+  }
+
+  /// Sets the initial visibility (`Widget.visible`).
+  ref ButtonBuilder visible(bool on) return {
+    isVisible = on;
     return this;
   }
 
@@ -191,11 +228,15 @@ struct ButtonBuilder {
       config.textColor
     );
     comp.actionEvent = config.actionEvent;
+    comp.trigger = buttonTrigger;
     comp.basePadding = config.padding;
     comp.appliedEnabled = isEnabled;
     b.component(comp);
     if (!isEnabled) {
       b.inputEnabled(false);
+    }
+    if (!isVisible) {
+      b.visible(false);
     }
     Widget w = b.build();
     if (!isEnabled) {
@@ -218,6 +259,26 @@ Widget createButton(
   b.buttonStyle = style;
   b.config = config;
   return b.build(ui, parent, rect);
+}
+
+/// Sets the resting (normal) colours of button `w` (must carry a
+/// ButtonComponent). Applies them at once when enabled and idle;
+/// a running press animation lerps from the new colours.
+void setButtonRestColors(Widget w, in WidgetColors c) {
+  assert(w !is null, "w must not be null");
+  auto comp = w.components.get!ButtonComponent();
+  assert(comp !is null, "w must carry a ButtonComponent");
+  comp.style.normal = c;
+  if (!w.inputEnabled) {
+    // Disabled colours stay; `syncEnabled` restores the new normal ones.
+    return;
+  }
+  if (comp.pressProgress == 0.0f) {
+    applyColors(w, c);
+  } else {
+    // Text is not animated; bg/border follow on the next press step.
+    w.setTextColor(c.text);
+  }
 }
 
 /// WidgetSystem driving press animation and click events of buttons.
@@ -361,6 +422,9 @@ private:
     comp.isPressed = true;
     press.begin(hit);
     setActive(hit, ctx.host);
+    if (comp.trigger == ButtonTrigger.press) {
+      emitButtonAction(ctx, hit, comp.actionEvent);
+    }
   }
 
   void handleMouseMotion(in AppEvent event, ref WidgetSystemContext ctx) {
@@ -388,6 +452,9 @@ private:
     comp.isPressed = false;
     setActive(target, ctx.host);
 
+    if (comp.trigger != ButtonTrigger.release) {
+      return;
+    }
     const p = PointF(event.mouse.x, event.mouse.y);
     if (press.hitTest(ctx, p) is target) {
       emitButtonAction(ctx, target, comp.actionEvent);
@@ -680,5 +747,154 @@ unittest {
   assert(comp.pressProgress == 0.0f);
   assert(btn.components.size.padding == base);
   assert(sys.animTimerId == invalidTimerId);
+  sys.onUnregister();
+}
+
+// Unit tests for ButtonTrigger.press, setButtonRestColors, builder setters
+// and view-event routing through parent ViewComponents
+unittest {
+  import yguilib.controls.testing : DummyWidgetSystemHost;
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.widget : ViewComponent;
+  import yguilib.widget.visible : VisibleWidget;
+
+  auto host = new DummyWidgetSystemHost();
+  auto testUi = new UiSystemImpl(null);
+
+  AppEvent mouseEv(AppEvent.Kind kind, float x, float y) {
+    AppEvent ev;
+    ev.kind = kind;
+    ev.mouse.x = x;
+    ev.mouse.y = y;
+    ev.mouse.button = 1;
+    return ev;
+  }
+
+  void settle(ButtonSystem sys, ref WidgetSystemContext ctx) {
+    foreach (_; 0 .. 30) {
+      sys.onTimer(ctx, 1, 0.016f);
+    }
+  }
+
+  // Builder setters: trigger, sink, disabledColors, visible
+  const WidgetColors dimmed = WidgetColors(
+    ColorF(0.1f, 0.1f, 0.1f, 1.0f),
+    ColorF(0.2f, 0.2f, 0.2f, 1.0f),
+    ColorF(0.3f, 0.3f, 0.3f, 1.0f)
+  );
+  ButtonBuilder b;
+  auto btn = b
+    .text("Tab")
+    .action("tabPressed")
+    .trigger(ButtonTrigger.press)
+    .sink(1.0f)
+    .disabledColors(dimmed)
+    .build(testUi, null, RectF(0, 0, 80, 30));
+  auto comp = btn.components.get!ButtonComponent();
+  assert(comp.trigger == ButtonTrigger.press);
+  assert(comp.style.sinkPx == 1.0f);
+  assert(comp.style.disabled == dimmed);
+  assert(btn.visible);
+  ButtonBuilder hb;
+  auto hidden = hb.visible(false).build(testUi, null, RectF(0, 0, 80, 30));
+  assert(!hidden.visible);
+  ButtonBuilder rb;
+  auto relBtn = rb.build(testUi, null, RectF(0, 0, 80, 30));
+  assert(relBtn.components.get!ButtonComponent().trigger ==
+    ButtonTrigger.release);
+
+  auto sys = new ButtonSystem();
+  sys.onRegister(host);
+  WidgetSystemContext ctx;
+  ctx.host = host;
+  ctx.visibleWidgets = [
+    VisibleWidget(btn, RectF(0, 0, 80, 30), false, RectF.init),
+  ];
+
+  // Press trigger: one event on mouseDown, none on mouseUp
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonDown, 40, 15), ctx);
+  assert(host.sentEvents.length == 1);
+  assert(host.sentEvents[0].kind == AppEvent.Kind.view);
+  assert(host.sentEvents[0].view.eventName == "tabPressed");
+  assert(host.sentEvents[0].view.widget is btn);
+  assert(comp.isPressed);
+  assert(host.isTimerActive(sys.animTimerId));
+  settle(sys, ctx);
+  assert(comp.pressProgress == 1.0f && comp.appliedSink == 1);
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonUp, 40, 15), ctx);
+  assert(host.sentEvents.length == 1);
+  assert(!comp.isPressed);
+  assert(host.isTimerActive(sys.animTimerId));
+  settle(sys, ctx);
+  assert(comp.pressProgress == 0.0f && comp.appliedSink == 0);
+  assert(btn.components.background.color == comp.style.normal.bg);
+  assert(!sys.isAnyAnimating());
+  assert(sys.animTimerId == invalidTimerId);
+
+  // setButtonRestColors while idle applies at once
+  const WidgetColors active = WidgetColors(
+    ColorF(0.4f, 0.5f, 0.6f, 1.0f),
+    ColorF(0.7f, 0.7f, 0.7f, 1.0f),
+    ColorF(1.0f, 1.0f, 0.0f, 1.0f)
+  );
+  setButtonRestColors(btn, active);
+  assert(comp.style.normal == active);
+  assert(btn.components.background.color == active.bg);
+  assert(btn.components.border.color == active.border);
+  assert(btn.components.textLabel.color == active.text);
+
+  // Mid-press: normal updated, background lerps to new normal on settle
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonDown, 40, 15), ctx);
+  sys.onTimer(ctx, 1, 0.016f);
+  assert(comp.pressProgress > 0.0f);
+  const WidgetColors inactive = WidgetColors(
+    ColorF(0.25f, 0.25f, 0.25f, 1.0f),
+    ColorF(0.3f, 0.3f, 0.3f, 1.0f),
+    ColorF(0.8f, 0.8f, 0.8f, 1.0f)
+  );
+  setButtonRestColors(btn, inactive);
+  assert(comp.style.normal == inactive);
+  assert(btn.components.background.color != inactive.bg);
+  assert(btn.components.textLabel.color == inactive.text);
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonUp, 40, 15), ctx);
+  settle(sys, ctx);
+  assert(comp.pressProgress == 0.0f);
+  assert(btn.components.background.color == inactive.bg);
+  assert(btn.components.border.color == inactive.border);
+  assert(sys.animTimerId == invalidTimerId);
+
+  // Disabled: rest colours are stored, disabled colours stay visible
+  assert(btn.setInputEnabled(false));
+  sys.postLayout(ctx);
+  assert(btn.components.background.color == dimmed.bg);
+  setButtonRestColors(btn, active);
+  assert(comp.style.normal == active);
+  assert(btn.components.background.color == dimmed.bg);
+  assert(btn.components.textLabel.color == dimmed.text);
+  assert(btn.setInputEnabled(true));
+  sys.postLayout(ctx);
+  assert(btn.components.background.color == active.bg);
+
+  // Routing: parent ViewComponent renames the action event
+  auto viewRoot = testUi.makeWidget();
+  viewRoot.name = "viewRoot";
+  viewRoot.components.view = new ViewComponent;
+  viewRoot.components.view.renameEvents["clicked"] = "renamed";
+  ButtonBuilder cb;
+  auto child = cb.action("clicked")
+    .build(testUi, viewRoot, RectF(0, 0, 80, 30));
+  viewRoot.update(WidgetUpdateScope.parentView);
+  assert(child.parentView is viewRoot);
+  ctx.visibleWidgets = [
+    VisibleWidget(child, RectF(0, 0, 80, 30), false, RectF.init),
+  ];
+  host.sentEvents = null;
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonDown, 40, 15), ctx);
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonUp, 40, 15), ctx);
+  assert(host.sentEvents.length == 1);
+  assert(host.sentEvents[0].view.eventName == "renamed");
+  assert(host.sentEvents[0].view.widget is child);
+  assert(host.sentEvents[0].view.viewWidget is viewRoot);
+  settle(sys, ctx);
   sys.onUnregister();
 }

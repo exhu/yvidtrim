@@ -5,6 +5,7 @@ import std.typecons : Nullable;
 import std.logger;
 import yguilib.allochelpers : SmallBuffer;
 import yguilib.clibs.sdl3;
+import yguilib.controls.button : ButtonSystem;
 import yguilib.timercontrol : TimerId;
 import yguilib.timers : TimerIntervalMs, TimerMode;
 import yguilib.uisystem;
@@ -50,6 +51,7 @@ class UiSystemImpl : UiSystem {
       pipeline.registerSystem(new DebugDrawSystem());
     }
     pipeline.registerSystem(new DataSystem());
+    pipeline.registerSystem(new ButtonSystem());
     fWidgetViewControllers = new ObjectRegistry!WidgetViewController();
     fWidgetViews = new ObjectRegistry!WidgetView();
   }

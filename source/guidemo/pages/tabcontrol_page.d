@@ -651,7 +651,7 @@ private:
           "2. Construction: TabControlBuilder creates a Flex + WidgetArray\n" ~
           "   root Widget with ViewComponent (\"TabControlWidgetView\")\n" ~
           "   and binds its TabsModel in TabControlWidgetView.\n" ~
-          "3. Event Translation: Clicking a tab fires \"tabBtnDown\";\n" ~
+          "3. Event Translation: Pressing a tab fires \"tabBtnPress\";\n" ~
           "   translateEventForViewWidget() renames the event and writes\n" ~
           "   the clicked button's child index to ViewData.value[0].\n" ~
           "4. Controller Update: TabControlWidgetViewController updates\n" ~

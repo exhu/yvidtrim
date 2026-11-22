@@ -20,6 +20,7 @@ import yguilib.widget.component : WidgetComponent;
 import yguilib.widget.layout_components : Anchor, Insets, Size;
 import yguilib.widget.system : WidgetSystemContext;
 import yguilib.widget.visible : findTopmostWithComponent;
+import yguilib.widget.widget_view : passViewEvent;
 
 package(yguilib):
 
@@ -290,7 +291,9 @@ struct PressTracker(C : WidgetComponent) {
   }
 }
 
-/// Sends a view event `actionEvent` targeting `target` through `ctx.host`.
+/// Sends a view event `actionEvent` targeting `target` through `ctx.host`,
+/// bubbling it through parent ViewComponents (`passViewEvent`) so composite
+/// views can rename or suppress it.
 /// No-op when `ctx.host` is null or `actionEvent` is empty.
 void emitButtonAction(
   ref WidgetSystemContext ctx,
@@ -303,7 +306,7 @@ void emitButtonAction(
   auto ev = ViewAppEventBuilder(actionEvent)
     .widget(target)
     .build();
-  ctx.host.sendAppEvent(ev);
+  passViewEvent(ctx.host, target, ev);
 }
 
 // Unit tests for button builder mixin and shared tracking helpers

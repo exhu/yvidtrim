@@ -7,10 +7,10 @@ module yguilib.controls.scrollbars;
 import std.math.rounding : round;
 import std.typecons : Nullable, nullable;
 import yguilib.controller : HandleResult;
-import yguilib.controls.common : ButtonFace, WidgetColors,
-  applyBgAndBorderColors, applyEnabledState, defaultDisabledColors,
-  emitViewValueEvent, findArrowComposite, findWidgetView, firstPositive,
-  orDefault, registerWidgetViewPair, styledButton;
+import yguilib.controls.button : ButtonBuilder, ButtonStyle, ButtonTrigger;
+import yguilib.controls.common : WidgetColors, applyBgAndBorderColors,
+  defaultDisabledColors, emitViewValueEvent, findArrowComposite,
+  findWidgetView, firstPositive, orDefault, registerWidgetViewPair;
 import yguilib.controls.composite_view : bindCompositeModel,
   ensureDefaultModelTracker, ensureViewWidgetRegistered, findEntry,
   findOwningView, getEntryField, resolveBuilderRegistry, setBuilderModel,
@@ -709,12 +709,13 @@ private:
   ) {
     const bool canDec = (effMax > effMin && val > effMin);
     const bool canInc = (effMax > effMin && val < effMax);
-    applyEnabledState(
-      entry.decBtn, canDec, entry.style.arrow, entry.style.disabled
-    );
-    applyEnabledState(
-      entry.incBtn, canInc, entry.style.arrow, entry.style.disabled
-    );
+    // ButtonSystem applies normal/disabled colours in postLayout.
+    if (entry.decBtn !is null) {
+      entry.decBtn.setInputEnabled(canDec);
+    }
+    if (entry.incBtn !is null) {
+      entry.incBtn.setInputEnabled(canInc);
+    }
   }
 }
 
@@ -926,16 +927,22 @@ private:
     string label,
     string eventName
   ) {
-    ButtonFace face;
-    face.colors = cfg.arrow;
-    face.width = w;
-    face.height = h;
-    face.cornerRadius = cfg.cornerRadius;
-    face.borderWidth = 1.0f;
-    face.fontSize = cfg.fontSize;
-    return styledButton(ui, root, name, label, face)
-      .onMouseDown(eventName)
-      .build();
+    ButtonStyle bs;
+    bs.normal = cfg.arrow;
+    ButtonBuilder b;
+    return b.name(name)
+      .text(label)
+      .fixedSize(w, h)
+      .radius(cfg.cornerRadius)
+      .fontSize(cfg.fontSize)
+      .padding(0.0f, 0.0f)
+      .style(bs)
+      .border(cfg.arrow.border, 1.0f)
+      .disabledColors(cfg.disabled)
+      .sink(1.0f)
+      .trigger(ButtonTrigger.press)
+      .action(eventName)
+      .build(ui, root, RectF(0, 0, w, h));
   }
 
   TrackBuildResult buildTrack(

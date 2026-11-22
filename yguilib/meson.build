@@ -20,7 +20,6 @@ yguilib_src = files(
   'source/yguilib/controls/internal/axis.d',
   'source/yguilib/controls/internal/button_support.d',
   'source/yguilib/controls/scrollbars.d',
-  'source/yguilib/controls/tab_button.d',
   'source/yguilib/controls/tabcontrol.d',
   'source/yguilib/controls/testing.d',
   'source/yguilib/controls/tooltip.d',

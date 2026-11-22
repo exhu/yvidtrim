@@ -60,7 +60,6 @@ import yguilib.widget : Widget;
 
 import guidemo.controller : DemoController, DemoControllerParams;
 import guidemo.hover_button : HoverButtonController;
-import yguilib.controls.button : ButtonSystem;
 import yguilib.controls.hover_button_system : AnimatedHoverButtonSystem;
 import guidemo.model : ButtonPageModel, ButtonSystemPageModel, DemoModel,
   KnobPageModel, LayoutPainterPageModel, SimpleButtonPageModel,
@@ -100,7 +99,6 @@ void main() {
   );
   // Register systems and reusable composite widget controllers.
   app.ui.registerWidgetSystem(new AnimatedHoverButtonSystem());
-  app.ui.registerWidgetSystem(new ButtonSystem());
   app.ui.registerWidgetSystem(new TooltipSystem());
   app.ui.pushController(registerTabControl(app.ui));
   app.ui.pushController(registerScrollbars(app.ui));

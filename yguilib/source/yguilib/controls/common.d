@@ -6,7 +6,7 @@ module yguilib.controls.common;
 
 import std.typecons : Nullable;
 import yguilib.events.builder : ViewAppEventBuilder;
-import yguilib.render.render_types : ColorF, RectF;
+import yguilib.render.render_types : ColorF;
 import yguilib.uisystem : UiRegistry, UiSystem;
 import yguilib.widget : Widget;
 import yguilib.widget.builder : WidgetBuilder;
@@ -48,21 +48,6 @@ void applyBgAndBorderColors(Widget w, ColorF bg, ColorF border) {
   w.setBorderColor(border);
 }
 
-/// Sets `w.inputEnabled` to `enabled` and applies `on` or `off` colors.
-/// `w` is allowed to be null (no-op).
-void applyEnabledState(
-  Widget w,
-  bool enabled,
-  in WidgetColors on,
-  in WidgetColors off
-) {
-  if (w is null) {
-    return;
-  }
-  w.inputEnabled = enabled;
-  applyColors(w, enabled ? on : off);
-}
-
 /// Styling and sizing parameters for a label-bearing button widget.
 struct ButtonFace {
   WidgetColors colors;
@@ -101,35 +86,6 @@ void applyButtonFaceStyle(
     .textColor(face.colors.text)
     .fontSize(face.fontSize)
     .textAlign(TextLabel.Alignment.center);
-}
-
-/// Creates a `WidgetBuilder` preconfigured as a fixed-size styled button.
-/// `parent`, `name`, and `label` are allowed to be null.
-WidgetBuilder styledButton(
-  UiSystem ui,
-  Widget parent,
-  string name,
-  string label,
-  in ButtonFace face
-) {
-  assert(ui !is null, "ui must not be null");
-  auto b = WidgetBuilder.make(ui)
-    .parent(parent)
-    .name(name)
-    .rect(RectF(0, 0, face.width, face.height))
-    .fixedSize(face.width, face.height);
-
-  if (
-    face.padding.top != 0.0f ||
-    face.padding.right != 0.0f ||
-    face.padding.bottom != 0.0f ||
-    face.padding.left != 0.0f
-  ) {
-    b.padding(face.padding);
-  }
-
-  applyButtonFaceStyle(b, label, face);
-  return b;
 }
 
 /// Returns `value` when non-empty, or `fallback` otherwise.
@@ -236,18 +192,14 @@ unittest {
   // Null safety on color helpers
   applyColors(null, onColors);
   applyBgAndBorderColors(null, onColors.bg, onColors.border);
-  applyEnabledState(null, true, onColors, offColors);
 
   auto face = ButtonFace(
     onColors, 120.0f, 32.0f, 5.0f, 1.5f, 14.0f, Insets(4, 6, 4, 6)
   );
-  auto btn = styledButton(ui, null, "testBtn", "Click", face)
-    .onMouseDown("btnDown")
-    .build();
+  auto bb = WidgetBuilder.make(ui).name("testBtn");
+  applyButtonFaceStyle(bb, "Click", face);
+  auto btn = bb.build();
   assert(btn.name == "testBtn");
-  assert(btn.rect == RectF(0, 0, 120.0f, 32.0f));
-  assert(btn.components.size !is null);
-  assert(btn.components.size.padding == Insets(4, 6, 4, 6));
   assert(btn.components.background.style == Background.Style.round);
   assert(btn.components.background.cornerRadius == 5.0f);
   assert(btn.components.background.color == onColors.bg);
@@ -259,14 +211,14 @@ unittest {
   assert(btn.components.textLabel.color == onColors.text);
   assert(btn.components.textLabel.fontSize == 14.0f);
   assert(btn.components.textLabel.alignment == TextLabel.Alignment.center);
-  assert(btn.components.mouseEvent.mouseDown == "btnDown");
 
   // Rect background and no border when cornerRadius == 0 and borderWidth == 0
   auto flatFace = ButtonFace(
     offColors, 80.0f, 24.0f, 0.0f, 0.0f, 11.0f, Insets.init
   );
-  auto flatBtn = styledButton(ui, null, "flatBtn", "Flat", flatFace).build();
-  assert(flatBtn.components.size.padding == Insets.init);
+  auto fb = WidgetBuilder.make(ui).name("flatBtn");
+  applyButtonFaceStyle(fb, "Flat", flatFace);
+  auto flatBtn = fb.build();
   assert(flatBtn.components.background.style == Background.Style.rect);
   assert(flatBtn.components.border is null);
 
@@ -275,17 +227,6 @@ unittest {
   assert(btn.components.border.color == offColors.border);
   assert(btn.components.textLabel.color == onColors.text);
 
-  applyEnabledState(btn, false, onColors, offColors);
-  assert(!btn.inputEnabled);
-  assert(btn.components.background.color == offColors.bg);
-  assert(btn.components.border.color == offColors.border);
-  assert(btn.components.textLabel.color == offColors.text);
-
-  applyEnabledState(btn, true, onColors, offColors);
-  assert(btn.inputEnabled);
-  assert(btn.components.background.color == onColors.bg);
-  assert(btn.components.border.color == onColors.border);
-  assert(btn.components.textLabel.color == onColors.text);
 }
 
 unittest {

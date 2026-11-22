@@ -1,4 +1,5 @@
-- reuse simple button (yguilib/controls/button.d) for tabControl, scrollbars, remove tab_button.d if it's no longer necessary, and whatever is used for arrow buttons in both.
+- add repeat mode to button (repeat flag, repeat delay), and use it on tabControl and scrollBar, so that
+while the button is pressed it repeats event to switch tabs without rapid clicks.
 - build widget library
 -- checkbox
 -- combobox
