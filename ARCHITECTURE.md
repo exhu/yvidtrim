@@ -39,10 +39,14 @@ yvidtrim/
 │   │   ├── clibs/         # extern(C) D bindings for yguilib-clibs
 │   │   ├── controller/    # Controller interfaces and ControllerStack
 │   │   ├── controls/      # Reusable UI controls (no package.d facade)
+│   │   │   ├── common.d              # Shared colors, buttons, view helpers
+│   │   │   ├── composite_view.d      # Free helpers for composite views
 │   │   │   ├── hover_button_system.d # ECS hover button & animation system
+│   │   │   ├── internal/axis.d       # Row/column axis projection helper
 │   │   │   ├── scrollbars.d          # Composite Scrollbar widget & view
 │   │   │   ├── tab_button.d          # Styled tab button factory & helpers
 │   │   │   ├── tabcontrol.d          # Composite TabControl widget & view
+│   │   │   ├── testing.d             # Shared unittest helpers & mock hosts
 │   │   │   └── virtlist.d            # Composite VirtList widget & view
 │   │   ├── events/        # AppEvent, builder, and thread-safe MessageBus
 │   │   ├── render/        # Hardware Renderer, FontManager, shader pipelines

@@ -3,11 +3,11 @@
  */
 module yguilib.controls.tab_button;
 
+import yguilib.controls.common : ButtonFace, WidgetColors, applyColors,
+  orDefault, styledButton;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget;
-import yguilib.widget.builder : WidgetBuilder;
-import yguilib.widget.drawing_components : TextLabel;
 import yguilib.widget.layout_components : Insets;
 
 /// Default visual dimensions and font metrics for header tab buttons.
@@ -25,17 +25,41 @@ enum tabInactiveBg = ColorF(0.16f, 0.18f, 0.23f, 1.0f);
 enum tabInactiveBorder = ColorF(0.30f, 0.35f, 0.45f, 1.0f);
 enum tabInactiveText = ColorF(0.80f, 0.85f, 0.95f, 1.0f);
 
+/// Color triplets for active and inactive tab button states.
+enum tabActiveColors = WidgetColors(
+  tabActiveBg,
+  tabActiveBorder,
+  tabActiveText
+);
+enum tabInactiveColors = WidgetColors(
+  tabInactiveBg,
+  tabInactiveBorder,
+  tabInactiveText
+);
+
+/// Visual styling and sizing configuration for tab buttons.
+struct TabButtonStyle {
+  float width = defaultTabButtonWidth;
+  float height = defaultTabButtonHeight;
+  float cornerRadius = defaultTabButtonRadius;
+  float fontSize = defaultTabButtonFontSize;
+  Insets padding = Insets(5, 8, 5, 8);
+  WidgetColors active = tabActiveColors;
+  WidgetColors inactive = tabInactiveColors;
+}
+
 /**
  * Creates a styled tab button inside the specified parent container.
  *
  * Params:
+ *   ui = Active UiSystem (must not be null).
  *   parent = Parent container widget (must not be null).
  *   label = Text caption displayed on the button (allowed to be null).
  *   eventName = Event name emitted on mouse down, e.g., "tab1Btn" (allowed to
  *     be null).
  *   isActive = Whether the button initializes in the active highlight state.
- *   width = Desired fixed button width.
- *   height = Desired fixed button height.
+ *   style = Visual styling and sizing configuration.
+ *   name = Optional widget name (defaults to "tabButton" when null/empty).
  *
  * Returns:
  *   Configured tab button widget.
@@ -46,33 +70,23 @@ Widget createTabButton(
   string label,
   string eventName,
   bool isActive,
-  float width,
-  float height,
+  in TabButtonStyle style,
   string name
 ) {
+  assert(ui !is null, "ui must not be null");
   assert(parent !is null, "parent must not be null");
 
-  const ColorF bgCol = isActive ? tabActiveBg : tabInactiveBg;
-  const ColorF borderCol = isActive
-    ? tabActiveBorder
-    : tabInactiveBorder;
-  const ColorF textCol = isActive ? tabActiveText : tabInactiveText;
-  const string btnName = (name.length > 0) ? name : "tabButton";
+  ButtonFace face;
+  face.colors = isActive ? style.active : style.inactive;
+  face.width = style.width;
+  face.height = style.height;
+  face.cornerRadius = style.cornerRadius;
+  face.borderWidth = 1.0f;
+  face.fontSize = style.fontSize;
+  face.padding = style.padding;
 
-  return WidgetBuilder.make(ui)
-    .parent(parent)
-    .name(btnName)
-    .rect(RectF(0, 0, width, height))
-    .fixedSize(width, height)
-    .padding(Insets(5, 8, 5, 8))
-    .roundBg(bgCol)
-    .bgRadius(defaultTabButtonRadius)
-    .border(borderCol)
-    .borderWidth(1.0f)
-    .text(label)
-    .textColor(textCol)
-    .fontSize(defaultTabButtonFontSize)
-    .textAlign(TextLabel.Alignment.center)
+  const string btnName = orDefault(name, "tabButton");
+  return styledButton(ui, parent, btnName, label, face)
     .onMouseDown(eventName)
     .build();
 }
@@ -83,12 +97,15 @@ Widget createTabButton(
  * Params:
  *   btn = Tab button widget to update (must not be null).
  *   isActive = True if the button represents the active page.
+ *   style = Visual styling providing active and inactive color palettes.
  */
-void updateTabButtonState(Widget btn, bool isActive) {
+void updateTabButtonState(
+  Widget btn,
+  bool isActive,
+  in TabButtonStyle style
+) {
   assert(btn !is null, "btn must not be null");
-  btn.setBackgroundColor(isActive ? tabActiveBg : tabInactiveBg);
-  btn.setBorderColor(isActive ? tabActiveBorder : tabInactiveBorder);
-  btn.setTextColor(isActive ? tabActiveText : tabInactiveText);
+  applyColors(btn, isActive ? style.active : style.inactive);
 }
 
 unittest {
@@ -97,13 +114,14 @@ unittest {
 
   auto root = new Widget(ui.nextWidgetId());
   root.rect = RectF(0, 0, 800, 600);
+  TabButtonStyle style;
 
   // 1. Create active tab button
   auto btnActive = createTabButton(
-    ui, root, "Active Tab", "tabActive", true,
-    defaultTabButtonWidth, defaultTabButtonHeight, null
+    ui, root, "Active Tab", "tabActive", true, style, null
   );
   assert(btnActive !is null);
+  assert(btnActive.name == "tabButton");
   assert(btnActive.rect.width == defaultTabButtonWidth);
   assert(btnActive.rect.height == defaultTabButtonHeight);
   assert(btnActive.components.background !is null);
@@ -114,29 +132,29 @@ unittest {
   assert(btnActive.components.textLabel.caption == "Active Tab");
   assert(btnActive.components.textLabel.color == tabActiveText);
 
-  // 2. Create inactive tab button
+  // 2. Create inactive tab button with custom name
   auto btnInactive = createTabButton(
     ui,
     root,
     "Inactive Tab",
     "tabInactive",
     false,
-    defaultTabButtonWidth,
-    defaultTabButtonHeight,
-    null
+    style,
+    "customTab"
   );
   assert(btnInactive !is null);
+  assert(btnInactive.name == "customTab");
   assert(btnInactive.components.background.color == tabInactiveBg);
   assert(btnInactive.components.border.color == tabInactiveBorder);
   assert(btnInactive.components.textLabel.color == tabInactiveText);
 
   // 3. Update states
-  updateTabButtonState(btnActive, false);
+  updateTabButtonState(btnActive, false, style);
   assert(btnActive.components.background.color == tabInactiveBg);
   assert(btnActive.components.border.color == tabInactiveBorder);
   assert(btnActive.components.textLabel.color == tabInactiveText);
 
-  updateTabButtonState(btnInactive, true);
+  updateTabButtonState(btnInactive, true, style);
   assert(btnInactive.components.background.color == tabActiveBg);
   assert(btnInactive.components.border.color == tabActiveBorder);
   assert(btnInactive.components.textLabel.color == tabActiveText);
@@ -144,6 +162,7 @@ unittest {
 
 unittest {
   import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.widget.builder : WidgetBuilder;
   import yguilib.widget.layout_components : AlignItems, FlexDirection,
     JustifyContent, SizingMode;
 
@@ -159,13 +178,12 @@ unittest {
     .alignItems(AlignItems.center)
     .build();
 
+  TabButtonStyle style;
   auto b1 = createTabButton(
-    ui, row, "Tab 1", "t1", true,
-    defaultTabButtonWidth, defaultTabButtonHeight, null
+    ui, row, "Tab 1", "t1", true, style, null
   );
   auto b2 = createTabButton(
-    ui, row, "Tab 2", "t2", false,
-    defaultTabButtonWidth, defaultTabButtonHeight, null
+    ui, row, "Tab 2", "t2", false, style, null
   );
 
   assert(row.children.length == 2);

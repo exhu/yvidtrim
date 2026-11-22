@@ -596,10 +596,10 @@ private:
       .build();
 
     TabControlStyle emeraldStyle;
-    emeraldStyle.buttonWidth = 155.0f;
-    emeraldStyle.buttonHeight = 34.0f;
-    emeraldStyle.activeBg = ColorF(0.16f, 0.52f, 0.36f, 1.0f);
-    emeraldStyle.activeBorder = ColorF(0.35f, 0.85f, 0.60f, 1.0f);
+    emeraldStyle.button.width = 155.0f;
+    emeraldStyle.button.height = 34.0f;
+    emeraldStyle.button.active.bg = ColorF(0.16f, 0.52f, 0.36f, 1.0f);
+    emeraldStyle.button.active.border = ColorF(0.35f, 0.85f, 0.60f, 1.0f);
 
     TabControlBuilder b;
     b.name("verticalTabControl")

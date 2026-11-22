@@ -572,7 +572,7 @@ final class Widget {
   bool inputEnabled = false;
 
   /// points to parent widget in hierarchy
-  @property inout(Widget) parent() inout {
+  @property inout(Widget) parent() inout nothrow @safe @nogc {
     return fParent;
   }
 
@@ -1347,4 +1347,37 @@ unittest {
     caughtAssert2 = true;
   }
   assert(caughtAssert2);
+}
+
+/// Returns true if `w` and all of its ancestors have `visible == true`.
+/// `w` is allowed to be null (returns false).
+bool isEffectivelyVisible(const Widget w) nothrow @safe @nogc {
+  if (w is null || !w.visible) {
+    return false;
+  }
+  return w.parent is null || isEffectivelyVisible(w.parent);
+}
+
+unittest {
+  assert(!isEffectivelyVisible(null));
+
+  auto root = new Widget(1);
+  auto mid = new Widget(2);
+  auto leaf = new Widget(3);
+  root.addChild(mid);
+  mid.addChild(leaf);
+
+  assert(isEffectivelyVisible(root));
+  assert(isEffectivelyVisible(mid));
+  assert(isEffectivelyVisible(leaf));
+
+  leaf.visible = false;
+  assert(!isEffectivelyVisible(leaf));
+  assert(isEffectivelyVisible(mid));
+
+  leaf.visible = true;
+  root.visible = false;
+  assert(!isEffectivelyVisible(root));
+  assert(!isEffectivelyVisible(mid));
+  assert(!isEffectivelyVisible(leaf));
 }

@@ -92,3 +92,73 @@ unittest {
   RectF disjoint = intersectRects(r1, r3);
   assert(disjoint.width == 0.0f && disjoint.height == 0.0f);
 }
+
+/// Linearly interpolates between `a` and `b`, clamping `t` to `[0.0f, 1.0f]`.
+ColorF lerpColor(in ColorF a, in ColorF b, float t) nothrow @safe @nogc {
+  import std.algorithm.comparison : clamp;
+
+  const float k = clamp(t, 0.0f, 1.0f);
+  return ColorF(
+    a.r + (b.r - a.r) * k,
+    a.g + (b.g - a.g) * k,
+    a.b + (b.b - a.b) * k,
+    a.a + (b.a - a.a) * k
+  );
+}
+
+/// Returns the position of `p` normalized within `r` and clamped to `[0, 1]`.
+/// Returns `PointF(0.5f, 0.5f)` when `r` has non-positive width or height.
+PointF normalizedIn(in RectF r, in PointF p) nothrow @safe @nogc {
+  import std.algorithm.comparison : clamp;
+
+  if (r.width <= 0.0f || r.height <= 0.0f) {
+    return PointF(0.5f, 0.5f);
+  }
+  const float nx = clamp((p.x - r.x) / r.width, 0.0f, 1.0f);
+  const float ny = clamp((p.y - r.y) / r.height, 0.0f, 1.0f);
+  return PointF(nx, ny);
+}
+
+unittest {
+  import std.math : isClose;
+
+  const ColorF cA = ColorF(0.0f, 0.2f, 0.4f, 0.6f);
+  const ColorF cB = ColorF(1.0f, 0.6f, 0.8f, 1.0f);
+
+  const ColorF c0 = lerpColor(cA, cB, 0.0f);
+  assert(isClose(c0.r, 0.0f) && isClose(c0.g, 0.2f));
+  assert(isClose(c0.b, 0.4f) && isClose(c0.a, 0.6f));
+
+  const ColorF cHalf = lerpColor(cA, cB, 0.5f);
+  assert(isClose(cHalf.r, 0.5f) && isClose(cHalf.g, 0.4f));
+  assert(isClose(cHalf.b, 0.6f) && isClose(cHalf.a, 0.8f));
+
+  const ColorF c1 = lerpColor(cA, cB, 1.0f);
+  assert(isClose(c1.r, 1.0f) && isClose(c1.g, 0.6f));
+  assert(isClose(c1.b, 0.8f) && isClose(c1.a, 1.0f));
+
+  const ColorF cLow = lerpColor(cA, cB, -0.5f);
+  assert(isClose(cLow.r, 0.0f) && isClose(cLow.a, 0.6f));
+
+  const ColorF cHigh = lerpColor(cA, cB, 2.0f);
+  assert(isClose(cHigh.r, 1.0f) && isClose(cHigh.a, 1.0f));
+
+  const RectF rect = RectF(10.0f, 20.0f, 100.0f, 50.0f);
+  const PointF center = normalizedIn(rect, PointF(60.0f, 45.0f));
+  assert(isClose(center.x, 0.5f) && isClose(center.y, 0.5f));
+
+  const PointF topLeft = normalizedIn(rect, PointF(10.0f, 20.0f));
+  assert(isClose(topLeft.x, 0.0f) && isClose(topLeft.y, 0.0f));
+
+  const PointF botRight = normalizedIn(rect, PointF(110.0f, 70.0f));
+  assert(isClose(botRight.x, 1.0f) && isClose(botRight.y, 1.0f));
+
+  const PointF clamped = normalizedIn(rect, PointF(-5.0f, 100.0f));
+  assert(isClose(clamped.x, 0.0f) && isClose(clamped.y, 1.0f));
+
+  const PointF zeroW = normalizedIn(RectF(0, 0, 0, 10), PointF(5, 5));
+  assert(isClose(zeroW.x, 0.5f) && isClose(zeroW.y, 0.5f));
+
+  const PointF zeroH = normalizedIn(RectF(0, 0, 10, -2), PointF(5, 5));
+  assert(isClose(zeroH.x, 0.5f) && isClose(zeroH.y, 0.5f));
+}

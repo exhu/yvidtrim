@@ -5,9 +5,7 @@ allow user to push controllers as prefered instead of pushing/popping passed to 
 hint displayed and animated transparency when cursor delays over a control to
 display the full text (currently buttons do not fit the whole text
 
-- first devise reusable composite widgets in code (how to pass models, events,
-reusable views and controllers), then we'll invent a text format to construct
-widget trees to allow for visual editing
+- invent a text format to construct widget trees to allow for visual editing
 
 - video player component and system is external to yguilib to be independent from ffmpeg
 

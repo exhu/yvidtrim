@@ -392,10 +392,10 @@ private:
       .build();
 
     ScrollbarStyle amberStyle;
-    amberStyle.thumbBg = ColorF(0.66f, 0.46f, 0.18f, 1.0f);
-    amberStyle.thumbBorder = ColorF(0.92f, 0.70f, 0.32f, 1.0f);
-    amberStyle.thumbDragBg = ColorF(0.84f, 0.60f, 0.24f, 1.0f);
-    amberStyle.thumbDragBorder = ColorF(1.0f, 0.85f, 0.45f, 1.0f);
+    amberStyle.thumb.bg = ColorF(0.66f, 0.46f, 0.18f, 1.0f);
+    amberStyle.thumb.border = ColorF(0.92f, 0.70f, 0.32f, 1.0f);
+    amberStyle.thumbDrag.bg = ColorF(0.84f, 0.60f, 0.24f, 1.0f);
+    amberStyle.thumbDrag.border = ColorF(1.0f, 0.85f, 0.45f, 1.0f);
 
     ScrollbarBuilder rb;
     rb.name("sbReleaseBar")
@@ -455,10 +455,10 @@ private:
       .build();
 
     ScrollbarStyle emeraldStyle;
-    emeraldStyle.thumbBg = ColorF(0.18f, 0.50f, 0.36f, 1.0f);
-    emeraldStyle.thumbBorder = ColorF(0.35f, 0.80f, 0.58f, 1.0f);
-    emeraldStyle.thumbDragBg = ColorF(0.26f, 0.68f, 0.48f, 1.0f);
-    emeraldStyle.thumbDragBorder = ColorF(0.50f, 0.95f, 0.72f, 1.0f);
+    emeraldStyle.thumb.bg = ColorF(0.18f, 0.50f, 0.36f, 1.0f);
+    emeraldStyle.thumb.border = ColorF(0.35f, 0.80f, 0.58f, 1.0f);
+    emeraldStyle.thumbDrag.bg = ColorF(0.26f, 0.68f, 0.48f, 1.0f);
+    emeraldStyle.thumbDrag.border = ColorF(0.50f, 0.95f, 0.72f, 1.0f);
 
     ScrollbarBuilder pb;
     playgroundScrollbar = pb

@@ -57,6 +57,11 @@ abstract class WidgetViewControllerBase :
     return objectName(fullName);
   }
 
+  override bool update() {
+    // WidgetView will check models
+    return true;
+  }
+
   override bool updateView() {
     bool shouldUpdate = false;
     foreach(v; views) {
@@ -72,11 +77,6 @@ final class DefaultWidgetViewController : WidgetViewControllerBase {
   this(UiSystem uiSystem) {
     assert(uiSystem !is null, "uiSystem must not be null");
     super(uiSystem);
-  }
-
-  override bool update() {
-    // WidgetView will check models
-    return true;
   }
 }
 

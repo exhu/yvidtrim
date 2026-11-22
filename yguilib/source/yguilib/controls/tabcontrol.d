@@ -4,24 +4,28 @@
  */
 module yguilib.controls.tabcontrol;
 
-import yguilib.controls.tab_button : defaultTabButtonFontSize,
-  defaultTabButtonHeight, defaultTabButtonRadius, defaultTabButtonWidth,
-  tabActiveBg, tabActiveBorder, tabActiveText, tabInactiveBg,
-  tabInactiveBorder, tabInactiveText;
 import yguilib.controller : HandleResult;
+import yguilib.controls.common : ButtonFace, WidgetColors, applyEnabledState,
+  defaultDisabledColors, findArrowComposite, findWidgetView, firstPositive,
+  orDefault, registerWidgetViewPair, styledButton;
+import yguilib.controls.composite_view : bindCompositeModel,
+  ensureDefaultModelTracker, ensureViewWidgetRegistered, findEntry,
+  findOwningView, getEntryField, resolveBuilderRegistry, setBuilderModel,
+  setBuilderTracker, unregisterCompositeWidget, updateCompositeEntries;
+import yguilib.controls.internal.axis : Axis;
+import yguilib.controls.tab_button : TabButtonStyle, createTabButton,
+  updateTabButtonState;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker, VersionedModel;
-import yguilib.render.render_types : ColorF, PointF, RectF;
+import yguilib.render.render_types : PointF, RectF;
 import yguilib.uisystem : UiRegistry, UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.data_components : WidgetArrayProvider;
-import yguilib.widget.drawing_components : TextLabel;
-import yguilib.widget.layout_components : AlignItems, Dimension, FlexDirection,
-  Insets, JustifyContent, Size, SizingMode;
+import yguilib.widget.layout_components : AlignItems, FlexDirection, Insets,
+  JustifyContent;
 import yguilib.widget.scroll_components : ScrollableArea;
-import yguilib.widget.widget_view : WidgetView, WidgetViewBase,
-  WidgetViewControllerBase;
+import yguilib.widget.widget_view : WidgetViewBase, WidgetViewControllerBase;
 
 /// Internal mouseDown event name emitted by individual tab button children
 /// before translation by TabControlWidgetView.
@@ -60,24 +64,10 @@ final class TabsModel : VersionedModel {
 
 /// Visual styling and sizing configuration for buttons inside a TabControl.
 struct TabControlStyle {
-  float buttonWidth = defaultTabButtonWidth;
-  float buttonHeight = defaultTabButtonHeight;
-  float cornerRadius = defaultTabButtonRadius;
-  float fontSize = defaultTabButtonFontSize;
+  TabButtonStyle button;
+  WidgetColors disabled = defaultDisabledColors;
   float arrowButtonSize = 26.0f;
   float arrowGap = 6.0f;
-
-  ColorF activeBg = tabActiveBg;
-  ColorF activeBorder = tabActiveBorder;
-  ColorF activeText = tabActiveText;
-
-  ColorF inactiveBg = tabInactiveBg;
-  ColorF inactiveBorder = tabInactiveBorder;
-  ColorF inactiveText = tabInactiveText;
-
-  ColorF disabledBg = ColorF(0.11f, 0.12f, 0.15f, 1.0f);
-  ColorF disabledBorder = ColorF(0.20f, 0.22f, 0.27f, 1.0f);
-  ColorF disabledText = ColorF(0.40f, 0.43f, 0.50f, 1.0f);
 }
 
 /**
@@ -104,22 +94,15 @@ final class TabButtonsProvider : WidgetArrayProvider {
 
   override void addWidget(Widget parent) {
     assert(parent !is null, "parent must not be null");
-    WidgetBuilder.make(ui)
-      .parent(parent)
-      .name("tabButton")
-      .rect(RectF(0, 0, style.buttonWidth, style.buttonHeight))
-      .fixedSize(style.buttonWidth, style.buttonHeight)
-      .padding(Insets(5, 8, 5, 8))
-      .roundBg(style.inactiveBg)
-      .bgRadius(style.cornerRadius)
-      .border(style.inactiveBorder)
-      .borderWidth(1.0f)
-      .text(null)
-      .textColor(style.inactiveText)
-      .fontSize(style.fontSize)
-      .textAlign(TextLabel.Alignment.center)
-      .onMouseDown(tabButtonMouseDownEvent)
-      .build();
+    createTabButton(
+      ui,
+      parent,
+      null,
+      tabButtonMouseDownEvent,
+      false,
+      style.button,
+      "tabButton"
+    );
   }
 
   override void updateWidgetAt(Widget w, size_t index) {
@@ -133,9 +116,7 @@ final class TabButtonsProvider : WidgetArrayProvider {
     w.name = format("tabButton_%d", index);
     w.setCaption(model.tabNames[index]);
     w.components.mouseEvent.mouseDown = tabButtonMouseDownEvent;
-    w.setBackgroundColor(isActive ? style.activeBg : style.inactiveBg);
-    w.setBorderColor(isActive ? style.activeBorder : style.inactiveBorder);
-    w.setTextColor(isActive ? style.activeText : style.inactiveText);
+    updateTabButtonState(w, isActive, style.button);
   }
 
 private:
@@ -185,9 +166,7 @@ final class TabControlWidgetView : WidgetViewBase {
     FlexDirection direction
   ) {
     assert(viewWidget !is null, "viewWidget must not be null");
-    if (!isWidgetRegistered(viewWidget)) {
-      registerViewWidget(viewWidget);
-    }
+    ensureViewWidgetRegistered(this, viewWidget);
     auto entry = new TabControlEntry(tracker);
     entry.leftBtn = leftBtn;
     entry.scrollViewport = scrollViewport;
@@ -196,13 +175,7 @@ final class TabControlWidgetView : WidgetViewBase {
     entry.style = style;
     entry.direction = direction;
     tabEntries[viewWidget] = entry;
-    if (
-      tabsContainer !is null && tabsContainer.components.widgetArray !is null
-    ) {
-      tabsContainer.components.widgetArray.itemsCount =
-        tracker.model.tabNames.length;
-      tabsContainer.components.widgetArray.modelChanged = true;
-    }
+    syncTabsCount(entry);
   }
 
   void registerTabControlWithModel(
@@ -233,87 +206,57 @@ final class TabControlWidgetView : WidgetViewBase {
    */
   void bindModel(Widget viewWidget, ref ModelTracker!TabsModel tracker) {
     assert(viewWidget !is null, "viewWidget must not be null");
-    if (!isWidgetRegistered(viewWidget)) {
-      registerViewWidget(viewWidget);
+    ensureViewWidgetRegistered(this, viewWidget);
+    if (auto entry = findEntry(tabEntries, viewWidget)) {
+      entry.tracker = ModelTracker!TabsModel.from(tracker);
+      syncTabsCount(entry);
+      return;
     }
-    auto pEntry = viewWidget in tabEntries;
-    if (pEntry is null) {
-      Widget lBtn, sv, tc, rBtn;
-      if (findTabControlParts(viewWidget, lBtn, sv, tc, rBtn)) {
-        registerTabControl(
-          viewWidget,
-          tracker,
-          lBtn,
-          sv,
-          tc,
-          rBtn,
-          TabControlStyle(),
-          FlexDirection.row
-        );
-      } else {
-        registerTabControl(
-          viewWidget,
-          tracker,
-          null,
-          null,
-          viewWidget,
-          null,
-          TabControlStyle(),
-          FlexDirection.row
-        );
-      }
-    } else {
-      pEntry.tracker = ModelTracker!TabsModel.from(tracker);
-      if (pEntry.tabsContainer !is null &&
-          pEntry.tabsContainer.components.widgetArray !is null) {
-        pEntry.tabsContainer.components.widgetArray.itemsCount =
-          tracker.model.tabNames.length;
-        pEntry.tabsContainer.components.widgetArray.modelChanged = true;
-      }
+
+    Widget lBtn, sv, tc, rBtn;
+    if (!findArrowComposite(viewWidget, lBtn, sv, tc, rBtn)) {
+      lBtn = null;
+      sv = null;
+      tc = viewWidget;
+      rBtn = null;
     }
+    registerTabControl(
+      viewWidget,
+      tracker,
+      lBtn,
+      sv,
+      tc,
+      rBtn,
+      TabControlStyle(),
+      FlexDirection.row
+    );
   }
 
   /**
    * Associates a `TabsModel` instance with a TabControl root `viewWidget`.
    */
   void bindModelWithModel(Widget viewWidget, TabsModel model) {
-    assert(viewWidget !is null, "viewWidget must not be null");
-    assert(model !is null, "model must not be null");
-    auto tracker = ModelTracker!TabsModel(model);
-    bindModel(viewWidget, tracker);
+    bindCompositeModel(this, viewWidget, model);
   }
 
   override void unregisterViewWidget(Widget viewWidget) {
-    super.unregisterViewWidget(viewWidget);
-    tabEntries.remove(viewWidget);
+    unregisterCompositeWidget(this, tabEntries, viewWidget);
   }
 
   Widget getLeftButton(Widget viewWidget) {
-    if (auto p = viewWidget in tabEntries) {
-      return p.leftBtn;
-    }
-    return null;
+    return getEntryField!"leftBtn"(tabEntries, viewWidget);
   }
 
   Widget getRightButton(Widget viewWidget) {
-    if (auto p = viewWidget in tabEntries) {
-      return p.rightBtn;
-    }
-    return null;
+    return getEntryField!"rightBtn"(tabEntries, viewWidget);
   }
 
   Widget getScrollViewport(Widget viewWidget) {
-    if (auto p = viewWidget in tabEntries) {
-      return p.scrollViewport;
-    }
-    return null;
+    return getEntryField!"scrollViewport"(tabEntries, viewWidget);
   }
 
   Widget getTabsContainer(Widget viewWidget) {
-    if (auto p = viewWidget in tabEntries) {
-      return p.tabsContainer;
-    }
-    return null;
+    return getEntryField!"tabsContainer"(tabEntries, viewWidget);
   }
 
   /**
@@ -331,9 +274,9 @@ final class TabControlWidgetView : WidgetViewBase {
     if (originalName == tabButtonMouseDownEvent) {
       size_t tabIndex = 0;
       const Widget clickedBtn = sourceEvent.view.widget;
-      auto pEntry = viewWidget in tabEntries;
-      Widget container = (pEntry !is null && pEntry.tabsContainer !is null)
-        ? pEntry.tabsContainer
+      auto entry = findEntry(tabEntries, viewWidget);
+      Widget container = (entry !is null && entry.tabsContainer !is null)
+        ? entry.tabsContainer
         : viewWidget;
 
       foreach (i, child; container.children) {
@@ -357,11 +300,11 @@ final class TabControlWidgetView : WidgetViewBase {
    */
   bool selectTab(Widget viewWidget, size_t tabIndex) {
     assert(viewWidget !is null, "viewWidget must not be null");
-    auto pEntry = viewWidget in tabEntries;
-    if (pEntry is null) {
+    auto entry = findEntry(tabEntries, viewWidget);
+    if (entry is null) {
       return false;
     }
-    auto tracker = pEntry.tracker;
+    auto tracker = entry.tracker;
     if (tabIndex >= tracker.model.tabNames.length) {
       return false;
     }
@@ -372,101 +315,24 @@ final class TabControlWidgetView : WidgetViewBase {
     auto m = tracker.edit();
     m.activeTab = tabIndex;
     tracker.commit(m);
-    pEntry.viewDirty = true;
+    entry.viewDirty = true;
     return true;
   }
 
   /**
-   * Jumps the viewport scroll offset to the next tab button origin to the
-   * right, clamped to maxScroll.
+   * Jumps the viewport scroll offset to the next tab button origin,
+   * clamped to maxScroll.
    */
   bool scrollNext(Widget viewWidget) {
-    assert(viewWidget !is null, "viewWidget must not be null");
-    auto pEntry = viewWidget in tabEntries;
-    if (pEntry is null || pEntry.scrollViewport is null ||
-        pEntry.tabsContainer is null) {
-      return false;
-    }
-    auto entry = *pEntry;
-    if (entry.scrollViewport.components.scrollableArea is null) {
-      return false;
-    }
-
-    float currentOffset, contentMain, viewportMain, maxScroll;
-    getScrollMetrics(
-      entry,
-      currentOffset,
-      contentMain,
-      viewportMain,
-      maxScroll
-    );
-    if (currentOffset >= maxScroll - 0.5f) {
-      return false;
-    }
-
-    const bool isRow = (entry.direction == FlexDirection.row);
-    const float nextOrigin = findNextOrigin(
-      entry.tabsContainer,
-      isRow,
-      currentOffset,
-      maxScroll
-    );
-
-    auto sa = entry.scrollViewport.components.scrollableArea;
-    const PointF newOffset = isRow
-      ? PointF(nextOrigin, sa.offset.y)
-      : PointF(sa.offset.x, nextOrigin);
-
-    entry.scrollViewport.setScrollOffset(newOffset);
-    updateArrowButtonStates(entry, nextOrigin, maxScroll);
-    entry.viewDirty = true;
-    return true;
+    return scrollStep(viewWidget, 1);
   }
 
   /**
-   * Jumps the viewport scroll offset to the previous tab button origin to the
-   * left, clamped to 0.
+   * Jumps the viewport scroll offset to the previous tab button origin,
+   * clamped to 0.
    */
   bool scrollPrev(Widget viewWidget) {
-    assert(viewWidget !is null, "viewWidget must not be null");
-    auto pEntry = viewWidget in tabEntries;
-    if (pEntry is null || pEntry.scrollViewport is null ||
-        pEntry.tabsContainer is null) {
-      return false;
-    }
-    auto entry = *pEntry;
-    if (entry.scrollViewport.components.scrollableArea is null) {
-      return false;
-    }
-
-    float currentOffset, contentMain, viewportMain, maxScroll;
-    getScrollMetrics(
-      entry,
-      currentOffset,
-      contentMain,
-      viewportMain,
-      maxScroll
-    );
-    if (currentOffset <= 0.5f) {
-      return false;
-    }
-
-    const bool isRow = (entry.direction == FlexDirection.row);
-    const float prevOrigin = findPrevOrigin(
-      entry.tabsContainer,
-      isRow,
-      currentOffset
-    );
-
-    auto sa = entry.scrollViewport.components.scrollableArea;
-    const PointF newOffset = isRow
-      ? PointF(prevOrigin, sa.offset.y)
-      : PointF(sa.offset.x, prevOrigin);
-
-    entry.scrollViewport.setScrollOffset(newOffset);
-    updateArrowButtonStates(entry, prevOrigin, maxScroll);
-    entry.viewDirty = true;
-    return true;
+    return scrollStep(viewWidget, -1);
   }
 
   /**
@@ -481,15 +347,14 @@ final class TabControlWidgetView : WidgetViewBase {
     import std.algorithm.comparison : max;
 
     assert(viewWidget !is null, "viewWidget must not be null");
-    auto pEntry = viewWidget in tabEntries;
-    if (pEntry is null || pEntry.scrollViewport is null ||
-        pEntry.tabsContainer is null) {
+    auto entry = findEntry(tabEntries, viewWidget);
+    if (entry is null || entry.scrollViewport is null ||
+        entry.tabsContainer is null) {
       return false;
     }
-    auto entry = *pEntry;
-    const bool isRow = (entry.direction == FlexDirection.row);
-    const float contentMain = isRow ? val.contentSize.x : val.contentSize.y;
-    const float viewportMain = isRow ? val.viewportSize.x : val.viewportSize.y;
+    const Axis ax = Axis.of(entry.direction);
+    const float contentMain = ax.mainCoord(val.contentSize);
+    const float viewportMain = ax.mainCoord(val.viewportSize);
 
     entry.lastContentSize = val.contentSize;
     entry.lastViewportSize = val.viewportSize;
@@ -498,7 +363,7 @@ final class TabControlWidgetView : WidgetViewBase {
       viewWidget,
       viewportMain,
       entry,
-      isRow
+      ax
     );
 
     if (contentMain <= fullAvailable + 0.5f) {
@@ -508,12 +373,12 @@ final class TabControlWidgetView : WidgetViewBase {
 
     setArrowsVisible(entry, true);
     const float maxScroll = max(0.0f, contentMain - viewportMain);
-    float currentOffset = isRow ? val.offset.x : val.offset.y;
-    const float otherOffset = isRow ? val.offset.y : val.offset.x;
+    float currentOffset = ax.mainCoord(val.offset);
+    const float otherOffset = ax.crossCoord(val.offset);
 
     currentOffset = snapOnResize(
       entry,
-      isRow,
+      ax,
       currentOffset,
       otherOffset,
       viewportMain,
@@ -526,71 +391,128 @@ final class TabControlWidgetView : WidgetViewBase {
   }
 
   override bool update() {
-    bool anyUpdated = false;
-    foreach (w, entry; tabEntries) {
-      if (entry.tracker.update()) {
-        if (entry.tabsContainer !is null &&
-            entry.tabsContainer.components.widgetArray !is null) {
-          entry.tabsContainer.components.widgetArray.itemsCount =
-            entry.tracker.model.tabNames.length;
-          entry.tabsContainer.components.widgetArray.modelChanged = true;
-          anyUpdated = true;
-        }
-      }
-      if (entry.viewDirty) {
-        entry.viewDirty = false;
-        anyUpdated = true;
-      }
-    }
-    return anyUpdated;
+    return updateCompositeEntries(tabEntries, (TabControlEntry entry) {
+      return syncTabsCount(entry);
+    });
   }
 
 private:
-  TabControlEntry[Widget] tabEntries;
-
-  static float findNextOrigin(
-    Widget tabsContainer,
-    bool isRow,
-    float currentOffset,
-    float maxScroll
-  ) {
-    float nextOrigin = maxScroll;
-    bool found = false;
-    foreach (child; tabsContainer.children) {
-      if (!child.visible) {
-        continue;
-      }
-      const float orig = isRow ? child.rect.x : child.rect.y;
-      if (orig > currentOffset + 0.5f) {
-        if (!found || orig < nextOrigin) {
-          nextOrigin = orig;
-          found = true;
-        }
-      }
-    }
-    return (nextOrigin > maxScroll) ? maxScroll : nextOrigin;
+  enum OriginSearchMode {
+    next,
+    prev,
+    nearest,
   }
 
-  static float findPrevOrigin(
+  TabControlEntry[Widget] tabEntries;
+
+  bool scrollStep(Widget viewWidget, int dir) {
+    assert(viewWidget !is null, "viewWidget must not be null");
+    auto entry = findEntry(tabEntries, viewWidget);
+    if (entry is null || entry.scrollViewport is null ||
+        entry.tabsContainer is null) {
+      return false;
+    }
+    auto sa = entry.scrollViewport.components.scrollableArea;
+    if (sa is null) {
+      return false;
+    }
+
+    float currentOffset, contentMain, viewportMain, maxScroll;
+    getScrollMetrics(
+      entry,
+      currentOffset,
+      contentMain,
+      viewportMain,
+      maxScroll
+    );
+    const bool forward = (dir >= 0);
+    if (forward ? (currentOffset >= maxScroll - 0.5f)
+                : (currentOffset <= 0.5f)) {
+      return false;
+    }
+
+    const Axis ax = Axis.of(entry.direction);
+    const OriginSearchMode mode = forward
+      ? OriginSearchMode.next
+      : OriginSearchMode.prev;
+    const float targetOrigin = findOrigin(
+      entry.tabsContainer,
+      ax,
+      currentOffset,
+      maxScroll,
+      mode
+    );
+
+    entry.scrollViewport.setScrollOffset(
+      ax.withMainCoord(sa.offset, targetOrigin)
+    );
+    updateArrowButtonStates(entry, targetOrigin, maxScroll);
+    entry.viewDirty = true;
+    return true;
+  }
+
+  static bool syncTabsCount(TabControlEntry entry) {
+    assert(entry !is null, "entry must not be null");
+    if (
+      entry.tabsContainer is null ||
+      entry.tabsContainer.components.widgetArray is null
+    ) {
+      return false;
+    }
+    entry.tabsContainer.components.widgetArray.itemsCount =
+      entry.tracker.model.tabNames.length;
+    entry.tabsContainer.components.widgetArray.modelChanged = true;
+    return true;
+  }
+
+  static float findOrigin(
     Widget tabsContainer,
-    bool isRow,
-    float currentOffset
+    Axis axis,
+    float currentOffset,
+    float maxScroll,
+    OriginSearchMode mode
   ) {
-    float prevOrigin = 0.0f;
+    import std.math.algebraic : abs;
+
+    float best = (mode == OriginSearchMode.next) ? maxScroll : 0.0f;
+    float minDiff = float.infinity;
     bool found = false;
+
     foreach (child; tabsContainer.children) {
       if (!child.visible) {
         continue;
       }
-      const float orig = isRow ? child.rect.x : child.rect.y;
-      if (orig < currentOffset - 0.5f) {
-        if (!found || orig > prevOrigin) {
-          prevOrigin = orig;
+      const float orig = axis.mainPos(child.rect);
+      final switch (mode) {
+      case OriginSearchMode.next:
+        if (orig > currentOffset + 0.5f && (!found || orig < best)) {
+          best = orig;
           found = true;
         }
+        break;
+      case OriginSearchMode.prev:
+        if (orig < currentOffset - 0.5f && (!found || orig > best)) {
+          best = orig;
+          found = true;
+        }
+        break;
+      case OriginSearchMode.nearest:
+        const float diff = abs(orig - currentOffset);
+        if (diff < minDiff) {
+          minDiff = diff;
+          best = orig;
+        }
+        break;
       }
     }
-    return (prevOrigin < 0.0f) ? 0.0f : prevOrigin;
+
+    if (best > maxScroll) {
+      best = maxScroll;
+    }
+    if (best < 0.0f) {
+      best = 0.0f;
+    }
+    return best;
   }
 
   static void applyFittingScrollState(
@@ -613,7 +535,7 @@ private:
 
   static float snapOnResize(
     TabControlEntry entry,
-    bool isRow,
+    Axis ax,
     float currentOffset,
     float otherOffset,
     float viewportMain,
@@ -629,50 +551,20 @@ private:
       return currentOffset;
     }
 
-    const float nearestOrigin = findNearestOrigin(
+    const float nearestOrigin = findOrigin(
       entry.tabsContainer,
-      isRow,
+      ax,
       currentOffset,
-      maxScroll
+      maxScroll,
+      OriginSearchMode.nearest
     );
     if (abs(nearestOrigin - currentOffset) > 0.5f) {
       currentOffset = nearestOrigin;
-      const PointF snappedOffset = isRow
-        ? PointF(currentOffset, otherOffset)
-        : PointF(otherOffset, currentOffset);
-      entry.scrollViewport.setScrollOffset(snappedOffset);
+      entry.scrollViewport.setScrollOffset(
+        ax.makePoint(currentOffset, otherOffset)
+      );
     }
     return currentOffset;
-  }
-
-  static float findNearestOrigin(
-    Widget tabsContainer,
-    bool isRow,
-    float currentOffset,
-    float maxScroll
-  ) {
-    import std.math.algebraic : abs;
-
-    float nearestOrigin = 0.0f;
-    float minDiff = float.infinity;
-    foreach (child; tabsContainer.children) {
-      if (!child.visible) {
-        continue;
-      }
-      const float orig = isRow ? child.rect.x : child.rect.y;
-      const float diff = abs(orig - currentOffset);
-      if (diff < minDiff) {
-        minDiff = diff;
-        nearestOrigin = orig;
-      }
-    }
-    if (nearestOrigin > maxScroll) {
-      nearestOrigin = maxScroll;
-    }
-    if (nearestOrigin < 0.0f) {
-      nearestOrigin = 0.0f;
-    }
-    return nearestOrigin;
   }
 
   static void getScrollMetrics(
@@ -685,85 +577,42 @@ private:
     import std.algorithm.comparison : max;
 
     auto sa = entry.scrollViewport.components.scrollableArea;
-    const bool isRow = (entry.direction == FlexDirection.row);
-    currentOffset = (sa !is null) ? (isRow ? sa.offset.x : sa.offset.y) : 0.0f;
+    const Axis ax = Axis.of(entry.direction);
+    currentOffset = (sa !is null) ? ax.mainCoord(sa.offset) : 0.0f;
 
-    contentMain = (sa !is null)
-      ? (isRow ? sa.contentSize.x : sa.contentSize.y)
-      : 0.0f;
-    const float lastCMain = isRow
-      ? entry.lastContentSize.x
-      : entry.lastContentSize.y;
-    if (contentMain <= 0.0f && lastCMain > 0.0f) {
-      contentMain = lastCMain;
-    }
-    if (contentMain <= 0.0f && entry.tabsContainer !is null) {
-      contentMain = isRow
-        ? entry.tabsContainer.rect.width
-        : entry.tabsContainer.rect.height;
-    }
-
-    viewportMain = (sa !is null)
-      ? (isRow ? sa.viewportSize.x : sa.viewportSize.y)
-      : 0.0f;
-    const float lastVMain = isRow
-      ? entry.lastViewportSize.x
-      : entry.lastViewportSize.y;
-    if (viewportMain <= 0.0f && lastVMain > 0.0f) {
-      viewportMain = lastVMain;
-    }
-    if (viewportMain <= 0.0f && entry.scrollViewport !is null) {
-      viewportMain = isRow
-        ? entry.scrollViewport.rect.width
-        : entry.scrollViewport.rect.height;
-    }
-
+    contentMain = firstPositive(
+      (sa !is null) ? ax.mainCoord(sa.contentSize) : 0.0f,
+      ax.mainCoord(entry.lastContentSize),
+      (entry.tabsContainer !is null)
+        ? ax.mainSize(entry.tabsContainer.rect)
+        : 0.0f
+    );
+    viewportMain = firstPositive(
+      (sa !is null) ? ax.mainCoord(sa.viewportSize) : 0.0f,
+      ax.mainCoord(entry.lastViewportSize),
+      (entry.scrollViewport !is null)
+        ? ax.mainSize(entry.scrollViewport.rect)
+        : 0.0f
+    );
     maxScroll = max(0.0f, contentMain - viewportMain);
-  }
-
-  static bool findTabControlParts(
-    Widget viewWidget,
-    out Widget leftBtn,
-    out Widget scrollViewport,
-    out Widget tabsContainer,
-    out Widget rightBtn
-  ) {
-    if (viewWidget is null || viewWidget.children.length != 3) {
-      return false;
-    }
-    leftBtn = viewWidget.children[0];
-    scrollViewport = viewWidget.children[1];
-    rightBtn = viewWidget.children[2];
-    if (scrollViewport.children.length > 0) {
-      tabsContainer = scrollViewport.children[0];
-      return true;
-    }
-    return false;
   }
 
   static float calcFullAvailableMain(
     Widget viewWidget,
     float viewportMain,
     TabControlEntry entry,
-    bool isRow
+    Axis ax
   ) {
-    const RectF ca = viewWidget.getContentArea();
-    float full = isRow ? ca.width : ca.height;
-    if (full > 0.0f) {
-      return full;
+    const float caMain = ax.mainSize(viewWidget.getContentArea());
+    if (caMain > 0.0f) {
+      return caMain;
     }
-    full = viewportMain;
+    float full = viewportMain;
     if (entry.leftBtn !is null && entry.leftBtn.visible) {
-      const float btnDim = isRow
-        ? entry.leftBtn.rect.width
-        : entry.leftBtn.rect.height;
-      full += btnDim + entry.style.arrowGap;
+      full += ax.mainSize(entry.leftBtn.rect) + entry.style.arrowGap;
     }
     if (entry.rightBtn !is null && entry.rightBtn.visible) {
-      const float btnDim = isRow
-        ? entry.rightBtn.rect.width
-        : entry.rightBtn.rect.height;
-      full += btnDim + entry.style.arrowGap;
+      full += ax.mainSize(entry.rightBtn.rect) + entry.style.arrowGap;
     }
     return full;
   }
@@ -775,32 +624,14 @@ private:
   ) {
     const bool canScrollLeft = (currentOffset > 0.5f);
     const bool canScrollRight = (currentOffset < maxScroll - 0.5f);
-
-    if (entry.leftBtn !is null) {
-      entry.leftBtn.inputEnabled = canScrollLeft;
-      entry.leftBtn.setBackgroundColor(
-        canScrollLeft ? entry.style.inactiveBg : entry.style.disabledBg
-      );
-      entry.leftBtn.setBorderColor(
-        canScrollLeft ? entry.style.inactiveBorder : entry.style.disabledBorder
-      );
-      entry.leftBtn.setTextColor(
-        canScrollLeft ? entry.style.inactiveText : entry.style.disabledText
-      );
-    }
-
-    if (entry.rightBtn !is null) {
-      entry.rightBtn.inputEnabled = canScrollRight;
-      entry.rightBtn.setBackgroundColor(
-        canScrollRight ? entry.style.inactiveBg : entry.style.disabledBg
-      );
-      entry.rightBtn.setBorderColor(
-        canScrollRight ? entry.style.inactiveBorder : entry.style.disabledBorder
-      );
-      entry.rightBtn.setTextColor(
-        canScrollRight ? entry.style.inactiveText : entry.style.disabledText
-      );
-    }
+    applyEnabledState(
+      entry.leftBtn, canScrollLeft, entry.style.button.inactive,
+      entry.style.disabled
+    );
+    applyEnabledState(
+      entry.rightBtn, canScrollRight, entry.style.button.inactive,
+      entry.style.disabled
+    );
   }
 }
 
@@ -814,38 +645,34 @@ final class TabControlWidgetViewController : WidgetViewControllerBase {
     super(uiSystem);
   }
 
-  override bool update() {
-    return true;
-  }
-
   override HandleResult handleEvent(AppEvent ev) {
-    if (ev.kind == AppEvent.Kind.view && ev.view.viewWidget !is null) {
-      foreach (v; views) {
-        if (v.isWidgetRegistered(ev.view.viewWidget)) {
-          if (auto tcv = cast(TabControlWidgetView) v) {
-            const string eventName = ev.view.eventName;
-            if (eventName == tabScrollLeftEvent) {
-              tcv.scrollPrev(ev.view.viewWidget);
-              return HandleResult(HandleResult.Result.updateView, true);
-            }
-            if (eventName == tabScrollRightEvent) {
-              tcv.scrollNext(ev.view.viewWidget);
-              return HandleResult(HandleResult.Result.updateView, true);
-            }
-            if (eventName == tabScrollChangedEvent) {
-              auto val =
-                ScrollableArea.AppEventViewValue.fromRaw(ev.view.value);
-              tcv.handleScrollChanged(ev.view.viewWidget, val);
-              return HandleResult(HandleResult.Result.updateView, true);
-            }
-            const size_t tabIdx = cast(size_t) ev.view.value[0];
-            tcv.selectTab(ev.view.viewWidget, tabIdx);
-          }
-          return HandleResult(HandleResult.Result.updateView, false);
-        }
-      }
+    if (ev.kind != AppEvent.Kind.view || ev.view.viewWidget is null) {
+      return super.handleEvent(ev);
     }
-    return super.handleEvent(ev);
+
+    auto tcv = findOwningView!TabControlWidgetView(views, ev.view.viewWidget);
+    if (tcv is null) {
+      return super.handleEvent(ev);
+    }
+
+    const string eventName = ev.view.eventName;
+    if (eventName == tabScrollLeftEvent) {
+      tcv.scrollPrev(ev.view.viewWidget);
+      return HandleResult(HandleResult.Result.updateView, true);
+    }
+    if (eventName == tabScrollRightEvent) {
+      tcv.scrollNext(ev.view.viewWidget);
+      return HandleResult(HandleResult.Result.updateView, true);
+    }
+    if (eventName == tabScrollChangedEvent) {
+      auto val = ScrollableArea.AppEventViewValue.fromRaw(ev.view.value);
+      tcv.handleScrollChanged(ev.view.viewWidget, val);
+      return HandleResult(HandleResult.Result.updateView, true);
+    }
+
+    const size_t tabIdx = cast(size_t) ev.view.value[0];
+    tcv.selectTab(ev.view.viewWidget, tabIdx);
+    return HandleResult(HandleResult.Result.updateView, false);
   }
 }
 
@@ -860,17 +687,14 @@ struct TabControlBuilder {
   }
 
   ref TabControlBuilder model(TabsModel m) return {
-    assert(m !is null, "m must not be null");
-    tabsTracker = ModelTracker!TabsModel(m);
-    hasModel = true;
+    setBuilderModel(tabsTracker, hasModel, m);
     return this;
   }
 
   ref TabControlBuilder modelTracker(
     ref ModelTracker!TabsModel tracker
   ) return {
-    tabsTracker = ModelTracker!TabsModel.from(tracker);
-    hasModel = true;
+    setBuilderTracker(tabsTracker, hasModel, tracker);
     return this;
   }
 
@@ -900,8 +724,8 @@ struct TabControlBuilder {
   }
 
   ref TabControlBuilder buttonSize(float width, float height) return {
-    btnStyle.buttonWidth = width;
-    btnStyle.buttonHeight = height;
+    btnStyle.button.width = width;
+    btnStyle.button.height = height;
     return this;
   }
 
@@ -914,10 +738,11 @@ struct TabControlBuilder {
    * Builds the TabControl composite Widget tree.
    *
    * Params:
+   *   ui = Active UiSystem (must not be null).
    *   parent = Parent widget (allowed to be null for root/test widgets).
    *   rect = Initial rectangle of the TabControl container.
-   *   registry = UiRegistry used to look up `TabControlWidgetView` (allowed to
-   *     be null in isolated tests).
+   *   registry = UiRegistry used to look up `TabControlWidgetView` (defaults
+   *     to `ui` when null).
    */
   Widget build(
     UiSystem ui,
@@ -925,34 +750,30 @@ struct TabControlBuilder {
     RectF rect,
     UiRegistry registry
   ) {
-    if (registry is null) {
-      registry = ui;
-    }
-    if (!hasModel) {
-      tabsTracker = ModelTracker!TabsModel(new TabsModel(null, 0));
-      hasModel = true;
-    }
+    assert(ui !is null, "ui must not be null");
+    registry = resolveBuilderRegistry(ui, registry);
+    ensureDefaultModelTracker(
+      tabsTracker, hasModel, () => new TabsModel(null, 0)
+    );
 
-    const string targetEvent = eventName.length > 0
-      ? eventName
-      : defaultTabControlEventName;
+    const string targetEvent = orDefault(
+      eventName, defaultTabControlEventName
+    );
+    const string[string] renameMap = [
+      tabButtonMouseDownEvent: targetEvent,
+      tabScrollLeftEvent: tabScrollLeftEvent,
+      tabScrollRightEvent: tabScrollRightEvent,
+      tabScrollChangedEvent: tabScrollChangedEvent,
+    ];
 
-    string[string] renameMap;
-    renameMap[tabButtonMouseDownEvent] = targetEvent;
-    renameMap[tabScrollLeftEvent] = tabScrollLeftEvent;
-    renameMap[tabScrollRightEvent] = tabScrollRightEvent;
-    renameMap[tabScrollChangedEvent] = tabScrollChangedEvent;
-
-    const bool isRow = (flexDir == FlexDirection.row);
-    const float arrowW = isRow
+    const Axis ax = Axis.of(flexDir);
+    const float arrowW = ax.isRow
       ? btnStyle.arrowButtonSize
-      : btnStyle.buttonWidth;
-    const float arrowH = isRow
-      ? btnStyle.buttonHeight
+      : btnStyle.button.width;
+    const float arrowH = ax.isRow
+      ? btnStyle.button.height
       : btnStyle.arrowButtonSize;
-    const string rootName = (widgetName.length > 0)
-      ? widgetName
-      : "tabControl";
+    const string rootName = orDefault(widgetName, "tabControl");
 
     Widget root = WidgetBuilder.make(ui)
       .parent(parent)
@@ -962,12 +783,12 @@ struct TabControlBuilder {
       .gap(btnStyle.arrowGap)
       .justify(JustifyContent.start)
       .alignItems(flexAlign)
-      .viewEvents(renameMap)
+      .viewEvents(renameMap.dup)
       .viewName(tabControlWidgetViewName)
       .build();
 
     buildAndRegisterParts(
-      ui, registry, root, rootName, rect, isRow, arrowW, arrowH
+      ui, registry, root, rootName, rect, ax, arrowW, arrowH
     );
     return root;
   }
@@ -979,21 +800,21 @@ private:
     Widget root,
     string rootName,
     RectF rect,
-    bool isRow,
+    Axis ax,
     float arrowW,
     float arrowH
   ) {
     auto leftBtn = buildArrowButton(
       ui, root, rootName ~ "LeftBtn", arrowW, arrowH,
-      isRow ? "<" : "^", tabScrollLeftEvent
+      ax.decArrow(), tabScrollLeftEvent
     );
     Widget tabsContainer;
     auto scrollViewport = buildViewport(
-      ui, root, rootName, rect, isRow, tabsContainer
+      ui, root, rootName, rect, ax, tabsContainer
     );
     auto rightBtn = buildArrowButton(
       ui, root, rootName ~ "RightBtn", arrowW, arrowH,
-      isRow ? ">" : "v", tabScrollRightEvent
+      ax.incArrow(), tabScrollRightEvent
     );
 
     root.update(WidgetUpdateScope.parentView);
@@ -1001,6 +822,7 @@ private:
       registry, root, leftBtn, scrollViewport, tabsContainer, rightBtn
     );
   }
+
   Widget buildArrowButton(
     UiSystem ui,
     Widget root,
@@ -1010,20 +832,15 @@ private:
     string label,
     string eventName
   ) {
-    return WidgetBuilder.make(ui)
-      .parent(root)
-      .name(name)
-      .rect(RectF(0, 0, w, h))
-      .fixedSize(w, h)
-      .padding(Insets(2, 4, 2, 4))
-      .roundBg(btnStyle.disabledBg)
-      .bgRadius(btnStyle.cornerRadius)
-      .border(btnStyle.disabledBorder)
-      .borderWidth(1.0f)
-      .text(label)
-      .textColor(btnStyle.disabledText)
-      .fontSize(btnStyle.fontSize)
-      .textAlign(TextLabel.Alignment.center)
+    ButtonFace face;
+    face.colors = btnStyle.disabled;
+    face.width = w;
+    face.height = h;
+    face.cornerRadius = btnStyle.button.cornerRadius;
+    face.borderWidth = 1.0f;
+    face.fontSize = btnStyle.button.fontSize;
+    face.padding = Insets(2, 4, 2, 4);
+    return styledButton(ui, root, name, label, face)
       .onMouseDown(eventName)
       .inputEnabled(false)
       .visible(false)
@@ -1035,16 +852,17 @@ private:
     Widget root,
     string rootName,
     RectF rect,
-    bool isRow,
+    Axis ax,
     out Widget tabsContainer
   ) {
+    const float crossSize = ax.isRow
+      ? btnStyle.button.height
+      : btnStyle.button.width;
     auto scrollViewport = WidgetBuilder.make(ui)
       .parent(root)
       .name(rootName ~ "Viewport")
       .rect(RectF(0, 0, rect.width, rect.height))
-      .sizeComponent(
-        isRow ? Size.fraction(1.0f, 0.0f) : Size.fraction(0.0f, 1.0f)
-      )
+      .sizeComponent(ax.fillMainFixedCross(crossSize))
       .minWidth(1.0f)
       .minHeight(1.0f)
       .scrollableArea()
@@ -1052,13 +870,6 @@ private:
       .onScrollChanged(tabScrollChangedEvent)
       .clipChildren(true)
       .build();
-    if (isRow) {
-      scrollViewport.components.size.height =
-        Dimension(btnStyle.buttonHeight, SizingMode.fixed);
-    } else {
-      scrollViewport.components.size.width =
-        Dimension(btnStyle.buttonWidth, SizingMode.fixed);
-    }
 
     auto provider = new TabButtonsProvider(ui, tabsTracker.model, btnStyle);
     tabsContainer = WidgetBuilder.make(ui)
@@ -1086,20 +897,16 @@ private:
     Widget tabsContainer,
     Widget rightBtn
   ) {
-    if (registry is null) {
-      return;
-    }
-    if (WidgetView wv = registry.widgetViews.getByName(
-        tabControlWidgetViewName
+    if (auto tcv = findWidgetView!TabControlWidgetView(
+        registry, tabControlWidgetViewName
       )) {
-      if (auto tcv = cast(TabControlWidgetView) wv) {
-        tcv.registerTabControl(
-          root, tabsTracker, leftBtn, scrollViewport,
-          tabsContainer, rightBtn, btnStyle, flexDir
-        );
-      }
+      tcv.registerTabControl(
+        root, tabsTracker, leftBtn, scrollViewport,
+        tabsContainer, rightBtn, btnStyle, flexDir
+      );
     }
   }
+
   ModelTracker!TabsModel tabsTracker;
   bool hasModel = false;
   string eventName = defaultTabControlEventName;
@@ -1117,15 +924,14 @@ private:
  */
 TabControlWidgetViewController registerTabControl(UiSystem ui) {
   assert(ui !is null, "ui must not be null");
-  auto view = new TabControlWidgetView();
-  auto ctrl = new TabControlWidgetViewController(ui);
-  ctrl.registerWidgetView(view);
-  ui.widgetViews.register(view.getWidgetViewName(), view);
-  ui.widgetViewControllers.register(ctrl.getControllerName(), ctrl);
-  return ctrl;
+  return registerWidgetViewPair!(
+    TabControlWidgetView,
+    TabControlWidgetViewController
+  )(ui);
 }
 
 unittest {
+  import yguilib.controls.tab_button : tabActiveBg, tabInactiveBg;
   import yguilib.events.builder : ViewAppEventBuilder;
   import yguilib.internal.uisystem_impl : UiSystemImpl;
 
