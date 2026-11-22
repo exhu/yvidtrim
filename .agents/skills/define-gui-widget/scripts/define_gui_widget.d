@@ -914,7 +914,7 @@ string systemTemplatePart2() {
       .textColor(cfg.text)
       .fontSize(cfg.fontSize)
       .textAlign(TextLabel.Alignment.center)
-      .inputEnabled(true)
+      .handleInput(true)
       .component(new __NAME__Component(actionEvent))
       .build();
   }

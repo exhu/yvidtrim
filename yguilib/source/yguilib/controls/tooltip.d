@@ -125,7 +125,6 @@ struct TooltipLayerBuilder {
       .name(layerName)
       .rect(RectF(0, 0, 0, 0))
       .visible(true)
-      .inputEnabled(false)
       .autoSize()
       .anchorLeft(0.0f)
       .anchorTop(0.0f)
@@ -147,7 +146,6 @@ private:
       .name(popupName)
       .rect(RectF(0, 0, 0, 0))
       .visible(false)
-      .inputEnabled(false)
       .autoSize()
       .padding(config.padding)
       .maxWidth(config.maxWidth)
@@ -210,7 +208,7 @@ bool isDescendantOrSelf(
 }
 
 /// Front-to-back unobstructed hit-test for tooltips.
-/// Checks only `visible`, `inputEnabled`, and `Tooltip` (never painting
+/// Checks only `visible`, `handleInput`, and `Tooltip` (never painting
 /// components). `tooltipLayer` is allowed to be null.
 Widget findUnobstructedTooltipTarget(
   VisibleWidgets widgets,
@@ -233,7 +231,7 @@ Widget findUnobstructedTooltipTarget(
     }
 
     auto tt = w.components.get!Tooltip();
-    if (!w.inputEnabled && tt is null) {
+    if (!w.handleInput && tt is null) {
       continue;
     }
     if (tt !is null && tt.enabled && tt.resolveText(w).length > 0) {
@@ -844,7 +842,7 @@ unittest {
   assert(layer.parent is root);
   assert(layer.name == "appTooltipLayer");
   assert(layer.visible);
-  assert(!layer.inputEnabled);
+  assert(!layer.handleInput);
   assert(layer.components.background is null);
   assert(layer.components.border is null);
   assert(layer.components.anchor !is null);
@@ -858,7 +856,7 @@ unittest {
   assert(popup.parent is layer);
   assert(popup.name == "appTooltipLayerPopup");
   assert(!popup.visible);
-  assert(!popup.inputEnabled);
+  assert(!popup.handleInput);
   assert(popup.components.background !is null);
   assert(popup.components.background.style == Background.Style.round);
   assert(popup.components.border !is null);
@@ -910,7 +908,7 @@ unittest {
     .parent(root)
     .name("btn")
     .rect(RectF(20, 20, 100, 40))
-    .inputEnabled(true)
+    .handleInput(true)
     .text("Save")
     .component(Tooltip.withText("Save document"))
     .build();
@@ -919,7 +917,6 @@ unittest {
     .parent(root)
     .name("passThrough")
     .rect(RectF(0, 0, 400, 300))
-    .inputEnabled(false)
     .build();
 
   auto modalBackdrop = WidgetBuilder.make(ui)
@@ -927,7 +924,7 @@ unittest {
     .name("modalBackdrop")
     .rect(RectF(0, 0, 400, 300))
     .visible(true)
-    .inputEnabled(true)
+    .handleInput(true)
     .build();
   assert(modalBackdrop.components.background is null);
 
@@ -946,7 +943,7 @@ unittest {
     findUnobstructedTooltipTarget(listPass, PointF(50, 35), layer) is btn
   );
 
-  // Transparent modal backdrop (visible=true, inputEnabled=true, no Background)
+  // Transparent modal backdrop (visible=true, handleInput=true, no Background)
   // on top DOES obstruct.
   VisibleWidgets listBlocked = [
     VisibleWidget(root, RectF(0, 0, 400, 300), false, RectF.init),
@@ -986,7 +983,7 @@ unittest {
     .parent(root)
     .name("btn")
     .rect(RectF(20, 20, 100, 40))
-    .inputEnabled(true)
+    .handleInput(true)
     .text("Play")
     .component(Tooltip.withText("Start playback"))
     .build();
@@ -1108,7 +1105,7 @@ unittest {
     .parent(root)
     .name("cornerBtn")
     .rect(RectF(250, 160, 40, 30))
-    .inputEnabled(true)
+    .handleInput(true)
     .component(Tooltip.withText("Tooltip near bottom-right corner"))
     .build();
 
@@ -1183,7 +1180,7 @@ unittest {
     .parent(root)
     .name("btn")
     .rect(RectF(10, 10, 80, 30))
-    .inputEnabled(true)
+    .handleInput(true)
     .component(Tooltip.withText("Release me"))
     .build();
   auto layer = createTooltipLayer(ui, root, TooltipStyle.init, "ttLayer");

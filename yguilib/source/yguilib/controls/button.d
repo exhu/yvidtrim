@@ -21,7 +21,9 @@
  *   to the button. Dragging off un-sinks the button and cancels the action
  *   unless the pointer is dragged back before release.
  * - Disabled state: `Widget.inputEnabled` is the enabled flag; change it
- *   with `Widget.setInputEnabled` (marks the widget dirty). The system
+ *   with `Widget.setInputEnabled` (marks the widget dirty). Hittability is
+ *   the separate `Widget.handleInput` flag (set by the button builder), so
+ *   a disabled button still blocks clicks to widgets behind it. The system
  *   ignores buttons with `inputEnabled == false`, and in `postLayout` syncs
  *   visible buttons whose flag changed: muted `ButtonStyle.disabled`
  *   colours are applied (or normal ones restored) and any press cancelled.

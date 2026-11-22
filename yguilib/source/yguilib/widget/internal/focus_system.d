@@ -8,6 +8,13 @@ import yguilib.widget.system : SystemEventResult, SystemPhase,
   WidgetSystem, WidgetSystemContext;
 import yguilib.widget.visible : VisibleWidget, VisibleWidgets;
 
+/**
+ * Keyboard focus (not built yet; see the TODO "focus system" item). Planned
+ * rule: key events go to the focused widget that has a `KeyboardEvent`, and
+ * only while its `Widget.inputEnabled` is true. Disabled widgets can't take
+ * focus. `Widget.handleInput` (hittable/blocking) affects pointer input only
+ * and plays no part in keyboard routing.
+ */
 final class FocusSystem : WidgetSystem {
   // TODO needs to cache widgets to map distance, detect which widget is
   // next/prev in focusing for convenient arrow/gamepad navigation

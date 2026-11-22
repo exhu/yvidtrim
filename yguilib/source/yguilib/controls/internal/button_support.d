@@ -144,7 +144,8 @@ mixin template ButtonBuilderCommon() {
 
   /**
    * Creates a `WidgetBuilder` with name, rect, size, anchor, padding, face
-   * style, optional tooltip and input enabled. `parent` may be null. Callers
+   * style, optional tooltip and `handleInput` (hittable, so even a button
+   * with no mouse events blocks the pointer). `parent` may be null. Callers
    * attach their own component(s) and call `build()` on the result.
    */
   WidgetBuilder makeButtonBase(
@@ -176,7 +177,8 @@ mixin template ButtonBuilderCommon() {
     if (hasTooltip) {
       b.component(Tooltip.withText(tooltipHint));
     }
-    b.inputEnabled(true);
+    // Hittable even without mouse events (e.g. a tooltip-only button).
+    b.handleInput(true);
     return b;
   }
 }
@@ -340,6 +342,7 @@ unittest {
   assert(btn !is null);
   assert(btn.name == "testButton");
   assert(btn.inputEnabled);
+  assert(btn.handleInput);
   assert(btn.components.background !is null);
   assert(btn.components.background.color == ColorF(0.1f, 0.2f, 0.3f, 1.0f));
   assert(btn.components.border !is null);

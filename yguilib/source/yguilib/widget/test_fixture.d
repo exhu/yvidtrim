@@ -251,12 +251,14 @@ class WidgetFixture {
     return w;
   }
 
-  /// Attaches a MouseEvent component with a mouseDown event name.
+  /// Attaches a MouseEvent component with a mouseDown event name and makes
+  /// the widget hittable (`handleInput`), like `WidgetBuilder.onMouseDown`.
   Widget withMouseEvent(Widget w, string onClick) {
     assert(w !is null);
     auto me = new MouseEvent();
     me.mouseDown = onClick;
     w.components.mouseEvent = me;
+    w.handleInput = true;
     return w;
   }
 
@@ -426,6 +428,7 @@ unittest {
   fix.withMouseEvent(child2, "customClick");
   assert(child2.components.mouseEvent !is null);
   assert(child2.components.mouseEvent.mouseDown == "customClick");
+  assert(child2.handleInput);
 
   fix.withView(root, ["btn": "action"]);
   assert(root.components.view !is null);

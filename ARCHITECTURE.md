@@ -118,6 +118,15 @@ Phase 1: UiSystemImpl.drainMessageBus()
                     ViewComponent.renameEvents ──► UiSystem.sendAppEvent()
 ```
 
+**Input flags**: `Widget.handleInput` (default false) makes a widget
+hittable: it takes part in pointer hit-tests and blocks click/hover-through
+to widgets behind it (`WidgetBuilder.onMouse*`/`cursorCapture` set it).
+`Widget.inputEnabled` (default true) is the enabled state: disabled visuals,
+no mouse view events, drag or capture. A disabled hittable widget swallows
+clicks silently. Keyboard (planned, `FocusSystem`): keys go to the focused
+widget with a `KeyboardEvent` only if `inputEnabled`; disabled widgets can't
+take focus; `handleInput` is pointer-only.
+
 **Cursor capture modes** (`MouseEvent.cursorCapture`, `CursorCapture` enum,
 set via `WidgetBuilder.onMouseDrag(name, mode)`), applied by
 `InputSystem.syncCursorCapture` while a button pressed on the widget is held:

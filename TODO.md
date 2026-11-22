@@ -1,9 +1,3 @@
-- Decide on Widget.handleInput vs Widget.inputEnabled, how should keyboard
-events treated on Widgets regarding handleInput? Check where inputEnabled is
-used to track if Widget is hittable e.g. if handleInput is true, then the widget
-participates in mouse click test and prevents clicking through under the Widget
-behind it, while inputEnabled just optionally affects the visual state, and
-weather the clicks should generate attached view events.
 - build widget library
 -- checkbox
 -- combobox

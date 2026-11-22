@@ -51,13 +51,17 @@ final class WidgetBuilder {
     return this;
   }
 
-  /// Enables or disables input handling on this widget.
+  /// Sets the enabled state (`Widget.inputEnabled`, default true). A disabled
+  /// widget shows disabled visuals and emits no mouse view events, drag or
+  /// cursor capture; with `handleInput` it still blocks the pointer.
   WidgetBuilder inputEnabled(bool enabled) {
     fWidget.inputEnabled = enabled;
     return this;
   }
 
-  /// Sets whether this widget intercepts raw input events.
+  /// Sets whether this widget is hittable (`Widget.handleInput`): it takes
+  /// part in pointer hit-tests and blocks click/hover-through to widgets
+  /// behind it. Set implicitly by every `onMouse*` and `cursorCapture`.
   WidgetBuilder handleInput(bool handle) {
     fWidget.handleInput = handle;
     return this;
@@ -555,16 +559,14 @@ final class WidgetBuilder {
     return this;
   }
 
-  /// Sets the mouse-down view event name and enables input on the widget.
+  /// Sets the mouse-down view event name and makes the widget hittable.
   WidgetBuilder onMouseDown(string eventName) {
-    fWidget.inputEnabled = true;
     ensureMouseEvent().mouseDown = eventName;
     return this;
   }
 
-  /// Sets the mouse-up view event name and enables input on the widget.
+  /// Sets the mouse-up view event name and makes the widget hittable.
   WidgetBuilder onMouseUp(string eventName) {
-    fWidget.inputEnabled = true;
     ensureMouseEvent().mouseUp = eventName;
     return this;
   }
@@ -587,10 +589,9 @@ final class WidgetBuilder {
     return this;
   }
 
-  /// Sets the mouse-drag view event name, enables input, and sets cursor
-  /// capture.
+  /// Sets the mouse-drag view event name, makes the widget hittable, and
+  /// sets cursor capture.
   WidgetBuilder onMouseDrag(string eventName, CursorCapture capture) {
-    fWidget.inputEnabled = true;
     auto me = ensureMouseEvent();
     me.mouseDrag = eventName;
     me.cursorCapture = capture;
@@ -864,7 +865,9 @@ private:
     return fWidget.components.debugDraw;
   }
 
+  // Every mouse hook makes the widget hittable (`handleInput`).
   MouseEvent ensureMouseEvent() {
+    fWidget.handleInput = true;
     if (fWidget.components.mouseEvent is null) {
       fWidget.components.mouseEvent = new MouseEvent();
     }
@@ -981,6 +984,7 @@ unittest {
   assert(c1.components.textLabel.multiline);
   assert(!c1.components.textLabel.overflowEllipsis);
   assert(c1.inputEnabled);
+  assert(c1.handleInput);
   assert(c1.components.mouseEvent.mouseDown == "child1Click");
 
   auto c2 = root.children[1];

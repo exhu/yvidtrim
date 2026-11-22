@@ -149,10 +149,13 @@ private:
         continue;
 
       Widget w = vw.widget;
-      if (w.components.mouseEvent !is null) {
-        if (!w.inputEnabled)
-          return;
+      // Widgets without `handleInput` are transparent to the pointer.
+      if (!w.handleInput)
+        continue;
 
+      // The first hittable widget is the target and always blocks; a
+      // disabled one (or one without MouseEvent) swallows the press.
+      if (w.components.mouseEvent !is null && w.inputEnabled) {
         if (btn < maxMouseButtons) {
           pressedWidgets[btn] = w;
           lastPressPos = p;
@@ -167,14 +170,8 @@ private:
           );
           sendMouseEvent(w, w.components.mouseEvent.mouseDown, val);
         }
-        return;
       }
-
-      if (w.components.keyboardEvent !is null)
-        continue;
-
-      if (w.inputEnabled)
-        return;
+      return;
     }
   }
 
@@ -451,12 +448,7 @@ ptrdiff_t findHoverTargetIndex(VisibleWidgets widgets, PointF p) {
   foreach_reverse (idx, ref VisibleWidget vw; widgets) {
     if (!isHit(vw, p))
       continue;
-    Widget w = vw.widget;
-    if (w.components.mouseEvent !is null)
-      return idx;
-    if (w.components.keyboardEvent !is null)
-      continue;
-    if (w.inputEnabled)
+    if (vw.widget.handleInput)
       return idx;
   }
   return -1;
@@ -622,7 +614,7 @@ unittest {
   auto inputSys = new InputSystem(testUi);
 
   auto btnWidget = fix.makeRootWithRect(RectF(10, 10, 100, 50));
-  btnWidget.inputEnabled = true;
+  btnWidget.handleInput = true;
   btnWidget.components.mouseEvent = new MouseEvent;
   btnWidget.components.mouseEvent.mouseDown = "btnDown";
   btnWidget.components.mouseEvent.mouseUp = "btnUp";
@@ -678,7 +670,7 @@ unittest {
   auto inputSys = new InputSystem(testUi);
 
   auto hoverWidget = fix.makeRootWithRect(RectF(50, 50, 100, 100));
-  hoverWidget.inputEnabled = true;
+  hoverWidget.handleInput = true;
   hoverWidget.components.mouseEvent = new MouseEvent;
   hoverWidget.components.mouseEvent.mouseEnter = "hoverEnter";
   hoverWidget.components.mouseEvent.mouseMove = "hoverMove";
@@ -737,14 +729,14 @@ unittest {
   auto inputSys = new InputSystem(testUi);
 
   auto parentBox = fix.makeRootWithRect(RectF(0, 0, 200, 200));
-  parentBox.inputEnabled = true;
+  parentBox.handleInput = true;
   parentBox.components.mouseEvent = new MouseEvent;
   parentBox.components.mouseEvent.mouseEnter = "parentEnter";
   parentBox.components.mouseEvent.mouseMove = "parentMove";
   parentBox.components.mouseEvent.mouseLeave = "parentLeave";
 
   auto childBox = fix.makeChildWithRect(parentBox, RectF(50, 50, 50, 50));
-  childBox.inputEnabled = true;
+  childBox.handleInput = true;
   childBox.components.mouseEvent = new MouseEvent;
   childBox.components.mouseEvent.mouseEnter = "childEnter";
   childBox.components.mouseEvent.mouseMove = "childMove";
@@ -792,7 +784,7 @@ unittest {
   auto inputSys = new InputSystem(testUi);
 
   auto clippedWidget = fix.makeRootWithRect(RectF(0, 0, 100, 100));
-  clippedWidget.inputEnabled = true;
+  clippedWidget.handleInput = true;
   clippedWidget.components.mouseEvent = new MouseEvent;
   clippedWidget.components.mouseEvent.mouseEnter = "clipEnter";
 
@@ -818,13 +810,13 @@ unittest {
   auto inputSys = new InputSystem(testUi);
 
   auto underBtn = fix.makeRootWithRect(RectF(0, 0, 100, 50));
-  underBtn.inputEnabled = true;
+  underBtn.handleInput = true;
   underBtn.components.mouseEvent = new MouseEvent;
   underBtn.components.mouseEvent.mouseDown = "underDown";
   underBtn.components.mouseEvent.mouseUp = "underUp";
 
   auto plainPanel = fix.makeRootWithRect(RectF(0, 0, 100, 50));
-  plainPanel.inputEnabled = true; // no *Event components
+  plainPanel.handleInput = true; // no *Event components
 
   VisibleWidgets visPanelOverBtn = [
     VisibleWidget(underBtn, RectF(0, 0, 100, 50), false, RectF.init),
@@ -842,6 +834,7 @@ unittest {
 
   // T14: Disabled MouseEvent over enabled button consumes silently
   auto disabledBtn = fix.makeRootWithRect(RectF(0, 0, 100, 50));
+  disabledBtn.handleInput = true;
   disabledBtn.inputEnabled = false;
   disabledBtn.components.mouseEvent = new MouseEvent;
   disabledBtn.components.mouseEvent.mouseDown = "disabledDown";
@@ -853,13 +846,12 @@ unittest {
   inputSys.handleEventAndUpdateView(downEv, visDisOverBtn);
   assert(testUi.sentEvents.length == 0);
 
-  // T15: Transparent child label without components inside button
+  // T15: Transparent child label (handleInput == false) inside button
   auto btnWithLabel = fix.makeRootWithRect(RectF(0, 0, 100, 50));
-  btnWithLabel.inputEnabled = true;
+  btnWithLabel.handleInput = true;
   btnWithLabel.components.mouseEvent = new MouseEvent;
   btnWithLabel.components.mouseEvent.mouseDown = "labelParentDown";
   auto childLabel = fix.makeChildWithRect(btnWithLabel, RectF(10, 10, 30, 20));
-  childLabel.inputEnabled = false;
   VisibleWidgets visLabelInBtn = [
     VisibleWidget(btnWithLabel, RectF(0, 0, 100, 50), false, RectF.init),
     VisibleWidget(childLabel, RectF(10, 10, 30, 20), false, RectF.init)
@@ -893,6 +885,103 @@ unittest {
   assert(upVal.localX == 300.0f);
 }
 
+// Verifies a disabled plain panel with handleInput over a button blocks the
+// click: no events reach the button or the panel.
+unittest {
+  import yguilib.widget.test_fixture : WidgetFixture;
+
+  auto fix = new WidgetFixture();
+  auto testUi = new TestUiSystem;
+  auto inputSys = new InputSystem(testUi);
+
+  auto underBtn = fix.makeRootWithRect(RectF(0, 0, 100, 50));
+  underBtn.handleInput = true;
+  underBtn.components.mouseEvent = new MouseEvent;
+  underBtn.components.mouseEvent.mouseDown = "underDown";
+  underBtn.components.mouseEvent.mouseUp = "underUp";
+  underBtn.components.mouseEvent.mouseEnter = "underEnter";
+
+  auto panel = fix.makeRootWithRect(RectF(0, 0, 100, 50));
+  panel.handleInput = true;
+  panel.inputEnabled = false;
+
+  VisibleWidgets vis = [
+    VisibleWidget(underBtn, RectF(0, 0, 100, 50), false, RectF.init),
+    VisibleWidget(panel, RectF(0, 0, 100, 50), false, RectF.init)
+  ];
+
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseMotion,
+      AppEvent.MouseData(1, 20.0f, 20.0f, 0, 0, 0, 0, false, 0)
+    ),
+    vis
+  );
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseButtonDown,
+      AppEvent.MouseData(1, 20.0f, 20.0f, 0, 0, 0, 1, true, 1)
+    ),
+    vis
+  );
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseButtonUp,
+      AppEvent.MouseData(1, 20.0f, 20.0f, 0, 0, 0, 1, false, 1)
+    ),
+    vis
+  );
+  assert(testUi.sentEvents.length == 0);
+}
+
+// Verifies a widget with a MouseEvent but handleInput == false is not hit:
+// the click and hover reach the hittable widget below it.
+unittest {
+  import yguilib.widget.test_fixture : WidgetFixture;
+
+  auto fix = new WidgetFixture();
+  auto testUi = new TestUiSystem;
+  auto inputSys = new InputSystem(testUi);
+
+  auto underBtn = fix.makeRootWithRect(RectF(0, 0, 100, 50));
+  underBtn.handleInput = true;
+  underBtn.components.mouseEvent = new MouseEvent;
+  underBtn.components.mouseEvent.mouseDown = "underDown";
+  underBtn.components.mouseEvent.mouseEnter = "underEnter";
+
+  auto overW = fix.makeRootWithRect(RectF(0, 0, 100, 50));
+  assert(!overW.handleInput);
+  overW.components.mouseEvent = new MouseEvent;
+  overW.components.mouseEvent.mouseDown = "overDown";
+  overW.components.mouseEvent.mouseEnter = "overEnter";
+
+  VisibleWidgets vis = [
+    VisibleWidget(underBtn, RectF(0, 0, 100, 50), false, RectF.init),
+    VisibleWidget(overW, RectF(0, 0, 100, 50), false, RectF.init)
+  ];
+
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseMotion,
+      AppEvent.MouseData(1, 20.0f, 20.0f, 0, 0, 0, 0, false, 0)
+    ),
+    vis
+  );
+  assert(testUi.sentEvents.length == 1);
+  assert(testUi.sentEvents[0].view.eventName == "underEnter");
+
+  testUi.sentEvents = null;
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseButtonDown,
+      AppEvent.MouseData(1, 20.0f, 20.0f, 0, 0, 0, 1, true, 1)
+    ),
+    vis
+  );
+  assert(testUi.sentEvents.length == 1);
+  assert(testUi.sentEvents[0].view.eventName == "underDown");
+}
+
 // Tests 17-20: Up without down, down on A up on B, and updateParentViews.
 unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
@@ -902,13 +991,13 @@ unittest {
   auto inputSys = new InputSystem(testUi);
 
   auto btnA = fix.makeRootWithRect(RectF(0, 0, 50, 50));
-  btnA.inputEnabled = true;
+  btnA.handleInput = true;
   btnA.components.mouseEvent = new MouseEvent;
   btnA.components.mouseEvent.mouseDown = "aDown";
   btnA.components.mouseEvent.mouseUp = "aUp";
 
   auto btnB = fix.makeRootWithRect(RectF(60, 0, 50, 50));
-  btnB.inputEnabled = true;
+  btnB.handleInput = true;
   btnB.components.mouseEvent = new MouseEvent;
   btnB.components.mouseEvent.mouseDown = "bDown";
   btnB.components.mouseEvent.mouseUp = "bUp";
@@ -962,7 +1051,8 @@ unittest {
   assert(testUi.sentEvents[0].view.eventName == "renamedClick");
 }
 
-// Tests 21-25: refreshHover, transparent overlay, and KeyboardEvent bypass.
+// Tests 21-25: refreshHover, transparent overlay, and KeyboardEvent-only
+// widget transparency (no handleInput).
 unittest {
   import yguilib.widget.input_components : KeyboardEvent;
   import yguilib.widget.test_fixture : WidgetFixture;
@@ -972,7 +1062,7 @@ unittest {
   auto inputSys = new InputSystem(testUi);
 
   auto movingBtn = fix.makeRootWithRect(RectF(0, 0, 100, 100));
-  movingBtn.inputEnabled = true;
+  movingBtn.handleInput = true;
   movingBtn.components.mouseEvent = new MouseEvent;
   movingBtn.components.mouseEvent.mouseEnter = "btnEnter";
   movingBtn.components.mouseEvent.mouseLeave = "btnLeave";
@@ -1001,7 +1091,7 @@ unittest {
   // T24: Transparent overlay passes hover through to underlying widget
   testUi.sentEvents = null;
   auto overlay = fix.makeRootWithRect(RectF(0, 0, 100, 100));
-  overlay.inputEnabled = false; // transparent
+  // transparent: handleInput is false by default
   VisibleWidgets visOverlay = [
     VisibleWidget(movingBtn, RectF(0, 0, 100, 100), false, RectF.init),
     VisibleWidget(overlay, RectF(0, 0, 100, 100), false, RectF.init)
@@ -1011,9 +1101,10 @@ unittest {
   assert(testUi.sentEvents[0].view.eventName == "btnEnter");
 
   // T25: KeyboardEvent-only widget over button passes clicks through
+  // because it is not hittable (handleInput == false); handleInput covers
+  // pointer input only.
   testUi.sentEvents = null;
   auto kbWidget = fix.makeRootWithRect(RectF(0, 0, 100, 100));
-  kbWidget.inputEnabled = true;
   kbWidget.components.keyboardEvent = new KeyboardEvent;
   movingBtn.components.mouseEvent.mouseDown = "btnDown";
 
@@ -1044,7 +1135,7 @@ unittest {
   WidgetSystemContext ctx;
   ctx.host = testUi;
   auto btn = fix.makeRootWithRect(RectF(0, 0, 100, 100));
-  btn.inputEnabled = true;
+  btn.handleInput = true;
   ctx.visibleWidgets = [
     VisibleWidget(btn, RectF(0, 0, 100, 100), false, RectF.init)
   ];
@@ -1071,13 +1162,13 @@ unittest {
   auto inputSys = new InputSystem(testUi);
 
   auto parentBox = fix.makeRootWithRect(RectF(0, 0, 200, 200));
-  parentBox.inputEnabled = true;
+  parentBox.handleInput = true;
   parentBox.components.mouseEvent = new MouseEvent;
   parentBox.components.mouseEvent.mouseEnter = "parentEnter";
   parentBox.components.mouseEvent.mouseLeave = "parentLeave";
 
   auto childBox = fix.makeChildWithRect(parentBox, RectF(50, 50, 50, 50));
-  childBox.inputEnabled = true;
+  childBox.handleInput = true;
   childBox.components.mouseEvent = new MouseEvent;
   childBox.components.mouseEvent.mouseEnter = "childEnter";
   childBox.components.mouseEvent.mouseLeave = "childLeave";
@@ -1141,7 +1232,7 @@ unittest {
   auto inputSys = new InputSystem(testUi);
 
   auto dragBox = fix.makeRootWithRect(RectF(20, 30, 80, 40));
-  dragBox.inputEnabled = true;
+  dragBox.handleInput = true;
   dragBox.components.mouseEvent = new MouseEvent;
   dragBox.components.mouseEvent.mouseDown = "dragDown";
   dragBox.components.mouseEvent.mouseDrag = "dragMove";
@@ -1218,7 +1309,7 @@ unittest {
   auto inputSys = new InputSystem(testUi);
 
   auto knob = fix.makeRootWithRect(RectF(20, 30, 80, 40));
-  knob.inputEnabled = true;
+  knob.handleInput = true;
   knob.components.mouseEvent = new MouseEvent;
   knob.components.mouseEvent.mouseDown = "knobDown";
   knob.components.mouseEvent.mouseDrag = "knobDrag";
@@ -1226,7 +1317,7 @@ unittest {
   knob.components.mouseEvent.cursorCapture = CursorCapture.lock;
 
   auto other = fix.makeRootWithRect(RectF(200, 200, 50, 50));
-  other.inputEnabled = true;
+  other.handleInput = true;
   other.components.mouseEvent = new MouseEvent;
   other.components.mouseEvent.mouseEnter = "otherEnter";
 
@@ -1313,7 +1404,7 @@ unittest {
   auto inputSys = new InputSystem(testUi);
 
   auto knob = fix.makeRootWithRect(RectF(0, 0, 50, 50));
-  knob.inputEnabled = true;
+  knob.handleInput = true;
   knob.components.mouseEvent = new MouseEvent;
   knob.components.mouseEvent.mouseDrag = "knobDrag";
   knob.components.mouseEvent.cursorCapture = CursorCapture.lock;

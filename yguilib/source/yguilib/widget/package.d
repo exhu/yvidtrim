@@ -432,9 +432,10 @@ final class Widget {
     return true;
   }
 
-  /// Sets `inputEnabled` (the widget's enabled/disabled state). If unchanged
-  /// or released, returns false. If changed, marks visuals-dirty so systems
-  /// reacting to the state (e.g. muted button colours) run on the next frame.
+  /// Sets `inputEnabled` (the widget's enabled/disabled state; hittability
+  /// is `handleInput`). If unchanged or released, returns false. If changed,
+  /// marks visuals-dirty so systems reacting to the state (e.g. muted button
+  /// colours) run on the next frame.
   bool setInputEnabled(bool enabled) {
     if (fReleased || inputEnabled == enabled) {
       return false;
@@ -577,12 +578,20 @@ final class Widget {
   RectF rect;
   /// it is not allowed to change available components after initialization
   WidgetComponents components;
-  /// marks Widget if it accepts touch/mouse input (e.g. mouse clicks)
+  /// marks Widget if it accepts touch/mouse input (e.g. mouse clicks):
+  /// when true the widget takes part in pointer hit-tests and blocks
+  /// click/hover-through to widgets behind it; when false it is transparent
+  /// to the pointer. Covers pointer input only.
   bool handleInput = false;
   bool clipContents = true;
   bool clipChildren = false;
   bool visible = true;
-  bool inputEnabled = false;
+  /** Enabled state (default true). When false the widget shows disabled
+   * visuals and no mouse view events, drag or cursor capture are produced
+   * for it. A disabled widget with `handleInput` still blocks the pointer.
+   * Keyboard input (future focus system) also requires it.
+   */
+  bool inputEnabled = true;
 
   /// points to parent widget in hierarchy
   @property inout(Widget) parent() inout nothrow @safe @nogc {
@@ -944,6 +953,7 @@ unittest {
   assert(item.components.textLabel !is null);
   assert(item.components.textLabel.caption == "Button");
   assert(item.inputEnabled);
+  assert(item.handleInput);
   assert(item.components.mouseEvent !is null);
   assert(item.components.mouseEvent.mouseDown == "btnClick");
   assert(item.clipContents);
@@ -1287,7 +1297,7 @@ unittest {
   assert(cf["name"].str == "SimpleChild");
   assert(cf["visible"].boolean == true);
   assert(cf["handleInput"].boolean == false);
-  assert(cf["inputEnabled"].boolean == false);
+  assert(cf["inputEnabled"].boolean == true);
   assert("parentUId" !in cf);
   assert("children" !in cf);
 
