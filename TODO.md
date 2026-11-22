@@ -1,3 +1,4 @@
+- reuse simple button (yguilib/controls/button.d) for tabControl, scrollbars, remove tab_button.d if it's no longer necessary, and whatever is used for arrow buttons in both.
 - build widget library
 -- checkbox
 -- combobox
