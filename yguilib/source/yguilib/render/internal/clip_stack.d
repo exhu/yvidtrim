@@ -62,34 +62,70 @@ struct ClipStack {
     int pixelH,
     float scale
   ) {
+    const int[4] box = scissorBox(rect, pixelW, pixelH, scale);
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(box[0], box[1], box[2], box[3]);
+  }
+
+  /// Converts a logical clip rect into a GL scissor box
+  /// `[x, y, w, h]` (bottom-left origin) in whole pixels.
+  static int[4] scissorBox(
+    in RectF rect,
+    int pixelW,
+    int pixelH,
+    float scale
+  ) nothrow @safe @nogc {
+    import std.algorithm : max, min;
+    import std.math : ceil, floor;
+
     float px = rect.x * scale;
     float py = rect.y * scale;
     float pw = rect.width * scale;
     float ph = rect.height * scale;
 
-    import std.algorithm : max, min;
     float clampedX = max(0.0f, px);
     float clampedY = max(0.0f, py);
     float clampedRight = min(cast(float)pixelW, px + pw);
     float clampedBottom = min(cast(float)pixelH, py + ph);
 
-    float w = clampedRight - clampedX;
-    float h = clampedBottom - clampedY;
-    if (w < 0.0f) {
-      w = 0.0f;
-    }
-    if (h < 0.0f) {
-      h = 0.0f;
-    }
+    // Snap outward to whole pixels: floor the left/top edges and ceil the
+    // right/bottom edges independently. Truncating origin and size
+    // separately would pull the right/bottom edge inward by up to ~2 px
+    // for fractional rects (e.g. cursor-positioned tooltips).
+    const float left = min(floor(clampedX), cast(float)pixelW);
+    const float top = min(floor(clampedY), cast(float)pixelH);
+    const float right = max(left, ceil(clampedRight));
+    const float bottom = max(top, ceil(clampedBottom));
 
-    int glX = cast(int)clampedX;
-    int glY = cast(int)(pixelH - (clampedY + h));
-    int glW = cast(int)w;
-    int glH = cast(int)h;
-
-    glEnable(GL_SCISSOR_TEST);
-    glScissor(glX, glY, glW, glH);
+    return [
+      cast(int)left,
+      cast(int)(pixelH - bottom),
+      cast(int)(right - left),
+      cast(int)(bottom - top),
+    ];
   }
 
   private Appender!(RectF[]) stack;
+}
+
+unittest {
+  // Fractional origin and size: right/bottom edges must not shrink.
+  // x 10.7 + w 20.6 = right 31.3 -> scissor must cover [10, 32).
+  int[4] box = ClipStack.scissorBox(RectF(10.7f, 5.6f, 20.6f, 9.7f),
+    100, 50, 1.0f);
+  assert(box[0] == 10 && box[2] == 22);
+  // y 5.6 + h 9.7 = bottom 15.3 -> rows [5, 16), GL y = 50 - 16.
+  assert(box[1] == 34 && box[3] == 11);
+
+  // Integer rect is unchanged.
+  box = ClipStack.scissorBox(RectF(10, 5, 20, 10), 100, 50, 1.0f);
+  assert(box == [10, 35, 20, 10]);
+
+  // HiDPI scale and clamping to the framebuffer.
+  box = ClipStack.scissorBox(RectF(-5, 40, 80, 20), 100, 50, 1.5f);
+  assert(box == [0, 0, 100, 0]);
+
+  // Fully outside rect yields an empty box.
+  box = ClipStack.scissorBox(RectF(200, 10, 10, 10), 100, 50, 1.0f);
+  assert(box[2] == 0);
 }
