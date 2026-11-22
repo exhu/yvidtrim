@@ -1,6 +1,11 @@
-- guidemo: text hint (tooltip) popup layer widget, controller, system and component with
+- guidemo: text hint (tooltip) popup layer widget, system and component with
 hint displayed and animated transparency when cursor delays over a control to
-display the full text (currently buttons do not fit the whole text
+display the full text (currently buttons do not fit the whole text). Control is implemented in yguilib.controls,
+demonstrated in guidemo on buttons and tabs (hint text is the same as the text on the buttons, text
+in the hint may be multiline to fit, the size is limited by layer size. The tooltip layer is added as the
+over the top last widget (visible, but with no background and passes through all events) which using Size component covers the whole root widget, the tooltip is a child of that layer, a hidden
+control which appears fast when mouse is hold on a visible unobstructed widget with a Tooltip component and
+disappears animating when the mouse leaves the control with the tooltip component that activated it.
 
 - invent a text format to construct widget trees to allow for visual editing
 
