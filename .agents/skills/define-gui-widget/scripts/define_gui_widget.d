@@ -202,7 +202,11 @@ int runScanCommand(CliOptions opts) {
     opts.optList = true;
   }
 
-  string[] files = collectDSourceFiles(["yguilib/source", "source"]);
+  string[] files = collectDSourceFiles([
+    "yguilib/source",
+    "yguilib/examples",
+    "source",
+  ]);
   if (opts.filterTarget !is null) {
     files = files.filter!(f => f.canFind(opts.filterTarget)).array;
   }

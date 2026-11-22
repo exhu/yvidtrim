@@ -106,3 +106,29 @@ yguilib_test_exe = executable(
   dependencies : yguilib_deps,
 )
 test('yguilib_test', yguilib_test_exe)
+
+helloworld_inc = include_directories('examples')
+
+helloworld_lib_src = files(
+  'examples/helloworld/controller.d',
+  'examples/helloworld/model.d',
+  'examples/helloworld/view.d',
+)
+
+helloworld_exe = executable(
+  'helloworld',
+  helloworld_lib_src + files('examples/helloworld/app.d'),
+  include_directories : helloworld_inc,
+  d_import_dirs : [yguilib_inc, helloworld_inc],
+  dependencies : [yguilib_dep],
+)
+
+helloworld_test_exe = executable(
+  'helloworld_test',
+  helloworld_lib_src + files('source/yguilib/internal/test_main.d'),
+  d_unittest : true,
+  include_directories : helloworld_inc,
+  d_import_dirs : [yguilib_inc, helloworld_inc],
+  dependencies : [yguilib_dep],
+)
+test('helloworld_test', helloworld_test_exe)

@@ -51,6 +51,7 @@ yvidtrim/
 │   │   │   └── internal/virtlist_system.d # Recycling, layout & wheel scroll
 │   │   └── internal/      # UiSystemImpl, TimerService, UiSystemController
 │   ├── yguilib-clibs/     # Private C wrappers around SDL3 and SDL3_ttf
+│   ├── examples/helloworld/ # Standalone Hello World example executable
 │   └── assets/            # Embedded resources (fonts, shaders) via import("")
 ├── yvidtrim-clibs/        # Private C wrappers for editor (SDL3, FFmpeg future)
 └── subprojects/           # Meson subprojects (glad2gles31, glad2gles31d)

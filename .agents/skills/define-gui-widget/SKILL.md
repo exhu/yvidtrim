@@ -71,7 +71,11 @@ Before writing code, select the pattern that matches the control's lifecycle:
 
 ### Tier 1: Inline View Composition (`WidgetBuilder`)
 Use for structural sections (headers, footers, cards, panels) inside a View or
-Page class (see `source/guidemo/view.d`).
+Page class (see `source/guidemo/view.d`), and for simple clickable buttons that
+do not need hover/press animations (configure `.roundBg(...)`,
+`.roundBorder(...)`, `.text(...)`, `.textAlign(TextLabel.Alignment.center)`, and
+`.onMouseDown(...)` or `.onMouseUp(...)` directly on `WidgetBuilder`, without
+registering `AnimatedHoverButtonSystem`).
 - Construct widgets with `WidgetBuilder.make(ui)`.
 - Store references only to widgets mutated in `update()`.
 - Synchronize state in `View.update()` using `ModelTracker!M.update()`.

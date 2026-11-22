@@ -1,3 +1,6 @@
+- guidemo: does not use app.run now, probably need to change approach to
+allow user to push controllers as prefered instead of pushing/popping passed to run.
+
 - guidemo: text hint (tooltip) popup layer widget, controller, system and component with
 hint displayed and animated transparency when cursor delays over a control to
 display the full text (currently buttons do not fit the whole text
