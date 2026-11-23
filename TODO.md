@@ -1,4 +1,3 @@
-- review canvas and renderer implementation, look for repeated memory allocations
 - human review of canvas and renderer implementation
 - build widget library
 -- checkbox
