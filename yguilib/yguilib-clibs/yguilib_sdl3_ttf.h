@@ -167,6 +167,61 @@ yguilib_sdl3_ttf_Surface *yguilib_sdl3_ttf_render_text_blended(
   uint8_t a
 );
 
+/** One positioned glyph copy operation produced by layout_text. */
+typedef struct yguilib_sdl3_ttf_GlyphQuad {
+  uint32_t glyph_index;
+  /** Area within the glyph image (see render_glyph) to draw. */
+  int src_x;
+  int src_y;
+  int src_w;
+  int src_h;
+  /** Destination in pixels, relative to the text top-left. */
+  int dst_x;
+  int dst_y;
+  int dst_w;
+  int dst_h;
+} yguilib_sdl3_ttf_GlyphQuad;
+
+/**
+ * Lays out (shapes) text and returns per-glyph copy operations. Only glyph
+ * copies are reported (no underline/strikethrough fills). The font outline
+ * set with yguilib_sdl3_ttf_set_font_outline is included in the layout and
+ * in the glyph images.
+ *
+ * @param font Font handle.
+ * @param text UTF-8 text string.
+ * @param length Byte length of text.
+ * @param out Output array of quads (may be NULL when cap is 0).
+ * @param cap Capacity of out in quads.
+ * @param w Output pointer for text area width (may be NULL).
+ * @param h Output pointer for text area height (may be NULL).
+ * @return Total glyph count (call again with a bigger buffer if > cap),
+ *         0 for empty text, or -1 on error.
+ */
+int yguilib_sdl3_ttf_layout_text(
+  yguilib_sdl3_ttf_Font *font,
+  const char *text,
+  size_t length,
+  yguilib_sdl3_ttf_GlyphQuad *out,
+  int cap,
+  int *w,
+  int *h
+);
+
+/**
+ * Renders the glyph image for a glyph index to a newly allocated RGBA32
+ * surface (same format as render_text_blended). Includes the font outline.
+ * Free with yguilib_sdl3_ttf_destroy_surface.
+ *
+ * @param font Font handle.
+ * @param glyph_index Glyph index from layout_text.
+ * @return Surface handle with RGBA32 pixels, or NULL on error.
+ */
+yguilib_sdl3_ttf_Surface *yguilib_sdl3_ttf_render_glyph(
+  yguilib_sdl3_ttf_Font *font,
+  uint32_t glyph_index
+);
+
 /**
  * Gets the dimensions of a rendered surface.
  *

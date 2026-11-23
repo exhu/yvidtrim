@@ -6,6 +6,15 @@ package(yguilib):
 struct yguilib_sdl3_ttf_Font;
 struct yguilib_sdl3_ttf_Surface;
 
+/// One positioned glyph copy op (matches the C struct layout).
+extern(C) struct yguilib_sdl3_ttf_GlyphQuad {
+  uint glyphIndex;
+  int srcX, srcY, srcW, srcH;
+  int dstX, dstY, dstW, dstH;
+}
+
+static assert(yguilib_sdl3_ttf_GlyphQuad.sizeof == 36);
+
 extern(C) {
   int yguilib_sdl3_ttf_init();
   void yguilib_sdl3_ttf_quit();
@@ -56,6 +65,21 @@ extern(C) {
     ubyte g,
     ubyte b,
     ubyte a
+  );
+
+  int yguilib_sdl3_ttf_layout_text(
+    yguilib_sdl3_ttf_Font* font,
+    const(char)* text,
+    size_t length,
+    yguilib_sdl3_ttf_GlyphQuad* output,
+    int cap,
+    int* w,
+    int* h
+  );
+
+  yguilib_sdl3_ttf_Surface* yguilib_sdl3_ttf_render_glyph(
+    yguilib_sdl3_ttf_Font* font,
+    uint glyphIndex
   );
 
   int yguilib_sdl3_ttf_get_surface_size(

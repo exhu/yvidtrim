@@ -88,6 +88,59 @@ int main(void) {
   assert(pixels != NULL);
 
   yguilib_sdl3_ttf_destroy_surface(surf);
+
+  // Layout
+  yguilib_sdl3_ttf_GlyphQuad quads[8];
+  int lw = 0;
+  int lh = 0;
+  assert(yguilib_sdl3_ttf_layout_text(font, "Hi", 2, quads, 8, &lw, &lh) == 2);
+  int tw = 0;
+  int th = 0;
+  assert(yguilib_sdl3_ttf_get_text_size(font, "Hi", 2, &tw, &th) == 0);
+  assert(lw == tw && lh == th);
+  assert(yguilib_sdl3_ttf_layout_text(font, "Hi", 2, NULL, 0, NULL, NULL) == 2);
+  for (int i = 0; i < 2; i++) {
+    assert(quads[i].dst_x >= 0 && quads[i].dst_y >= 0);
+    assert(quads[i].dst_x + quads[i].dst_w <= lw);
+    assert(quads[i].dst_y + quads[i].dst_h <= lh);
+  }
+  assert(quads[1].dst_x > quads[0].dst_x);
+
+  // Layout with outline matches the blended surface size
+  assert(yguilib_sdl3_ttf_set_font_outline(font, 3) == 0);
+  int ow = 0;
+  int oh = 0;
+  assert(yguilib_sdl3_ttf_layout_text(font, "Hi", 2, quads, 8, &ow, &oh) == 2);
+  yguilib_sdl3_ttf_Surface *osurf = yguilib_sdl3_ttf_render_text_blended(
+    font, "Hi", 2, 255, 255, 255, 255
+  );
+  assert(osurf != NULL);
+  int osw = 0;
+  int osh = 0;
+  assert(yguilib_sdl3_ttf_get_surface_size(osurf, &osw, &osh) == 0);
+  assert(ow == osw && oh == osh);
+  yguilib_sdl3_ttf_destroy_surface(osurf);
+  assert(yguilib_sdl3_ttf_set_font_outline(font, 0) == 0);
+
+  // Glyph image
+  assert(yguilib_sdl3_ttf_layout_text(font, "Hi", 2, quads, 8, &lw, &lh) == 2);
+  yguilib_sdl3_ttf_Surface *gsurf = yguilib_sdl3_ttf_render_glyph(
+    font, quads[0].glyph_index
+  );
+  assert(gsurf != NULL);
+  assert(yguilib_sdl3_ttf_get_surface_pixels(gsurf) != NULL);
+  int gw = 0;
+  int gh = 0;
+  assert(yguilib_sdl3_ttf_get_surface_size(gsurf, &gw, &gh) == 0);
+  assert(gw >= quads[0].src_w && gh >= quads[0].src_h);
+  yguilib_sdl3_ttf_destroy_surface(gsurf);
+
+  // Empty string and invalid parameters
+  assert(yguilib_sdl3_ttf_layout_text(font, "", 0, quads, 8, &lw, &lh) == 0);
+  assert(lw == 0 && lh == 0);
+  assert(yguilib_sdl3_ttf_layout_text(NULL, "a", 1, quads, 8, &lw, &lh) == -1);
+  assert(yguilib_sdl3_ttf_render_glyph(NULL, 1) == NULL);
+
   yguilib_sdl3_ttf_close_font(font);
 
   // Open font from memory
