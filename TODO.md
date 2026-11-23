@@ -1,5 +1,5 @@
-- add max texture memory, max textures count telemetry to be dumped at exit into uisystem_impl via info log.
-- investigate why many labels with glyph atlas consume more memory than pre-atlas (see documentation/text-atlas-benchmark.md)
+- add max texture memory used, max textures count, max one texture size (width, heigh, bytes|MiB -- add a helper function that displays bytes count as KiB or MiB when this makes sense to be reused for this stat and any other place in the future), max GC and non-gc heap usage to be dumped at exit into uisystem_impl via info log.
+- experiment with a RunGlyph pool (reuse evicted runs' RunGlyph[] or one pooled buffer) and a larger maxCacheEntries in text_cache.d, check with textbench `many` whether RSS / GC free heap drops (see "Memory investigation" in documentation/text-atlas-benchmark.md)
 - cross-label text batching (queue glyph quads, flush on state change) (canvas-render-review 3.7)
 - build widget library
 -- checkbox

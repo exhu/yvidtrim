@@ -50,6 +50,30 @@ long parseKb(const(char)[] line) {
   return d.until!(c => !isDigit(c)).array.to!long;
 }
 
+extern (C) {
+  struct MallInfo2 {
+    size_t arena, ordblks, smblks, hblks, hblkhd, usmblks, fsmblks;
+    size_t uordblks, fordblks, keepcost;
+  }
+  MallInfo2 mallinfo2() nothrow @nogc;
+}
+
+/// D GC heap and C heap (malloc) usage in KiB; the rest of RSS is
+/// the GL driver, mapped libraries and the stack.
+struct HeapMem {
+  long gcUsed;
+  long gcFree;
+  long cUsed;
+}
+
+HeapMem heapMem() {
+  import core.memory : GC;
+  const s = GC.stats();
+  const m = mallinfo2();
+  return HeapMem(s.usedSize / 1024, s.freeSize / 1024,
+    (m.uordblks + m.hblkhd) / 1024);
+}
+
 /// Live GL textures and their level-0 RGBA8 byte size.
 struct GlTex {
   size_t count;
@@ -108,6 +132,7 @@ void run(Renderer r, Scenario s) {
   r.clearTextCache();
   glFinish();
   const base = procMem();
+  const heap0 = heapMem();
   const tex0 = glTextures();
 
   auto t0 = MonoTime.currTime;
@@ -123,6 +148,7 @@ void run(Renderer r, Scenario s) {
     times[f] = ms(a, MonoTime.currTime);
   }
   const end = procMem();
+  const heap1 = heapMem();
   const tex1 = glTextures();
   double sum = 0;
   foreach (v; times) {
@@ -141,6 +167,26 @@ void run(Renderer r, Scenario s) {
     "%-10s   rss: +%dKiB after cold, +%dKiB at end (peak %dKiB)",
     "", afterCold.rss - base.rss, end.rss - base.rss, end.peak
   );
+  writefln(
+    "%-10s   heap at end: gc used +%dKiB free +%dKiB, malloc +%dKiB",
+    "", heap1.gcUsed - heap0.gcUsed, heap1.gcFree - heap0.gcFree,
+    heap1.cUsed - heap0.cUsed
+  );
+  {
+    // What stays after a full collection: separates GC garbage from the
+    // memory the text path really holds.
+    import core.memory : GC;
+    GC.collect();
+    GC.minimize();
+    const after = procMem();
+    const heap2 = heapMem();
+    writefln(
+      "%-10s   after GC.collect+minimize: rss +%dKiB, gc used +%dKiB, "
+      ~ "malloc +%dKiB",
+      "", after.rss - base.rss, heap2.gcUsed - heap0.gcUsed,
+      heap2.cUsed - heap0.cUsed
+    );
+  }
   writefln(
     "%-10s   gl textures: +%d / +%.2fMiB after cold, +%d / +%.2fMiB at end",
     "", cast(long) texCold.count - cast(long) tex0.count,

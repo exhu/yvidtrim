@@ -133,8 +133,61 @@ Findings:
   a label is now a quad per glyph instead of one pre-rendered texture.
   Cross-label batching (the TODO.md follow-up) targets this cost.
 - Process RSS grows more with the atlas in `many` (+7.5 MiB vs +1.7 MiB)
-  and `cjk-mix`. The cause was not investigated (the glyph runs the
-  cache keeps per string are the likely part).
+  and `cjk-mix`. The cause is a larger D GC heap, not a leak; see
+  "Memory investigation".
+
+## Memory investigation
+
+`textbench` now also prints the D GC heap (used / free) and the C heap
+(`mallinfo2`) deltas, and the RSS after `GC.collect(); GC.minimize()`.
+Same program on both branches, KiB, delta over the scenario start:
+
+```
+  scenario  build      rss end  gc used  gc free  malloc  rss after GC
+  --------  ---------  -------  -------  -------  ------  ------------
+  static    pre-atlas    6660      828     3268    2482      6724
+            atlas        6908      890     3206    1363      7036
+  churn     pre-atlas    1212      555     -555    1272      1212
+            atlas         308      510     -510       5       308
+  many      pre-atlas    1672      205     -205    3075      1672
+            atlas        7736     1244     5924     275      7736
+  cjk-mix   pre-atlas    3828    -2254     2254    5996      3828
+            atlas        5196    -2539     2539    4785      5196
+  cjk-many  pre-atlas    2592      198     -198    4305      2592
+            atlas        1492     3285    -3285    1279      1492
+```
+
+Findings:
+- `many` (+7.7 MiB vs +1.7 MiB): the live GC data is only about 1.2 MiB
+  (the cache's runs); the other 5.9 MiB is GC free space, i.e. heap that
+  grew to hold garbage and is never returned. 1500 distinct strings per
+  frame against a 512-entry cache make every label a miss, and each miss
+  allocates `new RunGlyph[n]` (28 bytes per glyph) in `layoutRun`; the
+  evicted entries and their arrays become garbage, about 1 MiB per
+  frame. The pre-atlas build keeps its per-label data in malloc/GL
+  (+3 MiB malloc), so its GC heap stays flat. The growth is a high-water
+  mark: 400 frames end at the same +7.7 MiB as 100 frames, and
+  `GC.minimize()` does not release it (pages stay fragmented).
+- `static`: both builds are about +6.7 MiB; that is first-use cost shared
+  by both (font and SDL_ttf glyph caches, GC heap for strings). No
+  atlas penalty.
+- `cjk-mix`: malloc is the larger part on both builds (+4.8 vs +6.0 MiB),
+  which is the SDL_ttf/FreeType glyph cache of the CJK font. The atlas
+  build's higher RSS (+5.2 vs +3.8 MiB) is not explained by the GC or C
+  heap (both are lower); it is most likely driver memory for the 1 MiB
+  atlas texture, which was not verified.
+- `churn` and `cjk-many`: the atlas build uses less RSS than pre-atlas.
+- So the atlas does not retain more memory per label. Extra RSS appears
+  only when the entry cap is exceeded every frame, as GC garbage from
+  per-miss run allocation.
+
+Possible fixes if the `many` case matters (not done):
+- store the glyphs of all cached runs in one pooled buffer, or reuse the
+  `RunGlyph[]` of an evicted entry for the next miss, so a miss
+  allocates nothing;
+- raise `maxCacheEntries` above the number of labels a screen shows
+  (a run costs about 28 bytes per glyph plus the key string);
+- calling `GC.collect()` is not an answer: it does not shrink RSS.
 
 ## Caveats
 
