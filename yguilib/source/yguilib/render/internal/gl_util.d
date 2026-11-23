@@ -15,6 +15,8 @@ module yguilib.render.internal.gl_util;
 package(yguilib):
 
 import glad2.gles2;
+import yguilib.internal.memstats : telemetryTextureAlloc,
+  telemetryTextureFree;
 
 /**
  * Configures common 2D blending state: alpha blending enabled,
@@ -396,6 +398,7 @@ void replaceRgbaTextureImage(
     GL_UNSIGNED_BYTE,
     pixels
   );
+  telemetryTextureAlloc(texId, w, h);
   glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
   glBindTexture(GL_TEXTURE_2D, 0);
 }
@@ -425,6 +428,7 @@ GLuint allocRgbaTexture(int size) {
     GL_TEXTURE_2D, 0, GL_RGBA, size, size, 0,
     GL_RGBA, GL_UNSIGNED_BYTE, null
   );
+  telemetryTextureAlloc(texId, size, size);
   glBindTexture(GL_TEXTURE_2D, 0);
   return texId;
 }
@@ -455,4 +459,13 @@ void uploadRgbaSubImage(GLuint texId, const ref RgbaSubImage img) {
   );
   glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
   glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+/**
+ * Deletes texture `texId` and records it in the memory telemetry. All
+ * owned textures must be deleted through this helper.
+ */
+void deleteTexture(GLuint texId) {
+  telemetryTextureFree(texId);
+  glDeleteTextures(1, &texId);
 }

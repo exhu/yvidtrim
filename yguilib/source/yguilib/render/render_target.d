@@ -7,6 +7,7 @@
 module yguilib.render.render_target;
 
 import glad2.gles2;
+import yguilib.render.internal.gl_util : deleteTexture;
 import yguilib.render.image : Image;
 import yguilib.render.texture : BorrowedTextureInfo, Texture;
 
@@ -199,7 +200,7 @@ private:
     deleteFramebuffer(resolveFbo);
     deleteFramebuffer(msaaFbo);
     if (colorTex != 0) {
-      glDeleteTextures(1, &colorTex);
+      deleteTexture(colorTex);
       colorTex = 0;
     }
     deleteRenderbuffer(msaaColorRb);

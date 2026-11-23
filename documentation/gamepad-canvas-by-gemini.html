@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Canvas 2D Gamepad Vector</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: #12141a;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    canvas {
+      background: transparent;
+      border: 1px dashed #2d3342;
+      border-radius: 12px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      background: #3b82f6;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gamepadCanvas" width="600" height="400"></canvas>
+  <button id="downloadBtn">Download PNG</button>
+
+  <script>
+    const canvas = document.getElementById("gamepadCanvas");
+    const ctx = canvas.getContext("2d");
+
+    function drawGamepad(ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+
+      // 1. Shoulder bumpers (L1 / R1)
+      const leftBumper = new Path2D("M 155 112 C 165 88, 225 88, 235 106 Z");
+      const rightBumper = new Path2D("M 365 106 C 375 88, 435 88, 445 112 Z");
+      ctx.fillStyle = "#1f2430";
+      ctx.fill(leftBumper);
+      ctx.fill(rightBumper);
+
+      // 2. Main ergonomic body
+      const body = new Path2D(
+        "M 190 105 L 410 105 " +
+        "C 455 105, 485 135, 500 200 " +
+        "C 515 265, 505 320, 465 325 " +
+        "C 435 328, 415 295, 395 260 " +
+        "C 385 242, 370 235, 350 235 " +
+        "L 250 235 " +
+        "C 230 235, 215 242, 205 260 " +
+        "C 185 295, 165 328, 135 325 " +
+        "C 95 320, 85 265, 100 200 " +
+        "C 115 135, 145 105, 190 105 Z"
+      );
+      ctx.fillStyle = "#2b3140";
+      ctx.strokeStyle = "#4b556b";
+      ctx.lineWidth = 4;
+      ctx.fill(body);
+      ctx.stroke(body);
+
+      // 3. D-Pad (left)
+      const dpad = new Path2D();
+      dpad.roundRect(180, 145, 20, 60, 4);
+      dpad.roundRect(160, 165, 60, 20, 4);
+      ctx.fillStyle = "#151821";
+      ctx.fill(dpad);
+
+      // D-Pad center indent
+      const dpadCenter = new Path2D();
+      dpadCenter.arc(190, 175, 5, 0, Math.PI * 2);
+      ctx.fillStyle = "#2b3140";
+      ctx.fill(dpadCenter);
+
+      // 4. Face buttons (right)
+      const faceButtons = [
+        { x: 410, y: 150, color: "#f59e0b" }, // Top
+        { x: 435, y: 175, color: "#ef4444" }, // Right
+        { x: 410, y: 200, color: "#10b981" }, // Bottom
+        { x: 385, y: 175, color: "#3b82f6" }  // Left
+      ];
+
+      for (const btn of faceButtons) {
+        const p = new Path2D();
+        p.arc(btn.x, btn.y, 11, 0, Math.PI * 2);
+        ctx.fillStyle = btn.color;
+        ctx.fill(p);
+      }
+
+      // 5. Analog sticks (left & right)
+      const sticks = [
+        { x: 248, y: 212 },
+        { x: 352, y: 212 }
+      ];
+
+      for (const stick of sticks) {
+        const socket = new Path2D();
+        socket.arc(stick.x, stick.y, 24, 0, Math.PI * 2);
+        ctx.fillStyle = "#151821";
+        ctx.fill(socket);
+
+        const cap = new Path2D();
+        cap.arc(stick.x, stick.y, 16, 0, Math.PI * 2);
+        ctx.fillStyle = "#3c4457";
+        ctx.strokeStyle = "#5a657d";
+        ctx.lineWidth = 2;
+        ctx.fill(cap);
+        ctx.stroke(cap);
+      }
+
+      // 6. Center menu / home buttons
+      const menuButtons = new Path2D();
+      menuButtons.roundRect(268, 152, 18, 7, 3.5);
+      menuButtons.roundRect(314, 152, 18, 7, 3.5);
+      ctx.fillStyle = "#64748b";
+      ctx.fill(menuButtons);
+
+      const homeBtn = new Path2D();
+      homeBtn.arc(300, 178, 9, 0, Math.PI * 2);
+      ctx.fillStyle = "#151821";
+      ctx.strokeStyle = "#64748b";
+      ctx.lineWidth = 2;
+      ctx.fill(homeBtn);
+      ctx.stroke(homeBtn);
+    }
+
+    drawGamepad(ctx);
+
+    // Trigger PNG download
+    document.getElementById("downloadBtn").addEventListener("click", () => {
+      const link = document.createElement("a");
+      link.download = "gamepad.png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    });
+  </script>
+</body>
+</html>

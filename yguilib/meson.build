@@ -5,6 +5,14 @@ glad2gles31d_dep = dependency('glad2gles31d')
 yguilib_inc = include_directories('source')
 yguilib_assets_inc = include_directories('assets')
 
+# Peak texture/heap telemetry (version MemTelemetry): on for debug builds
+# by default, see the memtelemetry option.
+memtel_opt = get_option('memtelemetry')
+yguilib_d_versions = []
+if memtel_opt == 'enabled' or (memtel_opt == 'auto' and get_option('debug'))
+  yguilib_d_versions += ['MemTelemetry']
+endif
+
 yguilib_src = files(
   'source/yguilib/allochelpers.d',
   'source/yguilib/app.d',
@@ -32,6 +40,7 @@ yguilib_src = files(
   'source/yguilib/events/package.d',
   'source/yguilib/internal/assets.d',
   'source/yguilib/internal/logger.d',
+  'source/yguilib/internal/memstats.d',
   'source/yguilib/internal/timer_service.d',
   'source/yguilib/internal/uisystem_impl.d',
   'source/yguilib/internal/uisystem_controller.d',
@@ -107,6 +116,7 @@ yguilib_lib = static_library(
   yguilib_src,
   include_directories : yguilib_inc,
   d_import_dirs : [yguilib_inc, yguilib_assets_inc],
+  d_module_versions : yguilib_d_versions,
   dependencies : yguilib_deps,
   install : false,
 )
@@ -115,6 +125,7 @@ yguilib_dep = declare_dependency(
   link_with : yguilib_lib,
   include_directories : yguilib_inc,
   d_import_dirs : [yguilib_inc, yguilib_assets_inc],
+  d_module_versions : yguilib_d_versions,
   dependencies : yguilib_deps,
 )
 
@@ -128,6 +139,7 @@ yguilib_test_exe = executable(
   d_unittest : true,
   include_directories : yguilib_inc,
   d_import_dirs : [yguilib_inc, yguilib_assets_inc],
+  d_module_versions : yguilib_d_versions,
   dependencies : yguilib_deps,
 )
 test('yguilib_test', yguilib_test_exe)

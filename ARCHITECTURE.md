@@ -61,7 +61,7 @@ yvidtrim/
 │   │   ├── widget/        # Widget entity, components, builder, WidgetSystem
 │   │   │   ├── virtlist_components.d # VirtListProvider & VirtListComponent
 │   │   │   └── internal/virtlist_system.d # Recycling, layout & wheel scroll
-│   │   └── internal/      # UiSystemImpl, TimerService, UiSystemController
+│   │   └── internal/      # UiSystemImpl, TimerService, memstats (telemetry)
 │   ├── yguilib-clibs/     # Private C wrappers: SDL3, SDL3_ttf, SDL3_image
 │   ├── examples/helloworld/ # Standalone Hello World example executable
 │   ├── benchmarks/        # textbench, built only with -Dbenchmarks=true

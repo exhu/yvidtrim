@@ -150,7 +150,7 @@ final class GlyphAtlas {
     fPacker.reset(fSize);
     fGeneration++;
     if (fTexture != 0) {
-      glDeleteTextures(1, &fTexture);
+      deleteTexture(fTexture);
       fTexture = allocRgbaTexture(fSize);
     }
   }
@@ -158,7 +158,7 @@ final class GlyphAtlas {
   /// Frees the texture and drops all keys (main thread only).
   void destroy() {
     if (fTexture != 0) {
-      glDeleteTextures(1, &fTexture);
+      deleteTexture(fTexture);
       fTexture = 0;
     }
     fSlots.clear();

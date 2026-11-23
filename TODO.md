@@ -1,4 +1,7 @@
-- add max texture memory used, max textures count, max one texture size (width, heigh, bytes|MiB -- add a helper function that displays bytes count as KiB or MiB when this makes sense to be reused for this stat and any other place in the future), max GC and non-gc heap usage to be dumped at exit into uisystem_impl via info log.
+- place formatBytes somewhere in public helpers in yguilib
+- add helpers to canvas api to decode Path2D string (e.g. "M 155 112 C 165 88, 225 88, 235 106 Z"),
+and color from strings like "#2b3140" to easily port js canvas snipepts.
+
 - experiment with a RunGlyph pool (reuse evicted runs' RunGlyph[] or one pooled buffer) and a larger maxCacheEntries in text_cache.d, check with textbench `many` whether RSS / GC free heap drops (see "Memory investigation" in documentation/text-atlas-benchmark.md)
 - cross-label text batching (queue glyph quads, flush on state change) (canvas-render-review 3.7)
 - build widget library

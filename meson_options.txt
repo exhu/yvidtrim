@@ -4,3 +4,10 @@ option(
   value : false,
   description : 'Build benchmark programs (e.g. textbench); not built by default',
 )
+option(
+  'memtelemetry',
+  type : 'combo',
+  choices : ['auto', 'enabled', 'disabled'],
+  value : 'auto',
+  description : 'Peak texture/heap telemetry logged at exit; auto = debug builds',
+)

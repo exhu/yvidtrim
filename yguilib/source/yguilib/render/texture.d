@@ -7,7 +7,8 @@ module yguilib.render.texture;
 
 import glad2.gles2;
 import yguilib.render.image : Image;
-import yguilib.render.internal.gl_util : replaceRgbaTextureImage,
+import yguilib.render.internal.gl_util : deleteTexture,
+  replaceRgbaTextureImage,
   uploadRgbaTexture;
 
 /**
@@ -67,7 +68,7 @@ final class Texture {
   void destroy() {
     assert(!fBorrowed, "destroy() on a borrowed texture");
     if (fId != 0) {
-      glDeleteTextures(1, &fId);
+      deleteTexture(fId);
       fId = 0;
     }
     fWidth = 0;

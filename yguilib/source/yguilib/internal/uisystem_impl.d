@@ -5,6 +5,7 @@ import std.typecons : Nullable;
 import std.logger;
 import yguilib.allochelpers : SmallBuffer;
 import yguilib.clibs.sdl3;
+import yguilib.internal.memstats : logMemStats, telemetrySampleHeap;
 import yguilib.controls.button : ButtonSystem;
 import yguilib.timercontrol : TimerId;
 import yguilib.timers : TimerIntervalMs, TimerMode;
@@ -238,6 +239,7 @@ class UiSystemImpl : UiSystem {
       }
     }
     messageBus.logStats();
+    logMemStats();
   }
 
   override @property
@@ -506,6 +508,7 @@ private:
     }
     runPhase2Updates(dirtyViews, batch.needModelUpdate);
     runPhase3Render(dirtyViews, needRender || batch.needRender);
+    telemetrySampleHeap();
     return true;
   }
 

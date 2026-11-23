@@ -7,6 +7,8 @@ module yguilib.render.internal.offscreen;
 package(yguilib):
 
 import glad2.gles2;
+import yguilib.internal.memstats : telemetryTextureAlloc;
+import yguilib.render.internal.gl_util : deleteTexture;
 
 /**
  * FBO with an RGBA8 color texture (linear filtering, clamp to edge) and a
@@ -115,7 +117,7 @@ private:
   void destroyObjects() {
     if (fbo != 0) {
       glDeleteFramebuffers(1, &fbo);
-      glDeleteTextures(1, &texture);
+      deleteTexture(texture);
       glDeleteRenderbuffers(1, &depthStencil);
     }
     fbo = 0;
@@ -187,6 +189,7 @@ void allocateTargetTexture(GLuint tex, int w, int h) {
   glBindTexture(GL_TEXTURE_2D, tex);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA,
     GL_UNSIGNED_BYTE, null);
+  telemetryTextureAlloc(tex, w, h);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
