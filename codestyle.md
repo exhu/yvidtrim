@@ -16,6 +16,8 @@
     explicitly.
   - Use `void propertyName(type newValue)` calls to set, no `setPropertyName`.
 - **Symbol casing:**
+  - Digits in names are equal to capital letters, so lowercase letter follows
+  a number.
   - Modules: `lowercase`
   - Types (classes, structs, interfaces, enums): `PascalCase`
   - Functions, methods, variables, fields, enum values: `camelCase`
