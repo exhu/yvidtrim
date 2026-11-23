@@ -61,7 +61,7 @@ yvidtrim/
 │   │   │   ├── canvas/    # Canvas, path2d, types, package_test (GL tests)
 │   │   │   ├── image.d, texture.d, render_target.d # Image/Texture/RenderTarget
 │   │   │   └── internal/  # pipelines, path_*, stencil_ops, offscreen,
-│   │   │                  # clip_stack, text_cache, gl_util, gl_test_util
+│   │   │                  # clip_stack, text_cache, glyph_atlas, gl_util, gl_test_util
 │   │   ├── widget/        # Widget entity, components, builder, WidgetSystem
 │   │   │   ├── virtlist_components.d # VirtListProvider & VirtListComponent
 │   │   │   └── internal/virtlist_system.d # Recycling, layout & wheel scroll

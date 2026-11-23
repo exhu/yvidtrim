@@ -399,3 +399,60 @@ void replaceRgbaTextureImage(
   glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
   glBindTexture(GL_TEXTURE_2D, 0);
 }
+
+/// Largest texture width/height the GL context supports.
+int maxTextureSize() {
+  GLint n = 0;
+  glGetIntegerv(GL_MAX_TEXTURE_SIZE, &n);
+  return n;
+}
+
+/**
+ * Creates a zero-filled (transparent black) `size` x `size` RGBA8 texture
+ * with linear filtering and clamp-to-edge wrapping. Leaves no texture
+ * bound. Returns the texture id.
+ */
+GLuint allocRgbaTexture(int size) {
+  GLuint texId;
+  glGenTextures(1, &texId);
+  glBindTexture(GL_TEXTURE_2D, texId);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+  glTexImage2D(
+    GL_TEXTURE_2D, 0, GL_RGBA, size, size, 0,
+    GL_RGBA, GL_UNSIGNED_BYTE, null
+  );
+  glBindTexture(GL_TEXTURE_2D, 0);
+  return texId;
+}
+
+/// A sub-rectangle upload: RGBA8 `pixels` (rows `pitch` bytes apart).
+struct RgbaSubImage {
+  int x;
+  int y;
+  int w;
+  int h;
+  const(void)* pixels;
+  int pitch;
+}
+
+/**
+ * Writes `img` into the level-0 image of texture `texId` at (`img.x`,
+ * `img.y`) with `glTexSubImage2D`. Resets `GL_UNPACK_ROW_LENGTH` to 0 and
+ * leaves no texture bound.
+ */
+void uploadRgbaSubImage(GLuint texId, const ref RgbaSubImage img) {
+  glBindTexture(GL_TEXTURE_2D, texId);
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+  const int rowLen = img.pitch != img.w * 4 ? img.pitch / 4 : 0;
+  glPixelStorei(GL_UNPACK_ROW_LENGTH, rowLen);
+  glTexSubImage2D(
+    GL_TEXTURE_2D, 0, img.x, img.y, img.w, img.h,
+    GL_RGBA, GL_UNSIGNED_BYTE, img.pixels
+  );
+  glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+  glBindTexture(GL_TEXTURE_2D, 0);
+}

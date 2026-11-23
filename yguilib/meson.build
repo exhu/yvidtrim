@@ -47,6 +47,7 @@ yguilib_src = files(
   'source/yguilib/render/internal/clip_stack.d',
   'source/yguilib/render/internal/gl_test_util.d',
   'source/yguilib/render/internal/gl_util.d',
+  'source/yguilib/render/internal/glyph_atlas.d',
   'source/yguilib/render/internal/offscreen.d',
   'source/yguilib/render/internal/path_flatten.d',
   'source/yguilib/render/internal/path_stroker.d',
