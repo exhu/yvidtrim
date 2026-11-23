@@ -8,6 +8,13 @@
   line.
 
 ## 2. D Naming & Function Signatures
+- **Getters, setters**
+  - This rule applies to both `@property` decorated callables and not. Do not
+  use `get.../set...` naming pattern.
+  - use `type propertyName()` methods and functions (not `getPropertyName`),
+    also if it's not declared with `@property` then call it with braces
+    explicitly.
+  - Use `void propertyName(type newValue)` calls to set, no `setPropertyName`.
 - **Symbol casing:**
   - Modules: `lowercase`
   - Types (classes, structs, interfaces, enums): `PascalCase`
