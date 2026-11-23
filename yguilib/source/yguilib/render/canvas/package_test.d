@@ -1017,6 +1017,20 @@ unittest {
   cv.fontSpec = FontSpec(40, null);
   const m2 = cv.measureText("Hello");
   assert(m2.width > m.width && m2.fontAscent > m.fontAscent);
+
+  // under a transform scale metrics stay in user units (not scaled)
+  cv.save();
+  cv.scale(PointF(2, 2));
+  const m3 = cv.measureText("Hello");
+  cv.restore();
+  assert(isClose(m3.width, m2.width, 0.05f));
+  assert(isClose(m3.fontAscent, m2.fontAscent, 0.05f));
+  // a degenerate transform still measures at the display scale
+  cv.save();
+  cv.scale(PointF(0, 1));
+  const m4 = cv.measureText("Hello");
+  cv.restore();
+  assert(m4.width == m2.width && m4.fontAscent == m2.fontAscent);
 }
 
 // Canvas.fillText (position, transform, clip, shadow, maxWidth, no-ops)
@@ -1609,10 +1623,9 @@ unittest {
   assert(!line.empty && line.x0 >= 88 && line.x0 <= 92);
 
   // the centered text box is the left-aligned one shifted by half the
-  // advance width: the right-aligned shift, which at identity equals the
-  // measureText width. Under a scale the font is rasterized at that scale,
-  // whose hinted advance can differ from measureText (unscaled raster) by
-  // a few percent.
+  // advance width: the right-aligned shift, which equals the measureText
+  // width under the same transform (both rasterize the font at that
+  // scale, so their hinted advances agree).
   void checkCenter(float scale) {
     auto drawAt(TextAlign a) {
       r.clearFrame(black);
@@ -1634,10 +1647,13 @@ unittest {
     const right = drawAt(TextAlign.right);
     assert(!left.empty && !center.empty && !right.empty);
     cv.fontSpec = FontSpec(24, null);
+    cv.save();
+    cv.scale(PointF(scale, scale));
     const float measured = cv.measureText("Hello").width * scale;
+    cv.restore();
     const float advance = left.x0 - right.x0;
-    const float half = scale == 1.0f ? measured / 2 : advance / 2;
-    assert(abs(advance - measured) <= 1 + 0.05f * measured);
+    const float half = measured / 2;
+    assert(abs(advance - measured) <= 1);
     const float dx0 = center.x0 - (left.x0 - half);
     const float dx1 = center.x1 - (left.x1 - half);
     assert(abs(dx0) <= 1 && abs(dx1) <= 1);

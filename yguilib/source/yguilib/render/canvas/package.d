@@ -442,26 +442,21 @@ final class Canvas {
   }
 
   /**
-   * Measures `text` with the current font in logic units. Returns zeros
-   * when the renderer is uninitialized or `text` is empty.
+   * Measures `text` with the current font in user units. The font is
+   * rasterized at the current effective scale (display scaling * transform
+   * scale, quantized), so the advance is the one `fillText` lays out.
+   * Returns zeros when the renderer is uninitialized or `text` is empty.
    */
   TextMetrics measureText(string text) {
-    TextMetrics res;
     if (!fRenderer.isInitialized() || text.length == 0) {
-      return res;
+      return TextMetrics.init;
     }
-    import std.math : abs;
-
-    const spec = st.fontSpec;
     // one font lookup for the width and the metrics
-    Font f = fRenderer.font(spec.ptSize, spec.name);
+    Font f = textFont();
     if (f is null) {
-      return res;
+      return TextMetrics.init;
     }
-    res.width = fRenderer.logicFromPixelsFloat(f.measureText(text).x);
-    res.fontAscent = fRenderer.logicFromPixelsFloat(f.ascent);
-    res.fontDescent = fRenderer.logicFromPixelsFloat(abs(f.descent));
-    return res;
+    return textMetricsOf(f, text);
   }
 
   /**
@@ -1274,6 +1269,32 @@ private:
   }
 
   /**
+   * Current font rasterized at `textRasterScale` (display scaling alone
+   * for a degenerate transform); null when it cannot be opened.
+   */
+  Font textFont() {
+    const spec = st.fontSpec;
+    const float s = textRasterScale();
+    return fRenderer.fontAtScale(
+      spec.ptSize, spec.name, s > 0 ? s : fRenderer.totalScaling()
+    );
+  }
+
+  /**
+   * Advance width, ascent and descent of `text` in font `f` (from
+   * `textFont`), in user units.
+   */
+  TextMetrics textMetricsOf(Font f, string text) const {
+    import std.math : abs;
+
+    // bitmap pixels per user unit (the quantized font scale)
+    const float q = f.scaledSize / f.size;
+    return TextMetrics(
+      f.measureText(text).x / q, f.ascent / q, abs(f.descent) / q
+    );
+  }
+
+  /**
    * Outline ring width (bitmap px) of `strokeText`: `lineWidth / 2` at
    * the text raster scale, rounded, clamped to [1, `maxTextOutlinePx`].
    */
@@ -1304,10 +1325,7 @@ private:
       || !patternDrawable(paint) || !st.xf.isInvertible()) {
       return;
     }
-    const spec = st.fontSpec;
-    Font f = fRenderer.fontAtScale(
-      spec.ptSize, spec.name, textRasterScale()
-    );
+    Font f = textFont();
     if (f is null) {
       return;
     }
@@ -1350,16 +1368,14 @@ private:
     PointF pos,
     float maxWidth
   ) {
-    import std.math : abs;
-
     const TextTexture tex = bmp.tex;
     // bitmap pixels per user unit (the quantized font scale)
     const float q = f.scaledSize / f.size;
     // advance width at the raster scale (what measureText reports, not
     // the bitmap width) and the outline margin, in user units
-    const float gw = f.measureText(text).x / q;
+    const TextMetrics m = textMetricsOf(f, text);
+    const float gw = m.width;
     const float margin = bmp.outlinePx / q;
-    const TextMetrics m = TextMetrics(gw, f.ascent / q, abs(f.descent) / q);
     const PointF off = textAnchorOffset(
       m, st.textAlign, st.textBaseline, st.direction
     );
