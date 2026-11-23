@@ -633,6 +633,19 @@ struct GradientPipeline {
     float vh
   ) {
     setupAlphaBlendState();
+    drawTrianglesWithCurrentState(vertices, u, vw, vh);
+  }
+
+  /**
+   * Like `drawTriangles` but keeps the current blend, cull and depth state
+   * (e.g. blending disabled to write paint alpha into a shadow mask).
+   */
+  void drawTrianglesWithCurrentState(
+    const(float)[] vertices,
+    in GradientUniforms u,
+    float vw,
+    float vh
+  ) {
     glUseProgram(program);
     glUniform2f(uResolutionLoc, vw, vh);
     glUniform1i(uKindLoc, u.kind);

@@ -193,9 +193,9 @@ Phase 3 (if dirty): UiSystemImpl ──► WidgetSystemPipeline.updateAndRender(
 color/gradient pipelines. Stencil bit 7 = `clip()` (rebuilt on `restore()`),
 bits 0..6 = per-call work; Window asks MSAA 4x + 8-bit stencil. Stencil test
 is on only inside Canvas calls: Renderer `draw*` ignore Canvas clip/transform,
-`pushClipRect` limits both, `clearFrame` resets Canvas state. Shadows: white
-mask into ping-pong non-MSAA `OffscreenTarget` FBOs, `BlurPipeline` Gaussian
-H then V, tinted composite under the clip bit; FBO/viewport/scissor restored.
+`pushClipRect` limits both, `clearFrame` resets Canvas state. Shadows: mask
+of paint alpha (shadow a = color a * paint a) into non-MSAA `OffscreenTarget`s,
+`BlurPipeline` H+V, tinted composite under clip bit; GL target state restored.
 **CustomDraw** (`onDraw(dg(Renderer, in Widget))`) runs after the text label
 in `clipContents`, in canvas `save`/`translate(content origin)`/`restore`:
 Canvas draws content-local, Renderer stays absolute (`transform()` e/f).

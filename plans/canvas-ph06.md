@@ -33,9 +33,11 @@ Overview: [canvas.md](canvas.md). Read `AGENTS.md` and `codestyle.md` first.
       (σ = blur / 2 in logic units, converted to pixels).
    2. Save GL state: viewport, scissor enabled/box, and the FBO binding.
    3. Bind target A, set the viewport to the padded box, and clear color and
-      stencil. Draw the shape's stencil and cover passes in opaque white,
-      with the logic coordinates offset to the box origin. The Canvas clip
-      doesn't apply inside the FBO.
+      stencil. Draw the shape's stencil and cover passes in white with
+      the paint's alpha and blending off (shadow alpha = shadow color
+      alpha * paint alpha, as in HTML canvas), with the logic coordinates
+      offset to the box origin. The Canvas clip doesn't apply inside the
+      FBO.
    4. If blur > 0, blur horizontally A→B and vertically B→A.
    5. Restore the default framebuffer, viewport and scissor.
    6. Composite with `TexturePipeline` tinted with `shadow.color` at

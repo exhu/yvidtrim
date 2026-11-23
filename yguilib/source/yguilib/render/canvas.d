@@ -1,6 +1,13 @@
-/// 2d drawing api similar to HTML canvas 2d api or svg, but reduced in
-/// features, simplified, uses float, int and other efficient types.
-/// https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial
+/** 2d drawing api similar to HTML canvas 2d api or svg. Reduced in features,
+    simplified, uses float, int and other efficient types.
+    https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial
+
+    A radial gradient with a negative radius, or a negative path radius, draws
+    nothing instead of raising an error.
+
+    Square caps on zero-length segments: they stay axis-aligned instead of
+    rotating with the path, which shows on diagonal lines.
+*/
 module yguilib.render.canvas;
 import std.array : Appender;
 import yguilib.render : Renderer;
@@ -1099,7 +1106,7 @@ final class Canvas {
       return;
     }
     if (st.shadow.isVisible()) {
-      drawShadow(ShadowShape.stroke, FillRule.nonZero);
+      drawShadow(ShadowShape.stroke, FillRule.nonZero, st.stroke);
     }
     beginStrokeOnce(clipActive());
     drawPaint(fVerts[], st.stroke);
@@ -1374,7 +1381,7 @@ private:
       return;
     }
     if (blend && st.shadow.isVisible()) {
-      drawShadow(ShadowShape.fill, rule);
+      drawShadow(ShadowShape.fill, rule, style);
     }
     const float[12] cover = quadFromRect(boundsOfVerts(fVerts[]));
     beginWinding(rule);
@@ -1394,13 +1401,14 @@ private:
   }
 
   /**
-   * Shadow of `fVerts` (logic coordinates): a white mask of `shape` in
-   * offscreen target 0 over the padded device bounds, blurred through
-   * target 1, then composited with `st.shadow.color` at the offset under
-   * the Canvas clip. Framebuffer, viewport, scissor and clear color are
-   * saved before and restored after the offscreen passes.
+   * Shadow of `fVerts` (logic coordinates): a mask of `shape` carrying the
+   * alpha of `style` in offscreen target 0 over the padded device bounds,
+   * blurred through target 1, then composited with `st.shadow.color` at
+   * the offset under the Canvas clip, so shadow alpha = shadow color alpha
+   * * paint alpha (as in HTML canvas). Framebuffer, viewport, scissor and
+   * clear color are saved before and restored after the offscreen passes.
    */
-  void drawShadow(ShadowShape shape, FillRule rule) {
+  void drawShadow(ShadowShape shape, FillRule rule, in FillStyle style) {
     import yguilib.render.internal.offscreen : OffscreenTarget,
       SavedTargetState;
 
@@ -1415,7 +1423,7 @@ private:
     const SavedTargetState saved = SavedTargetState.capture();
     a.ensureSize(b.width, b.height);
     a.bindRegion(b.width, b.height, true);
-    drawShadowMask(shape, rule, b, scale);
+    drawShadowMask(shape, rule, style, b, scale);
     if (sigma > 0) {
       blurShadow(b, sigma);
     }
@@ -1454,12 +1462,15 @@ private:
   }
 
   /**
-   * Draws `fVerts` shifted to the origin of box `b` in opaque white into
-   * the bound offscreen region (no Canvas clip there).
+   * Draws `fVerts` shifted to the origin of box `b` into the bound
+   * offscreen region (no Canvas clip there). The colored pass runs with
+   * blending disabled so the mask alpha equals the paint alpha of `style`
+   * (blending onto the cleared target would square it).
    */
   void drawShadowMask(
     ShadowShape shape,
     FillRule rule,
+    in FillStyle style,
     in PixelBox b,
     float scale
   ) {
@@ -1478,7 +1489,6 @@ private:
       fShadowVerts.put(verts[i] - ox);
       fShadowVerts.put(verts[i + 1] - oy);
     }
-    const ColorF white = ColorF(1, 1, 1, 1);
     ColorPipeline* color = &fRenderer.colorPipelineRef();
     final switch (shape) {
     case ShadowShape.fill:
@@ -1487,13 +1497,48 @@ private:
         vw, vh);
       beginCover(rule, false);
       const float[12] cover = quadFromRect(RectF(0, 0, vw, vh));
-      color.drawArrays(GL_TRIANGLES, cover[], white, vw, vh);
+      drawMaskPaint(cover[], style, PointF(ox, oy), vw, vh);
       endStencil();
       break;
     case ShadowShape.stroke:
-      color.drawArrays(GL_TRIANGLES, fShadowVerts[], white, vw, vh);
+      // no blending: overlapping triangles rewrite the same alpha
+      drawMaskPaint(fShadowVerts[], style, PointF(ox, oy), vw, vh);
       break;
     }
+  }
+
+  /**
+   * Writes the alpha of `style` (white RGB for solid colors) over `verts`
+   * with blending disabled. `origin` is the logic position of the mask
+   * region origin, so gradients map mask coordinates back to user space.
+   */
+  void drawMaskPaint(
+    const(float)[] verts,
+    in FillStyle style,
+    PointF origin,
+    float vw,
+    float vh
+  ) {
+    import glad2.gles2 : GL_BLEND, GL_TRIANGLES, glDisable;
+
+    glDisable(GL_BLEND);
+    // the next draw re-enables blending via setupAlphaBlendState
+    if (style.kind == FillStyle.Kind.color) {
+      fRenderer.colorPipelineRef().drawArraysWithCurrentState(
+        GL_TRIANGLES, verts, ColorF(1, 1, 1, style.color.a), vw, vh
+      );
+      return;
+    }
+    const Transform2d inv =
+      st.xf.inverse() * Transform2d.translation(origin);
+    GradientUniforms u = gradientUniforms(style, inv);
+    // the composite tints the mask RGB too: keep only the stop alphas
+    foreach (i; 0 .. u.stopCount) {
+      u.stopColors[i * 4 .. i * 4 + 3] = 1.0f;
+    }
+    fRenderer.gradientPipelineRef().drawTrianglesWithCurrentState(
+      verts, u, vw, vh
+    );
   }
 
   /// Blurs region `b` of target 0 horizontally into 1, vertically back.
@@ -2110,6 +2155,38 @@ unittest {
   assert(isRgb(62, 98, 255, 0, 0));
   assert(isRgb(115, 95, 0, 0, 0));
   assert(isRgb(45, 45, 0, 0, 0));
+  // 2b. shadow alpha = shadow color alpha * paint alpha
+  bool near(int v, int expected) {
+    return v >= expected - 3 && v <= expected + 3;
+  }
+
+  r.clearFrame(black);
+  cv.shadow(hard);
+  cv.fillStyle(FillStyle.solid(ColorF(0, 1, 0, 0.5f)));
+  cv.fill(tri);
+  // shadow only: red at 0.5 over black
+  auto halfShadow = px(115, 62);
+  assert(near(halfShadow[0], 128) && halfShadow[1] == 0);
+  // overlap: 0.5 green over the 0.5 red shadow
+  auto overlap = px(65, 65);
+  assert(near(overlap[0], 64) && near(overlap[1], 128));
+  // gradient paint fading to transparent: the shadow fades the same way
+  r.clearFrame(black);
+  cv.shadow(hard);
+  LinearGradient fade;
+  fade.p0 = PointF(100, 0);
+  fade.p1 = PointF(200, 0);
+  fade.addColorStop(0, ColorF(0, 1, 0, 1));
+  fade.addColorStop(1, ColorF(0, 1, 0, 0));
+  cv.fillStyle(FillStyle.fromLinear(fade));
+  cv.fill(rectPath(RectF(100, 100, 100, 40)));
+  // below the shape (y 140..150) only the shadow shows
+  const sLeft = px(112, 145)[0];
+  const sMid = px(160, 145)[0];
+  const sRight = px(205, 145)[0];
+  assert(sLeft > 200 && near(sMid, 128) && sRight < 20);
+  cv.shadow(Shadow.init);
+
   // invalid shadows are ignored
   Shadow bad = hard;
   bad.blur = -1;
