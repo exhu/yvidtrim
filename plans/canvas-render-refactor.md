@@ -43,8 +43,8 @@ Phases run one after another, because they touch the same files.
   ph01   done         committed 1696c79; see notes below
   ph02   done         committed 6b04e76; see notes below
   ph03   done         committed b5b2f74; see notes below
-  ph04   done         see notes below
-  ph05   not started
+  ph04   done         committed 7572814; see notes below
+  ph05   done         see notes below
   ph06   not started
   ph07   not started
   ph08   not started
@@ -117,6 +117,23 @@ ph04 notes (2026-11-23):
 - 3.6: `stroke()` strokes straight into `fVerts` and transforms in
   place (`transformInPlace`, skips identity). `fLocalTris` and
   `transformVerts` are gone.
+- Still 65 modules; meson test 10/10 OK.
+
+ph05 notes (2026-11-23):
+- 1.6: `State.clipCount`; Canvas owns `fClips` (ClipEntry with
+  `triStart`/`triCount`/`rule`) and `fClipTris`. Append-only between
+  `save`/`restore`; `restore()` shrinks both and replays stored
+  triangles (no re-flatten). Clips keep the tolerance they were made
+  with. New `appendFan(xf, ref dst)`.
+- 1.8: `Canvas.FrameState` and `Renderer.targetFrames` (per-depth pool,
+  `fTargetDepth`) swap buffers instead of copying. Debug asserts check
+  no shared storage (`ClipStack.sharesStorage`). Never copy a
+  `TargetFrame`/`FrameState` that holds buffers.
+- 1.9: `FillStyle` is a tagged union with read-only `kind()`.
+  Deviation: `Pattern` is inside the union (outside, `State` missed
+  the size target); `pattern()`/`fromPattern` are `@trusted` and
+  assert the kind. `State` is ~680 bytes (was 1176), checked by a
+  `static assert`.
 - Still 65 modules; meson test 10/10 OK.
 
 ## Rules for every phase

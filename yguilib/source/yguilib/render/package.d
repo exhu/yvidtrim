@@ -64,10 +64,11 @@ final class Renderer {
       t.destroy();
     }
     // User render targets are caller owned: only forget the stack.
-    foreach (ref f; targetFrames) {
+    foreach (ref f; targetFrames[0 .. fTargetDepth]) {
       f.target.active--;
     }
     targetFrames = null;
+    fTargetDepth = 0;
     blurPipeline.destroy();
     patternPipeline.destroy();
     gradientPipeline.destroy();
@@ -806,19 +807,27 @@ final class Renderer {
    */
   void beginTarget(RenderTarget rt, bool clear) {
     assert(rt !is null && rt.isValid());
+    import std.algorithm.mutation : swap;
+
     assert(rt.active == 0, "render target is already active");
-    TargetFrame f;
+    // one reusable slot per depth: its buffers are swapped, not copied
+    if (fTargetDepth == targetFrames.length) {
+      targetFrames ~= TargetFrame.init;
+    }
+    TargetFrame* f = &targetFrames[fTargetDepth];
     f.target = rt;
     f.saved = SavedTargetState.capture();
     f.pixelWidth = viewportPixelWidth;
     f.pixelHeight = viewportPixelHeight;
-    f.clips = clipStack;
-    clipStack = ClipStack.init;
+    debug assert(!clipStack.sharesStorage(f.clips),
+      "TargetFrame aliases the clip stack");
+    swap(clipStack, f.clips);
+    clipStack.clear();
     if (fCanvas !is null) {
-      f.canvasState = fCanvas.saveFrameState();
+      fCanvas.saveFrameState(f.canvasState);
       fCanvas.resetFrame();
     }
-    targetFrames ~= f;
+    ++fTargetDepth;
     rt.active++;
 
     viewportPixelWidth = rt.pixelWidth();
@@ -840,17 +849,23 @@ final class Renderer {
    * color, clip stack and Canvas state. A `beginTarget` must be open.
    */
   void endTarget() {
-    assert(targetFrames.length > 0, "endTarget() without beginTarget()");
-    TargetFrame f = targetFrames[$ - 1];
-    targetFrames = targetFrames[0 .. $ - 1];
-    targetFrames.assumeSafeAppend();
+    import std.algorithm.mutation : swap;
+
+    assert(fTargetDepth > 0, "endTarget() without beginTarget()");
+    --fTargetDepth;
+    TargetFrame* f = &targetFrames[fTargetDepth];
     f.target.resolve();
     f.target.active--;
+    f.target = null;
 
     f.saved.restore();
     viewportPixelWidth = f.pixelWidth;
     viewportPixelHeight = f.pixelHeight;
-    clipStack = f.clips;
+    debug assert(!clipStack.sharesStorage(f.clips),
+      "TargetFrame aliases the clip stack");
+    swap(clipStack, f.clips);
+    // the slot keeps the target's (cleared) buffer for the next pass
+    f.clips.clear();
     clipStack.reapply(
       viewportPixelWidth, viewportPixelHeight, totalScaling()
     );
@@ -861,7 +876,7 @@ final class Renderer {
 
   /// True between `beginTarget` and its matching `endTarget`.
   bool inTarget() const {
-    return targetFrames.length > 0;
+    return fTargetDepth > 0;
   }
 
   /**
@@ -1040,7 +1055,7 @@ package(yguilib.render):
     if (t is null || !t.isValid()) {
       return false;
     }
-    foreach (ref f; targetFrames) {
+    foreach (ref f; targetFrames[0 .. fTargetDepth]) {
       if (f.target.textureId() == t.id()) {
         return true;
       }
@@ -1173,8 +1188,13 @@ private:
   BlurPipeline blurPipeline;
   OffscreenTarget[2] offscreenTargets;
   ClipStack clipStack;
-  /// `beginTarget` stack (innermost last).
+  /**
+   * `beginTarget` slots indexed by depth (innermost last); the first
+   * `fTargetDepth` are active, the rest are kept for reuse. Grown on
+   * demand; never copy a slot (its buffers would be shared).
+   */
   TargetFrame[] targetFrames;
+  size_t fTargetDepth;
   TextCache textCache;
   FontManager fontManager;
   Font fDefaultFont;

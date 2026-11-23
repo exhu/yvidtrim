@@ -391,7 +391,12 @@ private:
   Rebindable!(const Texture) fTexture;
 }
 
-/// Paint for fills and strokes: solid color, gradient, or image pattern.
+/**
+ * Paint for fills and strokes: solid color, gradient, or image pattern.
+ * A tagged union: only the member matching `kind()` is stored, and its
+ * getter asserts the kind. Build it with the factory functions;
+ * `FillStyle.init` is solid opaque black.
+ */
 struct FillStyle {
   enum Kind {
     color,
@@ -400,42 +405,77 @@ struct FillStyle {
     pattern,
   }
 
-  Kind kind;
-  ColorF color = ColorF(0, 0, 0, 1);
-  LinearGradient linear;
-  RadialGradient radial;
-  Pattern pattern;
-
   /// Solid color paint.
   static FillStyle solid(ColorF c) nothrow @safe @nogc {
     FillStyle s;
-    s.kind = Kind.color;
-    s.color = c;
+    s.fKind = Kind.color;
+    s.fColor = c;
     return s;
   }
 
   /// Linear gradient paint.
   static FillStyle fromLinear(in LinearGradient g) nothrow @safe @nogc {
     FillStyle s;
-    s.kind = Kind.linearGradient;
-    s.linear = g;
+    s.fKind = Kind.linearGradient;
+    s.fLinear = g;
     return s;
   }
 
   /// Radial gradient paint.
   static FillStyle fromRadial(in RadialGradient g) nothrow @safe @nogc {
     FillStyle s;
-    s.kind = Kind.radialGradient;
-    s.radial = g;
+    s.fKind = Kind.radialGradient;
+    s.fRadial = g;
     return s;
   }
 
   /// Image pattern paint.
-  static FillStyle fromPattern(in Pattern p) nothrow @safe @nogc {
+  static FillStyle fromPattern(in Pattern p) nothrow @trusted @nogc {
     FillStyle s;
-    s.kind = Kind.pattern;
-    s.pattern = p;
+    s.fKind = Kind.pattern;
+    // the pattern overlaps non-pointer members: written only here, read
+    // only by `pattern()` after the kind check
+    s.fPattern = p;
     return s;
+  }
+
+  /// Which paint this is.
+  Kind kind() const nothrow @safe @nogc {
+    return fKind;
+  }
+
+  /// Solid color; `kind()` must be `Kind.color`.
+  ColorF color() const nothrow @safe @nogc {
+    assert(fKind == Kind.color, "FillStyle is not a solid color");
+    return fColor;
+  }
+
+  /// Linear gradient; `kind()` must be `Kind.linearGradient`.
+  ref const(LinearGradient) linear() const return nothrow @safe @nogc {
+    assert(fKind == Kind.linearGradient, "FillStyle is not linear");
+    return fLinear;
+  }
+
+  /// Radial gradient; `kind()` must be `Kind.radialGradient`.
+  ref const(RadialGradient) radial() const return nothrow @safe @nogc {
+    assert(fKind == Kind.radialGradient, "FillStyle is not radial");
+    return fRadial;
+  }
+
+  /// Image pattern; `kind()` must be `Kind.pattern`.
+  ref const(Pattern) pattern() const return nothrow @trusted @nogc {
+    assert(fKind == Kind.pattern, "FillStyle is not a pattern");
+    return fPattern;
+  }
+
+private:
+  Kind fKind = Kind.color;
+  union {
+    ColorF fColor = ColorF(0, 0, 0, 1);
+    LinearGradient fLinear;
+    RadialGradient fRadial;
+    // holds a texture pointer: accessed only through @trusted functions
+    Pattern fPattern;
   }
 }
 
@@ -474,6 +514,12 @@ unittest {
   assert(fp.pattern.repeat == PatternRepeat.noRepeat);
   assert(fp.pattern.transform == xf);
   assert(fp.pattern.tint == tint);
+
+  // a copy keeps the active member
+  FillStyle cp = fl;
+  assert(cp.kind == FillStyle.Kind.linearGradient && cp.linear.p1.x == 10);
+  cp = FillStyle.solid(ColorF(0, 1, 0, 1));
+  assert(cp.color == ColorF(0, 1, 0, 1));
 }
 
 /**

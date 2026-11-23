@@ -303,9 +303,8 @@ final class Canvas {
 
   // push state
   void save() {
-    State copy = st;
-    copy.clips = st.clips.dup;
-    fStack.put(copy);
+    // clips are shared by prefix (see `fClips`): no copy needed
+    fStack.put(st);
   }
 
   // pop state
@@ -314,11 +313,12 @@ final class Canvas {
     if (n == 0) {
       return;
     }
-    const bool clipsChanged = fStack[][n - 1].clips.length
-      != st.clips.length;
     st = fStack[][n - 1];
     fStack.shrinkTo(n - 1);
-    if (clipsChanged) {
+    assert(st.clipCount <= fClips[].length);
+    if (st.clipCount < fClips[].length) {
+      fClipTris.shrinkTo(fClips[][st.clipCount].triStart);
+      fClips.shrinkTo(st.clipCount);
       rebuildClip();
     }
   }
@@ -356,12 +356,21 @@ final class Canvas {
 
   /// sets clipping mask; use save() and then restore() to undo clipping.
   void clip(Path2d path) {
+    import yguilib.render.internal.path_flatten : flattenPath;
+
     assert(path !is null);
-    auto copy = new Path2d();
-    copy.addPath(path, Transform2d.identity());
-    ClipEntry e = ClipEntry(copy, st.xf, st.clipRule);
-    const bool first = st.clips.length == 0;
-    st.clips ~= e;
+    assert(st.clipCount == fClips[].length);
+    // the fan is stored flattened with today's tolerance, so a clip keeps
+    // the tolerance (display scaling) from when it was created
+    flattenPath(path, tolerance(st.xf), fContours);
+    const size_t start = fClipTris[].length;
+    appendFan(st.xf, fClipTris);
+    const ClipEntry e = ClipEntry(
+      start, fClipTris[].length - start, st.clipRule
+    );
+    const bool first = st.clipCount == 0;
+    fClips.put(e);
+    ++st.clipCount;
     if (!fRenderer.isInitialized()) {
       return;
     }
@@ -497,42 +506,88 @@ package(yguilib.render):
   void resetFrame() {
     st = State.init;
     fStack.clear();
+    fClips.clear();
+    fClipTris.clear();
   }
 
-  /// Drawing state and save stack kept across a render target pass.
+  /**
+   * Drawing state, save stack and clips kept across a render target pass.
+   * A reusable slot (`Renderer` keeps one per target depth): the buffers
+   * are swapped with the Canvas, never copied, so a slot must not be
+   * copied while it holds buffers (the copy would share them).
+   */
   struct FrameState {
     private State st;
-    private State[] stack;
+    private Appender!(State[]) stack;
+    private Appender!(ClipEntry[]) clips;
+    private Appender!(float[]) clipTris;
   }
 
   /**
-   * Copies the current state and save stack (`Renderer.beginTarget`
-   * calls `resetFrame()` afterwards).
+   * Moves the current state, save stack and clips into `slot` and leaves
+   * the Canvas with the slot's former (cleared) buffers. Nothing is
+   * copied (`Renderer.beginTarget` calls `resetFrame()` afterwards).
    */
-  FrameState saveFrameState() {
-    FrameState s;
-    s.st = st;
-    s.stack = fStack[].dup;
-    return s;
-  }
+  void saveFrameState(ref FrameState slot) {
+    import std.algorithm.mutation : swap;
 
-  /**
-   * Restores a state saved by `saveFrameState`. The clip bit is not
-   * rebuilt: it still lives in the stencil of the restored framebuffer.
-   */
-  void restoreFrameState(FrameState s) {
-    st = s.st;
+    debug assertDistinct(slot);
+    slot.st = st;
+    swap(fStack, slot.stack);
+    swap(fClips, slot.clips);
+    swap(fClipTris, slot.clipTris);
     fStack.clear();
-    foreach (ref e; s.stack) {
-      fStack.put(e);
-    }
+    fClips.clear();
+    fClipTris.clear();
+  }
+
+  /**
+   * Restores a state saved by `saveFrameState` into `slot`, swapping the
+   * buffers back (the slot keeps the target pass buffers, cleared, for
+   * reuse). The clip bit is not rebuilt: it still lives in the stencil of
+   * the restored framebuffer.
+   */
+  void restoreFrameState(ref FrameState slot) {
+    import std.algorithm.mutation : swap;
+
+    debug assertDistinct(slot);
+    st = slot.st;
+    swap(fStack, slot.stack);
+    swap(fClips, slot.clips);
+    swap(fClipTris, slot.clipTris);
+    slot.st = State.init;
+    slot.stack.clear();
+    slot.clips.clear();
+    slot.clipTris.clear();
+    assert(st.clipCount == fClips[].length);
+  }
+
+  /// Asserts that `slot` shares no buffer with the Canvas.
+  void assertDistinct(ref FrameState slot) {
+    assert(!sameStorage(fStack, slot.stack), "FrameState aliases fStack");
+    assert(!sameStorage(fClips, slot.clips), "FrameState aliases fClips");
+    assert(!sameStorage(fClipTris, slot.clipTris),
+      "FrameState aliases fClipTris");
+  }
+
+  /**
+   * True when `a` and `b` (both allocated) use the same storage, as Appender
+   * copies do.
+   */
+  static bool sameStorage(T)(ref Appender!(T[]) a, ref Appender!(T[]) b) {
+    return a[].ptr !is null && a[].ptr is b[].ptr;
   }
 
 private:
-  /// One `clip()` call, replayed to rebuild the clip bit on `restore()`.
+  /**
+   * One `clip()` call, replayed to rebuild the clip bit on `restore()`:
+   * its fan triangles (already flattened and transformed to logic
+   * coordinates) are the floats `fClipTris[triStart .. triStart +
+   * triCount]`.
+   */
   struct ClipEntry {
-    Path2d path;
-    Transform2d xf;
+    size_t triStart;
+    size_t triCount;
     FillRule rule;
   }
 
@@ -549,13 +604,17 @@ private:
     FillRule fillRule = FillRule.nonZero;
     FillRule clipRule = FillRule.nonZero;
     Transform2d xf;
-    ClipEntry[] clips;
+    /// Number of `fClips` entries active in this state (see `clip()`).
+    size_t clipCount;
     Shadow shadow;
     FontSpec fontSpec;
     TextAlign textAlign = TextAlign.start;
     TextBaseline textBaseline = TextBaseline.alphabetic;
     TextDirection direction = TextDirection.ltr;
   }
+
+  // 1176 bytes before `FillStyle` became a tagged union (review 1.9)
+  static assert(State.sizeof < 1176 * 6 / 10);
 
   /// Geometry in `fVerts` for `drawShadow`.
   enum ShadowShape {
@@ -576,6 +635,15 @@ private:
   Renderer fRenderer;
   State st;
   Appender!(State[]) fStack;
+  /**
+   * Clips of the current state (`st.clipCount` entries) and their fan
+   * triangles. Invariant: the list is append-only between `save()` and
+   * `restore()`, so every saved state's clips are a prefix of it and a
+   * state needs only its `clipCount`; `restore()` truncates.
+   */
+  Appender!(ClipEntry[]) fClips;
+  /// Float (x, y) fan triangles of all `fClips` entries, in order.
+  Appender!(float[]) fClipTris;
   /// Reused scratch buffers (no per-call GC churn).
   Contours fContours;
   /// Dashed sub-contours of `fContours` (see `strokeContours`).
@@ -587,7 +655,7 @@ private:
   Path2d fRectPath;
 
   bool clipActive() const {
-    return st.clips.length > 0;
+    return st.clipCount > 0;
   }
 
   bool canDraw(const Path2d path) const {
@@ -1226,39 +1294,41 @@ private:
     endStencil();
   }
 
-  /// Intersects the clip bit with clip entry `e` (scissor must be off).
+  /**
+   * Intersects the clip bit with clip entry `e` (scissor must be off),
+   * drawing its stored triangles (no flattening).
+   */
   void applyClip(in ClipEntry e) {
-    import yguilib.render.internal.path_flatten : flattenPath;
     import yguilib.render.internal.stencil_ops : beginClipIntersect,
       beginResetLow, beginWinding, endStencil;
 
-    flattenPath(e.path, tolerance(e.xf), fContours);
-    buildFan(e.xf);
+    const(float)[] verts =
+      fClipTris[][e.triStart .. e.triStart + e.triCount];
     const ColorF none = ColorF(0, 0, 0, 0);
     beginWinding(e.rule);
-    drawVerts(fVerts[], none);
+    drawVerts(verts, none);
     beginClipIntersect(e.rule);
     const float[12] all = quadFromRect(RectF(
       -1, -1, fRenderer.logicWidth() + 2,
       fRenderer.logicHeight() + 2
     ));
     drawVerts(all[], none);
-    if (fVerts[].length > 0) {
-      const float[12] cover = quadFromRect(boundsOfVerts(fVerts[]));
+    if (verts.length > 0) {
+      const float[12] cover = quadFromRect(boundsOfVerts(verts));
       beginResetLow();
       drawVerts(cover[], none);
     }
     endStencil();
   }
 
-  /// Rebuilds the clip bit from `st.clips` after `restore()`.
+  /// Rebuilds the clip bit from `fClips` after `restore()`.
   void rebuildClip() {
     if (!fRenderer.isInitialized()) {
       return;
     }
     const bool scissor = disableScissor();
-    clearClipBit(st.clips.length > 0);
-    foreach (ref e; st.clips) {
+    clearClipBit(st.clipCount > 0);
+    foreach (ref e; fClips[]) {
       applyClip(e);
     }
     restoreScissor(scissor);
@@ -1312,6 +1382,11 @@ private:
   /// Fan triangles of every `fContours` contour, transformed into `fVerts`.
   void buildFan(in Transform2d xf) {
     fVerts.clear();
+    appendFan(xf, fVerts);
+  }
+
+  /// Appends the `fContours` fan triangles, transformed by `xf`, to `dst`.
+  void appendFan(in Transform2d xf, ref Appender!(float[]) dst) {
     const PointF[] pts = fContours.points[];
     foreach (info; fContours.infos[]) {
       if (info.count < 3) {
@@ -1322,7 +1397,7 @@ private:
       foreach (i; info.start + 2 .. info.start + info.count) {
         const PointF cur = xf.apply(pts[i]);
         const float[6] tri = [p0.x, p0.y, prev.x, prev.y, cur.x, cur.y];
-        fVerts.put(tri[]);
+        dst.put(tri[]);
         prev = cur;
       }
     }

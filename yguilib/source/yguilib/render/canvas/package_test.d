@@ -1392,3 +1392,148 @@ unittest {
     after.usedSize + after.freeSize <= before.usedSize + before.freeSize
   );
 }
+
+// nested clips inside and across a render target pass; clip, save and
+// target passes do not allocate after a warm-up
+unittest {
+  import core.memory : GC;
+  import yguilib.render.render_target : RenderTarget;
+
+  auto w = GlTestWindow("test_canvas_clip_state");
+  scope(exit) w.destroy();
+  auto r = w.renderer();
+  auto cv = w.canvas();
+  RenderTarget rt = r.createRenderTarget(320, 240, false);
+  assert(rt !is null);
+  scope(exit) rt.destroy();
+  RenderTarget rt2 = r.createRenderTarget(320, 240, false);
+  assert(rt2 !is null);
+  scope(exit) rt2.destroy();
+  scope(exit) w.endTargets();
+
+  const black = ColorF(0, 0, 0, 1);
+  const green = FillStyle.solid(ColorF(0, 1, 0, 1));
+  const blue = FillStyle.solid(ColorF(0, 0, 1, 1));
+  auto full = rectPath(RectF(0, 0, 320, 240));
+  auto outer = rectPath(RectF(20, 20, 100, 100));
+  auto inner = rectPath(RectF(70, 70, 100, 100));
+  auto small = rectPath(RectF(0, 0, 40, 40));
+
+  // nested save/clip/clip/restore/restore inside a target pass
+  void nested() {
+    cv.fillStyle(green);
+    cv.save();
+    cv.clip(outer);
+    cv.save();
+    cv.clip(inner);
+    cv.fill(full);
+    assert(isRgb(90, 90, 0, 255, 0));
+    assert(isRgb(40, 40, 0, 0, 0) && isRgb(150, 150, 0, 0, 0));
+    cv.restore();
+    cv.fillStyle(blue);
+    cv.fill(full);
+    assert(isRgb(40, 40, 0, 0, 255) && isRgb(150, 150, 0, 0, 0));
+    cv.restore();
+    cv.fillStyle(green);
+    cv.fill(full);
+    assert(isRgb(150, 150, 0, 255, 0) && isRgb(5, 5, 0, 255, 0));
+  }
+
+  r.clearFrame(black);
+  r.beginTarget(rt, true);
+  nested();
+  r.endTarget();
+
+  // across a target boundary: the outer clips stay on the window, the
+  // target starts unclipped and its clips are gone after endTarget
+  r.clearFrame(black);
+  cv.save();
+  cv.clip(outer);
+  cv.save();
+  cv.clip(inner);
+  r.beginTarget(rt, true);
+  cv.fillStyle(blue);
+  cv.fill(full);
+  assert(isRgb(5, 5, 0, 0, 255));
+  cv.save();
+  cv.clip(small);
+  cv.fillStyle(green);
+  cv.fill(full);
+  assert(isRgb(10, 10, 0, 255, 0) && isRgb(100, 100, 0, 0, 255));
+  r.endTarget();
+  cv.fillStyle(green);
+  cv.fill(full);
+  assert(isRgb(90, 90, 0, 255, 0));
+  assert(isRgb(40, 40, 0, 0, 0) && isRgb(10, 10, 0, 0, 0));
+  cv.restore();
+  cv.fillStyle(blue);
+  cv.fill(full);
+  assert(isRgb(40, 40, 0, 0, 255) && isRgb(150, 150, 0, 0, 0));
+  cv.restore();
+  cv.fillStyle(blue);
+  cv.fill(full);
+  assert(isRgb(150, 150, 0, 0, 255) && isRgb(5, 5, 0, 0, 255));
+
+  // a nested pass while the outer pass has clips
+  r.clearFrame(black);
+  r.beginTarget(rt, true);
+  cv.save();
+  cv.clip(small);
+  r.beginTarget(rt2, true);
+  nested();
+  r.endTarget();
+  cv.fillStyle(green);
+  cv.fill(full);
+  assert(isRgb(10, 10, 0, 255, 0) && isRgb(100, 100, 0, 0, 0));
+  cv.restore();
+  r.endTarget();
+
+  // save; clip; fill; restore does not grow the GC heap
+  void clipLoop() {
+    cv.save();
+    cv.clip(small);
+    cv.fill(full);
+    cv.restore();
+  }
+
+  r.clearFrame(black);
+  clipLoop();
+  clipLoop();
+  GC.collect();
+  auto before = GC.stats();
+  foreach (_; 0 .. 100) {
+    clipLoop();
+  }
+  auto after = GC.stats();
+  assert(after.allocatedInCurrentThread == before.allocatedInCurrentThread);
+  assert(
+    after.usedSize + after.freeSize <= before.usedSize + before.freeSize
+  );
+
+  // repeated target passes (with Canvas and Renderer clips inside) do
+  // not grow the GC heap either
+  void targetPass() {
+    cv.save();
+    cv.clip(outer);
+    r.beginTarget(rt, false);
+    r.pushClipRect(RectF(0, 0, 50, 50));
+    clipLoop();
+    r.popClipRect();
+    r.endTarget();
+    cv.restore();
+  }
+
+  targetPass();
+  targetPass();
+  GC.collect();
+  before = GC.stats();
+  foreach (_; 0 .. 50) {
+    targetPass();
+  }
+  after = GC.stats();
+  assert(after.allocatedInCurrentThread == before.allocatedInCurrentThread);
+  assert(
+    after.usedSize + after.freeSize <= before.usedSize + before.freeSize
+  );
+  assert(glGetError() == GL_NO_ERROR);
+}

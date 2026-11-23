@@ -56,6 +56,11 @@ struct ClipStack {
     stack.clear();
   }
 
+  /// True when both stacks use the same (allocated) buffer.
+  bool sharesStorage(ref ClipStack o) {
+    return stack[].ptr !is null && stack[].ptr is o.stack[].ptr;
+  }
+
   /**
    * Re-sets the GL scissor from the top rect, or disables the scissor
    * when the stack is empty (after switching render targets).
