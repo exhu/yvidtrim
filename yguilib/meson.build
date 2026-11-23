@@ -68,6 +68,7 @@ yguilib_src = files(
   'source/yguilib/render/render_types.d',
   'source/yguilib/render/texture.d',
   'source/yguilib/serhelpers.d',
+  'source/yguilib/texthelpers.d',
   'source/yguilib/timercontrol.d',
   'source/yguilib/timers.d',
   'source/yguilib/uisystem.d',

@@ -1,37 +1,13 @@
 /**
- * Memory helpers: `formatBytes` (always available) and optional resource
- * telemetry (peak texture and heap usage) compiled in only with
- * `version (MemTelemetry)`, set by the Meson `memtelemetry` option.
+ * Optional resource telemetry (peak texture and heap usage) compiled in only
+ * with `version (MemTelemetry)`, set by the Meson `memtelemetry` option.
  * Without the version every telemetry entry point is an empty stub.
  *
  * Texture tracking is main-thread only, like all GL access.
  */
 module yguilib.internal.memstats;
 
-import std.format : format;
-
-/// Formats a byte count as B, KiB or MiB, whichever reads best.
-string formatBytes(ulong n) {
-  enum ulong kib = 1024;
-  enum ulong mib = 1024 * 1024;
-  if (n < kib) {
-    return format("%d B", n);
-  }
-  if (n < mib) {
-    return format("%.2f KiB", n / cast(double) kib);
-  }
-  return format("%.2f MiB", n / cast(double) mib);
-}
-
-unittest {
-  assert(formatBytes(0) == "0 B");
-  assert(formatBytes(1023) == "1023 B");
-  assert(formatBytes(1024) == "1.00 KiB");
-  assert(formatBytes(1536) == "1.50 KiB");
-  assert(formatBytes(1024 * 1024 - 1) == "1024.00 KiB");
-  assert(formatBytes(1024 * 1024) == "1.00 MiB");
-  assert(formatBytes(3 * 1024 * 1024 / 2) == "1.50 MiB");
-}
+package(yguilib):
 
 version (MemTelemetry) {
   /// Tracks live textures and the peaks of their count and size.
@@ -140,6 +116,7 @@ version (MemTelemetry) {
   /// Logs the peaks collected so far at info level.
   void logMemStats() {
     import std.logger : infof;
+    import yguilib.texthelpers : formatBytes;
     gHeap.sample();
     infof(
       "Texture stats (RGBA8 textures only): max memory=%s, "

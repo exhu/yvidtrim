@@ -1,4 +1,3 @@
-- move formatBytes from yguilib.internal.memstats to new module yguilib.texthelpers as public
 - add helpers to canvas api to decode Path2D string (e.g. "M 155 112 C 165 88, 225 88, 235 106 Z") into Path2d instance, and decode color from strings like "#2b3140" to ColorF to easily port js canvas snipepts.
 - add new page to guidemo which draws gamepad via translating related js snippet from documentation/gamepad-canvas-by-gemini.html using helpers from todo item above and yguilib.render.canvas api with Path2d.
 

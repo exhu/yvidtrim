@@ -1,9 +1,8 @@
 # yvidtrim Architecture
 
 ## System Overview
-`yvidtrim` is a frame-accurate, keyboard-driven video trimming tool built in D.
-It targets lossless cut workflows (smart cuts re-encoding only GOP boundaries)
-with private C wrappers for external media libraries.
+`yvidtrim` is a frame-accurate, keyboard-driven video trimmer in D targeting
+lossless cuts (re-encoding only GOP boundaries) with private C wrappers.
 
 Key architectural separation:
 - `yvidtrim`: Video editor application, domain logic, playback, and export.
@@ -36,7 +35,7 @@ yvidtrim/
 │   │   ├── app.d          # Application wrapper running event loop
 │   │   ├── window.d       # Window, OpenGL context, display scaling
 │   │   ├── uisystem.d     # UiSystem, ControllerStack, EventControl interfaces
-│   │   ├── serhelpers.d   # Generic JSON reflection serialization helpers
+│   │   ├── serhelpers.d, texthelpers.d # JSON reflection; byte formatting
 │   │   ├── model.d        # VersionedModel and ModelTracker state tracking
 │   │   ├── clibs/         # extern(C) D bindings for yguilib-clibs
 │   │   ├── controller/    # Controller interfaces and ControllerStack
