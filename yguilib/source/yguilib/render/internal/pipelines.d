@@ -3,6 +3,7 @@ module yguilib.render.internal.pipelines;
 package(yguilib):
 
 import glad2.gles2;
+import std.array : Appender;
 import yguilib.render.internal.gl_util;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.internal.assets;
@@ -243,12 +244,11 @@ private:
     float vh
   ) {
     import std.algorithm : min;
-    import std.array : Appender;
 
-    Appender!(float[]) vertices;
+    fDashScratch.clear();
     const float period = dashLen + gapLen;
     const size_t estDashes = cast(size_t)(dist / period) + 1;
-    vertices.reserve(estDashes * 12);
+    fDashScratch.reserve(estDashes * 12);
 
     float cur = 0.0f;
     while (cur < dist) {
@@ -269,15 +269,18 @@ private:
           ex - ox, ey - oy,
           ex + ox, ey + oy,
         ];
-        vertices.put(dashQuad[]);
+        fDashScratch.put(dashQuad[]);
       }
       cur += period;
     }
 
-    if (vertices.data.length > 0) {
-      drawArrays(GL_TRIANGLES, vertices.data, color, vw, vh);
+    if (fDashScratch[].length > 0) {
+      drawArrays(GL_TRIANGLES, fDashScratch[], color, vw, vh);
     }
   }
+
+  /// Reused vertex buffer of `drawDashedThickLine` (cleared per call).
+  Appender!(float[]) fDashScratch;
 }
 
 /**

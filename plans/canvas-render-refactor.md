@@ -42,8 +42,8 @@ Phases run one after another, because they touch the same files.
   -----  -----------  ---------------------------------------------
   ph01   done         committed 1696c79; see notes below
   ph02   done         committed 6b04e76; see notes below
-  ph03   done         see notes below
-  ph04   not started
+  ph03   done         committed b5b2f74; see notes below
+  ph04   done         see notes below
   ph05   not started
   ph06   not started
   ph07   not started
@@ -99,6 +99,24 @@ ph03 notes (2026-11-23):
   `getOrCreate`, `createTextTexture` and `Renderer.textTextureFor`.
 - The new stroker GC test may not have failed on the old code (LDC
   -O2 may elide the literal); it guards regressions.
+- Still 65 modules; meson test 10/10 OK.
+
+ph04 notes (2026-11-23):
+- 1.7/4.8: `LineDash` stores up to `maxSegments = 32` segments inline
+  (private `fSegs`, `fCount`, `fPeriod`); build it only via
+  `fromSegments` (or `.init` for solid). More than 32 segments after
+  odd doubling gives a solid dash (documented HTML deviation). Stroker
+  uses `period()` instead of re-summing. `State.dash` is ~140 bytes
+  inline; keep in mind for 1.9 (ph05).
+- 1.3: `applyDashInto(c, dash, offset, ref dst)`. `strokeContours`
+  takes an explicit `ref Contours dashScratch`; Canvas owns
+  `fDashContours`.
+- 1.4: `ColorPipeline.fDashScratch` Appender reused per call.
+- 1.5: `Path2d` uses Appenders; `clear()` keeps capacity; `addPath`
+  reserves first and is safe for `addPath(this)`.
+- 3.6: `stroke()` strokes straight into `fVerts` and transforms in
+  place (`transformInPlace`, skips identity). `fLocalTris` and
+  `transformVerts` are gone.
 - Still 65 modules; meson test 10/10 OK.
 
 ## Rules for every phase

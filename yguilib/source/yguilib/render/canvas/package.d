@@ -132,13 +132,17 @@ final class Canvas {
     return st.miterLimit;
   }
 
-  /// Stores a normalized copy (see `LineDash.fromSegments`).
-  void lineDash(LineDash dash) {
-    st.dash = LineDash.fromSegments(dash.segments);
+  /**
+   * Stores a copy of `dash` (already normalized by
+   * `LineDash.fromSegments`); does not allocate.
+   */
+  void lineDash(in LineDash dash) {
+    st.dash = dash;
   }
 
+  /// A copy of the current dash; does not allocate.
   LineDash lineDash() const {
-    return LineDash.fromSegments(st.dash.segments);
+    return st.dash;
   }
 
   /// Ignores non-finite offsets.
@@ -204,12 +208,14 @@ final class Canvas {
     p.cap = st.cap;
     p.join = st.join;
     p.miterLimit = st.miterLimit;
-    p.dash = st.dash.segments;
+    p.dash = st.dash;
     p.dashOffset = st.dashOffset;
     p.tolerance = tol;
-    fLocalTris.clear();
-    strokeContours(fContours, p, fLocalTris);
-    transformVerts(fLocalTris[], st.xf);
+    // stroke straight into fVerts (the shadow pass reads it) and map it
+    // to device space in place: no second copy of the geometry
+    fVerts.clear();
+    strokeContours(fContours, p, fVerts, fDashContours);
+    transformInPlace(fVerts[], st.xf);
     if (fVerts[].length == 0) {
       return;
     }
@@ -572,7 +578,8 @@ private:
   Appender!(State[]) fStack;
   /// Reused scratch buffers (no per-call GC churn).
   Contours fContours;
-  Appender!(float[]) fLocalTris;
+  /// Dashed sub-contours of `fContours` (see `strokeContours`).
+  Contours fDashContours;
   Appender!(float[]) fVerts;
   Appender!(float[]) fShadowVerts;
   /// (x, y, u, v) triangles of the last `drawImageRegionTinted`.
@@ -1321,13 +1328,15 @@ private:
     }
   }
 
-  /// `fVerts` = `local` (x, y pairs) transformed by `xf`.
-  void transformVerts(const(float)[] local, in Transform2d xf) {
-    fVerts.clear();
-    for (size_t i = 0; i + 1 < local.length; i += 2) {
-      const PointF p = xf.apply(PointF(local[i], local[i + 1]));
-      fVerts.put(p.x);
-      fVerts.put(p.y);
+  /// Transforms the `verts` (x, y pairs) by `xf` in place.
+  static void transformInPlace(float[] verts, in Transform2d xf) {
+    if (xf.isIdentity()) {
+      return;
+    }
+    for (size_t i = 0; i + 1 < verts.length; i += 2) {
+      const PointF p = xf.apply(PointF(verts[i], verts[i + 1]));
+      verts[i] = p.x;
+      verts[i + 1] = p.y;
     }
   }
 

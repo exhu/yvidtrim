@@ -143,15 +143,22 @@ enum LineJoin {
   miter,
 }
 
-/// Dash pattern: alternating dash/gap lengths; empty means solid.
+/**
+ * Dash pattern: alternating dash/gap lengths; empty means solid. Holds at
+ * most `maxSegments` normalized segments inline, so it is `@nogc` and
+ * cheap to copy. Build it with `fromSegments`.
+ */
 struct LineDash {
-  float[] segments;
+  /// Capacity of the normalized (even-length) segment list.
+  enum size_t maxSegments = 32;
 
   /**
    * Builds a dash from `src`: an odd count is duplicated, any negative or
-   * non-finite value gives an empty (solid) dash.
+   * non-finite value gives an empty (solid) dash. Deviation from HTML
+   * (which has no limit): a normalized length above `maxSegments` also
+   * gives a solid dash.
    */
-  static LineDash fromSegments(const float[] src) nothrow @safe {
+  static LineDash fromSegments(const float[] src) nothrow @safe @nogc {
     import std.math : isFinite;
 
     foreach (v; src) {
@@ -159,27 +166,40 @@ struct LineDash {
         return LineDash.init;
       }
     }
-    LineDash res;
-    res.segments = src.dup;
-    if (src.length % 2 == 1) {
-      res.segments ~= src;
+    const size_t len = src.length % 2 == 1 ? src.length * 2 : src.length;
+    if (len > maxSegments) {
+      return LineDash.init;
     }
+    LineDash res;
+    float sum = 0;
+    foreach (i; 0 .. len) {
+      res.fSegs[i] = src[i % src.length];
+      sum += res.fSegs[i];
+    }
+    res.fCount = cast(ubyte) len;
+    res.fPeriod = sum;
     return res;
+  }
+
+  /// The normalized (even-length) dash/gap lengths.
+  const(float)[] segments() const return nothrow @safe @nogc {
+    return fSegs[0 .. fCount];
   }
 
   /// True when no dashing applies (empty or zero period).
   bool isSolid() const nothrow @safe @nogc {
-    return segments.length == 0 || period() <= 0;
+    return fCount == 0 || fPeriod <= 0;
   }
 
   /// Sum of all segment lengths.
   float period() const nothrow @safe @nogc {
-    float sum = 0;
-    foreach (v; segments) {
-      sum += v;
-    }
-    return sum;
+    return fPeriod;
   }
+
+private:
+  float[maxSegments] fSegs = 0;
+  ubyte fCount;
+  float fPeriod = 0;
 }
 
 // LineDash
@@ -194,6 +214,27 @@ unittest {
   assert(LineDash.fromSegments([1.0f, float.infinity]).isSolid());
   assert(LineDash.fromSegments([0.0f, 0]).isSolid());
   assert(LineDash.init.isSolid());
+}
+
+// LineDash capacity: odd counts double, overflow gives solid
+unittest {
+  float[17] odd17 = 1;
+  const LineDash d17 = LineDash.fromSegments(odd17[]);
+  assert(d17.isSolid() && d17.segments.length == 0);
+
+  float[16] even16;
+  foreach (i, ref v; even16) {
+    v = i + 1;
+  }
+  const LineDash d16 = LineDash.fromSegments(even16[]);
+  assert(d16.segments == even16[]);
+  assert(d16.period() == 136);
+
+  const LineDash d3 = LineDash.fromSegments([1.0f, 2, 3]);
+  assert(d3.segments.length == 6);
+
+  float[LineDash.maxSegments] full = 2;
+  assert(LineDash.fromSegments(full[]).segments.length == full.length);
 }
 
 /// Gradient color stop at `offset` in [0, 1].

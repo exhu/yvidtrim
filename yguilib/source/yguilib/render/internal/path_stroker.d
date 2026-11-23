@@ -9,7 +9,7 @@ package(yguilib):
 
 import std.array : Appender;
 import std.math : PI, abs, acos, atan2, ceil, cos, isFinite, sin, sqrt;
-import yguilib.render.canvas.types : LineCap, LineJoin;
+import yguilib.render.canvas.types : LineCap, LineDash, LineJoin;
 import yguilib.render.internal.path_flatten : ContourInfo, Contours;
 import yguilib.render.render_types : PointF;
 
@@ -19,18 +19,23 @@ struct StrokeParams {
   LineCap cap = LineCap.butt;
   LineJoin join = LineJoin.miter;
   float miterLimit = 10;
-  /// Even-length dash/gap lengths (see `LineDash`); empty means solid.
-  const(float)[] dash;
+  /// Normalized dash/gap lengths (see `LineDash`); solid by default.
+  LineDash dash;
   float dashOffset = 0;
   float tolerance = 0.25f; // for round caps/joins tessellation
 }
 
 /**
  * Appends the stroke triangles of all contours of `c` to `tris` (not
- * cleared). Width <= 0 or non-finite width draws nothing.
+ * cleared). Width <= 0 or non-finite width draws nothing. A dashed `p`
+ * writes its dash sub-contours into `dashScratch` (overwritten; passed
+ * explicitly so the caller keeps its capacity across strokes).
  */
 void strokeContours(
-  ref const Contours c, in StrokeParams p, ref Appender!(float[]) tris
+  ref const Contours c,
+  in StrokeParams p,
+  ref Appender!(float[]) tris,
+  ref Contours dashScratch
 ) nothrow @safe {
   if (!isFinite(p.width) || p.width <= 0) {
     return;
@@ -44,8 +49,8 @@ void strokeContours(
   s.tolerance = isFinite(p.tolerance) && p.tolerance > 1e-4f
     ? p.tolerance : 1e-4f;
   if (isDashed(p.dash)) {
-    const Contours dashed = applyDash(c, p.dash, p.dashOffset);
-    s.strokeAll(dashed);
+    applyDashInto(c, p.dash, p.dashOffset, dashScratch);
+    s.strokeAll(dashScratch);
   } else {
     s.strokeAll(c);
   }
@@ -54,29 +59,30 @@ void strokeContours(
 /**
  * Splits each contour of `c` into open sub-contours along its arc length
  * using the dash/gap lengths `dash` starting at phase `offset` (wrapped
- * into the period). A closed contour is dashed across its closing segment
- * and its first and last dash are merged when both touch the seam. A
- * zero-length dash gives a 1-point contour. An invalid or zero-period
- * `dash`, or one producing more than `maxDashes`, returns a copy of `c`.
+ * into the period), written into `dst` (cleared first). A closed contour
+ * is dashed across its closing segment and its first and last dash are
+ * merged when both touch the seam. A zero-length dash gives a 1-point
+ * contour. A solid or non-finite-period `dash`, or one producing more
+ * than `maxDashes`, copies `c` into `dst`.
  */
-Contours applyDash(
-  ref const Contours c, const(float)[] dash, float offset
+void applyDashInto(
+  ref const Contours c, in LineDash dash, float offset, ref Contours dst
 ) nothrow @safe {
-  Contours res;
+  dst.clear();
   if (!isDashed(dash) || tooManyDashes(c, dash)) {
-    res.points.put(c.points[]);
-    res.infos.put(c.infos[]);
-    return res;
+    dst.points.put(c.points[]);
+    dst.infos.put(c.infos[]);
+    return;
   }
   const DashPattern pat = DashPattern(dash, offset);
   foreach (info; c.infos[]) {
     const PointF[] pts = c.points[][info.start .. info.start + info.count];
-    dashContour(pts, info.closed, pat, res);
+    dashContour(pts, info.closed, pat, dst);
   }
-  return res;
 }
 
-/// Upper bound of dashes per `applyDash` call before dashing is skipped.
+/// Upper bound of dashes per `applyDashInto` call before dashing is
+/// skipped.
 enum size_t maxDashes = 100_000;
 
 private:
@@ -84,18 +90,9 @@ private:
 enum float eps = 1e-6f;
 enum int maxFanSegments = 256;
 
-bool isDashed(const(float)[] dash) nothrow @safe @nogc {
-  if (dash.length == 0) {
-    return false;
-  }
-  float sum = 0;
-  foreach (v; dash) {
-    if (!isFinite(v) || v < 0) {
-      return false;
-    }
-    sum += v;
-  }
-  return sum > 0 && isFinite(sum);
+/// `LineDash` validates its segments; only the period sum can overflow.
+bool isDashed(in LineDash dash) nothrow @safe @nogc {
+  return !dash.isSolid() && isFinite(dash.period());
 }
 
 float contourLength(const PointF[] pts, bool closed) nothrow @safe @nogc {
@@ -109,37 +106,30 @@ float contourLength(const PointF[] pts, bool closed) nothrow @safe @nogc {
   return len;
 }
 
-bool tooManyDashes(ref const Contours c, const(float)[] dash)
+bool tooManyDashes(ref const Contours c, in LineDash dash)
   nothrow @safe @nogc {
-  float period = 0;
-  foreach (v; dash) {
-    period += v;
-  }
   float total = 0;
   foreach (info; c.infos[]) {
     const PointF[] pts = c.points[][info.start .. info.start + info.count];
     total += contourLength(pts, info.closed);
   }
-  const float n = total / period * dash.length;
+  const float n = total / dash.period() * dash.segments.length;
   return !isFinite(n) || n > maxDashes;
 }
 
-/// Dash pattern with an odd segment count treated as repeated twice.
+/// Dash pattern state: segment lengths and the phase start position.
 struct DashPattern {
-  const(float)[] segs;
+  LineDash dash;
   size_t len;
   size_t startIdx;
   float startLeft;
 
-  this(const(float)[] dash, float offset) nothrow @safe @nogc {
+  this(in LineDash d, float offset) nothrow @safe @nogc {
     import std.math : fmod;
 
-    segs = dash;
-    len = dash.length % 2 == 1 ? dash.length * 2 : dash.length;
-    float period = 0;
-    foreach (i; 0 .. len) {
-      period += seg(i);
-    }
+    dash = d;
+    len = d.segments.length;
+    const float period = d.period();
     float phase = isFinite(offset) ? fmod(offset, period) : 0;
     if (phase < 0) {
       phase += period;
@@ -154,7 +144,7 @@ struct DashPattern {
   }
 
   float seg(size_t i) const nothrow @safe @nogc {
-    return segs[i % segs.length];
+    return dash.segments[i % len];
   }
 }
 
@@ -530,8 +520,15 @@ version (unittest) {
   float[] strokeWith(const PointF[] pts, bool closed, in StrokeParams p) {
     const Contours c = contoursWith(pts, closed);
     Appender!(float[]) tris;
-    strokeContours(c, p, tris);
+    Contours dashScratch;
+    strokeContours(c, p, tris, dashScratch);
     return tris[];
+  }
+
+  Contours dashed(ref const Contours c, const float[] dash, float offset) {
+    Contours res;
+    applyDashInto(c, LineDash.fromSegments(dash), offset, res);
+    return res;
   }
 
   bool near(float a, float b, float e) {
@@ -616,11 +613,11 @@ unittest {
   const Contours c = contoursWith(line, false);
   const float[] dash = [10, 10];
 
-  const Contours d = applyDash(c, dash, 0);
+  const Contours d = dashed(c, dash, 0);
   assert(d.infos[].length == 5);
   StrokeParams p;
   p.width = 10;
-  p.dash = dash;
+  p.dash = LineDash.fromSegments(dash);
   const t = strokeWith(line, false, p);
   assert(covers(t, PointF(5, 0)) && covers(t, PointF(45, 0)));
   assert(!covers(t, PointF(15, 0)) && !covers(t, PointF(95, 0)));
@@ -636,11 +633,51 @@ unittest {
   assert(!covers(tn, PointF(2, 0)) && covers(tn, PointF(7, 0)));
 
   // odd count repeats: [10] == [10, 10]
-  assert(applyDash(c, [10.0f], 0).infos[].length == 5);
+  assert(dashed(c, [10.0f], 0).infos[].length == 5);
   // zero-length dashes become dots
-  const Contours z = applyDash(c, [0.0f, 50], 0);
+  const Contours z = dashed(c, [0.0f, 50], 0);
   assert(z.infos[].length == 2);
   assert(z.infos[][0].count == 1 && z.infos[][1].count == 1);
+
+  // dst is cleared first; a solid dash copies the input
+  Contours dst;
+  applyDashInto(c, LineDash.fromSegments(dash), 0, dst);
+  applyDashInto(c, LineDash.fromSegments(dash), 0, dst);
+  assert(dst.infos[].length == 5);
+  applyDashInto(c, LineDash.init, 0, dst);
+  assert(dst.infos[] == c.infos[] && dst.points[] == c.points[]);
+}
+
+// a warmed-up dashed stroke reuses tris and the dash scratch
+unittest {
+  import core.memory : GC;
+
+  const PointF[] pts = [
+    PointF(0, 0), PointF(100, 0), PointF(100, 100), PointF(0, 100)
+  ];
+  const Contours c = contoursWith(pts, true);
+  StrokeParams p;
+  p.width = 6;
+  p.dash = LineDash.fromSegments([7.0f, 3, 2]);
+  p.dashOffset = 4;
+  Appender!(float[]) tris;
+  Contours dashScratch;
+  strokeContours(c, p, tris, dashScratch);
+  const size_t len = tris[].length;
+  assert(len > 0 && dashScratch.infos[].length > 10);
+
+  GC.collect();
+  const before = GC.stats();
+  foreach (_; 0 .. 100) {
+    tris.clear();
+    strokeContours(c, p, tris, dashScratch);
+  }
+  const after = GC.stats();
+  assert(tris[].length == len);
+  assert(after.allocatedInCurrentThread == before.allocatedInCurrentThread);
+  assert(
+    after.usedSize + after.freeSize <= before.usedSize + before.freeSize
+  );
 }
 
 // dashing a closed contour merges the seam
@@ -649,7 +686,7 @@ unittest {
     PointF(0, 0), PointF(100, 0), PointF(100, 100), PointF(0, 100)
   ];
   const Contours c = contoursWith(sq, true);
-  const Contours d = applyDash(c, [40.0f, 40], 20);
+  const Contours d = dashed(c, [40.0f, 40], 20);
   // phase 20: on [0,20], off [20,60], on [60,100] ...; the last on
   // [380,400] merges with [0,20]
   assert(d.infos[].length == 5);
@@ -665,7 +702,7 @@ unittest {
   assert(seam);
 
   // a dash longer than the contour keeps it closed
-  const Contours full = applyDash(c, [1000.0f, 10], 0);
+  const Contours full = dashed(c, [1000.0f, 10], 0);
   assert(full.infos[].length == 1 && full.infos[][0].closed);
   assert(full.infos[][0].count == 4);
 }
@@ -707,7 +744,8 @@ unittest {
   p.width = 10;
   Contours empty;
   Appender!(float[]) tris;
-  strokeContours(empty, p, tris);
+  Contours dashScratch;
+  strokeContours(empty, p, tris, dashScratch);
   assert(tris[].length == 0);
 
   const PointF[] dotPts = [PointF(7, 7), PointF(7, 7)];
@@ -737,7 +775,8 @@ unittest {
   p.cap = LineCap.round;
   p.tolerance = 0.05f;
   Appender!(float[]) tris;
-  strokeContours(c, p, tris);
+  Contours dashScratch;
+  strokeContours(c, p, tris, dashScratch);
   const size_t len = tris[].length;
   assert(len > 6 * 64);
 
@@ -745,7 +784,7 @@ unittest {
   const before = GC.stats();
   foreach (_; 0 .. 100) {
     tris.clear();
-    strokeContours(c, p, tris);
+    strokeContours(c, p, tris, dashScratch);
   }
   const after = GC.stats();
   assert(tris[].length == len);

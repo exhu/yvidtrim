@@ -110,7 +110,7 @@ unittest {
   r.clearFrame(black);
   cv.strokeStyle(FillStyle.solid(ColorF(1, 1, 1, 1)));
   cv.lineWidth(6);
-  cv.lineDash(LineDash([20.0f, 20]));
+  cv.lineDash(LineDash.fromSegments([20.0f, 20]));
   assert(cv.lineDash().segments == [20.0f, 20]);
   auto line = new Path2d();
   line.moveTo(PointF(20, 100));
@@ -792,7 +792,7 @@ unittest {
     Pattern.fromTexture(tex, PatternRepeat.repeat)
   ));
   cv.lineWidth(8);
-  cv.lineDash(LineDash([20.0f, 20]));
+  cv.lineDash(LineDash.fromSegments([20.0f, 20]));
   auto dline = new Path2d();
   dline.moveTo(PointF(0, 5));
   dline.lineTo(PointF(80, 5));
@@ -1332,4 +1332,63 @@ unittest {
   cv.strokeText("O", PointF(100, 40));
   grab();
   assert(litSpan(buf, 0).count == 0);
+}
+
+// dashed stroke: transform, shadow, and a warmed-up loop without GC growth
+unittest {
+  import core.memory : GC;
+
+  auto w = GlTestWindow("test_canvas_dash_gc");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+  auto r = w.renderer();
+  auto cv = w.canvas();
+
+  const black = ColorF(0, 0, 0, 1);
+  auto line = new Path2d();
+  line.moveTo(PointF(0, 0));
+  line.lineTo(PointF(100, 0));
+
+  // translated dashed line with a hard shadow 20 px below: the shadow
+  // pass sees the same transformed geometry
+  r.clearFrame(black);
+  cv.strokeStyle(FillStyle.solid(ColorF(1, 1, 1, 1)));
+  cv.lineWidth(6);
+  cv.lineDash(LineDash.fromSegments([20.0f, 20]));
+  Shadow s;
+  s.offset = PointF(0, 20);
+  s.color = ColorF(0, 1, 0, 1);
+  cv.shadow(s);
+  cv.translate(PointF(20, 100));
+  cv.stroke(line);
+  cv.resetTransform();
+  cv.shadow(Shadow.init);
+  assert(isRgb(30, 100, 255, 255, 255) && isRgb(50, 100, 0, 0, 0));
+  assert(isRgb(70, 100, 255, 255, 255));
+  assert(isRgb(30, 120, 0, 255, 0) && isRgb(50, 120, 0, 0, 0));
+  assert(isRgb(70, 120, 0, 255, 0));
+
+  const float[3] segs = [7, 3, 2];
+  void frame() {
+    cv.lineDash(LineDash.fromSegments(segs[]));
+    const LineDash d = cv.lineDash();
+    assert(d.segments.length == 6);
+    cv.lineDashOffset(1);
+    cv.stroke(line);
+  }
+
+  frame();
+  frame();
+  GC.collect();
+  const before = GC.stats();
+  foreach (_; 0 .. 100) {
+    frame();
+  }
+  const after = GC.stats();
+  cv.lineDash(LineDash.init);
+  cv.lineDashOffset(0);
+  assert(after.allocatedInCurrentThread == before.allocatedInCurrentThread);
+  assert(
+    after.usedSize + after.freeSize <= before.usedSize + before.freeSize
+  );
 }

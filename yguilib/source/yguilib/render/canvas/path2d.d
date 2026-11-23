@@ -3,6 +3,7 @@
  */
 module yguilib.render.canvas.path2d;
 
+import std.array : Appender;
 import yguilib.render.canvas.types : Transform2d;
 import yguilib.render.render_types : PointF, RectF;
 
@@ -267,19 +268,21 @@ final class Path2d {
   /// Appends `other` transformed by `t` (`other` may be `this`).
   void addPath(Path2d other, Transform2d t) nothrow @safe {
     assert(other !is null);
-    const size_t nv = other.fVerbs.length;
-    const size_t np = other.fPoints.length;
-    if (nv == 0) {
+    // slices taken before reserving stay valid when other is this (the
+    // GC keeps the old buffer alive if reserve moves the data)
+    const PathVerb[] srcVerbs = other.fVerbs[];
+    const PointF[] srcPoints = other.fPoints[];
+    if (srcVerbs.length == 0) {
       return;
     }
     const bool otherClosed = other.fClosed;
     const PointF otherStart = other.fSubpathStart;
     const PointF otherCur = other.fCurrent;
-    for (size_t i = 0; i < nv; ++i) {
-      fVerbs ~= other.fVerbs[i];
-    }
-    for (size_t i = 0; i < np; ++i) {
-      fPoints ~= t.apply(other.fPoints[i]);
+    fVerbs.reserve(fVerbs[].length + srcVerbs.length);
+    fPoints.reserve(fPoints[].length + srcPoints.length);
+    fVerbs.put(srcVerbs);
+    foreach (p; srcPoints) {
+      fPoints.put(t.apply(p));
     }
     fHasSubpath = true;
     fClosed = otherClosed;
@@ -287,10 +290,10 @@ final class Path2d {
     fCurrent = t.apply(otherCur);
   }
 
-  /// Removes all subpaths.
+  /// Removes all subpaths, keeping the buffer capacity.
   void clear() nothrow @safe {
-    fVerbs = null;
-    fPoints = null;
+    fVerbs.clear();
+    fPoints.clear();
     fHasSubpath = false;
     fClosed = false;
     fSubpathStart = PointF.init;
@@ -299,19 +302,20 @@ final class Path2d {
 
   /// True when no verbs were added.
   bool isEmpty() const nothrow @safe @nogc {
-    return fVerbs.length == 0;
+    return fVerbs[].length == 0;
   }
 
   /// Bounds of all points including control points; empty is all zeros.
   RectF bounds() const nothrow @safe @nogc {
-    if (fPoints.length == 0) {
+    const PointF[] pts = fPoints[];
+    if (pts.length == 0) {
       return RectF(0, 0, 0, 0);
     }
-    float x0 = fPoints[0].x;
-    float y0 = fPoints[0].y;
+    float x0 = pts[0].x;
+    float y0 = pts[0].y;
     float x1 = x0;
     float y1 = y0;
-    foreach (p; fPoints[1 .. $]) {
+    foreach (p; pts[1 .. $]) {
       x0 = p.x < x0 ? p.x : x0;
       y0 = p.y < y0 ? p.y : y0;
       x1 = p.x > x1 ? p.x : x1;
@@ -323,17 +327,17 @@ final class Path2d {
 package(yguilib):
   /// Stored verbs; see `pointCountOfVerb` for points per verb.
   const(PathVerb)[] verbs() const nothrow @safe @nogc {
-    return fVerbs;
+    return fVerbs[];
   }
 
   /// Stored points for all verbs, in order.
   const(PointF)[] points() const nothrow @safe @nogc {
-    return fPoints;
+    return fPoints[];
   }
 
 private:
-  PathVerb[] fVerbs;
-  PointF[] fPoints;
+  Appender!(PathVerb[]) fVerbs;
+  Appender!(PointF[]) fPoints;
   bool fHasSubpath;
   /// true right after closePath (until the next verb)
   bool fClosed;
@@ -538,4 +542,35 @@ unittest {
     PointF(0, 0), PointF(10, 2), cast(float)(PI / 2), 0, 0.1f, false
   );
   assert(near(p.points[0], PointF(0, 10)));
+}
+
+// clearing and rebuilding a warmed-up Path2d does not allocate
+unittest {
+  import core.memory : GC;
+
+  auto p = new Path2d();
+  auto q = new Path2d();
+  void build() {
+    p.clear();
+    p.rect(RectF(0, 0, 10, 10));
+    p.roundRect(RectF(1, 1, 8, 8), 2);
+    p.arc(PointF(5, 5), 4, 0, 6, false);
+    q.clear();
+    q.addPath(p, Transform2d.translation(PointF(3, 4)));
+  }
+  build();
+  const size_t nv = p.verbs.length;
+  const size_t nq = q.points.length;
+
+  GC.collect();
+  const before = GC.stats();
+  foreach (_; 0 .. 100) {
+    build();
+  }
+  const after = GC.stats();
+  assert(p.verbs.length == nv && q.points.length == nq);
+  assert(after.allocatedInCurrentThread == before.allocatedInCurrentThread);
+  assert(
+    after.usedSize + after.freeSize <= before.usedSize + before.freeSize
+  );
 }
