@@ -5,7 +5,7 @@ module guidemo.view;
 
 import std.logger : tracef;
 
-import guidemo.demo_model_helpers : headerTabNames;
+import guidemo.demo_model_helpers : formatGlobalHints, headerTabNames;
 import guidemo.model : DebugDrawMode, DemoModel;
 import yguilib.controls.tabcontrol : TabControlBuilder, TabsModel;
 import yguilib.model : ModelTracker;
@@ -56,6 +56,7 @@ final class DemoView {
     assert(view !is null);
     assert(tabControl !is null);
     assert(statusLabel !is null);
+    assert(hintLabel !is null);
   }
 
   /// Syncs widgets from the demo model when it changed.
@@ -64,6 +65,7 @@ final class DemoView {
       const auto m = tracker.model;
       updateDebugDraw(m);
       updateStatusBar(m.statusText);
+      updateHints(m.debugDrawMode);
     }
   }
 
@@ -80,6 +82,10 @@ final class DemoView {
 private:
   void updateStatusBar(string statusText) {
     statusLabel.setCaption(statusText);
+  }
+
+  void updateHints(DebugDrawMode mode) {
+    hintLabel.setCaption(formatGlobalHints(mode));
   }
 
   void updateDebugDraw(const DemoModel m) {
@@ -199,9 +205,18 @@ private:
     statusLabel = WidgetBuilder.make(ui)
       .parent(footer)
       .name("statusLabel")
-      .rect(RectF(14, 16, 1210, 20))
+      .rect(RectF(14, 6, 1210, 20))
       .text(tracker.model.statusText)
       .textColor(ColorF(0.95f, 0.95f, 0.40f, 1.0f))
+      .build();
+
+    // Global key hints (F1/F12 etc.) on a second, dimmer line.
+    hintLabel = WidgetBuilder.make(ui)
+      .parent(footer)
+      .name("hintLabel")
+      .rect(RectF(14, 27, 1210, 20))
+      .text(formatGlobalHints(tracker.model.debugDrawMode))
+      .textColor(ColorF(0.60f, 0.65f, 0.75f, 1.0f))
       .build();
   }
 
@@ -212,6 +227,7 @@ private:
 
   Widget tabControl;
   Widget statusLabel;
+  Widget hintLabel;
 
   DebugDrawMode appliedDebugDrawMode = DebugDrawMode.off;
 }
@@ -278,6 +294,8 @@ unittest {
   assert(root.components.debugDraw.recursive);
   assert(!root.components.debugDraw.drawHidden);
   assert(demoView.statusLabel.components.textLabel.caption == "Page 1 status");
+  assert(demoView.hintLabel.components.textLabel.caption ==
+    formatGlobalHints(DebugDrawMode.allVisible));
 
   applyMode(DebugDrawMode.allWithHidden, "Page 2 status");
   assert(root.components.debugDraw !is null);

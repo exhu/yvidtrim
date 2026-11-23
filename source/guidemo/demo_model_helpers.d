@@ -3,7 +3,7 @@
  */
 module guidemo.demo_model_helpers;
 
-import guidemo.model : DemoModel, DemoPage, demoPages;
+import guidemo.model : DebugDrawMode, DemoModel, DemoPage, demoPages;
 
 /// Returns the total number of demo pages.
 size_t pageCount() {
@@ -16,27 +16,28 @@ bool isPageActive(const DemoModel model, DemoPage page) {
   return model.activePage == page;
 }
 
-/// Formats the full footer status text for `page` with `details`.
+/// Formats the page-specific footer status text for `page` with `details`.
 string formatPageStatus(DemoPage page, string details) {
   import std.format : format;
 
-  const size_t total = demoPages.length;
   const size_t num = cast(size_t) page + 1;
   const string title = demoPages[page].statusTitle;
   if (details.length == 0) {
-    return format(
-      "[Tab/1-%d] Page %d: %s | [Q/Esc] Quit",
-      total,
-      num,
-      title
-    );
+    return format("Page %d: %s", num, title);
   }
+  return format("Page %d: %s | %s", num, title, details);
+}
+
+/// Formats the footer hint line listing global keys, including the current
+/// debug draw `mode` cycled by F1.
+string formatGlobalHints(DebugDrawMode mode) {
+  import std.format : format;
+
   return format(
-    "[Tab/1-%d] Page %d: %s | %s | [Q/Esc] Quit",
-    total,
-    num,
-    title,
-    details
+    "[Tab/1-%d] Page | [F1] Debug draw: %s | [F12] Screenshot | "
+      ~ "[Q/Esc] Quit",
+    demoPages.length % 10,
+    mode
   );
 }
 
@@ -64,11 +65,16 @@ unittest {
 
   assert(
     formatPageStatus(DemoPage.button, "Clicks: 3") ==
-      "[Tab/1-10] Page 3: Hover Buttons | Clicks: 3 | [Q/Esc] Quit"
+      "Page 3: Hover Buttons | Clicks: 3"
   );
   assert(
     formatPageStatus(DemoPage.layoutPainter, "") ==
-      "[Tab/1-10] Page 1: Layout | [Q/Esc] Quit"
+      "Page 1: Layout"
+  );
+  assert(
+    formatGlobalHints(DebugDrawMode.off) ==
+      "[Tab/1-0] Page | [F1] Debug draw: off | [F12] Screenshot | "
+        ~ "[Q/Esc] Quit"
   );
 
   auto tabs = headerTabNames();
