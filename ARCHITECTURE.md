@@ -7,9 +7,9 @@ with private C wrappers for external media libraries.
 
 Key architectural separation:
 - `yvidtrim`: Video editor application, domain logic, playback, and export.
-- `yguilib`: Independent, retained-mode GUI library with an ECS-style
-  widget tree, flexbox/anchor layout, OpenGL ES 2/3.1 rendering, and loops.
-- `guidemo`: Standalone interactive testbed showcasing GUI widgets and layout.
+- `yguilib`: Independent retained-mode GUI library: ECS widget tree,
+  flexbox/anchor layout, OpenGL ES 2/3.1 rendering, loops.
+- `guidemo`: Interactive testbed showcasing GUI widgets and layout.
 - `*-clibs`: Minimal C static libraries isolating external C/C++ dependencies.
 
 ## Directory & Package Topology
@@ -17,24 +17,19 @@ Key architectural separation:
 yvidtrim/
 ├── source/
 │   ├── yvidtrim/          # Video trimmer entry point, models, controllers
-│   │   ├── app.d          # Application entry point wiring model/view/ctrl
-│   │   ├── controller.d   # MainController handling events and model sync
-│   │   ├── model.d        # MainModel state
-│   │   ├── view.d         # MainView widget tree and model synchronization
+│   │   ├── app.d          # Entry point wiring model/view/ctrl
+│   │   ├── controller.d   # MainController: events and model sync
+│   │   ├── model.d, view.d # MainModel state; MainView widget tree
 │   │   ├── uitree/        # Declarative widget tree construction
 │   │   └── clibs/sdl3.d   # extern(C) D bindings for yvidtrim-clibs
 │   └── guidemo/           # Interactive GUI showcase and verification app
-│       ├── guidemoapp.d   # guidemo entry point and system registration
-│       ├── controller.d   # Quit, F1 debug draw, F12 screenshot, pages
+│       ├── guidemoapp.d, controller.d # entry/systems; F1 debug, F12 shot
 │       ├── common.d       # PageControllerParams, section cards, page sync
-│       ├── model.d        # DemoModel and per-page VersionedModels
-│       ├── view.d         # DemoView shell (header tabs, status bar)
-│       ├── demo_model_helpers.d # Page numbering & status helpers
-│       ├── hover_button.d # Controller-based hover button demo
-│       └── pages/         # Showcase views and per-page controllers
-│                          # (incl. knob_page.d: CursorCapture.lock demo;
-│                          # canvas_page.d: Canvas, images, patterns, text;
-│                          # virtlist_items.d, virtlist_providers.d)
+│       ├── model.d, view.d, demo_model_helpers.d, hover_button.d
+│       │                  # demo models, shell view, helpers, hover demo
+│       └── pages/         # Showcase views/controllers (knob_page.d:
+│                          # CursorCapture.lock; canvas_page.d: Canvas,
+│                          # images, patterns, text; virtlist_*.d)
 ├── yguilib/               # Independent GUI library (no yvidtrim dependency)
 │   ├── source/yguilib/
 │   │   ├── allochelpers.d # SmallBuffer, RingBuffer, ReusableArray containers
@@ -95,8 +90,8 @@ yvidtrim/
   - SDL windows/GL contexts: `destroy()`/`~this()`; GL objects and TTF fonts
     (`Texture`, `RenderTarget`, `Font`): only main-thread `destroy()`.
 - Encapsulation & Scoping:
-  - No `public import` re-exports; multi-module packages like
-    `yguilib.controls` import modules explicitly without `package.d`.
+  - No `public import`; packages like `yguilib.controls` import modules
+    explicitly, no `package.d`.
   - `internal/` modules: `package(<root_pkg>):` or `private:`, never `public:`.
   - Scoped imports defer parsing for heavy stdlib modules (e.g., `std.format`).
 
@@ -156,7 +151,6 @@ Phase 2: UiSystemImpl.runPhase2Updates()
   ├─► Phase 2b (due timers in TimerService):
   │     ├─► Controller timer   ──► Controller.onTimer(id, dt)
   │     └─► WidgetSystem timer ──► WidgetSystem.onTimer(ctx, id, dt)
-  │
   ▼
 Phase 3: dirty Controller.updateView() (oldest-to-newest) ──► View.update()
   └─► tracker.update() / view mutates widgets ──► widget.update(scope)
@@ -210,9 +204,14 @@ keeps targets premultiplied (`rt.texture()` bottom-up; `rt.toImage()`
 un-premultiplies). **GL state**: Renderer tracks FBO/viewport/clear color,
 `ClipStack` the scissor, `ProgramTracker` program + uniform epoch: no GL
 queries (debug-checked by `targetState()`); new GL code must use them.
-**Text**: `TextCache` bitmaps at the effective scale (`fontAtScale`) drawn as
-quads; glyph alpha masks the paint; stroke = outline ring. LRU by use tick;
-strings used since `beginFrame()` (`clearFrame`) stay (up to 2x, hard cap).
+**Text**: `TextRunCache` lays out runs at the effective scale (`fontAtScale`)
+via SDL_ttf through a no-op `TTF_TextEngine` in the C wrapper (outlined
+layouts shifted back by outlinePx in `layoutRun`); LRU by use tick, strings
+used since `beginFrame()` stay (up to 2x, hard cap). A `const(TextRun)*` is
+valid only until the next `runFor`. `GlyphAtlas`: one RGBA8 page, 512
+doubling to min(4096, GL max), then cleared in place; a generation counter
+invalidates run slots. One draw per label: white straight-alpha coverage
+tinted, or masking the gradient/pattern paint; stroke = outline ring glyphs.
 
 ## Idiomatic Patterns
 - Null Safety: Non-null references by default (tooling flags missing checks);
@@ -245,6 +244,6 @@ Create `MyComponent : WidgetComponent` and `MySystem : WidgetSystem` (set
 override phase methods); register via `app.ui.registerWidgetSystem()` and
 attach with `widget.components.set(new MyComponent())`.
 ### Adding a Subsystem with Package Facade
-Create `<root_pkg>/<subsystem>/` with the public API in `package.d` and
-helpers in `internal/*.d` (`package(<root_pkg>):`, never `public:`); verify
-with `rdmd .agents/skills/check-boundaries/scripts/check_boundaries.d`.
+`<root_pkg>/<subsystem>/` with the public API in `package.d`, helpers in
+`internal/*.d` (`package(<root_pkg>):`, never `public:`); verify with
+`rdmd .agents/skills/check-boundaries/scripts/check_boundaries.d`.

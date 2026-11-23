@@ -1,4 +1,4 @@
-- glyph atlas for text (canvas-render-review 3.7)
+- cross-label text batching (queue glyph quads, flush on state change)
 - build widget library
 -- checkbox
 -- combobox

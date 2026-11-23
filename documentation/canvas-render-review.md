@@ -205,6 +205,7 @@ of flushing everything, or have the manager notify the cache (e.g.
 `TextCache.removeFont(id)`).
 
 ### 2.5 [M] TextCache thrashes once a frame has more than 512 strings
+Done: glyph atlas (plans/archive/glyph-atlas.md).
 `internal/text_cache.d:98-100, 160-175`
 
 When a frame draws more distinct strings than `maxEntries`, eviction
@@ -315,6 +316,7 @@ composite discards anyway (scrolled-out content).
 of the stroke geometry.
 
 ### 3.7 [L] Text: one texture per string
+Done: glyph atlas (plans/archive/glyph-atlas.md).
 `internal/text_cache.d:115-157`
 
 Each distinct string is its own GL texture and its own draw, with a
