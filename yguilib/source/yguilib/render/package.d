@@ -5,8 +5,9 @@ import yguilib.events : AppEvent;
 import yguilib.render.internal.clip_stack : ClipStack;
 import yguilib.render.font : Font, defaultFontPtSize;
 import yguilib.render.font_manager : FontManager;
-import yguilib.render.internal.pipelines : ColorPipeline, RoundRectPipeline,
-  TexturePipeline;
+import yguilib.render.internal.offscreen : OffscreenTarget;
+import yguilib.render.internal.pipelines : BlurPipeline, ColorPipeline,
+  GradientPipeline, RoundRectPipeline, TexturePipeline;
 import yguilib.render.internal.text_cache : TextCache, TextTexture;
 import yguilib.render.render_types;
 import yguilib.assets : defaultTtfFontData;
@@ -44,6 +45,11 @@ final class Renderer {
       defaultFont_.destroy();
       defaultFont_ = null;
     }
+    foreach (ref t; offscreenTargets) {
+      t.destroy();
+    }
+    blurPipeline.destroy();
+    gradientPipeline.destroy();
     rrPipeline.destroy();
     texPipeline.destroy();
     colorPipeline.destroy();
@@ -199,9 +205,18 @@ final class Renderer {
     return coordinatesFromCoords(point.x, point.y);
   }
 
-  void clearCanvas(ColorF color) {
+  /**
+   * Starts a frame: clears color to `color` and the stencil to 0 (both
+   * honor the active scissor clip) and resets the Canvas state.
+   */
+  void clearFrame(ColorF color) {
     glClearColor(color.r, color.g, color.b, color.a);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glStencilMask(0xFF);
+    glClearStencil(0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    if (fCanvas !is null) {
+      fCanvas.resetFrame();
+    }
   }
 
   void drawFillRect(RectF rect, ColorF color) {
@@ -698,6 +713,40 @@ final class Renderer {
     return measureTextWithFont(text, f);
   }
 
+package(yguilib.render):
+  /// Shared flat color pipeline (used by `Canvas`).
+  ref ColorPipeline colorPipelineRef() return {
+    return colorPipeline;
+  }
+
+  /// Shared gradient paint pipeline (used by `Canvas`).
+  ref GradientPipeline gradientPipelineRef() return {
+    return gradientPipeline;
+  }
+
+  /// Shared textured quad pipeline (Canvas shadow composite).
+  ref TexturePipeline texturePipelineRef() return {
+    return texPipeline;
+  }
+
+  /// Shared separable blur pipeline (Canvas shadows).
+  ref BlurPipeline blurPipelineRef() return {
+    return blurPipeline;
+  }
+
+  /**
+   * Ping-pong offscreen target `index` (0 or 1) used by Canvas shadows;
+   * allocated on first `ensureSize`, destroyed in `destroy()`.
+   */
+  ref OffscreenTarget offscreenTargetRef(size_t index) return {
+    return offscreenTargets[index];
+  }
+
+  /// True between successful initialization and `destroy()`.
+  bool isInitialized() const {
+    return initialized;
+  }
+
 private:
   void initialize() {
     if (initialized) {
@@ -707,9 +756,11 @@ private:
     colorPipeline.initialize();
     texPipeline.initialize();
     rrPipeline.initialize();
+    gradientPipeline.initialize();
+    blurPipeline.initialize();
     textCache = new TextCache(TextCache.maxCacheEntries);
     fontManager = new FontManager();
-    fCanvas = new Canvas();
+    fCanvas = new Canvas(this);
 
     initialized = true;
   }
@@ -774,6 +825,9 @@ private:
   ColorPipeline colorPipeline;
   TexturePipeline texPipeline;
   RoundRectPipeline rrPipeline;
+  GradientPipeline gradientPipeline;
+  BlurPipeline blurPipeline;
+  OffscreenTarget[2] offscreenTargets;
   ClipStack clipStack;
   TextCache textCache;
   FontManager fontManager;
@@ -831,7 +885,7 @@ unittest {
   assert(!renderer.isOnScreen(RectF(700, 10, 100, 100)));
 
   // 1. Clear canvas red
-  renderer.clearCanvas(ColorF(1.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(1.0f, 0.0f, 0.0f, 1.0f));
   ubyte[4] pixel;
   // Center pixel (160, 120)
   glReadPixels(160, 120, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
@@ -847,7 +901,7 @@ unittest {
   assert(pixel[0] == 255 && pixel[1] == 0 && pixel[2] == 0 && pixel[3] == 255);
 
   // 3. Alpha blending: draw 50% white over black canvas
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawFillRect(
     RectF(0, 0, 320, 240),
     ColorF(1.0f, 1.0f, 1.0f, 0.5f)
@@ -858,7 +912,7 @@ unittest {
   assert(pixel[2] >= 126 && pixel[2] <= 129);
 
   // 4. Clipping rectangle
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.pushClipRect(RectF(50, 50, 50, 50));
   renderer.drawFillRect(
     RectF(0, 0, 320, 240),
@@ -970,7 +1024,7 @@ unittest {
   renderer.setDisplayScaling(1.0f);
   renderer.setUnitsScaling(2.0f);
   // Drawing rect (0, 0, 160, 120) logic units covers all 320x240 pixels.
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawFillRect(
     RectF(0.0f, 0.0f, 160.0f, 120.0f),
     ColorF(0.0f, 1.0f, 0.0f, 1.0f)
@@ -1011,7 +1065,7 @@ unittest {
   assert(mBySize.x == mShort.x && mBySize.y == mShort.y);
 
   // Render text blended in white on black background
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawTextWithFont(
     "ABC",
     PointF(20.0f, 30.0f),
@@ -1035,7 +1089,7 @@ unittest {
   assert(litCount > 0);
 
   // Render text in green color
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawTextWithFont(
     "ABC",
     PointF(20.0f, 30.0f),
@@ -1054,7 +1108,7 @@ unittest {
   assert(litCount > 0);
 
   // Render using default font (embedded defaultTtfFontData)
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawTextWithFont(
     "DefaultFont",
     PointF(10.0f, 10.0f),
@@ -1065,7 +1119,7 @@ unittest {
   assert(renderer.getDefaultFont().height > 0);
 
   // Text clipped outside clip rect
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.pushClipRect(RectF(0.0f, 0.0f, 10.0f, 10.0f));
   renderer.drawTextWithFont(
     "Clipped",
@@ -1086,7 +1140,7 @@ unittest {
   // Scaled text drawing test: unitsScaling = 2.0
   renderer.setDisplayScaling(1.0f);
   renderer.setUnitsScaling(2.0f);
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawTextWithFont(
     "ABC",
     PointF(10.0f, 10.0f),
@@ -1108,7 +1162,7 @@ unittest {
   // Scaled text drawing test: displayScaling = 1.5
   renderer.setDisplayScaling(1.5f);
   renderer.setUnitsScaling(1.0f);
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawTextWithFont(
     "ABC",
     PointF(35.0f, 45.0f),
@@ -1188,7 +1242,7 @@ unittest {
 
   // 10. Rounded rectangle drawing tests (fill, outline, dashed, clamping,
   // scaling)
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
 
   // Test fill mode: draw green filled round rect at (20, 20, 60, 40)
   // with radius 10
@@ -1210,7 +1264,7 @@ unittest {
 
   // Test outline mode: draw blue outline at (100, 100, 80, 60), radius 8,
   // line width 4
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawRoundRect(
     RectF(100.0f, 100.0f, 80.0f, 60.0f),
     8.0f,
@@ -1226,7 +1280,7 @@ unittest {
   assert(pixel[2] > 100);
 
   // Test dashed mode: draw dashed round rect, verify border has colored pixels
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawRoundRectDashed(
     RectF(50.0f, 50.0f, 100.0f, 60.0f),
     10.0f,
@@ -1249,7 +1303,7 @@ unittest {
   assert(yellowPixels > 0);
 
   // Test radius clamping: radius larger than half dimensions does not crash
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawFillRoundRect(
     RectF(10.0f, 10.0f, 40.0f, 40.0f),
     100.0f, // excess radius clamped to 20
@@ -1261,7 +1315,7 @@ unittest {
 
   // Test units scaling with rounded rect
   renderer.setUnitsScaling(2.0f);
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   // Logic (10, 10, 50, 50) maps to screen (20, 20, 100, 100)
   renderer.drawFillRoundRect(
     RectF(10.0f, 10.0f, 50.0f, 50.0f),
@@ -1275,7 +1329,7 @@ unittest {
 
   // 11. drawRect with lineWidth, drawRectDashed, and small drawRoundRectDashed
   // A. drawRectWithWidth with lineWidth = 4 growing inside
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawRectWithWidth(
     RectF(100.0f, 50.0f, 60.0f, 40.0f),
     4.0f,
@@ -1296,7 +1350,7 @@ unittest {
 
   // B. drawRectDashed: rect at (50, 50, 100, 60), lw = 3,
   // dashLen = 8, gapLen = 6
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawRectDashed(
     RectF(50.0f, 50.0f, 100.0f, 60.0f),
     3.0f,
@@ -1325,7 +1379,7 @@ unittest {
 
   // C. Small drawRoundRectDashed: (20, 20, 30, 20), radius 4, lw 2,
   // dash 4, gap 3
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawRoundRectDashed(
     RectF(20.0f, 20.0f, 30.0f, 20.0f),
     4.0f,
@@ -1349,7 +1403,7 @@ unittest {
 
   // 12. drawLine* variants: thick solid line and dashed line
   // A. Solid thick line: horizontal from (50, 100) to (150, 100), width = 6
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawLineWithPoints(
     PointF(50.0f, 100.0f),
     PointF(150.0f, 100.0f),
@@ -1376,7 +1430,7 @@ unittest {
   assert(pixel[0] == 0);
 
   // B. Dashed line: (50, 150) to (200, 150), width = 4, dash = 10, gap = 10
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawLineDashed(
     PointF(50.0f, 150.0f),
     PointF(200.0f, 150.0f),
@@ -1396,7 +1450,7 @@ unittest {
   assert(pixel[1] == 255);
 
   // C. drawLineDashed alias
-  renderer.clearCanvas(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
+  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawLineDashed(
     PointF(50.0f, 150.0f),
     PointF(200.0f, 150.0f),

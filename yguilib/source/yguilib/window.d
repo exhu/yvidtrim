@@ -97,7 +97,6 @@ package(yguilib):
     if (handle is null) {
       throw new Exception("Failed to create SDL window: " ~ fTitle);
     }
-    id = yguilib_sdl3_get_window_id(handle);
     glContext = yguilib_sdl3_gl_create_context(handle);
     if (glContext is null) {
       destroy();
@@ -105,6 +104,8 @@ package(yguilib):
         "Failed to create OpenGL ES 3.0 context for window: " ~ title
       );
     }
+    // queried after the context: a no-MSAA fallback may recreate the window
+    id = yguilib_sdl3_get_window_id(handle);
     makeCurrent();
     if (!gladLoadGLES2(&yguilib_sdl3_gl_get_proc_address)) {
       destroy();
@@ -208,7 +209,7 @@ private:
     makeCurrent();
     if (rootWidget !is null && rootWidget.components.background !is null &&
         renderer !is null) {
-      renderer.clearCanvas(rootWidget.components.background.color);
+      renderer.clearFrame(rootWidget.components.background.color);
     } else {
       clearWithColor(0.15f, 0.15f, 0.18f, 1.0f);
     }

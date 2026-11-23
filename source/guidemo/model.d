@@ -28,6 +28,7 @@ enum DemoPage : size_t {
   virtList,
   knob,
   simpleButton,
+  canvas,
 }
 
 /// Display metadata for a single guidemo page.
@@ -47,6 +48,7 @@ immutable DemoPageMeta[DemoPage.max + 1] demoPages = [
   DemoPage.virtList: DemoPageMeta("VirtList", "VirtList"),
   DemoPage.knob: DemoPageMeta("Knob (Lock)", "Knob"),
   DemoPage.simpleButton: DemoPageMeta("Button", "Button"),
+  DemoPage.canvas: DemoPageMeta("Canvas", "Canvas"),
 ];
 
 /// Model holding shared global state for the demo.
@@ -138,4 +140,14 @@ final class SimpleButtonPageModel : VersionedModel {
   size_t clickCount = 0;
   bool targetEnabled = true;
   string lastAction = "none";
+}
+
+/// Model holding Page 10 (Canvas 2D API showcase) state.
+final class CanvasPageModel : VersionedModel {
+  /// Animated line dash offset in pixels.
+  float dashOffset = 0.0f;
+  /// Animated rotation of the transforms demo shape in radians.
+  float rotation = 0.0f;
+  /// Whether the dash/rotation animation timer runs.
+  bool animating = true;
 }

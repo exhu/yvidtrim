@@ -140,15 +140,18 @@ private:
       model.activePage = (model.activePage + 1) % pageCount();
       consumed = true;
     } else {
-      static immutable Keycode[9] keycodes = [
+      // [0] selects page 10
+      static immutable Keycode[10] keycodes = [
         Keycode.key1, Keycode.key2, Keycode.key3,
         Keycode.key4, Keycode.key5, Keycode.key6,
         Keycode.key7, Keycode.key8, Keycode.key9,
+        Keycode.key0,
       ];
-      static immutable Scancode[9] scancodes = [
+      static immutable Scancode[10] scancodes = [
         Scancode.key1, Scancode.key2, Scancode.key3,
         Scancode.key4, Scancode.key5, Scancode.key6,
         Scancode.key7, Scancode.key8, Scancode.key9,
+        Scancode.key0,
       ];
       const size_t count = pageCount() < keycodes.length
         ? pageCount()
@@ -266,4 +269,10 @@ unittest {
   assert(hrPage7.consume);
   assert(demoCtrl.tracker.model.activePage == 6);
   assert(demoCtrl.tabsTracker.model.activeTab == 6);
+
+  // [0] selects page 10
+  auto evKey0 = makeKeyDown(Keycode.key0, Scancode.key0);
+  assert(demoCtrl.handleEvent(evKey0).consume);
+  assert(demoCtrl.tracker.model.activePage == 9);
+  assert(demoCtrl.tabsTracker.model.activeTab == 9);
 }

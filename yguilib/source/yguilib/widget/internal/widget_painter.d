@@ -95,6 +95,7 @@ private:
       drawTextLabel(w, absContentRect, r);
     }
     // TODO CustomWidgetPainter.drawContent
+    drawCustom(w, absContentRect, r);
 
     if (w.clipContents) {
       r.popClipRect();
@@ -105,6 +106,27 @@ private:
     }
 
     // TODO CustomWidgetPainter.drawBorder
+  }
+
+  /**
+   * Invokes the `CustomDraw` delegate with the canvas translated to the
+   * content rect origin, so the delegate draws in content-local coordinates
+   * via `r.canvas()`; `Renderer` calls stay absolute.
+   */
+  static void drawCustom(Widget w, in RectF absContentRect, Renderer r) {
+    auto cd = w.components.customDraw;
+    if (cd is null || cd.drawFunc is null) {
+      return;
+    }
+    auto c = r.canvas();
+    if (c is null) {
+      // renderer not initialized: nothing can be drawn
+      return;
+    }
+    c.save();
+    c.translate(PointF(absContentRect.x, absContentRect.y));
+    cd.drawFunc(r, w);
+    c.restore();
   }
 
   static void drawBackground(Widget w, in RectF absRect, Renderer r) {
@@ -177,7 +199,8 @@ unittest {
   import yguilib.clibs.sdl3;
   import yguilib.render.font : defaultFontPtSize;
   import yguilib.render.render_types : ColorF;
-  import yguilib.widget.drawing_components : Background, Border, TextLabel;
+  import yguilib.widget.drawing_components : Background, Border,
+    CustomDraw, TextLabel;
   import yguilib.widget.internal.collect_visible : VisibleWidgetsCollector;
   import yguilib.widget.layout_components : Insets, Size;
   import yguilib.window : Window;
@@ -301,4 +324,40 @@ unittest {
   );
   painter.drawTree(rightWidgets, renderer);
   assert(!rightW.dirty);
+
+  // CustomDraw: called once per draw with the canvas translated to the
+  // absolute content rect origin; canvas state is restored afterwards
+  auto cdRoot = new Widget(7);
+  cdRoot.rect = RectF(0, 0, 320, 240);
+  auto cdW = new Widget(8);
+  cdW.rect = RectF(30, 40, 100, 60);
+  cdW.components.size = new Size();
+  cdW.components.size.padding = Insets(4, 6, 4, 6);
+  cdRoot.addChild(cdW);
+  size_t calls = 0;
+  float seenE = -1;
+  float seenF = -1;
+  auto cd = new CustomDraw();
+  cd.drawFunc = (Renderer rr, in Widget ww) {
+    ++calls;
+    assert(ww is cdW);
+    const xf = rr.canvas().transform();
+    seenE = xf.e;
+    seenF = xf.f;
+  };
+  cdW.components.customDraw = cd;
+  auto cdWidgets = collector.collectVisibleWithViewport(
+    cdRoot, 320.0f, 240.0f, false
+  );
+  painter.drawTree(cdWidgets, renderer);
+  assert(calls == 1);
+  const RectF ca = cdW.getContentArea();
+  assert(seenE == 30 + ca.x);
+  assert(seenF == 40 + ca.y);
+  assert(renderer.canvas().transform().isIdentity());
+
+  // a null drawFunc is skipped
+  cd.drawFunc = null;
+  painter.drawTree(cdWidgets, renderer);
+  assert(calls == 1);
 }

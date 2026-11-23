@@ -239,6 +239,16 @@ int yguilib_sdl3_hello(void) {
   return 0;
 }
 
+static const SDL_WindowFlags window_flags =
+  SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+
+/* Requests an 8-bit stencil and, when `msaa` is non-zero, 4x MSAA. */
+static void set_framebuffer_attributes(int msaa) {
+  SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+  SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, msaa ? 1 : 0);
+  SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, msaa ? 4 : 0);
+}
+
 yguilib_sdl3_Window *yguilib_sdl3_create_window(
   const char *title,
   int w,
@@ -247,9 +257,15 @@ yguilib_sdl3_Window *yguilib_sdl3_create_window(
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+  set_framebuffer_attributes(1);
 
-  SDL_Window *sdl_win = SDL_CreateWindow(title, w, h, SDL_WINDOW_OPENGL |
-    SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+  SDL_Window *sdl_win = SDL_CreateWindow(title, w, h, window_flags);
+  if (!sdl_win) {
+    SDL_Log("yguilib: window with 4x MSAA failed (%s), retrying without",
+      SDL_GetError());
+    set_framebuffer_attributes(0);
+    sdl_win = SDL_CreateWindow(title, w, h, window_flags);
+  }
   if (!sdl_win) {
     return NULL;
   }
@@ -310,6 +326,45 @@ float yguilib_sdl3_get_window_display_scale(const yguilib_sdl3_Window *window) {
   return SDL_GetWindowDisplayScale(window->handle);
 }
 
+/*
+ * Fallback when context creation fails with MSAA requested: retries
+ * without MSAA on the same window, then on a recreated window (same
+ * title, size and flags) whose SDL handle replaces `window->handle`.
+ * Returns NULL when MSAA was not requested or every retry failed.
+ */
+static SDL_GLContext create_context_without_msaa(
+  yguilib_sdl3_Window *window
+) {
+  int msaa = 0;
+  SDL_GL_GetAttribute(SDL_GL_MULTISAMPLEBUFFERS, &msaa);
+  if (!msaa) {
+    return NULL;
+  }
+  SDL_Log("yguilib: GL context with 4x MSAA failed (%s), retrying without",
+    SDL_GetError());
+  set_framebuffer_attributes(0);
+  SDL_GLContext ctx = SDL_GL_CreateContext(window->handle);
+  if (ctx) {
+    return ctx;
+  }
+  int w = 0;
+  int h = 0;
+  SDL_GetWindowSize(window->handle, &w, &h);
+  const char *const old_title = SDL_GetWindowTitle(window->handle);
+  char *const title = SDL_strdup(old_title ? old_title : "");
+  SDL_Window *const sdl_win = SDL_CreateWindow(title, w, h, window_flags);
+  SDL_free(title);
+  if (!sdl_win) {
+    return NULL;
+  }
+  SDL_DestroyWindow(window->handle);
+  window->handle = sdl_win;
+  SDL_ShowWindow(sdl_win);
+  SDL_SyncWindow(sdl_win);
+  SDL_Log("yguilib: recreated window without MSAA");
+  return SDL_GL_CreateContext(sdl_win);
+}
+
 yguilib_sdl3_GLContext *yguilib_sdl3_gl_create_context(
   yguilib_sdl3_Window *window
 ) {
@@ -317,6 +372,9 @@ yguilib_sdl3_GLContext *yguilib_sdl3_gl_create_context(
     return NULL;
   }
   SDL_GLContext sdl_ctx = SDL_GL_CreateContext(window->handle);
+  if (!sdl_ctx) {
+    sdl_ctx = create_context_without_msaa(window);
+  }
   if (!sdl_ctx) {
     return NULL;
   }

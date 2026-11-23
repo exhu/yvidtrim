@@ -33,8 +33,8 @@ yvidtrim/
 │       ├── hover_button.d # Controller-based hover button demo
 │       └── pages/         # Showcase views and per-page controllers
 │                          # (incl. knob_page.d: CursorCapture.lock demo;
-│                          # virtlist_items.d item models,
-│                          # virtlist_providers.d VirtListProviders)
+│                          # canvas_page.d: Canvas API via onDraw;
+│                          # virtlist_items.d, virtlist_providers.d)
 ├── yguilib/               # Independent GUI library (no yvidtrim dependency)
 │   ├── source/yguilib/
 │   │   ├── allochelpers.d # SmallBuffer, RingBuffer, ReusableArray containers
@@ -59,6 +59,8 @@ yvidtrim/
 │   │   │   └── virtlist.d            # Composite VirtList widget & view
 │   │   ├── events/        # AppEvent, builder, and thread-safe MessageBus
 │   │   ├── render/        # Hardware Renderer, FontManager, shader pipelines
+│   │   │   ├── canvas.d   # Canvas 2D context, Path2d, Transform2d, paints
+│   │   │   └── internal/  # pipelines, path_*, stencil_ops, offscreen
 │   │   ├── widget/        # Widget entity, components, builder, WidgetSystem
 │   │   │   ├── virtlist_components.d # VirtListProvider & VirtListComponent
 │   │   │   └── internal/virtlist_system.d # Recycling, layout & wheel scroll
@@ -185,6 +187,19 @@ Phase 3 (if dirty): UiSystemImpl ──► WidgetSystemPipeline.updateAndRender(
   └─► 4. Buffer Swap: Window.swapBuffers() (at most once per frame tick)
 ```
 
+**Canvas** (`Renderer.canvas()`): HTML-canvas-like API over `Path2d`.
+`path_flatten` (curves, CPU transform), `path_stroker` (caps/joins/dashes),
+`stencil_ops` (stencil-then-cover, exact `nonZero`/`evenOdd`) feed the shared
+color/gradient pipelines. Stencil bit 7 = `clip()` (rebuilt on `restore()`),
+bits 0..6 = per-call work; Window asks MSAA 4x + 8-bit stencil. Stencil test
+is on only inside Canvas calls: Renderer `draw*` ignore Canvas clip/transform,
+`pushClipRect` limits both, `clearFrame` resets Canvas state. Shadows: white
+mask into ping-pong non-MSAA `OffscreenTarget` FBOs, `BlurPipeline` Gaussian
+H then V, tinted composite under the clip bit; FBO/viewport/scissor restored.
+**CustomDraw** (`onDraw(dg(Renderer, in Widget))`) runs after the text label
+in `clipContents`, in canvas `save`/`translate(content origin)`/`restore`:
+Canvas draws content-local, Renderer stays absolute (`transform()` e/f).
+
 ## Idiomatic Patterns
 - Null Safety: Non-null references by default. Missing checks are flagged by
   tooling. Constructor arguments enforce `assert(arg !is null)` and structs/
@@ -223,18 +238,12 @@ Phase 3 (if dirty): UiSystemImpl ──► WidgetSystemPipeline.updateAndRender(
    `ninja -C _build && meson test -C _build`.
 
 ### Adding a Custom GUI Widget System & Component
-1. Component: Create `MyComponent : WidgetComponent` in a domain module.
-2. System: Create `MySystem : WidgetSystem`, specify `phases` (`event`,
-   `preLayout`, `layout`, `postLayout`, `render`), and override phase methods.
-3. Priority: Set system execution priority (e.g. `defaultPriority`).
-4. Registration: Register system via `app.ui.registerWidgetSystem()`.
-5. Attachment: Attach component via `widget.components.set(new MyComponent())`.
+Create `MyComponent : WidgetComponent` and `MySystem : WidgetSystem` (set
+`phases`: `event`/`preLayout`/`layout`/`postLayout`/`render`, a priority, and
+override phase methods); register via `app.ui.registerWidgetSystem()` and
+attach with `widget.components.set(new MyComponent())`.
 
 ### Adding a Subsystem with Package Facade
-1. Create directory `<root_pkg>/<subsystem>/`.
-2. Move entry points and public API into `<subsystem>/package.d`.
-3. Place internal logic and private helpers into `<subsystem>/internal/*.d`.
-4. Use `package(<root_pkg>):` for symbols shared inside the package; never use
-   `public:` inside `internal/`.
-5. Verify boundaries using:
-   `rdmd .agents/skills/check-boundaries/scripts/check_boundaries.d`.
+Create `<root_pkg>/<subsystem>/` with the public API in `package.d` and
+helpers in `internal/*.d` (`package(<root_pkg>):`, never `public:`); verify
+with `rdmd .agents/skills/check-boundaries/scripts/check_boundaries.d`.

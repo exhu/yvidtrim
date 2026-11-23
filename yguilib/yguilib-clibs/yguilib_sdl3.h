@@ -164,8 +164,9 @@ typedef struct yguilib_sdl3_GLContext yguilib_sdl3_GLContext;
 /**
  * Creates an SDL window configured for OpenGL ES 3.0.
  *
- * Sets SDL OpenGL attributes for OpenGL ES 3.0 and creates the window
- * with the SDL_WINDOW_OPENGL flag.
+ * Sets SDL OpenGL attributes for OpenGL ES 3.0 with an 8-bit stencil and
+ * 4x MSAA and creates the window with the SDL_WINDOW_OPENGL flag. If that
+ * fails, retries without MSAA (logged with SDL_Log).
  *
  * @param title Window title (UTF-8).
  * @param w Window width in pixels.
@@ -232,6 +233,10 @@ float yguilib_sdl3_get_window_display_scale(const yguilib_sdl3_Window *window);
 
 /**
  * Creates an OpenGL ES 3.0 context for the given window.
+ *
+ * If creation fails while MSAA is requested, retries without MSAA, first
+ * on the same window and then on a recreated window; in the latter case
+ * the window's id changes, so query it after this call.
  *
  * @param window Pointer to the window handle (must not be NULL).
  * @return Pointer to yguilib_sdl3_GLContext on success, or NULL on failure.

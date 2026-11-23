@@ -551,7 +551,7 @@ final class WidgetBuilder {
   }
 
   /// Attaches a CustomDraw delegate (`drawFunc` is allowed to be null).
-  WidgetBuilder onDraw(void delegate(in Renderer, in Widget) drawFunc) {
+  WidgetBuilder onDraw(void delegate(Renderer, in Widget) drawFunc) {
     if (fWidget.components.customDraw is null) {
       fWidget.components.customDraw = new CustomDraw();
     }

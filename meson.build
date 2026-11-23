@@ -51,6 +51,8 @@ guidemo_lib_src = files(
   'source/guidemo/pages/button_page.d',
   'source/guidemo/pages/button_system_controller.d',
   'source/guidemo/pages/button_system_page.d',
+  'source/guidemo/pages/canvas_controller.d',
+  'source/guidemo/pages/canvas_page.d',
   'source/guidemo/pages/knob_controller.d',
   'source/guidemo/pages/knob_page.d',
   'source/guidemo/pages/layout_painter_controller.d',

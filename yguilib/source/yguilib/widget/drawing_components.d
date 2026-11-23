@@ -161,8 +161,16 @@ class Border : WidgetComponent {
   float cornerRadius = 10.0f;
 }
 
+/**
+ * Custom content painter invoked by the widget painter after the text label,
+ * inside the `clipContents` clip. The delegate draws through `r.canvas()` in
+ * content-local coordinates (the canvas is translated to the absolute
+ * content rect origin, read it with `r.canvas().transform()` e/f); direct
+ * `Renderer` calls stay in absolute logic coordinates. Canvas state changes
+ * are undone by a surrounding save/restore.
+ */
 class CustomDraw : WidgetComponent {
-  void delegate(in Renderer r, in Widget w) drawFunc;
+  void delegate(Renderer r, in Widget w) drawFunc;
 }
 
 class DebugDrawComponent : WidgetComponent {

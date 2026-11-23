@@ -18,46 +18,22 @@ struct ColorPipeline {
   GLint uColorLoc = -1;
 
   void initialize() {
-    GLuint vertShader = compileShader(GL_VERTEX_SHADER,
-      colorVertexShaderSource);
-    scope(exit) glDeleteShader(vertShader);
-
-    GLuint fragShader = compileShader(GL_FRAGMENT_SHADER,
+    program = buildProgram(colorVertexShaderSource,
       colorFragmentShaderSource);
-    scope(exit) glDeleteShader(fragShader);
-
-    program = linkProgram(vertShader, fragShader);
     uResolutionLoc = glGetUniformLocation(program, "uResolution\0".ptr);
     uColorLoc = glGetUniformLocation(program, "uColor\0".ptr);
 
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
-
-    glGenBuffers(1, &vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * float.sizeof, null);
-
-    glBindVertexArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    const VertexArrayHandles h = createVec2VertexArray();
+    vao = h.vao;
+    vbo = h.vbo;
   }
 
   void destroy() {
-    if (vbo != 0) {
-      glDeleteBuffers(1, &vbo);
-      vbo = 0;
-    }
-    if (vao != 0) {
-      glDeleteVertexArrays(1, &vao);
-      vao = 0;
-    }
-    if (program != 0) {
-      glDeleteProgram(program);
-      program = 0;
-    }
+    destroyProgramAndBuffers(program, vao, vbo);
   }
 
+  /// Draws with alpha blending (see `setupAlphaBlendState`); stencil state
+  /// is left unchanged.
   void drawArrays(
     GLenum mode,
     const(float)[] vertices,
@@ -66,6 +42,20 @@ struct ColorPipeline {
     float vh
   ) {
     setupAlphaBlendState();
+    drawArraysWithCurrentState(mode, vertices, color, vw, vh);
+  }
+
+  /**
+   * Like `drawArrays` but keeps the current blend, cull and depth state
+   * (e.g. blending disabled to overwrite pixels in `Canvas.clearRect`).
+   */
+  void drawArraysWithCurrentState(
+    GLenum mode,
+    const(float)[] vertices,
+    in ColorF color,
+    float vw,
+    float vh
+  ) {
     glUseProgram(program);
     glUniform2f(uResolutionLoc, vw, vh);
     glUniform4f(uColorLoc, color.r, color.g, color.b, color.a);
@@ -313,49 +303,13 @@ struct TexturePipeline {
     uColorLoc = glGetUniformLocation(program, "uColor\0".ptr);
     uTextureLoc = glGetUniformLocation(program, "uTexture\0".ptr);
 
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
-
-    glGenBuffers(1, &vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(
-      0,
-      2,
-      GL_FLOAT,
-      GL_FALSE,
-      4 * float.sizeof,
-      null
-    );
-
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(
-      1,
-      2,
-      GL_FLOAT,
-      GL_FALSE,
-      4 * float.sizeof,
-      cast(const(void)*)(2 * float.sizeof)
-    );
-
-    glBindVertexArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    const VertexArrayHandles h = createVec4VertexArray();
+    vao = h.vao;
+    vbo = h.vbo;
   }
 
   void destroy() {
-    if (vbo != 0) {
-      glDeleteBuffers(1, &vbo);
-      vbo = 0;
-    }
-    if (vao != 0) {
-      glDeleteVertexArrays(1, &vao);
-      vao = 0;
-    }
-    if (program != 0) {
-      glDeleteProgram(program);
-      program = 0;
-    }
+    destroyProgramAndBuffers(program, vao, vbo);
   }
 
   void drawTexture(
@@ -365,6 +319,13 @@ struct TexturePipeline {
     float vw,
     float vh
   ) {
+    drawTexturedQuad(
+      texId, TexturedQuad(destRect, RectF(0, 0, 1, 1), color), vw, vh
+    );
+  }
+
+  /// Draws `q` with alpha blending; `texId` 0 draws nothing.
+  void drawTexturedQuad(GLuint texId, in TexturedQuad q, float vw, float vh) {
     if (texId == 0) {
       return;
     }
@@ -372,28 +333,131 @@ struct TexturePipeline {
     setupAlphaBlendState();
     glUseProgram(program);
     glUniform2f(uResolutionLoc, vw, vh);
-    glUniform4f(uColorLoc, color.r, color.g, color.b, color.a);
+    glUniform4f(uColorLoc, q.color.r, q.color.g, q.color.b, q.color.a);
     glUniform1i(uTextureLoc, 0);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texId);
-
-    float x0 = destRect.x;
-    float y0 = destRect.y;
-    float x1 = destRect.x + destRect.width;
-    float y1 = destRect.y + destRect.height;
-
-    float[24] vertices = [
-      x0, y0, 0.0f, 0.0f,
-      x1, y0, 1.0f, 0.0f,
-      x0, y1, 0.0f, 1.0f,
-      x0, y1, 0.0f, 1.0f,
-      x1, y0, 1.0f, 0.0f,
-      x1, y1, 1.0f, 1.0f,
-    ];
-
+    const float[24] vertices = quadVertices(q.dest, q.uv);
     uploadAndDrawDynamic(GL_TRIANGLES, vao, vbo, vertices, 6);
     glBindTexture(GL_TEXTURE_2D, 0);
+  }
+}
+
+/**
+ * Textured quad: `dest` in logic coordinates, `uv` the texture rectangle
+ * mapped onto it (top-left of `dest` gets `uv.x, uv.y`; a negative
+ * `uv.height` flips vertically), tinted by multiplying with `color`.
+ */
+struct TexturedQuad {
+  RectF dest;
+  RectF uv;
+  ColorF color;
+}
+
+/// Two triangles of interleaved (x, y, u, v) for `dest` mapped to `uv`.
+float[24] quadVertices(in RectF dest, in RectF uv) {
+  const float x0 = dest.x;
+  const float y0 = dest.y;
+  const float x1 = dest.x + dest.width;
+  const float y1 = dest.y + dest.height;
+  const float u0 = uv.x;
+  const float v0 = uv.y;
+  const float u1 = uv.x + uv.width;
+  const float v1 = uv.y + uv.height;
+  return [
+    x0, y0, u0, v0,
+    x1, y0, u1, v0,
+    x0, y1, u0, v1,
+    x0, y1, u0, v1,
+    x1, y0, u1, v0,
+    x1, y1, u1, v1,
+  ];
+}
+
+/**
+ * One pass of `BlurPipeline`: blurs the region `(0, 0, width, height)` of
+ * `source` (allocated `textureWidth` x `textureHeight`) along one axis
+ * into the same region of the bound framebuffer.
+ */
+struct BlurPass {
+  GLuint source;
+  int width;
+  int height;
+  int textureWidth;
+  int textureHeight;
+  /// false: horizontal, true: vertical.
+  bool vertical;
+  /// Gaussian standard deviation in pixels (> 0).
+  float sigma;
+}
+
+/**
+ * Separable Gaussian blur of the alpha channel (`blur.frag.glsl`) with the
+ * texture vertex layout. Writes white with the blurred alpha.
+ */
+struct BlurPipeline {
+  GLuint program;
+  GLuint vao;
+  GLuint vbo;
+  GLint uResolutionLoc = -1;
+  GLint uTextureLoc = -1;
+  GLint uDirectionLoc = -1;
+  GLint uSigmaLoc = -1;
+  GLint uUvMinLoc = -1;
+  GLint uUvMaxLoc = -1;
+
+  void initialize() {
+    program = buildProgram(texVertexShaderSource, blurFragmentShaderSource);
+    uResolutionLoc = glGetUniformLocation(program, "uResolution\0".ptr);
+    uTextureLoc = glGetUniformLocation(program, "uTexture\0".ptr);
+    uDirectionLoc = glGetUniformLocation(program, "uDirection\0".ptr);
+    uSigmaLoc = glGetUniformLocation(program, "uSigma\0".ptr);
+    uUvMinLoc = glGetUniformLocation(program, "uUvMin\0".ptr);
+    uUvMaxLoc = glGetUniformLocation(program, "uUvMax\0".ptr);
+
+    const VertexArrayHandles h = createVec4VertexArray();
+    vao = h.vao;
+    vbo = h.vbo;
+  }
+
+  void destroy() {
+    destroyProgramAndBuffers(program, vao, vbo);
+  }
+
+  /**
+   * Runs pass `p` with blending disabled (it overwrites the region);
+   * the viewport must be `(0, 0, p.width, p.height)`.
+   */
+  void draw(in BlurPass p) {
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_BLEND);
+    glUseProgram(program);
+    const float w = p.width;
+    const float h = p.height;
+    const float tw = p.textureWidth;
+    const float th = p.textureHeight;
+    glUniform2f(uResolutionLoc, w, h);
+    glUniform1i(uTextureLoc, 0);
+    if (p.vertical) {
+      glUniform2f(uDirectionLoc, 0, 1.0f / th);
+    } else {
+      glUniform2f(uDirectionLoc, 1.0f / tw, 0);
+    }
+    glUniform1f(uSigmaLoc, p.sigma);
+    glUniform2f(uUvMinLoc, 0.5f / tw, 0.5f / th);
+    glUniform2f(uUvMaxLoc, (w - 0.5f) / tw, (h - 0.5f) / th);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, p.source);
+    // GL rows grow upward while logic y grows downward: flip v
+    const float[24] vertices = quadVertices(
+      RectF(0, 0, w, h), RectF(0, h / th, w / tw, -h / th)
+    );
+    uploadAndDrawDynamic(GL_TRIANGLES, vao, vbo, vertices, 6);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    // the next draw re-enables blending via setupAlphaBlendState
   }
 }
 
@@ -430,49 +494,13 @@ struct RoundRectPipeline {
     uGapLenLoc = glGetUniformLocation(program, "uGapLen\0".ptr);
     uPixelSizeLoc = glGetUniformLocation(program, "uPixelSize\0".ptr);
 
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
-
-    glGenBuffers(1, &vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(
-      0,
-      2,
-      GL_FLOAT,
-      GL_FALSE,
-      4 * float.sizeof,
-      null
-    );
-
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(
-      1,
-      2,
-      GL_FLOAT,
-      GL_FALSE,
-      4 * float.sizeof,
-      cast(const(void)*)(2 * float.sizeof)
-    );
-
-    glBindVertexArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    const VertexArrayHandles h = createVec4VertexArray();
+    vao = h.vao;
+    vbo = h.vbo;
   }
 
   void destroy() {
-    if (vbo != 0) {
-      glDeleteBuffers(1, &vbo);
-      vbo = 0;
-    }
-    if (vao != 0) {
-      glDeleteVertexArrays(1, &vao);
-      vao = 0;
-    }
-    if (program != 0) {
-      glDeleteProgram(program);
-      program = 0;
-    }
+    destroyProgramAndBuffers(program, vao, vbo);
   }
 
   void draw(
@@ -531,5 +559,99 @@ struct RoundRectPipeline {
     glUniform1f(uPixelSizeLoc, px);
 
     uploadAndDrawDynamic(GL_TRIANGLES, vao, vbo, vertices, 6);
+  }
+}
+
+/// Uniform values of `GradientPipeline` (see `paint.frag.glsl`).
+struct GradientUniforms {
+  /// Max color stops (matches `maxStops` in the shader).
+  enum maxStops = 8;
+
+  /// 0 linear (`p0` -> `p1`), 1 radial (`p0`, `r0` -> `p1`, `r1`).
+  int kind;
+  /// Logic to gradient space as column-major mat3.
+  float[9] invXf = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+  PointF p0;
+  PointF p1;
+  float r0 = 0;
+  float r1 = 0;
+  /// Non-premultiplied rgba per stop.
+  float[4 * maxStops] stopColors = 0;
+  /// Sorted offsets in [0, 1].
+  float[maxStops] stopOffsets = 0;
+  int stopCount;
+}
+
+/**
+ * Shader pipeline for linear and radial gradient paint over vec2
+ * triangles in logic coordinates.
+ */
+struct GradientPipeline {
+  GLuint program;
+  GLuint vao;
+  GLuint vbo;
+  GLint uResolutionLoc = -1;
+  GLint uKindLoc = -1;
+  GLint uInvXfLoc = -1;
+  GLint uP0Loc = -1;
+  GLint uP1Loc = -1;
+  GLint uR0Loc = -1;
+  GLint uR1Loc = -1;
+  GLint uStopColorsLoc = -1;
+  GLint uStopOffsetsLoc = -1;
+  GLint uStopCountLoc = -1;
+
+  void initialize() {
+    program = buildProgram(paintVertexShaderSource,
+      paintFragmentShaderSource);
+    uResolutionLoc = glGetUniformLocation(program, "uResolution\0".ptr);
+    uKindLoc = glGetUniformLocation(program, "uKind\0".ptr);
+    uInvXfLoc = glGetUniformLocation(program, "uInvXf\0".ptr);
+    uP0Loc = glGetUniformLocation(program, "uP0\0".ptr);
+    uP1Loc = glGetUniformLocation(program, "uP1\0".ptr);
+    uR0Loc = glGetUniformLocation(program, "uR0\0".ptr);
+    uR1Loc = glGetUniformLocation(program, "uR1\0".ptr);
+    uStopColorsLoc = glGetUniformLocation(program, "uStopColors\0".ptr);
+    uStopOffsetsLoc = glGetUniformLocation(program, "uStopOffsets\0".ptr);
+    uStopCountLoc = glGetUniformLocation(program, "uStopCount\0".ptr);
+
+    const VertexArrayHandles h = createVec2VertexArray();
+    vao = h.vao;
+    vbo = h.vbo;
+  }
+
+  void destroy() {
+    destroyProgramAndBuffers(program, vao, vbo);
+  }
+
+  /// Draws triangles with alpha blending (see `setupAlphaBlendState`);
+  /// stencil state is left unchanged.
+  void drawTriangles(
+    const(float)[] vertices,
+    in GradientUniforms u,
+    float vw,
+    float vh
+  ) {
+    setupAlphaBlendState();
+    glUseProgram(program);
+    glUniform2f(uResolutionLoc, vw, vh);
+    glUniform1i(uKindLoc, u.kind);
+    glUniformMatrix3fv(uInvXfLoc, 1, GL_FALSE, u.invXf.ptr);
+    glUniform2f(uP0Loc, u.p0.x, u.p0.y);
+    glUniform2f(uP1Loc, u.p1.x, u.p1.y);
+    glUniform1f(uR0Loc, u.r0);
+    glUniform1f(uR1Loc, u.r1);
+    glUniform4fv(uStopColorsLoc, GradientUniforms.maxStops,
+      u.stopColors.ptr);
+    glUniform1fv(uStopOffsetsLoc, GradientUniforms.maxStops,
+      u.stopOffsets.ptr);
+    glUniform1i(uStopCountLoc, u.stopCount);
+    uploadAndDrawDynamic(
+      GL_TRIANGLES,
+      vao,
+      vbo,
+      vertices,
+      cast(GLsizei)(vertices.length / 2)
+    );
   }
 }

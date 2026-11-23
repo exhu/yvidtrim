@@ -104,3 +104,91 @@ void uploadAndDrawDynamic(
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindVertexArray(0);
 }
+
+/**
+ * Compiles `vertSource` and `fragSource` and links them into a program;
+ * the shader objects are deleted afterwards.
+ */
+GLuint buildProgram(string vertSource, string fragSource) {
+  GLuint vertShader = compileShader(GL_VERTEX_SHADER, vertSource);
+  scope(exit) glDeleteShader(vertShader);
+
+  GLuint fragShader = compileShader(GL_FRAGMENT_SHADER, fragSource);
+  scope(exit) glDeleteShader(fragShader);
+
+  return linkProgram(vertShader, fragShader);
+}
+
+/// VAO and its dynamic VBO.
+struct VertexArrayHandles {
+  GLuint vao;
+  GLuint vbo;
+}
+
+/**
+ * Creates a VAO with one VBO holding tightly packed vec2 positions at
+ * attribute location 0. Leaves no VAO or buffer bound.
+ */
+VertexArrayHandles createVec2VertexArray() {
+  VertexArrayHandles h;
+  glGenVertexArrays(1, &h.vao);
+  glBindVertexArray(h.vao);
+
+  glGenBuffers(1, &h.vbo);
+  glBindBuffer(GL_ARRAY_BUFFER, h.vbo);
+
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * float.sizeof, null);
+
+  glBindVertexArray(0);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  return h;
+}
+
+/**
+ * Creates a VAO with one VBO holding interleaved vec2 position
+ * (location 0) and vec2 texture/local coordinate (location 1). Leaves no
+ * VAO or buffer bound.
+ */
+VertexArrayHandles createVec4VertexArray() {
+  VertexArrayHandles h;
+  glGenVertexArrays(1, &h.vao);
+  glBindVertexArray(h.vao);
+
+  glGenBuffers(1, &h.vbo);
+  glBindBuffer(GL_ARRAY_BUFFER, h.vbo);
+
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * float.sizeof, null);
+
+  glEnableVertexAttribArray(1);
+  glVertexAttribPointer(
+    1,
+    2,
+    GL_FLOAT,
+    GL_FALSE,
+    4 * float.sizeof,
+    cast(const(void)*)(2 * float.sizeof)
+  );
+
+  glBindVertexArray(0);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  return h;
+}
+
+/// Deletes the non-zero objects and zeroes the handles in place.
+void destroyProgramAndBuffers(ref GLuint program, ref GLuint vao,
+  ref GLuint vbo) {
+  if (vbo != 0) {
+    glDeleteBuffers(1, &vbo);
+    vbo = 0;
+  }
+  if (vao != 0) {
+    glDeleteVertexArrays(1, &vao);
+    vao = 0;
+  }
+  if (program != 0) {
+    glDeleteProgram(program);
+    program = 0;
+  }
+}

@@ -1,6 +1,14 @@
-- implement Canvas class (yguilib/source/yguilib/render/canvas.d) based on TODO comments there.
-Make sure code and shaders are not duplicated with current Renderer class, both Canvas drawing
-and Renderer methods should work together fine. Add demonstration page of drawing features to guidemo.
+- add image support
+-- integrate SDL_image to load, save, draw in Renderer
+-- support screenshots in Renderer and saving to file
+-- support offscreen rendering to image, and image blitting
+-- Canvas Pattern (image fill/stroke paint, `canvas.d` `Pattern` stub)
+
+- Where it differs from HTML canvas:
+- Shadows: a shape always casts a fully opaque shadow, even when its fill is semi-transparent or a gradient.
+- Invalid input: a radial gradient with a negative radius, or a negative path radius, draws nothing instead of raising an error.
+- Square caps on zero-length segments: they stay axis-aligned instead of rotating with the path, which shows on diagonal lines.
+
 - build widget library
 -- checkbox
 -- combobox
@@ -10,7 +18,6 @@ and Renderer methods should work together fine. Add demonstration page of drawin
 -- yes/no dialog
 -- file selection dialog
 - styles
-- add image support
 
 - video player component and system is external to yguilib to be independent from ffmpeg
 

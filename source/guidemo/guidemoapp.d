@@ -29,6 +29,10 @@
  * 3. controls/button.d:
  *    - Plain push Button: press fade + caption sink animation, drag-off
  *      cancel, release-inside click, disabled state, fixed/auto sizing.
+ * 4. render/canvas.d (via CustomDraw / WidgetBuilder.onDraw):
+ *    - Path2d curves, arcs, ellipses, round rects; nonZero/evenOdd fills;
+ *      caps, joins, miter limit, animated dashes; transforms; clips;
+ *      linear/radial gradients; Canvas + Renderer interop.
  *
  * MAINTENANCE NOTE:
  * When adding new layout modes, drawing primitives, widgets, or components
@@ -36,10 +40,12 @@
  * update this demo with dedicated visual sections and interactive controls.
  *
  * KEYBOARD CONTROLS:
- *   [Tab]/[1-9]   Switch demo page (Page 1: Layout, Page 2: TextLabel,
+ *   [Tab]/[1-9,0] Switch demo page (Page 1: Layout, Page 2: TextLabel,
  *                 Page 3: Hover Ctrl, Page 4: Hover System,
  *                 Page 5: TabControl, Page 6: Scrollbars, Page 7: VirtList,
- *                 Page 8: Knob / cursor lock, Page 9: Button)
+ *                 Page 8: Knob / cursor lock, Page 9: Button,
+ *                 Page 10 ([0]): Canvas)
+ *   [Space]       Toggle Canvas page animation (Page 10)
  *   [M]           Toggle multiline on interactive TextLabel
  *   [E]           Toggle overflow ellipsis on interactive TextLabel
  *   [L]           Cycle horizontal alignment (left -> center -> right)
@@ -61,13 +67,15 @@ import yguilib.widget : Widget;
 import guidemo.controller : DemoController, DemoControllerParams;
 import guidemo.hover_button : HoverButtonController;
 import yguilib.controls.hover_button_system : AnimatedHoverButtonSystem;
-import guidemo.model : ButtonPageModel, ButtonSystemPageModel, DemoModel,
-  KnobPageModel, LayoutPainterPageModel, SimpleButtonPageModel,
-  TextLabelPageModel;
+import guidemo.model : ButtonPageModel, ButtonSystemPageModel,
+  CanvasPageModel, DemoModel, KnobPageModel, LayoutPainterPageModel,
+  SimpleButtonPageModel, TextLabelPageModel;
 import guidemo.pages.button_controller : ButtonPageController;
 import guidemo.pages.button_page : ButtonPage;
 import guidemo.pages.button_system_controller : ButtonSystemPageController;
 import guidemo.pages.button_system_page : ButtonSystemPage;
+import guidemo.pages.canvas_controller : CanvasPageController;
+import guidemo.pages.canvas_page : CanvasPage;
 import guidemo.pages.knob_controller : KnobPageController;
 import guidemo.pages.knob_page : KnobPage;
 import guidemo.pages.layout_painter_controller : LayoutPainterPageController;
@@ -178,6 +186,7 @@ void registerDemoPages(
 
   registerKnobPage(ui, demoTracker, rootWidget);
   registerSimpleButtonPage(ui, demoTracker, rootWidget);
+  registerCanvasPage(ui, demoTracker, rootWidget);
 }
 
 /**
@@ -296,4 +305,16 @@ void registerSimpleButtonPage(
     SimpleButtonPageController,
     SimpleButtonPageModel
   )(ui, demoTracker, rootWidget);
+}
+
+void registerCanvasPage(
+  UiSystem ui,
+  ref ModelTracker!DemoModel demoTracker,
+  Widget rootWidget
+) {
+  registerSimplePage!(CanvasPage, CanvasPageController, CanvasPageModel)(
+    ui,
+    demoTracker,
+    rootWidget
+  );
 }
