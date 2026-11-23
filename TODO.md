@@ -1,4 +1,8 @@
-- implement text support in canvas api to allow rotate text etc.
+- implement text support in canvas api to allow rotate text etc.:
+  fillText(string, PointF), strokeText, fillTextWithMaxWidth(..width), strokeTextWithMaxWidth(..),
+  font(...) (use the same font specification as in Renderer), textAlign(), textBaseline(), direction(),
+  measureText()
+
 - review canvas and renderer implementation, look for repeated memory allocations
 - human review of canvas and renderer implementation
 - build widget library
