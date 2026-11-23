@@ -11,7 +11,7 @@ import yguilib.render.internal.offscreen : OffscreenTarget,
 import yguilib.render.internal.gl_util : ProgramTracker;
 import yguilib.render.internal.pipelines : BlurPipeline, ColorPipeline,
   GradientPipeline, PatternPipeline, RoundRectPipeline, TextureMode,
-  TexturePipeline, TexturedQuad;
+  TexturePipeline, TexturedQuad, Viewport, textureModeFor;
 import yguilib.render.internal.text_cache : TextCache, TextTexture;
 import yguilib.render.render_types;
 import yguilib.render.render_target : RenderTarget;
@@ -259,12 +259,8 @@ final class Renderer {
     if (!initialized) {
       return;
     }
-    colorPipeline.drawFillRect(
-      rect,
-      color,
-      logicWidth(),
-      logicHeight()
-    );
+    const Viewport v = vp();
+    colorPipeline.drawFillRect(rect, color, v.vw, v.vh);
   }
 
   /**
@@ -278,13 +274,8 @@ final class Renderer {
     if (!initialized) {
       return;
     }
-    colorPipeline.drawThinLineWithPoints(
-      point1,
-      point2,
-      color,
-      logicWidth(),
-      logicHeight()
-    );
+    const Viewport v = vp();
+    colorPipeline.drawThinLineWithPoints(point1, point2, color, v.vw, v.vh);
   }
 
   /**
@@ -325,15 +316,9 @@ final class Renderer {
     if (!initialized) {
       return;
     }
+    const Viewport v = vp();
     colorPipeline.drawDashedLineWithPoints(
-      point1,
-      point2,
-      lineWidth,
-      dashLen,
-      gapLen,
-      color,
-      logicWidth(),
-      logicHeight()
+      point1, point2, lineWidth, dashLen, gapLen, color, v.vw, v.vh
     );
   }
 
@@ -349,13 +334,8 @@ final class Renderer {
     if (!initialized) {
       return;
     }
-    colorPipeline.drawRectWithWidth(
-      rect,
-      lineWidth,
-      color,
-      logicWidth(),
-      logicHeight()
-    );
+    const Viewport v = vp();
+    colorPipeline.drawRectWithWidth(rect, lineWidth, color, v.vw, v.vh);
   }
 
   /**
@@ -389,16 +369,9 @@ final class Renderer {
     if (!initialized) {
       return;
     }
+    const Viewport v = vp();
     rrPipeline.draw(
-      rect,
-      0.0f,
-      lineWidth,
-      dashLen,
-      gapLen,
-      color,
-      logicWidth(),
-      logicHeight(),
-      totalScaling()
+      rect, 0.0f, lineWidth, dashLen, gapLen, color, v.vw, v.vh, v.scale
     );
   }
 
@@ -413,16 +386,9 @@ final class Renderer {
     if (!initialized) {
       return;
     }
+    const Viewport v = vp();
     rrPipeline.draw(
-      rect,
-      radius,
-      0.0f,
-      0.0f,
-      0.0f,
-      color,
-      logicWidth(),
-      logicHeight(),
-      totalScaling()
+      rect, radius, 0.0f, 0.0f, 0.0f, color, v.vw, v.vh, v.scale
     );
   }
 
@@ -445,16 +411,9 @@ final class Renderer {
     if (!initialized) {
       return;
     }
+    const Viewport v = vp();
     rrPipeline.draw(
-      rect,
-      radius,
-      lineWidth,
-      0.0f,
-      0.0f,
-      color,
-      logicWidth(),
-      logicHeight(),
-      totalScaling()
+      rect, radius, lineWidth, 0.0f, 0.0f, color, v.vw, v.vh, v.scale
     );
   }
 
@@ -480,16 +439,9 @@ final class Renderer {
     if (!initialized) {
       return;
     }
+    const Viewport v = vp();
     rrPipeline.draw(
-      rect,
-      radius,
-      lineWidth,
-      dashLen,
-      gapLen,
-      color,
-      logicWidth(),
-      logicHeight(),
-      totalScaling()
+      rect, radius, lineWidth, dashLen, gapLen, color, v.vw, v.vh, v.scale
     );
   }
 
@@ -656,12 +608,11 @@ final class Renderer {
     if (!initialized) {
       return;
     }
-    texPipeline.drawTexture(
-      texId,
-      destRect,
-      color,
-      logicWidth(),
-      logicHeight()
+    // a whole straight-alpha texture stretched to destRect
+    const Viewport v = vp();
+    texPipeline.drawTexturedQuad(
+      texId, TexturedQuad(destRect, RectF(0, 0, 1, 1), color), v.vw, v.vh,
+      TextureMode.straight
     );
   }
 
@@ -710,14 +661,13 @@ final class Renderer {
       assert(!isActiveTargetTexture(t),
         "drawing the texture of an active render target (feedback loop)");
     }
-    const TextureMode mode = t.premultiplied()
-      ? TextureMode.premultiplied : TextureMode.straight;
+    const Viewport v = vp();
     texPipeline.drawTexturedQuad(
       t.id(),
       TexturedQuad(dest, textureUv(t, srcPx), tint),
-      logicWidth(),
-      logicHeight(),
-      mode
+      v.vw,
+      v.vh,
+      textureModeFor(t)
     );
   }
 
@@ -1027,6 +977,18 @@ package(yguilib.render):
     return s;
   }
 
+  /**
+   * Clears the GL pixel box `box` (`[x, y, w, h]`, bottom-left origin) of
+   * the bound framebuffer to transparent black, color only, within the
+   * clip stack scissor. The scissor and the clear color are restored.
+   */
+  void clearPixelBox(in int[4] box) {
+    glClearColor(0, 0, 0, 0);
+    clipStack.clearBox(box, GL_COLOR_BUFFER_BIT);
+    glClearColor(fClearColor[0], fClearColor[1], fClearColor[2],
+      fClearColor[3]);
+  }
+
   /// True while a clip rect is pushed (the GL scissor test is on).
   bool scissorEnabled() const {
     return !clipStack.isEmpty();
@@ -1173,11 +1135,9 @@ private:
     }
   }
 
-  TextTexture createTextTexture(Font font, string text) {
-    if (!initialized) {
-      return TextTexture();
-    }
-    return TextCache.createTextTexture(font, text, 0);
+  /// Logic viewport size and total scaling for the pipeline draws.
+  Viewport vp() const {
+    return Viewport(logicWidth(), logicHeight(), totalScaling());
   }
 
   void drawTextTexture(

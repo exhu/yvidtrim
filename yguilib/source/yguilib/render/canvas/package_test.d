@@ -1681,7 +1681,7 @@ unittest {
   r.clearFrame(black);
   cv.fillStyle(green);
   cv.fill(circle);
-  const size_t grown = r.colorPipelineRef().va.capacity;
+  const size_t grown = r.colorPipelineRef().mesh.va.capacity;
   assert(grown >= segs * 3 * 2 * float.sizeof);
   assert(isRgb(160, 120, 0, 255, 0));
   assert(isRgb(160, 50, 0, 255, 0));
@@ -1690,7 +1690,7 @@ unittest {
   r.clearFrame(black); // resets the fill style too
   cv.fillStyle(green);
   cv.fill(rectPath(RectF(20, 20, 30, 30)));
-  assert(r.colorPipelineRef().va.capacity == grown);
+  assert(r.colorPipelineRef().mesh.va.capacity == grown);
   assert(isRgb(35, 35, 0, 255, 0));
   assert(isRgb(160, 120, 0, 0, 0));
   assert(isRgb(60, 35, 0, 0, 0));
@@ -1799,5 +1799,224 @@ unittest {
   r.popClipRect();
   assert(r.offscreenTargetRef(0).fbo == 0);
 
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// Convex fill fast path (review 3.3): fan drawn once, no stencil
+unittest {
+  import std.math : PI, cos, sin;
+
+  auto w = GlTestWindow("test_canvas_convex");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+  auto r = w.renderer();
+  auto cv = w.canvas();
+  const black = ColorF(0, 0, 0, 1);
+  const half = FillStyle.solid(ColorF(1, 1, 1, 0.5f));
+
+  // no pixel is blended twice (> ~128) and at least `minFull` are fully
+  // covered; the window may be multisampled, so curved or slanted edges
+  // can be partly covered (`exact` false). With `exact` (pixel-aligned
+  // edges) every pixel is 0 or ~128.
+  void assertSingleBlend(int minFull, bool exact) {
+    const ubyte[] buf = grabFrame();
+    int full = 0;
+    foreach (y; 0 .. testHeight) {
+      foreach (x; 0 .. testWidth) {
+        const int v = channelAt(buf, x, y, 0);
+        const bool once = v >= 126 && v <= 129;
+        assert(v <= 129 && (!exact || v == 0 || once));
+        full += once ? 1 : 0;
+      }
+    }
+    assert(full >= minFull);
+  }
+
+  auto circle = new Path2d();
+  circle.arc(PointF(160, 120), 60, 0, cast(float)(2 * PI), false);
+  circle.closePath();
+  auto rr = new Path2d();
+  rr.roundRect(RectF(30, 40, 250, 150), 30);
+  Path2d[3] shapes = [rectPath(RectF(20, 30, 200, 120)), circle, rr];
+  foreach (rule; [FillRule.nonZero, FillRule.evenOdd]) {
+    foreach (i, shape; shapes) {
+      r.clearFrame(black);
+      cv.fillRule(rule);
+      cv.fillStyle(half);
+      const before = cv.pathStats();
+      cv.fill(shape);
+      const after = cv.pathStats();
+      assert(after.convexFills == before.convexFills + 1);
+      assert(after.stencilFills == before.stencilFills);
+      // the rect has pixel-aligned edges
+      assertSingleBlend(10_000, i == 0);
+    }
+  }
+  // a transformed rect stays convex
+  r.clearFrame(black);
+  cv.fillStyle(half);
+  cv.translate(PointF(160, 120));
+  cv.rotate(0.3f);
+  cv.scale(PointF(-1.5f, 1));
+  const s0 = cv.pathStats();
+  cv.fill(rectPath(RectF(-40, -30, 80, 60)));
+  assert(cv.pathStats().convexFills == s0.convexFills + 1);
+  assertSingleBlend(4000, false);
+  assert(near(160, 120, 128, 128, 128, 1));
+
+  // the concave star uses the stencil path and is still correct
+  auto star = new Path2d();
+  foreach (k; 0 .. 5) {
+    const float a = cast(float)(-PI / 2 + k * 4 * PI / 5);
+    const PointF pt = PointF(160 + 80 * cos(a), 120 + 80 * sin(a));
+    if (k == 0) {
+      star.moveTo(pt);
+    } else {
+      star.lineTo(pt);
+    }
+  }
+  star.closePath();
+  r.clearFrame(black);
+  cv.fillStyle(half);
+  const s1 = cv.pathStats();
+  cv.fill(star);
+  assert(cv.pathStats().stencilFills == s1.stencilFills + 1);
+  assert(cv.pathStats().convexFills == s1.convexFills);
+  assertSingleBlend(1000, false);
+  assert(near(160, 120, 128, 128, 128, 1));
+  r.clearFrame(black);
+  cv.fillStyle(half);
+  cv.fillRule(FillRule.evenOdd);
+  cv.fill(star);
+  assert(isRgb(160, 120, 0, 0, 0));
+  assert(near(160, 60, 128, 128, 128, 1));
+  cv.fillRule(FillRule.nonZero);
+
+  // a Canvas clip forces the stencil path
+  r.clearFrame(black);
+  cv.fillStyle(half);
+  cv.save();
+  cv.clip(rectPath(RectF(0, 0, 100, 240)));
+  const s2 = cv.pathStats();
+  cv.fill(rectPath(RectF(50, 50, 100, 100)));
+  cv.restore();
+  assert(cv.pathStats().stencilFills == s2.stencilFills + 1);
+  assert(near(75, 100, 128, 128, 128, 1));
+  assert(isRgb(125, 100, 0, 0, 0));
+
+  // with a shadow, the shape still blends once over the shadow
+  r.clearFrame(black);
+  Shadow sh;
+  sh.offset = PointF(100, 0);
+  sh.color = ColorF(0, 0, 1, 1);
+  cv.shadow(sh);
+  cv.fillStyle(half);
+  cv.fill(rectPath(RectF(20, 20, 60, 60)));
+  cv.shadow(Shadow.init);
+  assert(near(50, 50, 128, 128, 128, 1));
+  assert(near(150, 50, 0, 0, 128, 1));
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// clearRect as a scissored glClear (review 3.3)
+unittest {
+  auto w = GlTestWindow("test_canvas_clear_rect");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+  auto r = w.renderer();
+  auto cv = w.canvas();
+  const green = ColorF(0, 1, 0, 1);
+  auto all = rectPath(RectF(0, 0, 320, 240));
+
+  // clearRect(rc) under translate(dy) * scale(2, 1.5), optionally under a
+  // Canvas clip of the whole viewport
+  void clearScaled(RectF rc, float dy, bool viaClip) {
+    r.clearFrame(green);
+    cv.save();
+    if (viaClip) {
+      cv.clip(all);
+    }
+    cv.translate(PointF(10, dy));
+    cv.scale(PointF(2, 1.5f));
+    cv.clearRect(rc);
+    cv.restore();
+  }
+
+  // fractional edges: rows whose centers are in [27.7, 42.7), cols
+  // [20, 60)
+  const s0 = cv.pathStats();
+  clearScaled(RectF(5, 5, 20, 10), 20.2f, false);
+  const s1 = cv.pathStats();
+  assert(s1.scissorClears == s0.scissorClears + 1);
+  assert(s1.stencilFills == s0.stencilFills);
+  assert(nearPixel(readAt(20, 28), 0, 0, 0, 0));
+  assert(nearPixel(readAt(59, 42), 0, 0, 0, 0));
+  assert(nearPixel(readAt(19, 30), 0, 255, 0, 0));
+  assert(nearPixel(readAt(60, 30), 0, 255, 0, 0));
+  assert(nearPixel(readAt(30, 27), 0, 255, 0, 0));
+  assert(nearPixel(readAt(30, 43), 0, 255, 0, 0));
+  assert(readAt(30, 35)[3] == 0);
+
+  // a Canvas clip takes the stencil path: the same pixels (pixel-aligned
+  // edges, as the window may be multisampled: rows 29..43)
+  const RectF aligned = RectF(5, 6, 20, 10);
+  clearScaled(aligned, 20, false);
+  const ubyte[] fast = grabFrame();
+  assert(nearPixel(readAt(20, 29), 0, 0, 0, 0));
+  assert(nearPixel(readAt(20, 44), 0, 255, 0, 0));
+  const s1b = cv.pathStats();
+  clearScaled(aligned, 20, true);
+  const s2 = cv.pathStats();
+  assert(s2.scissorClears == s1b.scissorClears);
+  assert(s2.stencilFills == s1b.stencilFills + 1);
+  assert(grabFrame() == fast);
+
+  // mirrored scale: same rect from the other side
+  r.clearFrame(green);
+  cv.translate(PointF(100, 0));
+  cv.scale(PointF(-1, 1));
+  cv.clearRect(RectF(10, 10, 20, 20)); // -> x 70..90
+  cv.resetTransform();
+  assert(cv.pathStats().scissorClears == s2.scissorClears + 1);
+  assert(nearPixel(readAt(70, 10), 0, 0, 0, 0));
+  assert(nearPixel(readAt(89, 29), 0, 0, 0, 0));
+  assert(nearPixel(readAt(69, 20), 0, 255, 0, 0));
+  assert(nearPixel(readAt(90, 20), 0, 255, 0, 0));
+
+  // rotation takes the stencil path
+  r.clearFrame(green);
+  cv.translate(PointF(160, 120));
+  cv.rotate(0.5f);
+  const s3 = cv.pathStats();
+  cv.clearRect(RectF(-20, -20, 40, 40));
+  cv.resetTransform();
+  assert(cv.pathStats().stencilFills == s3.stencilFills + 1);
+  assert(cv.pathStats().scissorClears == s3.scissorClears);
+  assert(nearPixel(readAt(160, 120), 0, 0, 0, 0));
+  assert(nearPixel(readAt(160, 90), 0, 255, 0, 0));
+
+  // the Renderer scissor limits the clear and is restored afterwards
+  r.clearFrame(green);
+  r.pushClipRect(RectF(0, 0, 40, 240));
+  cv.clearRect(RectF(20, 20, 40, 20));
+  assert(nearPixel(readAt(25, 30), 0, 0, 0, 0));
+  assert(nearPixel(readAt(45, 30), 0, 255, 0, 0));
+  r.drawFillRect(RectF(0, 100, 320, 10), ColorF(1, 0, 0, 1));
+  r.popClipRect();
+  assert(nearPixel(readAt(20, 105), 255, 0, 0, 0));
+  assert(nearPixel(readAt(60, 105), 0, 255, 0, 0));
+  // no scissor left behind
+  r.drawFillRect(RectF(0, 200, 320, 10), ColorF(1, 0, 0, 1));
+  assert(nearPixel(readAt(300, 205), 255, 0, 0, 0));
+  // inside a render target (tracked state checked by targetState)
+  auto rt = r.createRenderTarget(32, 32, false);
+  assert(rt !is null);
+  scope(exit) rt.destroy();
+  scope(exit) w.endTargets();
+  r.beginTarget(rt, false);
+  r.clearFrame(green);
+  cv.clearRect(RectF(0, 0, 16, 32));
+  assert(nearPixel(readAt(4, 4), 0, 0, 0, 0));
+  r.endTarget();
   assert(glGetError() == GL_NO_ERROR);
 }

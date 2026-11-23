@@ -99,6 +99,65 @@ unittest {
   assert(disjoint.width == 0.0f && disjoint.height == 0.0f);
 }
 
+/// True when both coordinates of `p` are finite.
+bool isFinitePoint(in PointF p) nothrow @safe @nogc pure {
+  import std.math : isFinite;
+
+  return isFinite(p.x) && isFinite(p.y);
+}
+
+/// True when the origin and size of `r` are finite (any sign).
+bool isFiniteRect(in RectF r) nothrow @safe @nogc pure {
+  import std.math : isFinite;
+
+  return isFinite(r.x) && isFinite(r.y) && isFinite(r.width)
+    && isFinite(r.height);
+}
+
+/// Bounds of `pts`; an empty slice gives `RectF(0, 0, 0, 0)`.
+RectF boundsOfPoints(const(PointF)[] pts) nothrow @safe @nogc pure {
+  if (pts.length == 0) {
+    return RectF(0, 0, 0, 0);
+  }
+  float x0 = pts[0].x;
+  float y0 = pts[0].y;
+  float x1 = x0;
+  float y1 = y0;
+  foreach (p; pts[1 .. $]) {
+    x0 = p.x < x0 ? p.x : x0;
+    y0 = p.y < y0 ? p.y : y0;
+    x1 = p.x > x1 ? p.x : x1;
+    y1 = p.y > y1 ? p.y : y1;
+  }
+  return RectF(x0, y0, x1 - x0, y1 - y0);
+}
+
+/**
+ * `boundsOfPoints` of interleaved (x, y) floats; a trailing odd float is
+ * ignored.
+ */
+RectF boundsOfXy(const(float)[] xy) nothrow @trusted @nogc pure {
+  static assert(PointF.sizeof == 2 * float.sizeof);
+  const size_t n = xy.length / 2;
+  // PointF is two packed floats: view the pairs as points
+  return boundsOfPoints((cast(const(PointF)*)xy.ptr)[0 .. n]);
+}
+
+unittest {
+  assert(isFinitePoint(PointF(1, -2)));
+  assert(!isFinitePoint(PointF(float.nan, 0)));
+  assert(!isFinitePoint(PointF(0, float.infinity)));
+  assert(isFiniteRect(RectF(0, 0, -5, 3)));
+  assert(!isFiniteRect(RectF(0, 0, float.nan, 3)));
+
+  assert(boundsOfPoints([]) == RectF(0, 0, 0, 0));
+  const PointF[3] pts = [PointF(3, 4), PointF(-1, 10), PointF(5, 2)];
+  assert(boundsOfPoints(pts[]) == RectF(-1, 2, 6, 8));
+  const float[7] xy = [3, 4, -1, 10, 5, 2, 99];
+  assert(boundsOfXy(xy[]) == RectF(-1, 2, 6, 8));
+  assert(boundsOfXy([]) == RectF(0, 0, 0, 0));
+}
+
 /// Linearly interpolates between `a` and `b`, clamping `t` to `[0.0f, 1.0f]`.
 ColorF lerpColor(in ColorF a, in ColorF b, float t) nothrow @safe @nogc {
   import std.algorithm.comparison : clamp;

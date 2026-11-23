@@ -288,6 +288,40 @@ VertexArrayHandles createVec4VertexArray() {
   return h;
 }
 
+/**
+ * A shader program and the VAO/VBO (with its streaming capacity) it draws
+ * from: the trio every pipeline owns.
+ */
+struct ProgramMesh {
+  GLuint program;
+  VertexArrayHandles va;
+
+  /// Builds the program (`buildProgram`) with a vec2 vertex array.
+  static ProgramMesh vec2(string vertSource, string fragSource) {
+    return ProgramMesh(
+      buildProgram(vertSource, fragSource), createVec2VertexArray()
+    );
+  }
+
+  /// Builds the program (`buildProgram`) with a vec4 vertex array.
+  static ProgramMesh vec4(string vertSource, string fragSource) {
+    return ProgramMesh(
+      buildProgram(vertSource, fragSource), createVec4VertexArray()
+    );
+  }
+
+  /// Location of uniform `name` (a NUL-terminated literal) in `program`.
+  GLint uniform(string name) const {
+    assert(name.length > 0 && name[$ - 1] == '\0');
+    return glGetUniformLocation(program, name.ptr);
+  }
+
+  /// Deletes the non-zero objects and zeroes the handles.
+  void destroy() {
+    destroyProgramAndBuffers(program, va);
+  }
+}
+
 /// Deletes the non-zero objects and zeroes the handles in place.
 void destroyProgramAndBuffers(ref GLuint program,
   ref VertexArrayHandles va) {

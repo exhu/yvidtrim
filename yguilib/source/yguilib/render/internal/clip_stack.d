@@ -76,6 +76,43 @@ struct ClipStack {
     return fAppliedBox;
   }
 
+  /**
+   * `glClear(mask)` limited to the GL box `box` (`[x, y, w, h]`, see
+   * `scissorBox`) intersected with the applied scissor when the stack is
+   * not empty; the scissor state is restored afterwards. An empty
+   * intersection clears nothing.
+   */
+  void clearBox(in int[4] box, GLbitfield mask) {
+    import std.algorithm : max, min;
+
+    int x0 = box[0];
+    int y0 = box[1];
+    int x1 = box[0] + box[2];
+    int y1 = box[1] + box[3];
+    const bool clipped = !isEmpty();
+    if (clipped) {
+      const int[4] a = fAppliedBox;
+      x0 = max(x0, a[0]);
+      y0 = max(y0, a[1]);
+      x1 = min(x1, a[0] + a[2]);
+      y1 = min(y1, a[1] + a[3]);
+    }
+    if (x1 <= x0 || y1 <= y0) {
+      return;
+    }
+    if (!clipped) {
+      glEnable(GL_SCISSOR_TEST);
+    }
+    glScissor(x0, y0, x1 - x0, y1 - y0);
+    glClear(mask);
+    if (clipped) {
+      glScissor(fAppliedBox[0], fAppliedBox[1], fAppliedBox[2],
+        fAppliedBox[3]);
+    } else {
+      glDisable(GL_SCISSOR_TEST);
+    }
+  }
+
   /// True when both stacks use the same (allocated) buffer.
   bool sharesStorage(ref ClipStack o) {
     return stack[].ptr !is null && stack[].ptr is o.stack[].ptr;

@@ -5,7 +5,8 @@ module yguilib.render.canvas.path2d;
 
 import std.array : Appender;
 import yguilib.render.canvas.types : Transform2d;
-import yguilib.render.render_types : PointF, RectF;
+import yguilib.render.render_types : PointF, RectF, boundsOfPoints,
+  isFinitePoint, isFiniteRect;
 
 /// Path command stored in `Path2d`.
 enum PathVerb : ubyte {
@@ -41,7 +42,7 @@ size_t pointCountOfVerb(PathVerb v) nothrow @safe @nogc pure {
 final class Path2d {
   /// Starts a new subpath at `p`.
   void moveTo(PointF p) nothrow @safe {
-    if (!finite(p)) {
+    if (!isFinitePoint(p)) {
       return;
     }
     fVerbs ~= PathVerb.moveTo;
@@ -53,7 +54,7 @@ final class Path2d {
 
   /// Line to `p`; acts as `moveTo` when there is no subpath.
   void lineTo(PointF p) nothrow @safe {
-    if (!finite(p)) {
+    if (!isFinitePoint(p)) {
       return;
     }
     if (!fHasSubpath) {
@@ -68,7 +69,7 @@ final class Path2d {
 
   /// Quadratic Bézier with control point `cp` ending at `p`.
   void quadraticCurveTo(PointF cp, PointF p) nothrow @safe {
-    if (!finite(cp) || !finite(p)) {
+    if (!isFinitePoint(cp) || !isFinitePoint(p)) {
       return;
     }
     ensureSubpath(cp);
@@ -80,7 +81,7 @@ final class Path2d {
 
   /// Cubic Bézier with control points `cp1`, `cp2` ending at `p`.
   void bezierCurveTo(PointF cp1, PointF cp2, PointF p) nothrow @safe {
-    if (!finite(cp1) || !finite(cp2) || !finite(p)) {
+    if (!isFinitePoint(cp1) || !isFinitePoint(cp2) || !isFinitePoint(p)) {
       return;
     }
     ensureSubpath(cp1);
@@ -116,7 +117,8 @@ final class Path2d {
   void arcTo(PointF p1, PointF p2, float radius) nothrow @safe {
     import std.math : abs, acos, atan2, isFinite, PI, sqrt, tan, sin;
 
-    if (!finite(p1) || !finite(p2) || !isFinite(radius) || radius < 0) {
+    if (!isFinitePoint(p1) || !isFinitePoint(p2) || !isFinite(radius)
+      || radius < 0) {
       return;
     }
     if (!fHasSubpath) {
@@ -178,7 +180,7 @@ final class Path2d {
   ) nothrow @safe {
     import std.math : fmod, isFinite, PI;
 
-    if (!finite(center) || !finite(radii) || !isFinite(rotation)
+    if (!isFinitePoint(center) || !isFinitePoint(radii) || !isFinite(rotation)
         || !isFinite(startAngle) || !isFinite(endAngle)) {
       return;
     }
@@ -211,7 +213,7 @@ final class Path2d {
 
   /// Closed rectangle subpath; a new subpath then starts at `r.x, r.y`.
   void rect(RectF r) nothrow @safe {
-    if (!finiteRect(r)) {
+    if (!isFiniteRect(r)) {
       return;
     }
     moveTo(PointF(r.x, r.y));
@@ -229,7 +231,7 @@ final class Path2d {
   void roundRect(RectF r, float radius) nothrow @safe {
     import std.math : abs, isFinite;
 
-    if (!finiteRect(r) || !isFinite(radius) || radius < 0) {
+    if (!isFiniteRect(r) || !isFinite(radius) || radius < 0) {
       return;
     }
     const float maxR = 0.5f * (abs(r.width) < abs(r.height)
@@ -311,21 +313,7 @@ final class Path2d {
 
   /// Bounds of all points including control points; empty is all zeros.
   RectF bounds() const nothrow @safe @nogc {
-    const PointF[] pts = fPoints[];
-    if (pts.length == 0) {
-      return RectF(0, 0, 0, 0);
-    }
-    float x0 = pts[0].x;
-    float y0 = pts[0].y;
-    float x1 = x0;
-    float y1 = y0;
-    foreach (p; pts[1 .. $]) {
-      x0 = p.x < x0 ? p.x : x0;
-      y0 = p.y < y0 ? p.y : y0;
-      x1 = p.x > x1 ? p.x : x1;
-      y1 = p.y > y1 ? p.y : y1;
-    }
-    return RectF(x0, y0, x1 - x0, y1 - y0);
+    return boundsOfPoints(fPoints[]);
   }
 
 package(yguilib):
@@ -347,16 +335,6 @@ private:
   bool fClosed;
   PointF fSubpathStart;
   PointF fCurrent;
-
-  static bool finite(PointF p) nothrow @safe @nogc {
-    import std.math : isFinite;
-
-    return isFinite(p.x) && isFinite(p.y);
-  }
-
-  static bool finiteRect(RectF r) nothrow @safe @nogc {
-    return finite(PointF(r.x, r.y)) && finite(PointF(r.width, r.height));
-  }
 
   void ensureSubpath(PointF p) nothrow @safe {
     if (!fHasSubpath) {

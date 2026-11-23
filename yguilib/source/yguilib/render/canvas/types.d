@@ -61,15 +61,25 @@ struct Transform2d {
     return PointF(a * p.x + c * p.y + e, b * p.x + d * p.y + f);
   }
 
-  /// Inverse transform; returns identity when the matrix is singular.
-  Transform2d inverse() const nothrow @safe @nogc pure {
+  /// Determinant of the linear part (`a * d - b * c`).
+  float determinant() const nothrow @safe @nogc pure {
+    return a * d - b * c;
+  }
+
+  /// True when the determinant is finite and its magnitude >= 1e-12.
+  bool isInvertible() const nothrow @safe @nogc pure {
     import std.math : abs, isFinite;
 
-    const float det = a * d - b * c;
-    if (!isFinite(det) || abs(det) < 1e-12f) {
+    const float det = determinant();
+    return isFinite(det) && abs(det) >= 1e-12f;
+  }
+
+  /// Inverse transform; returns identity when the matrix is singular.
+  Transform2d inverse() const nothrow @safe @nogc pure {
+    if (!isInvertible()) {
       return Transform2d.identity();
     }
-    const float inv = 1.0f / det;
+    const float inv = 1.0f / determinant();
     return Transform2d(
       d * inv,
       -b * inv,
@@ -90,7 +100,7 @@ struct Transform2d {
     import std.math : sqrt;
 
     const float s = a * a + b * b + c * c + d * d;
-    const float det = a * d - b * c;
+    const float det = determinant();
     float disc = s * s - 4 * det * det;
     if (disc < 0) {
       disc = 0;
@@ -126,6 +136,10 @@ unittest {
   assert(Transform2d.identity().isIdentity());
   assert(!t.isIdentity());
   assert(Transform2d.scaling(PointF(0, 0)).inverse().isIdentity());
+  assert(Transform2d.scaling(PointF(2, -3)).determinant() == -6);
+  assert(m.isInvertible());
+  assert(!Transform2d.scaling(PointF(0, 1)).isInvertible());
+  assert(!Transform2d(float.nan, 0, 0, 1, 0, 0).isInvertible());
 
   assert(isClose(Transform2d.scaling(PointF(2, 3)).maxScale(), 3.0f));
   assert(isClose((r * Transform2d.scaling(PointF(-4, 1))).maxScale(), 4.0f));

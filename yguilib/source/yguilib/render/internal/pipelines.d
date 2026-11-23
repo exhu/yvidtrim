@@ -6,14 +6,14 @@ import glad2.gles2;
 import std.array : Appender;
 import yguilib.render.internal.gl_util;
 import yguilib.render.render_types : ColorF, PointF, RectF;
+import yguilib.render.texture : Texture;
 import yguilib.internal.assets;
 
 /**
  * Shader pipeline for flat color primitives (triangles, lines, line loops).
  */
 struct ColorPipeline {
-  GLuint program;
-  VertexArrayHandles va;
+  ProgramMesh mesh;
   GLint uResolutionLoc = -1;
   GLint uColorLoc = -1;
 
@@ -21,16 +21,14 @@ struct ColorPipeline {
   void initialize(ProgramTracker* programs) {
     assert(programs !is null);
     fPrograms = programs;
-    program = buildProgram(colorVertexShaderSource,
+    mesh = ProgramMesh.vec2(colorVertexShaderSource,
       colorFragmentShaderSource);
-    uResolutionLoc = glGetUniformLocation(program, "uResolution\0".ptr);
-    uColorLoc = glGetUniformLocation(program, "uColor\0".ptr);
-
-    va = createVec2VertexArray();
+    uResolutionLoc = mesh.uniform("uResolution\0");
+    uColorLoc = mesh.uniform("uColor\0");
   }
 
   void destroy() {
-    destroyProgramAndBuffers(program, va);
+    mesh.destroy();
   }
 
   /// Draws with alpha blending (see `setupAlphaBlendState`); stencil state
@@ -57,32 +55,19 @@ struct ColorPipeline {
     float vw,
     float vh
   ) {
-    fPrograms.use(program);
+    fPrograms.use(mesh.program);
     fResolution.upload(uResolutionLoc, vw, vh, fPrograms.epoch());
     glUniform4f(uColorLoc, color.r, color.g, color.b, color.a);
     uploadAndDrawDynamic(
       mode,
-      va,
+      mesh.va,
       vertices,
       cast(GLsizei)(vertices.length / 2)
     );
   }
 
   void drawFillRect(in RectF rect, in ColorF color, float vw, float vh) {
-    float x0 = rect.x;
-    float y0 = rect.y;
-    float x1 = rect.x + rect.width;
-    float y1 = rect.y + rect.height;
-
-    float[12] vertices = [
-      x0, y0,
-      x1, y0,
-      x0, y1,
-      x0, y1,
-      x1, y0,
-      x1, y1,
-    ];
-
+    const float[12] vertices = rectTriangles(rect);
     drawArrays(GL_TRIANGLES, vertices, color, vw, vh);
   }
 
@@ -99,19 +84,6 @@ struct ColorPipeline {
     ];
 
     drawArrays(GL_LINES, vertices, color, vw, vh);
-  }
-
-  void drawLineWithWidth(
-    in PointF point1,
-    in PointF point2,
-    float lineWidth,
-    in ColorF color,
-    float vw,
-    float vh
-  ) {
-    drawDashedLineWithPoints(
-      point1, point2, lineWidth, 0.0f, 0.0f, color, vw, vh
-    );
   }
 
   void drawDashedLineWithPoints(
@@ -196,15 +168,6 @@ struct ColorPipeline {
     ];
 
     drawArrays(GL_TRIANGLES, vertices, color, vw, vh);
-  }
-
-  void drawRectDefaultWidth(
-    in RectF rect,
-    in ColorF color,
-    float vw,
-    float vh
-  ) {
-    drawRectWithWidth(rect, 1.0f, color, vw, vh);
   }
 
 private:
@@ -304,8 +267,7 @@ enum TextureMode {
  * Shader pipeline for textured 2D quads and triangles.
  */
 struct TexturePipeline {
-  GLuint program;
-  VertexArrayHandles va;
+  ProgramMesh mesh;
   GLint uResolutionLoc = -1;
   GLint uColorLoc = -1;
   GLint uTextureLoc = -1;
@@ -315,37 +277,15 @@ struct TexturePipeline {
   void initialize(ProgramTracker* programs) {
     assert(programs !is null);
     fPrograms = programs;
-    GLuint texVert = compileShader(GL_VERTEX_SHADER, texVertexShaderSource);
-    scope(exit) glDeleteShader(texVert);
-
-    GLuint texFrag = compileShader(GL_FRAGMENT_SHADER, texFragmentShaderSource);
-    scope(exit) glDeleteShader(texFrag);
-
-    program = linkProgram(texVert, texFrag);
-    uResolutionLoc = glGetUniformLocation(program, "uResolution\0".ptr);
-    uColorLoc = glGetUniformLocation(program, "uColor\0".ptr);
-    uTextureLoc = glGetUniformLocation(program, "uTexture\0".ptr);
-    uModeLoc = glGetUniformLocation(program, "uMode\0".ptr);
-
-    va = createVec4VertexArray();
+    mesh = ProgramMesh.vec4(texVertexShaderSource, texFragmentShaderSource);
+    uResolutionLoc = mesh.uniform("uResolution\0");
+    uColorLoc = mesh.uniform("uColor\0");
+    uTextureLoc = mesh.uniform("uTexture\0");
+    uModeLoc = mesh.uniform("uMode\0");
   }
 
   void destroy() {
-    destroyProgramAndBuffers(program, va);
-  }
-
-  /// Draws a whole straight-alpha texture stretched to `destRect`.
-  void drawTexture(
-    GLuint texId,
-    in RectF destRect,
-    in ColorF color,
-    float vw,
-    float vh
-  ) {
-    drawTexturedQuad(
-      texId, TexturedQuad(destRect, RectF(0, 0, 1, 1), color), vw, vh,
-      TextureMode.straight
-    );
+    mesh.destroy();
   }
 
   /**
@@ -419,7 +359,7 @@ struct TexturePipeline {
     if (texId == 0 || xyuv.length < 12) {
       return;
     }
-    fPrograms.use(program);
+    fPrograms.use(mesh.program);
     fResolution.upload(uResolutionLoc, vw, vh, fPrograms.epoch());
     glUniform4f(uColorLoc, color.r, color.g, color.b, color.a);
     glUniform1i(uTextureLoc, 0);
@@ -428,7 +368,7 @@ struct TexturePipeline {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texId);
     uploadAndDrawDynamic(
-      GL_TRIANGLES, va, xyuv, cast(GLsizei)(xyuv.length / 4)
+      GL_TRIANGLES, mesh.va, xyuv, cast(GLsizei)(xyuv.length / 4)
     );
     glBindTexture(GL_TEXTURE_2D, 0);
   }
@@ -459,6 +399,31 @@ struct TexturedQuad {
   RectF dest;
   RectF uv;
   ColorF color;
+}
+
+/// Two vec2 triangles covering `r` (same corner order as `quadVertices`).
+float[12] rectTriangles(in RectF r) nothrow @safe @nogc pure {
+  const float x0 = r.x;
+  const float y0 = r.y;
+  const float x1 = r.x + r.width;
+  const float y1 = r.y + r.height;
+  return [x0, y0, x1, y0, x0, y1, x0, y1, x1, y0, x1, y1];
+}
+
+/// `TextureMode` sampling texture `t` as an image (not as a mask).
+TextureMode textureModeFor(const Texture t) {
+  assert(t !is null);
+  return t.premultiplied() ? TextureMode.premultiplied : TextureMode.straight;
+}
+
+/**
+ * Logic size of the bound viewport and the total scaling (logic units to
+ * pixels) that a draw needs.
+ */
+struct Viewport {
+  float vw;
+  float vh;
+  float scale;
 }
 
 /// Two triangles of interleaved (x, y, u, v) for `dest` mapped to `uv`.
@@ -503,8 +468,7 @@ struct BlurPass {
  * texture vertex layout. Writes white with the blurred alpha.
  */
 struct BlurPipeline {
-  GLuint program;
-  VertexArrayHandles va;
+  ProgramMesh mesh;
   GLint uResolutionLoc = -1;
   GLint uTextureLoc = -1;
   GLint uDirectionLoc = -1;
@@ -516,19 +480,17 @@ struct BlurPipeline {
   void initialize(ProgramTracker* programs) {
     assert(programs !is null);
     fPrograms = programs;
-    program = buildProgram(texVertexShaderSource, blurFragmentShaderSource);
-    uResolutionLoc = glGetUniformLocation(program, "uResolution\0".ptr);
-    uTextureLoc = glGetUniformLocation(program, "uTexture\0".ptr);
-    uDirectionLoc = glGetUniformLocation(program, "uDirection\0".ptr);
-    uSigmaLoc = glGetUniformLocation(program, "uSigma\0".ptr);
-    uUvMinLoc = glGetUniformLocation(program, "uUvMin\0".ptr);
-    uUvMaxLoc = glGetUniformLocation(program, "uUvMax\0".ptr);
-
-    va = createVec4VertexArray();
+    mesh = ProgramMesh.vec4(texVertexShaderSource, blurFragmentShaderSource);
+    uResolutionLoc = mesh.uniform("uResolution\0");
+    uTextureLoc = mesh.uniform("uTexture\0");
+    uDirectionLoc = mesh.uniform("uDirection\0");
+    uSigmaLoc = mesh.uniform("uSigma\0");
+    uUvMinLoc = mesh.uniform("uUvMin\0");
+    uUvMaxLoc = mesh.uniform("uUvMax\0");
   }
 
   void destroy() {
-    destroyProgramAndBuffers(program, va);
+    mesh.destroy();
   }
 
   /**
@@ -539,7 +501,7 @@ struct BlurPipeline {
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
     glDisable(GL_BLEND);
-    fPrograms.use(program);
+    fPrograms.use(mesh.program);
     const float w = p.width;
     const float h = p.height;
     const float tw = p.textureWidth;
@@ -561,7 +523,7 @@ struct BlurPipeline {
     const float[24] vertices = quadVertices(
       RectF(0, 0, w, h), RectF(0, h / th, w / tw, -h / th)
     );
-    uploadAndDrawDynamic(GL_TRIANGLES, va, vertices, 6);
+    uploadAndDrawDynamic(GL_TRIANGLES, mesh.va, vertices, 6);
     glBindTexture(GL_TEXTURE_2D, 0);
     // the next draw re-enables blending via setupAlphaBlendState
   }
@@ -575,8 +537,7 @@ private:
  * Shader pipeline for antialiased, outline, and dashed rounded rectangles.
  */
 struct RoundRectPipeline {
-  GLuint program;
-  VertexArrayHandles va;
+  ProgramMesh mesh;
   GLint uResolutionLoc = -1;
   GLint uColorLoc = -1;
   GLint uHalfSizeLoc = -1;
@@ -590,27 +551,19 @@ struct RoundRectPipeline {
   void initialize(ProgramTracker* programs) {
     assert(programs !is null);
     fPrograms = programs;
-    GLuint rrVert = compileShader(GL_VERTEX_SHADER, rrVertexShaderSource);
-    scope(exit) glDeleteShader(rrVert);
-
-    GLuint rrFrag = compileShader(GL_FRAGMENT_SHADER, rrFragmentShaderSource);
-    scope(exit) glDeleteShader(rrFrag);
-
-    program = linkProgram(rrVert, rrFrag);
-    uResolutionLoc = glGetUniformLocation(program, "uResolution\0".ptr);
-    uColorLoc = glGetUniformLocation(program, "uColor\0".ptr);
-    uHalfSizeLoc = glGetUniformLocation(program, "uHalfSize\0".ptr);
-    uRadiusLoc = glGetUniformLocation(program, "uRadius\0".ptr);
-    uLineWidthLoc = glGetUniformLocation(program, "uLineWidth\0".ptr);
-    uDashLenLoc = glGetUniformLocation(program, "uDashLen\0".ptr);
-    uGapLenLoc = glGetUniformLocation(program, "uGapLen\0".ptr);
-    uPixelSizeLoc = glGetUniformLocation(program, "uPixelSize\0".ptr);
-
-    va = createVec4VertexArray();
+    mesh = ProgramMesh.vec4(rrVertexShaderSource, rrFragmentShaderSource);
+    uResolutionLoc = mesh.uniform("uResolution\0");
+    uColorLoc = mesh.uniform("uColor\0");
+    uHalfSizeLoc = mesh.uniform("uHalfSize\0");
+    uRadiusLoc = mesh.uniform("uRadius\0");
+    uLineWidthLoc = mesh.uniform("uLineWidth\0");
+    uDashLenLoc = mesh.uniform("uDashLen\0");
+    uGapLenLoc = mesh.uniform("uGapLen\0");
+    uPixelSizeLoc = mesh.uniform("uPixelSize\0");
   }
 
   void destroy() {
-    destroyProgramAndBuffers(program, va);
+    mesh.destroy();
   }
 
   void draw(
@@ -658,7 +611,7 @@ struct RoundRectPipeline {
     ];
 
     setupAlphaBlendState();
-    fPrograms.use(program);
+    fPrograms.use(mesh.program);
     fResolution.upload(uResolutionLoc, vw, vh, fPrograms.epoch());
     glUniform4f(uColorLoc, color.r, color.g, color.b, color.a);
     glUniform2f(uHalfSizeLoc, halfW, halfH);
@@ -668,7 +621,7 @@ struct RoundRectPipeline {
     glUniform1f(uGapLenLoc, gapLen);
     glUniform1f(uPixelSizeLoc, px);
 
-    uploadAndDrawDynamic(GL_TRIANGLES, va, vertices, 6);
+    uploadAndDrawDynamic(GL_TRIANGLES, mesh.va, vertices, 6);
   }
 
 private:
@@ -779,31 +732,27 @@ private:
  * alpha by a mask texture over (x, y, u, v) vertices (`drawMasked`).
  */
 struct GradientPipeline {
-  GLuint program;
-  VertexArrayHandles va;
+  ProgramMesh mesh;
   GradientLocs locs;
-  GLuint maskProgram;
-  VertexArrayHandles maskVa;
+  ProgramMesh maskMesh;
   GradientLocs maskLocs;
 
   /// `programs` (the renderer's program tracker) must outlive the pipeline.
   void initialize(ProgramTracker* programs) {
     assert(programs !is null);
     fPrograms = programs;
-    program = buildProgram(paintVertexShaderSource,
+    mesh = ProgramMesh.vec2(paintVertexShaderSource,
       paintFragmentShaderSource);
-    locs = GradientLocs.query(program);
-    va = createVec2VertexArray();
+    locs = GradientLocs.query(mesh.program);
 
-    maskProgram = buildProgram(paintMaskVertexShaderSource,
+    maskMesh = ProgramMesh.vec4(paintMaskVertexShaderSource,
       withMaskDefine!paintFragmentShaderSource);
-    maskLocs = GradientLocs.query(maskProgram);
-    maskVa = createVec4VertexArray();
+    maskLocs = GradientLocs.query(maskMesh.program);
   }
 
   void destroy() {
-    destroyProgramAndBuffers(program, va);
-    destroyProgramAndBuffers(maskProgram, maskVa);
+    mesh.destroy();
+    maskMesh.destroy();
   }
 
   /// Draws triangles with alpha blending (see `setupAlphaBlendState`);
@@ -828,11 +777,11 @@ struct GradientPipeline {
     float vw,
     float vh
   ) {
-    fPrograms.use(program);
+    fPrograms.use(mesh.program);
     locs.set(u, vw, vh, fPrograms.epoch());
     uploadAndDrawDynamic(
       GL_TRIANGLES,
-      va,
+      mesh.va,
       vertices,
       cast(GLsizei)(vertices.length / 2)
     );
@@ -854,13 +803,13 @@ struct GradientPipeline {
       return;
     }
     setupAlphaBlendState();
-    fPrograms.use(maskProgram);
+    fPrograms.use(maskMesh.program);
     maskLocs.set(u, vw, vh, fPrograms.epoch());
     glUniform1i(maskLocs.uMask, 0);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, maskTexId);
     uploadAndDrawDynamic(
-      GL_TRIANGLES, maskVa, xyuv, cast(GLsizei)(xyuv.length / 4)
+      GL_TRIANGLES, maskMesh.va, xyuv, cast(GLsizei)(xyuv.length / 4)
     );
     glBindTexture(GL_TEXTURE_2D, 0);
   }
@@ -884,61 +833,76 @@ struct PatternUniforms {
 }
 
 /**
+ * Uniform locations of one `PatternPipeline` program and its last
+ * uploaded resolution (see `set`). `uMask` is -1 for the unmasked
+ * program.
+ */
+struct PatternLocs {
+  GLint uResolution = -1;
+  GLint uTexture = -1;
+  GLint uInvXf = -1;
+  GLint uTint = -1;
+  GLint uRepeat = -1;
+  GLint uMode = -1;
+  GLint uBottomUp = -1;
+  GLint uMask = -1;
+
+  static PatternLocs query(GLuint program) {
+    PatternLocs l;
+    l.uResolution = glGetUniformLocation(program, "uResolution\0".ptr);
+    l.uTexture = glGetUniformLocation(program, "uTexture\0".ptr);
+    l.uInvXf = glGetUniformLocation(program, "uInvXf\0".ptr);
+    l.uTint = glGetUniformLocation(program, "uTint\0".ptr);
+    l.uRepeat = glGetUniformLocation(program, "uRepeat\0".ptr);
+    l.uMode = glGetUniformLocation(program, "uMode\0".ptr);
+    l.uBottomUp = glGetUniformLocation(program, "uBottomUp\0".ptr);
+    l.uMask = glGetUniformLocation(program, "uMask\0".ptr);
+    return l;
+  }
+
+  /**
+   * Uploads `u` (pattern texture on unit 0) and the resolution to the
+   * current program (the one these locations belong to); the resolution
+   * is skipped when unchanged in the same `ProgramTracker` `epoch`.
+   */
+  void set(in PatternUniforms u, float vw, float vh, uint epoch) {
+    fResolution.upload(uResolution, vw, vh, epoch);
+    glUniform1i(uTexture, 0);
+    glUniformMatrix3fv(uInvXf, 1, GL_FALSE, u.invXf.ptr);
+    glUniform4f(uTint, u.tint.r, u.tint.g, u.tint.b, u.tint.a);
+    glUniform1i(uRepeat, u.repeat & 3);
+    glUniform1i(uMode, cast(GLint)u.mode);
+    glUniform1i(uBottomUp, u.bottomUp ? 1 : 0);
+  }
+
+private:
+  Vec2UniformCache fResolution;
+}
+
+/**
  * Shader pipeline for image pattern paint over vec2 triangles in logic
  * coordinates.
  */
 struct PatternPipeline {
-  GLuint program;
-  VertexArrayHandles va;
+  ProgramMesh mesh;
+  PatternLocs locs;
+  ProgramMesh maskMesh;
+  PatternLocs maskLocs;
   GLuint[4] samplers;
-  GLint uResolutionLoc = -1;
-  GLint uTextureLoc = -1;
-  GLint uInvXfLoc = -1;
-  GLint uTintLoc = -1;
-  GLint uRepeatLoc = -1;
-  GLint uModeLoc = -1;
-  GLint uBottomUpLoc = -1;
-  GLuint maskProgram;
-  VertexArrayHandles maskVa;
-  GLint maskUResolutionLoc = -1;
-  GLint maskUTextureLoc = -1;
-  GLint maskUInvXfLoc = -1;
-  GLint maskUTintLoc = -1;
-  GLint maskURepeatLoc = -1;
-  GLint maskUModeLoc = -1;
-  GLint maskUBottomUpLoc = -1;
-  GLint maskUMaskLoc = -1;
 
   /// `programs` (the renderer's program tracker) must outlive the pipeline.
   void initialize(ProgramTracker* programs) {
     assert(programs !is null);
     fPrograms = programs;
-    program = buildProgram(
+    mesh = ProgramMesh.vec2(
       paintVertexShaderSource, patternFragmentShaderSource
     );
-    maskProgram = buildProgram(
+    locs = PatternLocs.query(mesh.program);
+    maskMesh = ProgramMesh.vec4(
       paintMaskVertexShaderSource,
       withMaskDefine!patternFragmentShaderSource
     );
-    maskUResolutionLoc = glGetUniformLocation(maskProgram,
-      "uResolution\0".ptr);
-    maskUTextureLoc = glGetUniformLocation(maskProgram, "uTexture\0".ptr);
-    maskUInvXfLoc = glGetUniformLocation(maskProgram, "uInvXf\0".ptr);
-    maskUTintLoc = glGetUniformLocation(maskProgram, "uTint\0".ptr);
-    maskURepeatLoc = glGetUniformLocation(maskProgram, "uRepeat\0".ptr);
-    maskUModeLoc = glGetUniformLocation(maskProgram, "uMode\0".ptr);
-    maskUBottomUpLoc = glGetUniformLocation(maskProgram, "uBottomUp\0".ptr);
-    maskUMaskLoc = glGetUniformLocation(maskProgram, "uMask\0".ptr);
-    maskVa = createVec4VertexArray();
-    uResolutionLoc = glGetUniformLocation(program, "uResolution\0".ptr);
-    uTextureLoc = glGetUniformLocation(program, "uTexture\0".ptr);
-    uInvXfLoc = glGetUniformLocation(program, "uInvXf\0".ptr);
-    uTintLoc = glGetUniformLocation(program, "uTint\0".ptr);
-    uRepeatLoc = glGetUniformLocation(program, "uRepeat\0".ptr);
-    uModeLoc = glGetUniformLocation(program, "uMode\0".ptr);
-    uBottomUpLoc = glGetUniformLocation(program, "uBottomUp\0".ptr);
-
-    va = createVec2VertexArray();
+    maskLocs = PatternLocs.query(maskMesh.program);
 
     glGenSamplers(4, samplers.ptr);
     foreach (i; 0 .. 4) {
@@ -956,8 +920,8 @@ struct PatternPipeline {
       glDeleteSamplers(4, samplers.ptr);
       samplers = 0;
     }
-    destroyProgramAndBuffers(program, va);
-    destroyProgramAndBuffers(maskProgram, maskVa);
+    mesh.destroy();
+    maskMesh.destroy();
   }
 
   /**
@@ -977,24 +941,17 @@ struct PatternPipeline {
       return;
     }
     TexturePipeline.setupBlendForMode(u.mode);
-    const int rep = u.repeat & 3;
-    fPrograms.use(maskProgram);
-    fMaskResolution.upload(maskUResolutionLoc, vw, vh, fPrograms.epoch());
-    glUniform1i(maskUTextureLoc, 0);
-    glUniform1i(maskUMaskLoc, 1);
-    glUniformMatrix3fv(maskUInvXfLoc, 1, GL_FALSE, u.invXf.ptr);
-    glUniform4f(maskUTintLoc, u.tint.r, u.tint.g, u.tint.b, u.tint.a);
-    glUniform1i(maskURepeatLoc, rep);
-    glUniform1i(maskUModeLoc, cast(GLint)u.mode);
-    glUniform1i(maskUBottomUpLoc, u.bottomUp ? 1 : 0);
+    fPrograms.use(maskMesh.program);
+    maskLocs.set(u, vw, vh, fPrograms.epoch());
+    glUniform1i(maskLocs.uMask, 1);
 
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, maskTexId);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, u.textureId);
-    glBindSampler(0, samplers[rep]);
+    glBindSampler(0, samplers[u.repeat & 3]);
     uploadAndDrawDynamic(
-      GL_TRIANGLES, maskVa, xyuv, cast(GLsizei)(xyuv.length / 4)
+      GL_TRIANGLES, maskMesh.va, xyuv, cast(GLsizei)(xyuv.length / 4)
     );
     glBindSampler(0, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -1031,22 +988,15 @@ struct PatternPipeline {
     if (u.textureId == 0 || vertices.length < 6) {
       return;
     }
-    const int rep = u.repeat & 3;
-    fPrograms.use(program);
-    fResolution.upload(uResolutionLoc, vw, vh, fPrograms.epoch());
-    glUniform1i(uTextureLoc, 0);
-    glUniformMatrix3fv(uInvXfLoc, 1, GL_FALSE, u.invXf.ptr);
-    glUniform4f(uTintLoc, u.tint.r, u.tint.g, u.tint.b, u.tint.a);
-    glUniform1i(uRepeatLoc, rep);
-    glUniform1i(uModeLoc, cast(GLint)u.mode);
-    glUniform1i(uBottomUpLoc, u.bottomUp ? 1 : 0);
+    fPrograms.use(mesh.program);
+    locs.set(u, vw, vh, fPrograms.epoch());
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, u.textureId);
-    glBindSampler(0, samplers[rep]);
+    glBindSampler(0, samplers[u.repeat & 3]);
     uploadAndDrawDynamic(
       GL_TRIANGLES,
-      va,
+      mesh.va,
       vertices,
       cast(GLsizei)(vertices.length / 2)
     );
@@ -1056,6 +1006,4 @@ struct PatternPipeline {
 
 private:
   ProgramTracker* fPrograms;
-  Vec2UniformCache fResolution;
-  Vec2UniformCache fMaskResolution;
 }

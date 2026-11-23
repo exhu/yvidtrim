@@ -46,8 +46,8 @@ Phases run one after another, because they touch the same files.
   ph04   done         committed 7572814; see notes below
   ph05   done         committed 507922a; see notes below
   ph06   done         committed fb3ece8; see notes below
-  ph07   done         see notes below
-  ph08   not started
+  ph07   done         committed 279f05f; see notes below
+  ph08   done         see notes below
   ph09   not started
 ```
 
@@ -181,6 +181,30 @@ ph07 notes (2026-11-23):
   pipeline VBO directly. Otherwise the `targetState()` assert fires.
 - Module count is now 66 (new unittest in `gl_util.d`); meson test
   10/10 OK.
+
+ph08 notes (2026-11-23):
+- 3.3: `isSingleConvex(contours)` in `path_flatten.d` (rejects spikes
+  and the pentagram). `fillWithRule` draws a single convex contour
+  directly when blending without a Canvas clip. `clearRect` with an
+  axis-aligned transform and no Canvas clip uses
+  `Renderer.clearPixelBox` -> `ClipStack.clearBox` (pixel-center rule;
+  non-AA at fractional edges on the multisampled window - document in
+  ph09). Rotation/skew/clip fall back to the stencil path. Relies on
+  every Canvas call ending with `endStencil()`.
+- 3.8: `measureText` looks up the font once.
+- 4.1-4.3: `patternUniformsFor`, `textureModeFor`, `PatternLocs`,
+  `ProgramMesh` (`mesh`/`maskMesh` replace `program`/`va` fields;
+  `uniform(name)` needs a NUL-terminated literal).
+- 4.4-4.7: `Transform2d.determinant()`/`isInvertible()`;
+  `isFinitePoint`/`isFiniteRect`, `boundsOfPoints`/`boundsOfXy` in
+  `render_types.d`; `rectTriangles(RectF)` replaces `quadFromRect`.
+- 4.10: `struct Viewport` and `Renderer.vp()`; pipeline signatures
+  unchanged (ph09 can switch them).
+- Removed unused `Renderer.createTextTexture`,
+  `ColorPipeline.drawLineWithWidth`, `drawRectDefaultWidth`;
+  `TexturePipeline.drawTexture` inlined.
+- Test-only `Canvas.PathStats`/`pathStats()`.
+- Still 66 modules; meson test 10/10 OK.
 
 ## Rules for every phase
 

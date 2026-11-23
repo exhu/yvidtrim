@@ -25,7 +25,7 @@ import yguilib.render.canvas.types;
 import yguilib.render.internal.offscreen : SavedTargetState;
 import yguilib.render.internal.path_flatten : Contours;
 import yguilib.render.internal.pipelines : GradientUniforms, PatternUniforms,
-  TextureMode;
+  TextureMode, rectTriangles, textureModeFor;
 import yguilib.render.render_types;
 import yguilib.render.texture : Texture;
 
@@ -63,9 +63,22 @@ final class Canvas {
 
   /**
    * Sets `rect` (transformed by the current transform) to transparent
-   * black, honoring the Canvas clip and the scissor.
+   * black, honoring the Canvas clip and the scissor. Without a Canvas
+   * clip and with a translate/scale transform this is a scissored
+   * `glClear` of the pixels whose centers are inside the rect (the
+   * pixels the stencil fill would cover).
    */
   void clearRect(RectF rect) {
+    if (fRenderer.isInitialized() && !clipActive()) {
+      const box = clearBoxOf(rect);
+      if (!box.isNull) {
+        version (unittest) {
+          ++fPathStats.scissorClears;
+        }
+        fRenderer.clearPixelBox(box.get);
+        return;
+      }
+    }
     fRectPath.clear();
     fRectPath.rect(rect);
     fillWithRule(
@@ -173,7 +186,7 @@ final class Canvas {
   void shadow(Shadow s) {
     import std.math : isFinite;
 
-    if (finitePoint(s.offset) && isFinite(s.blur) && s.blur >= 0) {
+    if (isFinitePoint(s.offset) && isFinite(s.blur) && s.blur >= 0) {
       st.shadow = s;
     }
   }
@@ -293,12 +306,10 @@ final class Canvas {
     if (st.shadow.isVisible()) {
       drawImageShadow(t.id(), tint.a);
     }
-    const TextureMode mode = t.premultiplied()
-      ? TextureMode.premultiplied : TextureMode.straight;
     beginClipTest(clipActive());
     fRenderer.texturePipelineRef().drawTexturedTriangles(
-      t.id(), fImageVerts[], tint, mode, fRenderer.logicWidth(),
-      fRenderer.logicHeight()
+      t.id(), fImageVerts[], tint, textureModeFor(t),
+      fRenderer.logicWidth(), fRenderer.logicHeight()
     );
     endStencil();
   }
@@ -326,7 +337,7 @@ final class Canvas {
   }
 
   void translate(PointF offset) {
-    if (finitePoint(offset)) {
+    if (isFinitePoint(offset)) {
       st.xf = st.xf * Transform2d.translation(offset);
     }
   }
@@ -341,7 +352,7 @@ final class Canvas {
 
   /// supports negative for axis mirroring
   void scale(PointF factor) {
-    if (finitePoint(factor)) {
+    if (isFinitePoint(factor)) {
       st.xf = st.xf * Transform2d.scaling(factor);
     }
   }
@@ -438,18 +449,17 @@ final class Canvas {
     if (!fRenderer.isInitialized() || text.length == 0) {
       return res;
     }
-    const spec = st.fontSpec;
-    const PointF sz = fRenderer.measureTextWithFontName(
-      text, spec.ptSize, spec.name
-    );
-    res.width = sz.x;
-    Font f = fRenderer.font(spec.ptSize, spec.name);
-    if (f !is null) {
-      import std.math : abs;
+    import std.math : abs;
 
-      res.fontAscent = fRenderer.logicFromPixelsFloat(f.ascent);
-      res.fontDescent = fRenderer.logicFromPixelsFloat(abs(f.descent));
+    const spec = st.fontSpec;
+    // one font lookup for the width and the metrics
+    Font f = fRenderer.font(spec.ptSize, spec.name);
+    if (f is null) {
+      return res;
     }
+    res.width = fRenderer.logicFromPixelsFloat(f.measureText(text).x);
+    res.fontAscent = fRenderer.logicFromPixelsFloat(f.ascent);
+    res.fontDescent = fRenderer.logicFromPixelsFloat(abs(f.descent));
     return res;
   }
 
@@ -501,6 +511,23 @@ final class Canvas {
       return;
     }
     drawFilledText(text, pos, maxWidth, true);
+  }
+
+package(yguilib):
+  version (unittest) {
+    /// Counts of the fill / clear paths taken (tests of the fast paths).
+    struct PathStats {
+      /// `fill` drawn directly as a convex fan (no stencil).
+      size_t convexFills;
+      /// Fills (and clears) drawn by stencil-then-cover.
+      size_t stencilFills;
+      /// `clearRect` done as a scissored `glClear`.
+      size_t scissorClears;
+    }
+
+    PathStats pathStats() const {
+      return fPathStats;
+    }
   }
 
 package(yguilib.render):
@@ -655,6 +682,9 @@ private:
   /// (x, y, u, v) triangles of the last `drawImageRegionTinted`.
   Appender!(float[]) fImageVerts;
   Path2d fRectPath;
+  version (unittest) {
+    PathStats fPathStats;
+  }
 
   bool clipActive() const {
     return st.clipCount > 0;
@@ -670,26 +700,46 @@ private:
     return flattenTolerance(fRenderer.totalScaling(), xf);
   }
 
-  static bool finitePoint(PointF p) {
-    import std.math : isFinite;
-
-    return isFinite(p.x) && isFinite(p.y);
-  }
-
   /// True when `r` is finite with a positive width and height.
   static bool rectDrawable(in RectF r) {
-    import std.math : isFinite;
-
-    return isFinite(r.x) && isFinite(r.y) && isFinite(r.width)
-      && isFinite(r.height) && r.width > 0 && r.height > 0;
+    return isFiniteRect(r) && r.width > 0 && r.height > 0;
   }
 
-  /// True when `m` has a finite non-zero determinant.
-  static bool isInvertible(in Transform2d m) nothrow @safe @nogc {
-    import std.math : abs, isFinite;
+  /**
+   * GL pixel box (`[x, y, w, h]`, bottom-left origin) of the pixels whose
+   * centers lie inside `rect` mapped by the current transform, clamped to
+   * the viewport. Null when the transform rotates or skews or the result
+   * is not finite (`clearRect` then uses the stencil path).
+   */
+  auto clearBoxOf(in RectF rect) const {
+    import std.algorithm : max, min;
+    import std.math : ceil, isFinite;
+    import std.typecons : Nullable;
 
-    const float det = m.a * m.d - m.b * m.c;
-    return isFinite(det) && abs(det) >= 1e-12f;
+    Nullable!(int[4]) res;
+    const Transform2d m = st.xf;
+    if (m.b != 0 || m.c != 0 || !isFiniteRect(rect)) {
+      return res;
+    }
+    const float s = fRenderer.totalScaling();
+    const float ax = (m.a * rect.x + m.e) * s;
+    const float bx = (m.a * (rect.x + rect.width) + m.e) * s;
+    const float ay = (m.d * rect.y + m.f) * s;
+    const float by = (m.d * (rect.y + rect.height) + m.f) * s;
+    if (!isFinite(ax) || !isFinite(bx) || !isFinite(ay) || !isFinite(by)) {
+      return res;
+    }
+    const float pw = fRenderer.pixelWidth();
+    const float ph = fRenderer.pixelHeight();
+    // pixel i is covered when its center i + 0.5 is in [lo, hi)
+    const float left = min(max(ceil(min(ax, bx) - 0.5f), 0.0f), pw);
+    const float right = min(max(ceil(max(ax, bx) - 0.5f), left), pw);
+    const float top = min(max(ceil(min(ay, by) - 0.5f), 0.0f), ph);
+    const float bottom = min(max(ceil(max(ay, by) - 0.5f), top), ph);
+    const int[4] box = [cast(int)left, cast(int)(ph - bottom),
+      cast(int)(right - left), cast(int)(bottom - top)];
+    res = box;
+    return res;
   }
 
   /**
@@ -709,7 +759,7 @@ private:
     case FillStyle.Kind.pattern:
       return s.pattern.texture !is null && s.pattern.texture.isValid()
         && s.pattern.texture.width() > 0 && s.pattern.texture.height() > 0
-        && s.pattern.tint.a > 0 && isInvertible(s.pattern.transform);
+        && s.pattern.tint.a > 0 && s.pattern.transform.isInvertible();
     }
   }
 
@@ -718,7 +768,7 @@ private:
     if (s.kind != FillStyle.Kind.pattern) {
       return true;
     }
-    return isInvertible(st.xf * s.pattern.transform);
+    return (st.xf * s.pattern.transform).isInvertible();
   }
 
   static bool stopsVisible(in GradientStops stops) {
@@ -790,6 +840,27 @@ private:
   }
 
   /**
+   * `patternUniforms` of pattern style `s` under the current transform:
+   * logic coordinates map to pattern space by the inverse of `st.xf *
+   * s.pattern.transform`, with `extra` applied first (the shadow mask
+   * origin shift, or identity). Asserts that the pattern is not the
+   * texture of an active render target (feedback loop).
+   */
+  PatternUniforms patternUniformsFor(
+    in FillStyle s,
+    in Transform2d extra,
+    TextureMode mode
+  ) {
+    version (assert) {
+      assert(!fRenderer.isActiveTargetTexture(s.pattern.texture),
+        "drawing the texture of an active render target (feedback loop)");
+    }
+    const Transform2d logicToPat =
+      (st.xf * s.pattern.transform).inverse() * extra;
+    return patternUniforms(s.pattern, logicToPat, mode);
+  }
+
+  /**
    * Colored pass of a fill (cover) or stroke: solid styles use the color
    * pipeline, gradients the gradient pipeline, and patterns the pattern
    * pipeline with the inverse of the combined transform. The stencil state
@@ -811,16 +882,8 @@ private:
       );
       return;
     case FillStyle.Kind.pattern:
-      version (assert) {
-        assert(!fRenderer.isActiveTargetTexture(style.pattern.texture),
-          "drawing the texture of an active render target (feedback loop)");
-      }
-      const Transform2d logicToPat =
-        (st.xf * style.pattern.transform).inverse();
-      const TextureMode mode = style.pattern.texture.premultiplied()
-        ? TextureMode.premultiplied : TextureMode.straight;
-      const PatternUniforms u = patternUniforms(
-        style.pattern, logicToPat, mode
+      const PatternUniforms u = patternUniformsFor(
+        style, Transform2d.identity(), textureModeFor(style.pattern.texture)
       );
       fRenderer.patternPipelineRef().drawTriangles(
         verts, u, fRenderer.logicWidth(), fRenderer.logicHeight()
@@ -833,6 +896,9 @@ private:
    * Stencil-then-cover fill of `path`. With `blend` false the cover pass
    * overwrites pixels with the solid color of `style` (used by
    * `clearRect`); with `blend` true an invisible `style` draws nothing.
+   * A blended fill of a single convex contour without a Canvas clip
+   * draws its fan triangles directly: they cover each pixel once, and
+   * `nonZero` and `evenOdd` agree on it.
    */
   void fillWithRule(
     Path2d path,
@@ -841,9 +907,10 @@ private:
     bool blend
   ) {
     import glad2.gles2 : GL_BLEND, GL_TRIANGLES, glDisable;
-    import yguilib.render.internal.path_flatten : flattenPath;
-    import yguilib.render.internal.stencil_ops : beginCover, beginWinding,
-      endStencil;
+    import yguilib.render.internal.path_flatten : flattenPath,
+      isSingleConvex;
+    import yguilib.render.internal.stencil_ops : beginClipTest,
+      beginCover, beginWinding, endStencil;
 
     assert(path !is null);
     if (!canDraw(path) || (blend && (!paintVisible(style)
@@ -858,7 +925,18 @@ private:
     if (blend && st.shadow.isVisible()) {
       drawShadow(ShadowShape.fill, rule, style);
     }
-    const float[12] cover = quadFromRect(boundsOfVerts(fVerts[]));
+    if (blend && !clipActive() && isSingleConvex(fContours)) {
+      version (unittest) {
+        ++fPathStats.convexFills;
+      }
+      beginClipTest(false);
+      drawPaint(fVerts[], style);
+      return;
+    }
+    version (unittest) {
+      ++fPathStats.stencilFills;
+    }
+    const float[12] cover = rectTriangles(boundsOfVerts(fVerts[]));
     beginWinding(rule);
     drawVerts(fVerts[], ColorF(0, 0, 0, 0));
     beginCover(rule, clipActive());
@@ -1039,7 +1117,7 @@ private:
       color.drawArrays(GL_TRIANGLES, fShadowVerts[], ColorF(0, 0, 0, 0),
         vw, vh);
       beginCover(rule, false);
-      const float[12] cover = quadFromRect(RectF(0, 0, vw, vh));
+      const float[12] cover = rectTriangles(RectF(0, 0, vw, vh));
       drawMaskPaint(cover[], style, PointF(ox, oy), vw, vh);
       endStencil();
       break;
@@ -1087,15 +1165,8 @@ private:
       );
       return;
     case FillStyle.Kind.pattern:
-      version (assert) {
-        assert(!fRenderer.isActiveTargetTexture(style.pattern.texture),
-          "drawing the texture of an active render target (feedback loop)");
-      }
-      const Transform2d logicToPat =
-        (st.xf * style.pattern.transform).inverse()
-        * Transform2d.translation(origin);
-      const PatternUniforms u = patternUniforms(
-        style.pattern, logicToPat, TextureMode.alphaMask
+      const PatternUniforms u = patternUniformsFor(
+        style, Transform2d.translation(origin), TextureMode.alphaMask
       );
       fRenderer.patternPipelineRef().drawTrianglesWithCurrentState(
         verts, u, vw, vh
@@ -1177,16 +1248,8 @@ private:
       );
       return;
     case FillStyle.Kind.pattern:
-      version (assert) {
-        assert(!fRenderer.isActiveTargetTexture(style.pattern.texture),
-          "drawing the texture of an active render target (feedback loop)");
-      }
-      const Transform2d logicToPat =
-        (st.xf * style.pattern.transform).inverse();
-      const TextureMode mode = style.pattern.texture.premultiplied()
-        ? TextureMode.premultiplied : TextureMode.straight;
-      const PatternUniforms u = patternUniforms(
-        style.pattern, logicToPat, mode
+      const PatternUniforms u = patternUniformsFor(
+        style, Transform2d.identity(), textureModeFor(style.pattern.texture)
       );
       fRenderer.patternPipelineRef().drawMasked(
         xyuv, maskTex, u, fRenderer.logicWidth(), fRenderer.logicHeight()
@@ -1211,14 +1274,11 @@ private:
 
     const FillStyle paint = stroke ? st.stroke : st.fill;
     if (!fRenderer.isInitialized() || text.length == 0
-      || !finitePoint(pos) || !paintVisible(paint)
-      || !patternDrawable(paint)) {
+      || !isFinitePoint(pos) || !paintVisible(paint)
+      || !patternDrawable(paint) || !st.xf.isInvertible()) {
       return;
     }
-    const float det = abs(st.xf.a * st.xf.d - st.xf.b * st.xf.c);
-    if (!isFinite(det) || det < 1e-12f) {
-      return;
-    }
+    const float det = abs(st.xf.determinant());
     const spec = st.fontSpec;
     const float effScale = fRenderer.totalScaling() * sqrt(det);
     Font f = fRenderer.fontAtScale(spec.ptSize, spec.name, effScale);
@@ -1348,13 +1408,13 @@ private:
     beginWinding(e.rule);
     drawVerts(verts, none);
     beginClipIntersect(e.rule);
-    const float[12] all = quadFromRect(RectF(
+    const float[12] all = rectTriangles(RectF(
       -1, -1, fRenderer.logicWidth() + 2,
       fRenderer.logicHeight() + 2
     ));
     drawVerts(all[], none);
     if (verts.length > 0) {
-      const float[12] cover = quadFromRect(boundsOfVerts(verts));
+      const float[12] cover = rectTriangles(boundsOfVerts(verts));
       beginResetLow();
       drawVerts(cover[], none);
     }
@@ -1460,24 +1520,7 @@ private:
 
   /// Bounds of `verts` grown by 1 unit so the cover hits edge samples.
   static RectF boundsOfVerts(const(float)[] verts) {
-    float x0 = verts[0];
-    float y0 = verts[1];
-    float x1 = x0;
-    float y1 = y0;
-    for (size_t i = 2; i + 1 < verts.length; i += 2) {
-      x0 = verts[i] < x0 ? verts[i] : x0;
-      x1 = verts[i] > x1 ? verts[i] : x1;
-      y0 = verts[i + 1] < y0 ? verts[i + 1] : y0;
-      y1 = verts[i + 1] > y1 ? verts[i + 1] : y1;
-    }
-    return RectF(x0 - 1, y0 - 1, x1 - x0 + 2, y1 - y0 + 2);
-  }
-
-  static float[12] quadFromRect(RectF r) {
-    const float x0 = r.x;
-    const float y0 = r.y;
-    const float x1 = r.x + r.width;
-    const float y1 = r.y + r.height;
-    return [x0, y0, x1, y0, x0, y1, x0, y1, x1, y0, x1, y1];
+    const RectF b = boundsOfXy(verts);
+    return RectF(b.x - 1, b.y - 1, b.width + 2, b.height + 2);
   }
 }

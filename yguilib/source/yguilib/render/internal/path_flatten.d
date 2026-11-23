@@ -73,6 +73,32 @@ void flattenPath(const Path2d p, float tolerance, ref Contours dst)
   fl.finish(dst, false);
 }
 
+/**
+ * True when `c` is one contour (closed, or implicitly closed as a fill
+ * closes it) forming a convex polygon of non-zero area, so its fan
+ * triangles do not overlap and fill it exactly once for both fill rules.
+ * Zero-length edges are skipped; collinear edges are allowed only when
+ * they continue forward. Every turn must have the same sign and each
+ * axis direction may flip at most twice around the contour (rejects
+ * contours that wind more than once, like a pentagram).
+ */
+bool isSingleConvex(const ref Contours c) nothrow @safe @nogc {
+  const ContourInfo[] infos = c.infos[];
+  if (infos.length != 1 || infos[0].count < 3) {
+    return false;
+  }
+  const PointF[] pts =
+    c.points[][infos[0].start .. infos[0].start + infos[0].count];
+  ConvexScan s;
+  foreach (i, a; pts) {
+    const PointF b = pts[i + 1 < pts.length ? i + 1 : 0];
+    if (!s.edge(PointF(b.x - a.x, b.y - a.y))) {
+      return false;
+    }
+  }
+  return s.finish();
+}
+
 /// Path-local flattening tolerance for a device tolerance of 0.25 px.
 float flattenTolerance(float totalScaling, in Transform2d t)
   nothrow @safe @nogc {
@@ -173,6 +199,86 @@ struct Flattener {
   }
 }
 
+/// Edge-by-edge state of `isSingleConvex`.
+struct ConvexScan {
+  PointF first;
+  PointF prev;
+  bool any;
+  /// Sign of the turns seen so far (0: none yet).
+  int turn;
+  /// Direction sign flips per axis and the first/last non-zero sign.
+  AxisFlips xs;
+  AxisFlips ys;
+
+  /// Adds edge `e`; false as soon as the polygon cannot be convex.
+  bool edge(PointF e) nothrow @safe @nogc {
+    if (e.x == 0 && e.y == 0) {
+      return true;
+    }
+    if (!any) {
+      first = e;
+      any = true;
+    } else if (!turnOk(prev, e)) {
+      return false;
+    }
+    prev = e;
+    xs.add(e.x);
+    ys.add(e.y);
+    return xs.flips <= 2 && ys.flips <= 2;
+  }
+
+  /// Closes the scan (last edge to first edge).
+  bool finish() nothrow @safe @nogc {
+    if (!any || !turnOk(prev, first)) {
+      return false;
+    }
+    return turn != 0 && xs.cyclicFlips() <= 2 && ys.cyclicFlips() <= 2;
+  }
+
+  bool turnOk(PointF p, PointF e) nothrow @safe @nogc {
+    import std.math : abs;
+
+    const float cross = p.x * e.y - p.y * e.x;
+    const float dot = p.x * e.x + p.y * e.y;
+    // relative tolerance: rounding noise on nearly collinear edges
+    const float tol =
+      1e-6f * (abs(p.x) + abs(p.y)) * (abs(e.x) + abs(e.y));
+    if (abs(cross) <= tol) {
+      return dot > 0;
+    }
+    const int s = cross > 0 ? 1 : -1;
+    if (turn == 0) {
+      turn = s;
+    }
+    return s == turn;
+  }
+}
+
+/// Sign changes of one coordinate along the edges of a contour.
+struct AxisFlips {
+  int firstSign;
+  int lastSign;
+  int flips;
+
+  void add(float v) nothrow @safe @nogc {
+    const int s = v > 0 ? 1 : (v < 0 ? -1 : 0);
+    if (s == 0) {
+      return;
+    }
+    if (firstSign == 0) {
+      firstSign = s;
+    } else if (s != lastSign) {
+      ++flips;
+    }
+    lastSign = s;
+  }
+
+  /// `flips` plus the change from the last edge back to the first.
+  int cyclicFlips() const nothrow @safe @nogc {
+    return flips + (lastSign != firstSign ? 1 : 0);
+  }
+}
+
 /// `Appender.shrinkTo` only throws when growing, which never happens here.
 void shrinkPoints(ref Contours dst, size_t len) nothrow @safe {
   try {
@@ -250,6 +356,79 @@ unittest {
   assert(c.infos[][0] == ContourInfo(0, 4, true));
   assert(c.infos[][1] == ContourInfo(4, 2, false));
   assert(c.points[][4 .. 6] == [PointF(0, 0), PointF(-5, -5)]);
+
+  // isSingleConvex
+  auto rr = new Path2d();
+  rr.rect(RectF(0, 0, 10, 10));
+  flattenPath(rr, 0.25f, c);
+  assert(isSingleConvex(c));
+  // negative size (reversed winding) is still convex
+  rr.clear();
+  rr.rect(RectF(10, 10, -10, -5));
+  flattenPath(rr, 0.25f, c);
+  assert(isSingleConvex(c));
+  flattenPath(circle, 0.01f, c);
+  assert(isSingleConvex(c));
+  rr.clear();
+  rr.roundRect(RectF(5, 5, 100, 40), 12);
+  flattenPath(rr, 0.1f, c);
+  assert(isSingleConvex(c));
+  // open contour: filled as if closed
+  rr.clear();
+  rr.moveTo(PointF(0, 0));
+  rr.lineTo(PointF(10, 0));
+  rr.lineTo(PointF(5, 8));
+  flattenPath(rr, 0.25f, c);
+  assert(isSingleConvex(c));
+  // collinear forward point is fine
+  rr.clear();
+  rr.moveTo(PointF(0, 0));
+  rr.lineTo(PointF(5, 0));
+  rr.lineTo(PointF(10, 0));
+  rr.lineTo(PointF(10, 10));
+  rr.closePath();
+  flattenPath(rr, 0.25f, c);
+  assert(isSingleConvex(c));
+  // concave arrow
+  rr.clear();
+  rr.moveTo(PointF(0, 0));
+  rr.lineTo(PointF(10, 5));
+  rr.lineTo(PointF(0, 10));
+  rr.lineTo(PointF(4, 5));
+  rr.closePath();
+  flattenPath(rr, 0.25f, c);
+  assert(!isSingleConvex(c));
+  // pentagram: all turns have the same sign but it winds twice
+  rr.clear();
+  foreach (k; 0 .. 5) {
+    import std.math : cos, sin;
+
+    const float ang = cast(float)(-PI / 2 + k * 4 * PI / 5);
+    const PointF pt = PointF(50 + 40 * cos(ang), 50 + 40 * sin(ang));
+    if (k == 0) {
+      rr.moveTo(pt);
+    } else {
+      rr.lineTo(pt);
+    }
+  }
+  rr.closePath();
+  flattenPath(rr, 0.25f, c);
+  assert(!isSingleConvex(c));
+  // two contours, a degenerate line, a back-and-forth spike
+  rr.clear();
+  rr.rect(RectF(0, 0, 5, 5));
+  rr.rect(RectF(10, 0, 5, 5));
+  flattenPath(rr, 0.25f, c);
+  assert(!isSingleConvex(c));
+  rr.clear();
+  rr.moveTo(PointF(0, 0));
+  rr.lineTo(PointF(5, 5));
+  rr.lineTo(PointF(10, 10));
+  rr.closePath();
+  flattenPath(rr, 0.25f, c);
+  assert(!isSingleConvex(c));
+  flattenPath(line, 0.25f, c);
+  assert(!isSingleConvex(c));
 
   // flattenTolerance
   assert(flattenTolerance(1, Transform2d.identity()) == 0.25f);
