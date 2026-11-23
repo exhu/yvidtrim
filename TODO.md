@@ -1,3 +1,6 @@
+- implement Canvas class (yguilib/source/yguilib/render/canvas.d) based on TODO comments there.
+Make sure code and shaders are not duplicated with current Renderer class, both Canvas drawing
+and Renderer methods should work together fine. Add demonstration page of drawing features to guidemo.
 - build widget library
 -- checkbox
 -- combobox
