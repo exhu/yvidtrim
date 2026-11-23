@@ -227,6 +227,8 @@ final class Renderer {
    * honor the active scissor clip) and resets the Canvas state.
    * Inside `beginTarget` it clears the target; `color` is stored as-is,
    * so it should be premultiplied (target textures are premultiplied).
+   * Outside render targets it also starts a new text cache frame
+   * (`TextCache.beginFrame`), protecting this frame's strings.
    */
   void clearFrame(ColorF color) {
     glClearColor(color.r, color.g, color.b, color.a);
@@ -235,6 +237,9 @@ final class Renderer {
     glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     if (fCanvas !is null) {
       fCanvas.resetFrame();
+    }
+    if (textCache !is null && !inTarget()) {
+      textCache.beginFrame();
     }
   }
 
@@ -882,7 +887,7 @@ final class Renderer {
       return;
     }
 
-    TextTexture tex = textCache.getOrCreate(f, text);
+    TextTexture tex = textCache.getOrCreate(f, text, 0);
     if (tex.isValid()) {
       drawTextTexture(tex, pos, color);
     }
@@ -962,7 +967,7 @@ package(yguilib.render):
   }
 
   /// Cached white-on-transparent bitmap of `text` (invalid when none).
-  TextTexture textTextureFor(Font f, string text, int outlinePx = 0) {
+  TextTexture textTextureFor(Font f, string text, int outlinePx) {
     if (textCache is null) {
       return TextTexture();
     }
@@ -1074,7 +1079,7 @@ private:
     if (!initialized) {
       return TextTexture();
     }
-    return TextCache.createTextTexture(font, text);
+    return TextCache.createTextTexture(font, text, 0);
   }
 
   void drawTextTexture(

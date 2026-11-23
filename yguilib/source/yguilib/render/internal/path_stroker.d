@@ -423,7 +423,8 @@ struct Stroker {
   }
 
   void tri(PointF a, PointF b, PointF c) nothrow @safe {
-    tris.put([a.x, a.y, b.x, b.y, c.x, c.y]);
+    const float[6] v = [a.x, a.y, b.x, b.y, c.x, c.y];
+    tris.put(v[]);
   }
 
   /// Quad `a b c d` in winding order as 2 triangles.
@@ -720,4 +721,36 @@ unittest {
   const sd = strokeWith([PointF(7, 7)], false, p);
   assert(covers(sd, PointF(11.5f, 11.5f)));
   assert(!covers(sd, PointF(12.5f, 7)));
+}
+
+// a warmed-up round stroke into a cleared Appender does not allocate
+unittest {
+  import core.memory : GC;
+
+  const PointF[] pts = [
+    PointF(0, 0), PointF(100, 0), PointF(100, 100), PointF(0, 100)
+  ];
+  const Contours c = contoursWith(pts, false);
+  StrokeParams p;
+  p.width = 40;
+  p.join = LineJoin.round;
+  p.cap = LineCap.round;
+  p.tolerance = 0.05f;
+  Appender!(float[]) tris;
+  strokeContours(c, p, tris);
+  const size_t len = tris[].length;
+  assert(len > 6 * 64);
+
+  GC.collect();
+  const before = GC.stats();
+  foreach (_; 0 .. 100) {
+    tris.clear();
+    strokeContours(c, p, tris);
+  }
+  const after = GC.stats();
+  assert(tris[].length == len);
+  assert(after.allocatedInCurrentThread == before.allocatedInCurrentThread);
+  assert(
+    after.usedSize + after.freeSize <= before.usedSize + before.freeSize
+  );
 }

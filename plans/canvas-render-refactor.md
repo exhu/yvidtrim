@@ -41,8 +41,8 @@ Phases run one after another, because they touch the same files.
   phase  status       notes
   -----  -----------  ---------------------------------------------
   ph01   done         committed 1696c79; see notes below
-  ph02   done         see notes below
-  ph03   not started
+  ph02   done         committed 6b04e76; see notes below
+  ph03   done         see notes below
   ph04   not started
   ph05   not started
   ph06   not started
@@ -83,6 +83,22 @@ ph02 notes (2026-11-23):
 - Fonts made by `Renderer.createFontFrom*` (or a user default font)
   are not reported by the callback; their textures stay until LRU
   eviction or `clearTextCache`.
+- Still 65 modules; meson test 10/10 OK.
+
+ph03 notes (2026-11-23):
+- 1.1: `TextCache` LRU uses a `lastUse` tick per entry (no DList). Hits
+  and inserts do not allocate. Eviction sorts candidates in a reused
+  `Appender!(EvictCandidate[]) fEvictScratch`; `removeFont` uses it too.
+- 2.5: `TextCache.beginFrame()`, called by `Renderer.clearFrame` when
+  not in a target. Entries used this frame are never evicted; the
+  cache may grow up to `2 * maxEntries` (hard cap, then all entries are
+  candidates). Direct `TextCache` users must call `beginFrame()`.
+- 1.2: stroker `tri()` puts a `float[6]` static array; `-vgc` is clean
+  for `path_stroker.d` and `path_flatten.d`.
+- 5.1 (part): `outlinePx` default removed from `TextCache.contains`,
+  `getOrCreate`, `createTextTexture` and `Renderer.textTextureFor`.
+- The new stroker GC test may not have failed on the old code (LDC
+  -O2 may elide the literal); it guards regressions.
 - Still 65 modules; meson test 10/10 OK.
 
 ## Rules for every phase
