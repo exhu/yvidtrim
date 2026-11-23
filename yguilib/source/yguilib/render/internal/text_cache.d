@@ -51,12 +51,42 @@ final class TextCache {
     this.maxEntries = maxEntries;
   }
 
-  ~this() {
-    clear();
-  }
+  // No destructor: textures are freed only by an explicit `clear()` on
+  // the main thread with the GL context current (see `texture.d`).
 
   @property size_t length() const {
     return cache.length;
+  }
+
+  version (unittest) {
+    /// Number of cached textures rendered with the font `fontId`.
+    size_t countForFont(ulong fontId) const {
+      size_t n = 0;
+      foreach (key, ref entry; cache) {
+        n += key.fontId == fontId ? 1 : 0;
+      }
+      return n;
+    }
+  }
+
+  /**
+   * Destroys and removes every texture rendered with the font `fontId`.
+   * Called before that font is destroyed, since its id is never reused.
+   */
+  void removeFont(ulong fontId) {
+    TextCacheKey[] keys;
+    foreach (key, ref entry; cache) {
+      if (key.fontId == fontId) {
+        keys ~= key;
+      }
+    }
+    foreach (ref key; keys) {
+      if (auto p = key in cache) {
+        p.texture.destroy();
+        accessOrder.popFirstOf(p.orderRef);
+        cache.remove(key);
+      }
+    }
   }
 
   bool contains(const Font font, string text, int outlinePx = 0) const {

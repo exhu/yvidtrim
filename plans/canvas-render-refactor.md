@@ -40,8 +40,8 @@ Phases run one after another, because they touch the same files.
 ```
   phase  status       notes
   -----  -----------  ---------------------------------------------
-  ph01   done         not committed; see notes below
-  ph02   not started
+  ph01   done         committed 1696c79; see notes below
+  ph02   done         see notes below
   ph03   not started
   ph04   not started
   ph05   not started
@@ -65,6 +65,25 @@ ph01 notes (2026-11-23):
   passed unittests" before and after. Use
   `./_build/yguilib/yguilib_test` to check the count.
 - Canvas tests can only use public or `package(yguilib)` API now.
+
+ph02 notes (2026-11-23):
+- 2.1: no `~this()` in `Renderer`, `Font`, `FontManager`, `TextCache`.
+  `Renderer.destroy()` doc comment states the teardown order.
+- 2.2: unregistered names resolve to the default face and are cached
+  under face key `""`. `register*` calls private `dropFace(name)`.
+- 2.4: `TextCache.removeFont(fontId)`; `FontManager.onFontDestroyed(dg)`
+  setter, wired in `Renderer.initialize()`. The delegate is not
+  `nothrow` (glad `glDeleteTextures` is not).
+- 4.9: shared helpers `resolveSource`, `openFont`, `sanitizeSize`,
+  `sizeMilliOf` in `font_manager.d`.
+- Test-only helpers: `TextCache.countForFont`,
+  `FontManager.countForFace`, `FontManager.scaledCount`.
+- For ph03: `removeFont` uses `accessOrder.popFirstOf(p.orderRef)`;
+  update it when the DList is replaced (1.1).
+- Fonts made by `Renderer.createFontFrom*` (or a user default font)
+  are not reported by the callback; their textures stay until LRU
+  eviction or `clearTextCache`.
+- Still 65 modules; meson test 10/10 OK.
 
 ## Rules for every phase
 

@@ -83,10 +83,11 @@ final class Font {
     return new Font(h, ptSize, effectiveScale);
   }
 
-  ~this() {
-    destroy();
-  }
-
+  /**
+   * Closes the SDL_ttf handle. There is no destructor: the GC may finalize
+   * on any thread or after `TTF_Quit()`, so the handle is freed only by
+   * this explicit call on the main thread; an undestroyed font leaks.
+   */
   void destroy() {
     if (handle !is null) {
       yguilib_sdl3_ttf_close_font(handle);

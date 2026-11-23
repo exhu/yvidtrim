@@ -35,6 +35,16 @@ final class Renderer {
     return fCanvas;
   }
 
+  /**
+   * Frees every GL and SDL_ttf object the renderer owns. Called by
+   * `Window.destroy()` on the main thread with the context current; there
+   * is no destructor (see `texture.d`).
+   *
+   * Order: the text cache is cleared first, then the font manager's
+   * `onFontDestroyed` callback is detached (the cache is already empty)
+   * and the managed fonts are destroyed, then the owned default font,
+   * offscreen targets and pipelines.
+   */
   void destroy() {
     if (!initialized) {
       return;
@@ -42,6 +52,7 @@ final class Renderer {
 
     clearTextCache();
     if (fontManager !is null) {
+      fontManager.onFontDestroyed(null);
       fontManager.destroy();
       fontManager = null;
     }
@@ -65,10 +76,6 @@ final class Renderer {
     colorPipeline.destroy();
     clipStack.clear();
     initialized = false;
-  }
-
-  ~this() {
-    destroy();
   }
 
   void viewport(int pixelWidth, int pixelHeight) {
@@ -1050,9 +1057,17 @@ private:
     blurPipeline.initialize();
     textCache = new TextCache(TextCache.maxCacheEntries);
     fontManager = new FontManager();
+    fontManager.onFontDestroyed(&onFontDestroyed);
     fCanvas = new Canvas(this);
 
     initialized = true;
+  }
+
+  /// Drops the text textures of a font the font manager is destroying.
+  void onFontDestroyed(ulong fontId) {
+    if (textCache !is null) {
+      textCache.removeFont(fontId);
+    }
   }
 
   TextTexture createTextTexture(Font font, string text) {
@@ -2020,4 +2035,55 @@ unittest {
   assert(renderer.readPixels(0, -20, 10, 10) is null);
 
   assert(glGetError() == GL_NO_ERROR);
+}
+
+// Destroyed fonts take their TextCache textures with them (review 2.4).
+unittest {
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
+
+  import yguilib.render.font : invalidFontId;
+
+  auto w = GlTestWindow("test_renderer_font_textures");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+
+  auto r = w.renderer();
+  FontManager fm = r.fontManager;
+  TextCache tc = r.textCache;
+  assert(fm.scaledCount() == 0);
+
+  // Fill the scaled cache up to the flush threshold.
+  ulong[] ids;
+  foreach (i; 0 .. 64) {
+    Font f = r.fontAtScale(10.0f, null, 1.0f + i / 8.0f);
+    assert(r.textTextureFor(f, "x", 0).isValid());
+    ids ~= f.id;
+  }
+  assert(fm.scaledCount() == 64);
+  foreach (id; ids) {
+    assert(tc.countForFont(id) == 1);
+  }
+  const size_t texts = tc.length;
+
+  // One more scaled font flushes the cache and its textures.
+  Font next = r.fontAtScale(10.0f, null, 12.0f);
+  assert(fm.scaledCount() == 1);
+  foreach (id; ids) {
+    assert(tc.countForFont(id) == 0);
+  }
+  assert(tc.length == texts - 64);
+  assert(r.textTextureFor(next, "x", 0).isValid());
+
+  // Re-registering a face drops the textures of its fonts.
+  const(void)[] data = cast(const(void)[])defaultTtfFontData;
+  r.registerFontFromMemory("Foo", data);
+  Font foo = r.font(12.0f, "Foo");
+  const ulong fooId = foo.id;
+  assert(r.textTextureFor(foo, "foo", 0).isValid());
+  assert(r.textTextureFor(foo, "foo", 2).isValid());
+  assert(tc.countForFont(fooId) == 2);
+  r.registerFontFromMemory("Foo", data);
+  assert(tc.countForFont(fooId) == 0);
+  assert(foo.id == invalidFontId);
+  assert(r.font(12.0f, "Foo").id != fooId);
 }

@@ -2,7 +2,7 @@ module yguilib.render.font_manager;
 
 import std.math.traits : isFinite;
 import yguilib.assets : defaultTtfFontData;
-import yguilib.render.font : Font, defaultFontPtSize;
+import yguilib.render.font : Font, defaultFontPtSize, invalidFontId;
 
 private:
 
@@ -42,31 +42,37 @@ package(yguilib):
  * directly and shared across all sizes without duplication.
  */
 final class FontManager {
-  ~this() {
-    destroy();
-  }
+  // No destructor: fonts hold SDL_ttf handles and are freed only by an
+  // explicit `destroy()` on the main thread (see `texture.d`).
 
   /**
    * Destroys all cached `Font` instances and clears registered font sources.
+   * The `onFontDestroyed` callback runs for every destroyed font.
    */
   void destroy() {
     foreach (font; cache) {
-      if (font !is null) {
-        font.destroy();
-      }
+      destroyFont(font);
     }
     cache.clear();
-    foreach (font; scaledCache) {
-      if (font !is null) {
-        font.destroy();
-      }
-    }
-    scaledCache.clear();
+    destroyScaledFonts();
     registry.clear();
   }
 
   /**
+   * Sets the callback run with the id of every cached font right before
+   * the manager destroys it (scaled-cache flush, re-registration of its
+   * face, `destroy()`). `Renderer` uses it to drop the font's textures
+   * from its `TextCache`. Pass null to detach.
+   */
+  void onFontDestroyed(void delegate(ulong fontId) callback) {
+    fOnFontDestroyed = callback;
+  }
+
+  /**
    * Registers a custom font face from in-memory TTF binary data.
+   *
+   * Fonts already cached for `fontName` are destroyed, so later lookups
+   * use the new data.
    *
    * @param fontName Unique name identifying the font face.
    * @param fontData In-memory TTF data buffer (must remain valid).
@@ -74,6 +80,7 @@ final class FontManager {
   void registerFontFromMemory(string fontName, const(void)[] fontData) {
     assert(fontName.length > 0, "fontName must not be empty");
     assert(fontData.length > 0, "fontData must not be empty");
+    dropFace(fontName);
     registry[fontName] = FontSource(
       FontSourceType.memory,
       fontData,
@@ -84,12 +91,16 @@ final class FontManager {
   /**
    * Registers a custom font face from a font file path on disk.
    *
+   * Fonts already cached for `fontName` are destroyed, so later lookups
+   * use the new file.
+   *
    * @param fontName Unique name identifying the font face.
    * @param filePath Path to the TTF font file.
    */
   void registerFontFromFile(string fontName, string filePath) {
     assert(fontName.length > 0, "fontName must not be empty");
     assert(filePath.length > 0, "filePath must not be empty");
+    dropFace(fontName);
     registry[fontName] = FontSource(
       FontSourceType.file,
       null,
@@ -119,6 +130,8 @@ final class FontManager {
    * When `fontName` is empty or `"default"`, the built-in embedded font
    * (`defaultTtfFontData`) is used. If this is the first time the font is
    * requested at this size, it is created lazily and stored in the cache.
+   * An unregistered `fontName` also uses the default face and shares its
+   * cache entries, so registering that name later takes effect.
    *
    * Non-positive, infinite, or NaN `ptSize` values automatically fall back
    * to `defaultFontPtSize`.
@@ -133,45 +146,15 @@ final class FontManager {
     string fontName,
     float totalScale
   ) {
-    const float sanitizedSize =
-      (isFinite(ptSize) && ptSize > 0.0f) ? ptSize : defaultFontPtSize;
-    const string effectiveFace =
-      (fontName.length > 0 && fontName != "default") ? fontName : "";
-    const int sizeMilli = cast(int)(sanitizedSize * 1000.0f + 0.5f);
-
-    FontKey key = FontKey(effectiveFace, sizeMilli);
+    const float size = sanitizeSize(ptSize);
+    const ResolvedFace face = resolveSource(fontName);
+    const FontKey key = FontKey(face.name, sizeMilliOf(size));
     auto p = key in cache;
     if (p !is null && *p !is null) {
       return *p;
     }
 
-    FontSource source;
-    if (effectiveFace.length == 0) {
-      source = FontSource(
-        FontSourceType.memory,
-        cast(const(void)[])defaultTtfFontData,
-        null
-      );
-    } else {
-      auto reg = effectiveFace in registry;
-      if (reg !is null) {
-        source = *reg;
-      } else {
-        source = FontSource(
-          FontSourceType.memory,
-          cast(const(void)[])defaultTtfFontData,
-          null
-        );
-      }
-    }
-
-    Font font;
-    if (source.type == FontSourceType.memory) {
-      font = Font.fromMemory(source.memoryData, sanitizedSize, totalScale);
-    } else {
-      font = Font.fromFile(source.filePath, sanitizedSize, totalScale);
-    }
-
+    Font font = openFont(face.source, size, totalScale);
     cache[key] = font;
     return font;
   }
@@ -188,44 +171,20 @@ final class FontManager {
    * @return The cached `Font` instance.
    */
   Font getFontAtScale(float ptSize, string fontName, float rasterScale) {
-    const float sanitizedSize =
-      (isFinite(ptSize) && ptSize > 0.0f) ? ptSize : defaultFontPtSize;
-    const string effectiveFace =
-      (fontName.length > 0 && fontName != "default") ? fontName : "";
-    const int sizeMilli = cast(int)(sanitizedSize * 1000.0f + 0.5f);
-    const int eighths = quantizeScaleEighths(rasterScale, sanitizedSize);
-
-    ScaledFontKey key = ScaledFontKey(effectiveFace, sizeMilli, eighths);
+    const float size = sanitizeSize(ptSize);
+    const ResolvedFace face = resolveSource(fontName);
+    const int eighths = quantizeScaleEighths(rasterScale, size);
+    const ScaledFontKey key =
+      ScaledFontKey(face.name, sizeMilliOf(size), eighths);
     auto p = key in scaledCache;
     if (p !is null && *p !is null) {
       return *p;
     }
     if (scaledCache.length >= maxScaledFonts) {
-      foreach (font; scaledCache) {
-        if (font !is null) {
-          font.destroy();
-        }
-      }
-      scaledCache.clear();
+      destroyScaledFonts();
     }
 
-    const float scale = eighths / 8.0f;
-    FontSource source = FontSource(
-      FontSourceType.memory,
-      cast(const(void)[])defaultTtfFontData,
-      null
-    );
-    if (effectiveFace.length > 0) {
-      if (auto reg = effectiveFace in registry) {
-        source = *reg;
-      }
-    }
-    Font font;
-    if (source.type == FontSourceType.memory) {
-      font = Font.fromMemory(source.memoryData, sanitizedSize, scale);
-    } else {
-      font = Font.fromFile(source.filePath, sanitizedSize, scale);
-    }
+    Font font = openFont(face.source, size, eighths / 8.0f);
     scaledCache[key] = font;
     return font;
   }
@@ -246,12 +205,117 @@ final class FontManager {
     }
   }
 
+  version (unittest) {
+    /// Number of cached fonts (both caches) for the resolved face `name`.
+    package(yguilib) size_t countForFace(string name) const {
+      size_t n = 0;
+      foreach (key, font; cache) {
+        n += key.faceName == name ? 1 : 0;
+      }
+      foreach (key, font; scaledCache) {
+        n += key.faceName == name ? 1 : 0;
+      }
+      return n;
+    }
+
+    /// Number of fonts in the scaled cache.
+    package(yguilib) size_t scaledCount() const {
+      return scaledCache.length;
+    }
+  }
+
 private:
   enum size_t maxScaledFonts = 64;
+
+  /// Registered face name to look up, and its source.
+  static struct ResolvedFace {
+    string name;
+    FontSource source;
+  }
+
+  static float sanitizeSize(float ptSize) {
+    return (isFinite(ptSize) && ptSize > 0.0f) ? ptSize : defaultFontPtSize;
+  }
+
+  static int sizeMilliOf(float size) {
+    return cast(int)(size * 1000.0f + 0.5f);
+  }
+
+  /**
+   * Maps `fontName` to its registered source. Empty, `"default"` and
+   * unregistered names resolve to the built-in face with name `""`.
+   */
+  ResolvedFace resolveSource(string fontName) const {
+    if (fontName.length > 0 && fontName != "default") {
+      if (auto reg = fontName in registry) {
+        return ResolvedFace(fontName, *reg);
+      }
+    }
+    return ResolvedFace(
+      "",
+      FontSource(
+        FontSourceType.memory,
+        cast(const(void)[])defaultTtfFontData,
+        null
+      )
+    );
+  }
+
+  /// Opens `source` at the sanitized `ptSize` and raster `scale`.
+  static Font openFont(in FontSource source, float ptSize, float scale) {
+    const float size = sanitizeSize(ptSize);
+    if (source.type == FontSourceType.memory) {
+      return Font.fromMemory(source.memoryData, size, scale);
+    }
+    return Font.fromFile(source.filePath, size, scale);
+  }
+
+  /// Notifies `fOnFontDestroyed` with the font's id, then destroys it.
+  void destroyFont(Font font) {
+    if (font is null) {
+      return;
+    }
+    if (fOnFontDestroyed !is null && font.id != invalidFontId) {
+      fOnFontDestroyed(font.id);
+    }
+    font.destroy();
+  }
+
+  void destroyScaledFonts() {
+    foreach (font; scaledCache) {
+      destroyFont(font);
+    }
+    scaledCache.clear();
+  }
+
+  /// Destroys and removes every cached font of the face `faceName`.
+  void dropFace(string faceName) {
+    FontKey[] keys;
+    foreach (key, font; cache) {
+      if (key.faceName == faceName) {
+        keys ~= key;
+      }
+    }
+    foreach (key; keys) {
+      destroyFont(cache[key]);
+      cache.remove(key);
+    }
+    ScaledFontKey[] scaledKeys;
+    foreach (key, font; scaledCache) {
+      if (key.faceName == faceName) {
+        scaledKeys ~= key;
+      }
+    }
+    foreach (key; scaledKeys) {
+      destroyFont(scaledCache[key]);
+      scaledCache.remove(key);
+    }
+  }
 
   FontSource[string] registry;
   Font[FontKey] cache;
   Font[ScaledFontKey] scaledCache;
+  void delegate(ulong fontId) fOnFontDestroyed;
 }
 
 /**
@@ -314,4 +378,71 @@ unittest {
   assert(quantizeScaleEighths(0.0f, 10.0f) == 8);
   assert(quantizeScaleEighths(100.0f, 10.0f) == 128);
   assert(quantizeScaleEighths(1e-6f, 10.0f) == 1);
+}
+
+// Registration invalidates cached fonts of that face (review 2.2).
+unittest {
+  import std.algorithm.searching : canFind;
+  import yguilib.clibs.sdl3;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto fm = new FontManager();
+  scope(exit) fm.destroy();
+  ulong[] destroyed;
+  fm.onFontDestroyed((ulong id) { destroyed ~= id; });
+
+  // An unregistered name falls back to the default face, cached under "".
+  Font before = fm.getFont(12.0f, "Foo", 1.0f);
+  assert(before is fm.getFont(12.0f, null, 1.0f));
+  Font scaledBefore = fm.getFontAtScale(12.0f, "Foo", 2.0f);
+  assert(scaledBefore is fm.getFontAtScale(12.0f, null, 2.0f));
+  assert(fm.countForFace("Foo") == 0);
+  const ulong beforeId = before.id;
+
+  // After registration "Foo" opens the new source (a missing file throws).
+  fm.registerFontFromFile("Foo", "/nonexistent/yguilib-test-foo.ttf");
+  assert(destroyed.length == 0);
+  bool threw = false;
+  try {
+    fm.getFont(12.0f, "Foo", 1.0f);
+  } catch (Exception e) {
+    threw = true;
+  }
+  assert(threw);
+  assert(fm.countForFace("Foo") == 0);
+
+  const(void)[] dataA = (cast(const(ubyte)[])defaultTtfFontData).dup;
+  fm.registerFontFromMemory("Foo", dataA);
+  Font fooA = fm.getFont(12.0f, "Foo", 1.0f);
+  assert(fooA !is before && fooA.id != beforeId);
+  assert(fm.getFont(12.0f, "Foo", 1.0f) is fooA);
+  Font fooAScaled = fm.getFontAtScale(12.0f, "Foo", 2.0f);
+  assert(fooAScaled !is scaledBefore);
+  assert(fm.countForFace("Foo") == 2);
+  const ulong idA = fooA.id;
+  const ulong idAScaled = fooAScaled.id;
+
+  // Re-registering destroys the cached fonts and reports their ids.
+  const(void)[] dataB = (cast(const(ubyte)[])defaultTtfFontData).dup;
+  fm.registerFontFromMemory("Foo", dataB);
+  assert(fooA.id == invalidFontId && fooAScaled.id == invalidFontId);
+  assert(destroyed.length == 2);
+  assert(destroyed.canFind(idA) && destroyed.canFind(idAScaled));
+  assert(fm.countForFace("Foo") == 0);
+  Font fooB = fm.getFont(12.0f, "Foo", 1.0f);
+  assert(fooB.id != idA && fooB.id != beforeId);
+  // The default face is untouched.
+  assert(before.id == beforeId);
+  assert(fm.getFont(12.0f, null, 1.0f) is before);
+
+  // destroy() reports every remaining font.
+  const ulong idB = fooB.id;
+  const ulong idScaledBefore = scaledBefore.id;
+  destroyed = null;
+  fm.destroy();
+  assert(destroyed.length == 3);
+  assert(destroyed.canFind(beforeId) && destroyed.canFind(idB));
+  assert(destroyed.canFind(idScaledBefore));
 }
