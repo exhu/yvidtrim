@@ -25,7 +25,7 @@ yvidtrim/
 │   │   └── clibs/sdl3.d   # extern(C) D bindings for yvidtrim-clibs
 │   └── guidemo/           # Interactive GUI showcase and verification app
 │       ├── guidemoapp.d   # guidemo entry point and system registration
-│       ├── controller.d   # Quit, F11 debug draw, F12 screenshot, pages
+│       ├── controller.d   # Quit, F1 debug draw, F12 screenshot, pages
 │       ├── common.d       # PageControllerParams, section cards, page sync
 │       ├── model.d        # DemoModel and per-page VersionedModels
 │       ├── view.d         # DemoView shell (header tabs, status bar)

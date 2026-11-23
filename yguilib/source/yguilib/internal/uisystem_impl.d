@@ -49,6 +49,11 @@ class UiSystemImpl : UiSystem {
     pipeline.registerSystem(new WidgetPainterSystem());
     debug {
       pipeline.registerSystem(new DebugDrawSystem());
+    } else {
+      import std.logger : tracef;
+
+      tracef("DebugDrawSystem not registered (release build without "
+        ~ "-d-debug); DebugDrawComponent has no effect");
     }
     pipeline.registerSystem(new DataSystem());
     pipeline.registerSystem(new ButtonSystem());

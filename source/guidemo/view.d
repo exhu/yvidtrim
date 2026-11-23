@@ -3,6 +3,8 @@
  */
 module guidemo.view;
 
+import std.logger : tracef;
+
 import guidemo.demo_model_helpers : headerTabNames;
 import guidemo.model : DebugDrawMode, DemoModel;
 import yguilib.controls.tabcontrol : TabControlBuilder, TabsModel;
@@ -112,6 +114,9 @@ private:
       target.components.debugDraw = comp;
     }
 
+    tracef("DemoView: applying debug draw mode %s -> %s (target=%s, "
+      ~ "drawHidden=%s)", appliedDebugDrawMode, m.debugDrawMode,
+      target !is null, drawHidden);
     appliedDebugDrawMode = m.debugDrawMode;
     view.update(WidgetUpdateScope.visuals);
   }

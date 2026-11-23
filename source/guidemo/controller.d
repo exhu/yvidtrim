@@ -4,6 +4,7 @@
 module guidemo.controller;
 
 import std.datetime.systime : Clock, SysTime;
+import std.logger : tracef, warningf;
 
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
@@ -53,7 +54,7 @@ struct DemoControllerParams {
   }
 }
 
-/// Shared controller handling quit, F11 debug draw cycling, F12
+/// Shared controller handling quit, F1 debug draw cycling, F12
 /// screenshots, and page switching across guidemo.
 final class DemoController : DefaultController {
   @disable this();
@@ -93,6 +94,8 @@ final class DemoController : DefaultController {
     }
 
     if (ev.kind == AppEvent.Kind.keyDown) {
+      tracef("DemoController keyDown: key=0x%x scancode=%d",
+        cast(uint) ev.keyData.key, cast(int) ev.keyData.scancode);
       if (isKey(ev, Keycode.q, Scancode.q) ||
           isKey(ev, Keycode.escape, Scancode.escape)) {
         auto model = tracker.edit();
@@ -102,9 +105,9 @@ final class DemoController : DefaultController {
         return HandleResult(HandleResult.Result.quit, true);
       }
       if (isKey(ev, Keycode.f12, Scancode.f12)) {
-        uiSystem.requestScreenshot(
-          screenshotPathFromTime(Clock.currTime())
-        );
+        const string path = screenshotPathFromTime(Clock.currTime());
+        tracef("F12: requesting screenshot %s", path);
+        uiSystem.requestScreenshot(path);
         return HandleResult(HandleResult.Result.nothing, true);
       }
       if (handleGlobalKeyDown(ev)) {
@@ -139,8 +142,16 @@ private:
     auto model = tracker.edit();
     const size_t prevPage = model.activePage;
 
-    if (isKey(ev, Keycode.f11, Scancode.f11)) {
+    if (isKey(ev, Keycode.f1, Scancode.f1)) {
+      const DebugDrawMode prevMode = model.debugDrawMode;
       toggleDebugDraw(model);
+      tracef("F1: debug draw mode %s -> %s", prevMode,
+        model.debugDrawMode);
+      debug {
+      } else {
+        warningf("F1: debug draw is not available in release builds "
+          ~ "(rebuild with buildtype debug or debugoptimized)");
+      }
       tracker.commit(model);
       return true;
     }
@@ -276,7 +287,7 @@ unittest {
   assert(demoCtrl.update());
   assert(!demoCtrl.update());
 
-  // F11 cycles DebugDrawMode through all 5 states
+  // F1 cycles DebugDrawMode through all 5 states
   assert(demoCtrl.tracker.model.debugDrawMode == DebugDrawMode.off);
   DebugDrawMode[5] expectedModes = [
     DebugDrawMode.allVisible,
@@ -286,10 +297,10 @@ unittest {
     DebugDrawMode.off,
   ];
   foreach (expected; expectedModes) {
-    const evF11 = makeKeyDown(Keycode.f11, Scancode.f11);
-    const hrF11 = demoCtrl.handleEvent(evF11);
-    assert(hrF11.result == HandleResult.Result.update);
-    assert(hrF11.consume);
+    const evF1 = makeKeyDown(Keycode.f1, Scancode.f1);
+    const hrF1 = demoCtrl.handleEvent(evF1);
+    assert(hrF1.result == HandleResult.Result.update);
+    assert(hrF1.consume);
     assert(demoCtrl.tracker.model.debugDrawMode == expected);
     assert(demoCtrl.update());
     assert(demoCtrl.updateView());

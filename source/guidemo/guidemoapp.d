@@ -59,7 +59,7 @@
  *   [G]           Cycle flex gap (0, 8, 16, 24 px)
  *   [V]           Toggle child widget visibility (demonstrates flex re-flow)
  *   [T]           Cycle text sample (auto-sizing / playground caption)
- *   [F11]         Cycle debug draw mode
+ *   [F1]          Cycle debug draw mode
  *   [F12]         Save screenshot-YYYYMMDD-HHMMSS.png to current directory
  *   [Q]/[Esc]     Quit demo
  */

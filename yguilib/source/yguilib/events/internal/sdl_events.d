@@ -37,8 +37,14 @@ Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
     case yguilib_sdl3_EventType.mouseWheel:
       return Nullable!AppEvent(makeWheelEvent(sdlEv));
 
-    case yguilib_sdl3_EventType.keyDown:
-      return Nullable!AppEvent(makeKeyEvent(AppEvent.Kind.keyDown, sdlEv));
+    case yguilib_sdl3_EventType.keyDown: {
+      import std.logger : tracef;
+
+      auto keyEv = makeKeyEvent(AppEvent.Kind.keyDown, sdlEv);
+      tracef("SDL keyDown: key=0x%x scancode=%d", cast(uint) keyEv.keyData.key,
+        cast(int) keyEv.keyData.scancode);
+      return Nullable!AppEvent(keyEv);
+    }
 
     case yguilib_sdl3_EventType.keyUp:
       return Nullable!AppEvent(makeKeyEvent(AppEvent.Kind.keyUp, sdlEv));

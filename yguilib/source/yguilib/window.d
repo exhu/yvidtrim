@@ -88,6 +88,9 @@ class Window {
    * not trigger a render by itself (see `UiSystem.requestScreenshot`).
    */
   void requestScreenshot(string path) {
+    import std.logger : tracef;
+
+    tracef("Window.requestScreenshot(%s)", path);
     fPendingScreenshotPath = path;
   }
 

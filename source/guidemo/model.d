@@ -8,7 +8,7 @@ import yguilib.widget.drawing_components : TextLabel;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
   JustifyContent;
 
-/// Debug draw visualization mode cycled via F11.
+/// Debug draw visualization mode cycled via F1.
 enum DebugDrawMode {
   off,
   allVisible,

@@ -153,9 +153,17 @@ final class WidgetSystemPipeline {
     }
     if (window.rootWidget !is null && window.renderer !is null) {
       if (!updateAndRenderTree(window)) {
+        if (window.hasPendingScreenshot()) {
+          import std.logger : tracef;
+
+          tracef("Screenshot pending, but no frame rendered; waiting");
+        }
         return;
       }
       if (window.hasPendingScreenshot()) {
+        import std.logger : tracef;
+
+        tracef("Saving pending screenshot after render");
         saveScreenshot(window.renderer, window.takePendingScreenshotPath());
       }
     }
