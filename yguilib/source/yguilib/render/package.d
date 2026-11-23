@@ -958,6 +958,7 @@ package(yguilib):
       fClearColor[3]);
   }
 
+package(yguilib.render):
   /**
    * The current framebuffer, viewport, scissor and clear color from the
    * tracked state (no GL queries; debug builds check it against GL). The
