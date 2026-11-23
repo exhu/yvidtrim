@@ -1,3 +1,15 @@
+/**
+ * Low-level GL ES helpers for the render pipelines: blend state setup,
+ * shader/program creation, `ProgramMesh` (program + streamed vertex
+ * array), `uploadAndDrawDynamic` (VBO grown by powers of two, updated
+ * with `glBufferSubData`), `ProgramTracker` (current program and the
+ * uniform cache epoch), `Vec2UniformCache` and texture upload.
+ *
+ * New GL code must go through `ProgramTracker.use` and the Renderer's
+ * tracked framebuffer/viewport/clear-color setters, and must not touch a
+ * pipeline VBO directly, or the debug `Renderer.targetState()` check
+ * fails.
+ */
 module yguilib.render.internal.gl_util;
 
 package(yguilib):

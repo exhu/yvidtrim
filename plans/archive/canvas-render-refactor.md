@@ -47,8 +47,8 @@ Phases run one after another, because they touch the same files.
   ph05   done         committed 507922a; see notes below
   ph06   done         committed fb3ece8; see notes below
   ph07   done         committed 279f05f; see notes below
-  ph08   done         see notes below
-  ph09   not started
+  ph08   done         committed cb105bc; see notes below
+  ph09   done         see notes below; final tasks done
 ```
 
 ph01 notes (2026-11-23):
@@ -204,6 +204,30 @@ ph08 notes (2026-11-23):
   `ColorPipeline.drawLineWithWidth`, `drawRectDefaultWidth`;
   `TexturePipeline.drawTexture` inlined.
 - Test-only `Canvas.PathStats`/`pathStats()`.
+- Still 66 modules; meson test 10/10 OK.
+
+ph09 notes (2026-11-23):
+- 5.1: `drawFilledText(..., stroke = false)` -> `drawTextBitmap(text,
+  pos, maxWidth, outlinePx)`; no default parameters left in `render/`.
+- 5.2: trailing-underscore fields -> `f`-prefixed; `align_` ->
+  `textAlign`.
+- 5.3: `FontManager.fontWithSize`, `fontAtScale`, `scaling(float)`;
+  `Font.scale(float)` (returns `bool`); `TextCache.textureFor`.
+- 5.4: pipelines and `*Locs.set` take `in Viewport`
+  (`Renderer.logicViewport()`); public `DashPattern {dashLen,
+  gapLen}` for `drawLineDashed`/`drawRectDashed`/
+  `drawRoundRectDashed` (widget callers updated); internal
+  `ThickLine`, `RoundRectShape`; stroker's private `DashPattern`
+  renamed `DashPhase`. `ClipStack.push(rect, pixelW, pixelH, scale)`.
+  Deviation: parameter structs use literals, not `with...` builders.
+- 5.6-5.10: visibility sections, const locals, `buildTextVerts`,
+  `DashWriter.finish()`, import cleanup, module docs and DDoc
+  `Params:`/`Returns:`. Phase-note caveats documented in code.
+- Final tasks: ARCHITECTURE.md updated (249 lines); TODO.md line
+  replaced; plans moved to `plans/archive/`.
+- Open follow-ups (not in TODO.md): `measureText` ignores the
+  transform; `fOwnsDefaultFont` is dead; `Font.scale(float)` setter
+  returns `bool`.
 - Still 66 modules; meson test 10/10 OK.
 
 ## Rules for every phase

@@ -169,6 +169,9 @@ final class Path2d {
    * Elliptical arc around `center` with `radii`, rotated by `rotation`
    * radians. Sweeps are normalized as in the HTML spec (full ellipse when
    * the sweep in the given direction is at least 2π).
+   *
+   * Takes 6 parameters without a parameter struct on purpose: it mirrors
+   * HTML `CanvasPath.ellipse()` argument by argument.
    */
   void ellipse(
     PointF center,

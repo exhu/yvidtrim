@@ -6,7 +6,8 @@ import std.array : Appender;
 import std.math : isFinite;
 import yguilib.render : Renderer;
 import yguilib.render.font : Font, defaultFontPtSize;
-import yguilib.render.render_types : PointF, RectF, intersectRects;
+import yguilib.render.render_types : DashPattern, PointF, RectF,
+  intersectRects;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget : Widget;
 import yguilib.widget.system : SystemPhase, WidgetSystem,
@@ -150,7 +151,8 @@ private:
         break;
       case Border.Style.dashed:
         r.drawRectDashed(
-          absRect, comp.width, comp.dashLen, comp.gap, comp.color
+          absRect, comp.width, DashPattern(comp.dashLen, comp.gap),
+          comp.color
         );
         break;
       case Border.Style.round:
@@ -158,8 +160,8 @@ private:
         break;
       case Border.Style.roundDashed:
         r.drawRoundRectDashed(
-          absRect, comp.cornerRadius, comp.width, comp.dashLen, comp.gap,
-          comp.color
+          absRect, comp.cornerRadius, comp.width,
+          DashPattern(comp.dashLen, comp.gap), comp.color
         );
         break;
       case Border.Style.none:{}

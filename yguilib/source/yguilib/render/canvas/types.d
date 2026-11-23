@@ -551,7 +551,8 @@ struct Shadow {
    * i.e. `blur / 2 * scaling` device pixels, clamped to `maxBlurSigmaPx`
    * so huge values cannot stall the GPU. Sigmas over 32 px are blurred at
    * 1/2 resolution, and over `maxBlurSigmaPx` at 1/4 resolution, then
-   * upscaled with linear filtering.
+   * upscaled with linear filtering. Downsampled masks are not
+   * antialiased, so thin shapes may shimmer slightly at such blurs.
    */
   float blur = 0;
   ColorF color = ColorF(0, 0, 0, 0);
@@ -670,13 +671,13 @@ struct TextMetrics {
  */
 package(yguilib) PointF textAnchorOffset(
   in TextMetrics m,
-  TextAlign align_,
+  TextAlign textAlign,
   TextBaseline baseline,
   TextDirection dir
 ) nothrow @safe @nogc pure {
   const float h = m.fontAscent + m.fontDescent;
   float x = 0;
-  final switch (align_) {
+  final switch (textAlign) {
   case TextAlign.left:
     break;
   case TextAlign.right:

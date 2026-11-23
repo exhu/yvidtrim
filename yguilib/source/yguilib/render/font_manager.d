@@ -1,3 +1,12 @@
+/**
+ * Font face registry and `Font` cache.
+ *
+ * Two caches: fonts at the renderer's total scaling (rescaled in place by
+ * `scaling(float)`), and fonts at an explicit raster scale used by Canvas
+ * text (`fontAtScale`, quantized to 1/8 steps). Destroyed fonts are
+ * reported through `onFontDestroyed` so `TextCache` can drop their
+ * textures.
+ */
 module yguilib.render.font_manager;
 
 import std.math.traits : isFinite;
@@ -74,8 +83,9 @@ final class FontManager {
    * Fonts already cached for `fontName` are destroyed, so later lookups
    * use the new data.
    *
-   * @param fontName Unique name identifying the font face.
-   * @param fontData In-memory TTF data buffer (must remain valid).
+   * Params:
+   *   fontName = Unique name identifying the font face.
+   *   fontData = In-memory TTF data buffer (must remain valid).
    */
   void registerFontFromMemory(string fontName, const(void)[] fontData) {
     assert(fontName.length > 0, "fontName must not be empty");
@@ -94,8 +104,9 @@ final class FontManager {
    * Fonts already cached for `fontName` are destroyed, so later lookups
    * use the new file.
    *
-   * @param fontName Unique name identifying the font face.
-   * @param filePath Path to the TTF font file.
+   * Params:
+   *   fontName = Unique name identifying the font face.
+   *   filePath = Path to the TTF font file.
    */
   void registerFontFromFile(string fontName, string filePath) {
     assert(fontName.length > 0, "fontName must not be empty");
@@ -113,8 +124,9 @@ final class FontManager {
    *
    * An empty string or `"default"` always resolves to the built-in font face.
    *
-   * @param fontName Name of the font face to check.
-   * @return true if the font face exists or is default, false otherwise.
+   * Params:
+   *   fontName = Name of the font face to check.
+   * Returns: true if the font face exists or is default, false otherwise.
    */
   bool hasFont(string fontName) const {
     if (fontName.length == 0 || fontName == "default") {
@@ -136,12 +148,13 @@ final class FontManager {
    * Non-positive, infinite, or NaN `ptSize` values automatically fall back
    * to `defaultFontPtSize`.
    *
-   * @param ptSize Logical point size in user space.
-   * @param fontName Registered font name, or null/empty for default font.
-   * @param totalScale Raster scaling multiplier (display * units scaling).
-   * @return The cached `Font` instance.
+   * Params:
+   *   ptSize = Logical point size in user space.
+   *   fontName = Registered font name, or null/empty for default font.
+   *   totalScale = Raster scaling multiplier (display * units scaling).
+   * Returns: The cached `Font` instance.
    */
-  Font getFont(
+  Font fontWithSize(
     float ptSize,
     string fontName,
     float totalScale
@@ -160,17 +173,18 @@ final class FontManager {
   }
 
   /**
-   * Like `getFont`, but rasterized at `rasterScale` (quantized to 1/8
+   * Like `fontWithSize`, but rasterized at `rasterScale` (quantized to 1/8
    * steps and clamped to a sane range) independent of the display scaling.
-   * Instances are cached separately and are not touched by `setScaling`.
+   * Instances are cached separately and are not touched by `scaling`.
    * Used by Canvas text so glyphs match the effective drawing scale.
    *
-   * @param ptSize Logical point size in user space.
-   * @param fontName Registered font name, or null/empty for default font.
-   * @param rasterScale Desired raster scale (non-finite or <= 0 gives 1).
-   * @return The cached `Font` instance.
+   * Params:
+   *   ptSize = Logical point size in user space.
+   *   fontName = Registered font name, or null/empty for default font.
+   *   rasterScale = Desired raster scale (non-finite or <= 0 gives 1).
+   * Returns: The cached `Font` instance.
    */
-  Font getFontAtScale(float ptSize, string fontName, float rasterScale) {
+  Font fontAtScale(float ptSize, string fontName, float rasterScale) {
     const float size = sanitizeSize(ptSize);
     const ResolvedFace face = resolveSource(fontName);
     const int eighths = quantizeScaleEighths(rasterScale, size);
@@ -195,12 +209,13 @@ final class FontManager {
    * Called when display DPI or units zoom changes so that fonts render at
    * native resolution while preserving their logical point sizes.
    *
-   * @param totalScale New raster scaling multiplier.
+   * Params:
+   *   totalScale = New raster scaling multiplier.
    */
-  void setScaling(float totalScale) {
+  void scaling(float totalScale) {
     foreach (font; cache) {
       if (font !is null) {
-        font.setScale(totalScale);
+        font.scale(totalScale);
       }
     }
   }
@@ -322,13 +337,16 @@ private:
  * Raster scale in 1/8 steps, clamped to [1/8, 16] and so that the pixel
  * size `ptSize * scale` stays at most 1024.
  */
-package(yguilib) int quantizeScaleEighths(float scale, float ptSize)
+int quantizeScaleEighths(float scale, float ptSize)
   nothrow @safe @nogc pure {
   import std.algorithm.comparison : max, min;
   import std.math : isFinite, round;
 
-  float s = (isFinite(scale) && scale > 0.0f) ? scale : 1.0f;
-  s = min(s, 16.0f, 1024.0f / ptSize);
+  const float s = min(
+    (isFinite(scale) && scale > 0.0f) ? scale : 1.0f,
+    16.0f,
+    1024.0f / ptSize
+  );
   return max(1, cast(int)round(s * 8.0f));
 }
 
@@ -342,37 +360,36 @@ unittest {
   scope(exit) fm.destroy();
 
   // Verify default font lookup
-  Font f11 = fm.getFont(11.0f, null, 1.0f);
+  Font f11 = fm.fontWithSize(11.0f, null, 1.0f);
   assert(f11 !is null);
   assert(f11.size == 11.0f);
 
   // Requesting the exact same font size reuses the cached instance
-  Font f11Again = fm.getFont(11.0f, null, 1.0f);
+  Font f11Again = fm.fontWithSize(11.0f, null, 1.0f);
   assert(f11 is f11Again);
 
   // Requesting a different size returns a distinct Font instance
-  Font f24 = fm.getFont(24.0f, null, 1.0f);
+  Font f24 = fm.fontWithSize(24.0f, null, 1.0f);
   assert(f24 !is null);
   assert(f24.size == 24.0f);
   assert(f24 !is f11);
 
   // Fallbacks for invalid sizes
-  assert(fm.getFont(0.0f, null, 1.0f).size == defaultFontPtSize);
-  assert(fm.getFont(-5.0f, null, 1.0f).size == defaultFontPtSize);
-  assert(fm.getFont(float.nan, null, 1.0f).size == defaultFontPtSize);
-  assert(fm.getFont(float.infinity, null, 1.0f).size == defaultFontPtSize);
+  foreach (const float bad; [0.0f, -5.0f, float.nan, float.infinity]) {
+    assert(fm.fontWithSize(bad, null, 1.0f).size == defaultFontPtSize);
+  }
 
   // Scaling update
-  fm.setScaling(2.0f);
+  fm.scaling(2.0f);
   assert(f11.scaledSize == 22.0f);
   assert(f24.scaledSize == 48.0f);
 
-  // Scaled fonts: quantized, cached separately, untouched by setScaling
-  Font s15 = fm.getFontAtScale(10.0f, null, 1.51f);
+  // Scaled fonts: quantized, cached separately, untouched by scaling()
+  Font s15 = fm.fontAtScale(10.0f, null, 1.51f);
   assert(s15.scaledSize == 15.0f);
-  assert(fm.getFontAtScale(10.0f, null, 1.49f) is s15);
-  assert(fm.getFontAtScale(10.0f, null, 2.0f) !is s15);
-  fm.setScaling(3.0f);
+  assert(fm.fontAtScale(10.0f, null, 1.49f) is s15);
+  assert(fm.fontAtScale(10.0f, null, 2.0f) !is s15);
+  fm.scaling(3.0f);
   assert(s15.scaledSize == 15.0f);
   assert(quantizeScaleEighths(float.nan, 10.0f) == 8);
   assert(quantizeScaleEighths(0.0f, 10.0f) == 8);
@@ -394,10 +411,10 @@ unittest {
   fm.onFontDestroyed((ulong id) { destroyed ~= id; });
 
   // An unregistered name falls back to the default face, cached under "".
-  Font before = fm.getFont(12.0f, "Foo", 1.0f);
-  assert(before is fm.getFont(12.0f, null, 1.0f));
-  Font scaledBefore = fm.getFontAtScale(12.0f, "Foo", 2.0f);
-  assert(scaledBefore is fm.getFontAtScale(12.0f, null, 2.0f));
+  Font before = fm.fontWithSize(12.0f, "Foo", 1.0f);
+  assert(before is fm.fontWithSize(12.0f, null, 1.0f));
+  Font scaledBefore = fm.fontAtScale(12.0f, "Foo", 2.0f);
+  assert(scaledBefore is fm.fontAtScale(12.0f, null, 2.0f));
   assert(fm.countForFace("Foo") == 0);
   const ulong beforeId = before.id;
 
@@ -406,7 +423,7 @@ unittest {
   assert(destroyed.length == 0);
   bool threw = false;
   try {
-    fm.getFont(12.0f, "Foo", 1.0f);
+    fm.fontWithSize(12.0f, "Foo", 1.0f);
   } catch (Exception e) {
     threw = true;
   }
@@ -415,10 +432,10 @@ unittest {
 
   const(void)[] dataA = (cast(const(ubyte)[])defaultTtfFontData).dup;
   fm.registerFontFromMemory("Foo", dataA);
-  Font fooA = fm.getFont(12.0f, "Foo", 1.0f);
+  Font fooA = fm.fontWithSize(12.0f, "Foo", 1.0f);
   assert(fooA !is before && fooA.id != beforeId);
-  assert(fm.getFont(12.0f, "Foo", 1.0f) is fooA);
-  Font fooAScaled = fm.getFontAtScale(12.0f, "Foo", 2.0f);
+  assert(fm.fontWithSize(12.0f, "Foo", 1.0f) is fooA);
+  Font fooAScaled = fm.fontAtScale(12.0f, "Foo", 2.0f);
   assert(fooAScaled !is scaledBefore);
   assert(fm.countForFace("Foo") == 2);
   const ulong idA = fooA.id;
@@ -431,11 +448,11 @@ unittest {
   assert(destroyed.length == 2);
   assert(destroyed.canFind(idA) && destroyed.canFind(idAScaled));
   assert(fm.countForFace("Foo") == 0);
-  Font fooB = fm.getFont(12.0f, "Foo", 1.0f);
+  Font fooB = fm.fontWithSize(12.0f, "Foo", 1.0f);
   assert(fooB.id != idA && fooB.id != beforeId);
   // The default face is untouched.
   assert(before.id == beforeId);
-  assert(fm.getFont(12.0f, null, 1.0f) is before);
+  assert(fm.fontWithSize(12.0f, null, 1.0f) is before);
 
   // destroy() reports every remaining font.
   const ulong idB = fooB.id;

@@ -50,8 +50,7 @@ yvidtrim/
 │   │   │   ├── common.d              # Shared colors, button face, view helpers
 │   │   │   ├── composite_view.d      # Free helpers for composite views
 │   │   │   ├── hover_button_system.d # ECS hover button & animation system
-│   │   │   ├── internal/axis.d       # Row/column axis projection helper
-│   │   │   ├── internal/button_support.d # Shared button builder/press helpers
+│   │   │   ├── internal/             # axis.d (axis helper), button_support.d
 │   │   │   ├── scrollbars.d          # Composite Scrollbar widget & view
 │   │   │   ├── tabcontrol.d          # Composite TabControl widget & view
 │   │   │   ├── testing.d             # Shared unittest helpers & mock hosts
@@ -59,9 +58,10 @@ yvidtrim/
 │   │   │   └── virtlist.d            # Composite VirtList widget & view
 │   │   ├── events/        # AppEvent, builder, and thread-safe MessageBus
 │   │   ├── render/        # Hardware Renderer, FontManager, shader pipelines
-│   │   │   ├── canvas/    # Canvas (package.d), path2d.d, types.d
+│   │   │   ├── canvas/    # Canvas, path2d, types, package_test (GL tests)
 │   │   │   ├── image.d, texture.d, render_target.d # Image/Texture/RenderTarget
-│   │   │   └── internal/  # pipelines, path_*, stencil_ops, offscreen
+│   │   │   └── internal/  # pipelines, path_*, stencil_ops, offscreen,
+│   │   │                  # clip_stack, text_cache, gl_util, gl_test_util
 │   │   ├── widget/        # Widget entity, components, builder, WidgetSystem
 │   │   │   ├── virtlist_components.d # VirtListProvider & VirtListComponent
 │   │   │   └── internal/virtlist_system.d # Recycling, layout & wheel scroll
@@ -84,20 +84,19 @@ yvidtrim/
     strictly restricted to the main thread.
   - Background threads (playback decode, export) communicate exclusively via
     message passing by calling `UiSystem.sendAppEvent(AppEvent)`.
-  - `MessageBus.send()` is a thread-safe `synchronized` ring buffer that
-    wakes a waiting main thread (`yguilib_sdl3_send_wake_event()`) and keeps
-    raw `mouseMotion` samples unmerged.
+  - `MessageBus.send()`: thread-safe `synchronized` ring buffer; wakes the main
+    thread (`yguilib_sdl3_send_wake_event()`), keeps `mouseMotion` unmerged.
 - Memory & Safety Enforcements:
   - Hot paths use `yguilib.allochelpers` (`SmallBuffer`, `RingBuffer`,
-    `ReusableArray`) to minimize GC churn in event, timer, and layout loops.
+    `ReusableArray`) in event, timer and layout loops; render code reuses
+    `Appender`s and inline fixed-capacity structs (Canvas state is copied).
   - GC is permitted for widget graph construction, models, and UI event strings.
-  - C handles (SDL windows, GL contexts, TTF fonts): `destroy()`/`~this()`;
-    GL objects (`Texture`, `RenderTarget`) only in main-thread `destroy()`.
+  - SDL windows/GL contexts: `destroy()`/`~this()`; GL objects and TTF fonts
+    (`Texture`, `RenderTarget`, `Font`): only main-thread `destroy()`.
 - Encapsulation & Scoping:
   - No `public import` re-exports; multi-module packages like
     `yguilib.controls` import modules explicitly without `package.d`.
-  - Internal modules (`internal/`) must declare `package(<root_pkg>):` or
-    `private:`; `public:` declarations inside `internal/` are strictly banned.
+  - `internal/` modules: `package(<root_pkg>):` or `private:`, never `public:`.
   - Scoped imports defer parsing for heavy stdlib modules (e.g., `std.format`).
 
 ## Primary Data Flows
@@ -134,9 +133,8 @@ hittable: it takes part in pointer hit-tests and blocks click/hover-through
 to widgets behind it (`WidgetBuilder.onMouse*`/`cursorCapture` set it).
 `Widget.inputEnabled` (default true) is the enabled state: disabled visuals,
 no mouse view events, drag or capture; a disabled hittable widget swallows
-clicks. Keyboard (planned, `FocusSystem`): keys go to the focused widget with a
-`KeyboardEvent` only if `inputEnabled`; disabled widgets can't take focus;
-`handleInput` is pointer-only.
+clicks. Keyboard (planned, `FocusSystem`): `KeyboardEvent`s reach the focused
+widget if `inputEnabled` (disabled: no focus); `handleInput` is pointer-only.
 
 **Cursor capture modes** (`MouseEvent.cursorCapture`, `CursorCapture` enum,
 set via `WidgetBuilder.onMouseDrag(name, mode)`), applied by
@@ -187,13 +185,15 @@ Phase 3 (if dirty): UiSystemImpl ──► WidgetSystemPipeline.updateAndRender(
 
 **Canvas** (`Renderer.canvas()`): HTML-canvas-like API over `Path2d`.
 `path_flatten` (curves, CPU transform), `path_stroker` (caps/joins/dashes),
-`stencil_ops` (stencil-then-cover, exact `nonZero`/`evenOdd`) feed shared
-color/gradient/`Pattern` pipelines. Stencil bit 7 = `clip()` (restored on pop),
-bits 0..6 = per-call work; Window asks MSAA 4x + 8-bit stencil. Stencil test
-is on only inside Canvas calls: Renderer `draw*` ignore Canvas clip/transform,
-`pushClipRect` limits both, `clearFrame` resets Canvas state. Shadows: mask
-of paint alpha (shadow a = color a * paint a) into non-MSAA `OffscreenTarget`s,
-`BlurPipeline` H+V, tinted composite under clip bit; GL target state restored.
+`stencil_ops` (stencil-then-cover, exact `nonZero`/`evenOdd`; one convex
+contour without clip skips the stencil) feed shared color/gradient/`Pattern`
+pipelines. Stencil bit 7 = `clip()`, bits 0..6 = per-call work; Window asks
+MSAA 4x + 8-bit stencil. Stencil test is on only inside Canvas calls: Renderer
+`draw*` ignore Canvas clip/transform, `pushClipRect` limits both, `clearFrame`
+resets Canvas state. Clips: append-only `fClips` + stored fan triangles,
+`State` keeps `clipCount`; `restore()` truncates and replays (no re-flatten).
+Shadows: mask of paint alpha into non-MSAA `OffscreenTarget`s (sigma clamped,
+1/2 or 1/4 res if large), `BlurPipeline` H+V, tinted composite under clip bit.
 **CustomDraw** (`onDraw(dg(Renderer, in Widget))`) runs after the text label
 in `clipContents`, in canvas `save`/`translate(content origin)`/`restore`:
 Canvas draws content-local, Renderer stays absolute (`transform()` e/f).
@@ -203,37 +203,37 @@ Canvas draws content-local, Renderer stays absolute (`transform()` e/f).
 st.xf, clip bit, tint, shadow masked by texture alpha). **Offscreen**:
 `createRenderTarget(logicW, logicH, msaa)`; `resizeRenderTarget` reallocs on a
 pixel change. Nested `beginTarget`/`endTarget` save+restore FBO, viewport,
-scissor, clip stack, Canvas state; end resolves MSAA. Separate alpha blend
-(ONE, 1-SRC_ALPHA) keeps targets premultiplied: `rt.texture()` (bottom-up) is
-drawn with (ONE, 1-SRC_ALPHA); main-thread `rt.toImage()` un-premultiplies.
-**Text**: `TextCache` bitmaps at the effective scale (`getFontAtScale`) drawn
-as quads; glyph alpha masks solid/gradient/pattern paint; stroke = outline.
+scissor, clip stack, Canvas state (buffers swapped with a per-depth slot,
+never copied); end resolves MSAA. Separate alpha blend (ONE, 1-SRC_ALPHA)
+keeps targets premultiplied (`rt.texture()` bottom-up; `rt.toImage()`
+un-premultiplies). **GL state**: Renderer tracks FBO/viewport/clear color,
+`ClipStack` the scissor, `ProgramTracker` program + uniform epoch: no GL
+queries (debug-checked by `targetState()`); new GL code must use them.
+**Text**: `TextCache` bitmaps at the effective scale (`fontAtScale`) drawn as
+quads; glyph alpha masks the paint; stroke = outline ring. LRU by use tick;
+strings used since `beginFrame()` (`clearFrame`) stay (up to 2x, hard cap).
 
 ## Idiomatic Patterns
 - Null Safety: Non-null references by default (tooling flags missing checks);
   constructors `assert(arg !is null)`, non-null fields via `invariant` asserts.
-- Zero-CPU Idle Sleep: Controllers and `WidgetSystem`s register owner-bound
-  wall-clock timers via `TimerControl` (`startTimer` / `stopTimer`) during
-  active animations and stop them when settled (`TimerService` returns `-1`
-  when idle so `yguilib_sdl3_wait_event()` blocks without spinning).
+- Zero-CPU Idle Sleep: Controllers and `WidgetSystem`s run owner-bound timers
+  (`TimerControl.startTimer`/`stopTimer`) only while animating; idle
+  `TimerService` returns `-1`, so `yguilib_sdl3_wait_event()` blocks.
 - ECS-Style Widgets: `Widget` is an entity with geometry (`RectF`), hierarchy,
   and a `WidgetComponents` bag (`Background`, `Border`, `Size`, `FlexContainer`,
   `MouseEvent`, custom components via `components.set!C(...)`).
-- Widget Lifecycle & Release: Disposing a widget hierarchy must be done via
-  `UiSystem.releaseWidget(w)`, which traverses bottom-up, unregisters views,
-  notifies controllers via `onWidgetReleased`, purges input/pipeline caches,
-  and calls `w.release()` to detach and clear components.
-- guidemo Page Wiring: `registerDemoPages` creates each page's trackers
-  (`ModelTracker!M` or a `<Page>Trackers` struct) and passes them to the page
-  view and, via `PageControllerParams`, to its controller, which edits shared
-  models directly; view-only models stay inside the views.
+- Widget Lifecycle & Release: dispose a hierarchy via `UiSystem.releaseWidget`
+  (bottom-up: unregisters views, calls `onWidgetReleased`, purges input and
+  pipeline caches, then `w.release()` detaches and clears components).
+- guidemo Page Wiring: `registerDemoPages` passes page trackers to the view
+  and, via `PageControllerParams`, to the controller (edits shared models;
+  view-only models stay in views); trackers: `ModelTracker!M`/`<Page>Trackers`.
 - Invalidation Scopes: Fine-grained `WidgetUpdateScope` flags (`visuals`,
   `content`, `layout`, `parentView`, `all`) prevent redundant layout passes.
 - Embedded Assets: files under `assets/<package_name>/` (yguilib fonts and
   shaders, guidemo images) are `import("...")`-ed in `[internal/]assets.d`.
 
 ## Extension Recipes
-
 ### Adding a Private C Wrapper Library
 `<proj>-clibs/<proj>_<libname>.[h|c]` (opaque handles, `<proj>_<libname>_`
 prefix, NULL rules) + `_test.c`, both in `<proj>-clibs/meson.build`; matching

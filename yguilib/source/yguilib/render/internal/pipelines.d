@@ -1,3 +1,12 @@
+/**
+ * Shader pipelines of the Renderer and the Canvas: flat color, textured
+ * quads/triangles, rounded rects, gradient and pattern paint (each with
+ * an optional mask texture variant) and the separable shadow blur.
+ *
+ * Every draw takes the logic `Viewport` of the bound target. Pipelines
+ * share the renderer's `ProgramTracker`, stream vertices through
+ * `uploadAndDrawDynamic` and leave the stencil state to the caller.
+ */
 module yguilib.render.internal.pipelines;
 
 package(yguilib):
@@ -5,7 +14,7 @@ package(yguilib):
 import glad2.gles2;
 import std.array : Appender;
 import yguilib.render.internal.gl_util;
-import yguilib.render.render_types : ColorF, PointF, RectF;
+import yguilib.render.render_types : ColorF, DashPattern, PointF, RectF;
 import yguilib.render.texture : Texture;
 import yguilib.internal.assets;
 
@@ -37,11 +46,10 @@ struct ColorPipeline {
     GLenum mode,
     const(float)[] vertices,
     in ColorF color,
-    float vw,
-    float vh
+    in Viewport vp
   ) {
     setupAlphaBlendState();
-    drawArraysWithCurrentState(mode, vertices, color, vw, vh);
+    drawArraysWithCurrentState(mode, vertices, color, vp);
   }
 
   /**
@@ -52,11 +60,10 @@ struct ColorPipeline {
     GLenum mode,
     const(float)[] vertices,
     in ColorF color,
-    float vw,
-    float vh
+    in Viewport vp
   ) {
     fPrograms.use(mesh.program);
-    fResolution.upload(uResolutionLoc, vw, vh, fPrograms.epoch());
+    fResolution.upload(uResolutionLoc, vp.vw, vp.vh, fPrograms.epoch());
     glUniform4f(uColorLoc, color.r, color.g, color.b, color.a);
     uploadAndDrawDynamic(
       mode,
@@ -66,43 +73,43 @@ struct ColorPipeline {
     );
   }
 
-  void drawFillRect(in RectF rect, in ColorF color, float vw, float vh) {
+  void drawFillRect(in RectF rect, in ColorF color, in Viewport vp) {
     const float[12] vertices = rectTriangles(rect);
-    drawArrays(GL_TRIANGLES, vertices, color, vw, vh);
+    drawArrays(GL_TRIANGLES, vertices, color, vp);
   }
 
   void drawThinLineWithPoints(
     in PointF point1,
     in PointF point2,
     in ColorF color,
-    float vw,
-    float vh
+    in Viewport vp
   ) {
-    float[4] vertices = [
+    const float[4] vertices = [
       point1.x, point1.y,
       point2.x, point2.y,
     ];
 
-    drawArrays(GL_LINES, vertices, color, vw, vh);
+    drawArrays(GL_LINES, vertices, color, vp);
   }
 
-  void drawDashedLineWithPoints(
-    in PointF point1,
-    in PointF point2,
-    float lineWidth,
-    float dashLen,
-    float gapLen,
+  /**
+   * Draws `line` as a thick quad, or as a row of dash quads when both
+   * `dash` lengths are positive. A non-positive width or a zero-length
+   * line draws nothing.
+   */
+  void drawDashedLine(
+    in ThickLine line,
+    in DashPattern dash,
     in ColorF color,
-    float vw,
-    float vh
+    in Viewport vp
   ) {
-    if (lineWidth <= 0.0f) {
+    if (line.width <= 0.0f) {
       return;
     }
 
     import std.math : sqrt;
-    const float dx = point2.x - point1.x;
-    const float dy = point2.y - point1.y;
+    const float dx = line.p2.x - line.p1.x;
+    const float dy = line.p2.y - line.p1.y;
     const float dist = sqrt(dx * dx + dy * dy);
     if (dist <= 0.0f) {
       return;
@@ -111,45 +118,43 @@ struct ColorPipeline {
     const float invDist = 1.0f / dist;
     const float ux = dx * invDist;
     const float uy = dy * invDist;
-    const float halfWidth = lineWidth * 0.5f;
-    const float ox = -uy * halfWidth;
-    const float oy = ux * halfWidth;
+    const float halfWidth = line.width * 0.5f;
+    const LineFrame f = LineFrame(
+      line.p1, line.p2, ux, uy, dist, -uy * halfWidth, ux * halfWidth
+    );
 
-    if (dashLen <= 0.0f || gapLen <= 0.0f) {
-      drawSolidThickLine(point1, point2, ox, oy, color, vw, vh);
+    if (dash.dashLen <= 0.0f || dash.gapLen <= 0.0f) {
+      drawSolidThickLine(f, color, vp);
       return;
     }
-    drawDashedThickLine(
-      point1, ux, uy, dist, ox, oy, dashLen, gapLen, color, vw, vh
-    );
+    drawDashedThickLine(f, dash, color, vp);
   }
 
   void drawRectWithWidth(
     in RectF rect,
     float lineWidth,
     in ColorF color,
-    float vw,
-    float vh
+    in Viewport vp
   ) {
     if (rect.width <= 0.0f || rect.height <= 0.0f || lineWidth <= 0.0f) {
       return;
     }
 
     import std.algorithm : min;
-    float maxLw = min(rect.width, rect.height) * 0.5f;
-    float lw = min(lineWidth, maxLw);
+    const float maxLw = min(rect.width, rect.height) * 0.5f;
+    const float lw = min(lineWidth, maxLw);
 
-    float x0 = rect.x;
-    float y0 = rect.y;
-    float x1 = rect.x + rect.width;
-    float y1 = rect.y + rect.height;
-    float xi0 = x0 + lw;
-    float yi0 = y0 + lw;
-    float xi1 = x1 - lw;
-    float yi1 = y1 - lw;
+    const float x0 = rect.x;
+    const float y0 = rect.y;
+    const float x1 = rect.x + rect.width;
+    const float y1 = rect.y + rect.height;
+    const float xi0 = x0 + lw;
+    const float yi0 = y0 + lw;
+    const float xi1 = x1 - lw;
+    const float yi1 = y1 - lw;
 
     // 4 non-overlapping strips growing inside rect
-    float[48] vertices = [
+    const float[48] vertices = [
       // Top strip
       x0, y0,  x1, y0,  x0, yi0,
       x0, yi0, x1, y0,  x1, yi0,
@@ -167,62 +172,69 @@ struct ColorPipeline {
       xi1, yi1, x1, yi0,  x1, yi1,
     ];
 
-    drawArrays(GL_TRIANGLES, vertices, color, vw, vh);
+    drawArrays(GL_TRIANGLES, vertices, color, vp);
   }
 
 private:
-  void drawSolidThickLine(
-    in PointF point1,
-    in PointF point2,
-    float ox,
-    float oy,
-    in ColorF color,
-    float vw,
-    float vh
-  ) {
-    float[12] vertices = [
-      point1.x + ox, point1.y + oy,
-      point1.x - ox, point1.y - oy,
-      point2.x - ox, point2.y - oy,
+  /**
+   * A non-empty line from `start` to `end`: unit direction (`ux`, `uy`),
+   * length `dist` and half-width normal offset (`ox`, `oy`).
+   */
+  static struct LineFrame {
+    PointF start;
+    PointF end;
+    float ux;
+    float uy;
+    float dist;
+    float ox;
+    float oy;
+  }
 
-      point1.x + ox, point1.y + oy,
-      point2.x - ox, point2.y - oy,
-      point2.x + ox, point2.y + oy,
+  void drawSolidThickLine(
+    in LineFrame f,
+    in ColorF color,
+    in Viewport vp
+  ) {
+    const float ox = f.ox;
+    const float oy = f.oy;
+    const float[12] vertices = [
+      f.start.x + ox, f.start.y + oy,
+      f.start.x - ox, f.start.y - oy,
+      f.end.x - ox, f.end.y - oy,
+
+      f.start.x + ox, f.start.y + oy,
+      f.end.x - ox, f.end.y - oy,
+      f.end.x + ox, f.end.y + oy,
     ];
-    drawArrays(GL_TRIANGLES, vertices, color, vw, vh);
+    drawArrays(GL_TRIANGLES, vertices, color, vp);
   }
 
   void drawDashedThickLine(
-    in PointF point1,
-    float ux,
-    float uy,
-    float dist,
-    float ox,
-    float oy,
-    float dashLen,
-    float gapLen,
+    in LineFrame f,
+    in DashPattern dash,
     in ColorF color,
-    float vw,
-    float vh
+    in Viewport vp
   ) {
     import std.algorithm : min;
 
     fDashScratch.clear();
-    const float period = dashLen + gapLen;
-    const size_t estDashes = cast(size_t)(dist / period) + 1;
+    const float period = dash.dashLen + dash.gapLen;
+    const size_t estDashes = cast(size_t)(f.dist / period) + 1;
     fDashScratch.reserve(estDashes * 12);
 
+    const float ox = f.ox;
+    const float oy = f.oy;
     float cur = 0.0f;
-    while (cur < dist) {
+    while (cur < f.dist) {
       const float dStart = cur;
-      const float dEnd = min(cur + dashLen, dist);
+      const float dEnd = min(cur + dash.dashLen, f.dist);
       if (dEnd > dStart) {
-        const float sx = point1.x + ux * dStart;
-        const float sy = point1.y + uy * dStart;
-        const float ex = point1.x + ux * dEnd;
-        const float ey = point1.y + uy * dEnd;
+        const float sx = f.start.x + f.ux * dStart;
+        const float sy = f.start.y + f.uy * dStart;
+        const float ex = f.start.x + f.ux * dEnd;
+        const float ey = f.start.y + f.uy * dEnd;
 
-        float[12] dashQuad = [
+        const float[12] dashQuad = [
           sx + ox, sy + oy,
           sx - ox, sy - oy,
           ex - ox, ey - oy,
@@ -237,7 +249,7 @@ private:
     }
 
     if (fDashScratch[].length > 0) {
-      drawArrays(GL_TRIANGLES, fDashScratch[], color, vw, vh);
+      drawArrays(GL_TRIANGLES, fDashScratch[], color, vp);
     }
   }
 
@@ -295,15 +307,14 @@ struct TexturePipeline {
   void drawTexturedQuad(
     GLuint texId,
     in TexturedQuad q,
-    float vw,
-    float vh,
+    in Viewport vp,
     TextureMode mode
   ) {
     if (texId == 0) {
       return;
     }
     setupBlendForMode(mode);
-    drawTexturedQuadWithCurrentState(texId, q, vw, vh, mode);
+    drawTexturedQuadWithCurrentState(texId, q, vp, mode);
   }
 
   /**
@@ -313,13 +324,12 @@ struct TexturePipeline {
   void drawTexturedQuadWithCurrentState(
     GLuint texId,
     in TexturedQuad q,
-    float vw,
-    float vh,
+    in Viewport vp,
     TextureMode mode
   ) {
     const float[24] vertices = quadVertices(q.dest, q.uv);
     drawTexturedTrianglesWithCurrentState(
-      texId, vertices[], q.color, mode, vw, vh
+      texId, vertices[], q.color, mode, vp
     );
   }
 
@@ -334,14 +344,13 @@ struct TexturePipeline {
     const(float)[] xyuv,
     in ColorF color,
     TextureMode mode,
-    float vw,
-    float vh
+    in Viewport vp
   ) {
     if (texId == 0 || xyuv.length < 12) {
       return;
     }
     setupBlendForMode(mode);
-    drawTexturedTrianglesWithCurrentState(texId, xyuv, color, mode, vw, vh);
+    drawTexturedTrianglesWithCurrentState(texId, xyuv, color, mode, vp);
   }
 
   /**
@@ -353,14 +362,13 @@ struct TexturePipeline {
     const(float)[] xyuv,
     in ColorF color,
     TextureMode mode,
-    float vw,
-    float vh
+    in Viewport vp
   ) {
     if (texId == 0 || xyuv.length < 12) {
       return;
     }
     fPrograms.use(mesh.program);
-    fResolution.upload(uResolutionLoc, vw, vh, fPrograms.epoch());
+    fResolution.upload(uResolutionLoc, vp.vw, vp.vh, fPrograms.epoch());
     glUniform4f(uColorLoc, color.r, color.g, color.b, color.a);
     glUniform1i(uTextureLoc, 0);
     glUniform1i(uModeLoc, cast(GLint)mode);
@@ -424,6 +432,25 @@ struct Viewport {
   float vw;
   float vh;
   float scale;
+}
+
+/// Line from `p1` to `p2` of `width` (logic units), for `drawDashedLine`.
+struct ThickLine {
+  PointF p1;
+  PointF p2;
+  float width = 0.0f;
+}
+
+/**
+ * Rounded rect drawn by `RoundRectPipeline`: `radius` is clamped to half
+ * the smaller side; `lineWidth` 0 fills, > 0 draws an outline growing
+ * inside `rect`, dashed when both `dash` lengths are positive.
+ */
+struct RoundRectShape {
+  RectF rect;
+  float radius = 0.0f;
+  float lineWidth = 0.0f;
+  DashPattern dash;
 }
 
 /// Two triangles of interleaved (x, y, u, v) for `dest` mapped to `uv`.
@@ -566,42 +593,32 @@ struct RoundRectPipeline {
     mesh.destroy();
   }
 
-  void draw(
-    in RectF rect,
-    float radius,
-    float lineWidth,
-    float dashLen,
-    float gapLen,
-    in ColorF color,
-    float vw,
-    float vh,
-    float totalScale
-  ) {
-    float halfW = rect.width * 0.5f;
-    float halfH = rect.height * 0.5f;
+  /// Draws `s` (see `RoundRectShape`) with alpha blending.
+  void draw(in RoundRectShape s, in ColorF color, in Viewport vp) {
+    const RectF rect = s.rect;
+    const float halfW = rect.width * 0.5f;
+    const float halfH = rect.height * 0.5f;
     import std.algorithm : min;
-    float r = min(radius, min(halfW, halfH));
-    if (r < 0.0f) {
-      r = 0.0f;
-    }
+    const float rMin = min(s.radius, min(halfW, halfH));
+    const float r = rMin < 0.0f ? 0.0f : rMin;
 
-    float px = totalScale > 0.0f ? (1.0f / totalScale) : 1.0f;
-    float margin = px * 2.0f;
+    const float px = vp.scale > 0.0f ? (1.0f / vp.scale) : 1.0f;
+    const float margin = px * 2.0f;
 
-    float cx = rect.x + halfW;
-    float cy = rect.y + halfH;
+    const float cx = rect.x + halfW;
+    const float cy = rect.y + halfH;
 
-    float qx0 = cx - halfW - margin;
-    float qy0 = cy - halfH - margin;
-    float qx1 = cx + halfW + margin;
-    float qy1 = cy + halfH + margin;
+    const float qx0 = cx - halfW - margin;
+    const float qy0 = cy - halfH - margin;
+    const float qx1 = cx + halfW + margin;
+    const float qy1 = cy + halfH + margin;
 
-    float lx0 = -(halfW + margin);
-    float ly0 = -(halfH + margin);
-    float lx1 = halfW + margin;
-    float ly1 = halfH + margin;
+    const float lx0 = -(halfW + margin);
+    const float ly0 = -(halfH + margin);
+    const float lx1 = halfW + margin;
+    const float ly1 = halfH + margin;
 
-    float[24] vertices = [
+    const float[24] vertices = [
       qx0, qy0, lx0, ly0,
       qx1, qy0, lx1, ly0,
       qx0, qy1, lx0, ly1,
@@ -612,13 +629,13 @@ struct RoundRectPipeline {
 
     setupAlphaBlendState();
     fPrograms.use(mesh.program);
-    fResolution.upload(uResolutionLoc, vw, vh, fPrograms.epoch());
+    fResolution.upload(uResolutionLoc, vp.vw, vp.vh, fPrograms.epoch());
     glUniform4f(uColorLoc, color.r, color.g, color.b, color.a);
     glUniform2f(uHalfSizeLoc, halfW, halfH);
     glUniform1f(uRadiusLoc, r);
-    glUniform1f(uLineWidthLoc, lineWidth);
-    glUniform1f(uDashLenLoc, dashLen);
-    glUniform1f(uGapLenLoc, gapLen);
+    glUniform1f(uLineWidthLoc, s.lineWidth);
+    glUniform1f(uDashLenLoc, s.dash.dashLen);
+    glUniform1f(uGapLenLoc, s.dash.gapLen);
     glUniform1f(uPixelSizeLoc, px);
 
     uploadAndDrawDynamic(GL_TRIANGLES, mesh.va, vertices, 6);
@@ -688,8 +705,8 @@ struct GradientLocs {
    * count) are skipped when equal to the last upload in the same
    * `ProgramTracker` `epoch`.
    */
-  void set(in GradientUniforms u, float vw, float vh, uint epoch) {
-    fResolution.upload(uResolution, vw, vh, epoch);
+  void set(in GradientUniforms u, in Viewport vp, uint epoch) {
+    fResolution.upload(uResolution, vp.vw, vp.vh, epoch);
     glUniform1i(uKind, u.kind);
     glUniformMatrix3fv(uInvXf, 1, GL_FALSE, u.invXf.ptr);
     glUniform2f(uP0, u.p0.x, u.p0.y);
@@ -760,11 +777,10 @@ struct GradientPipeline {
   void drawTriangles(
     const(float)[] vertices,
     in GradientUniforms u,
-    float vw,
-    float vh
+    in Viewport vp
   ) {
     setupAlphaBlendState();
-    drawTrianglesWithCurrentState(vertices, u, vw, vh);
+    drawTrianglesWithCurrentState(vertices, u, vp);
   }
 
   /**
@@ -774,11 +790,10 @@ struct GradientPipeline {
   void drawTrianglesWithCurrentState(
     const(float)[] vertices,
     in GradientUniforms u,
-    float vw,
-    float vh
+    in Viewport vp
   ) {
     fPrograms.use(mesh.program);
-    locs.set(u, vw, vh, fPrograms.epoch());
+    locs.set(u, vp, fPrograms.epoch());
     uploadAndDrawDynamic(
       GL_TRIANGLES,
       mesh.va,
@@ -796,15 +811,14 @@ struct GradientPipeline {
     const(float)[] xyuv,
     GLuint maskTexId,
     in GradientUniforms u,
-    float vw,
-    float vh
+    in Viewport vp
   ) {
     if (maskTexId == 0 || xyuv.length < 12) {
       return;
     }
     setupAlphaBlendState();
     fPrograms.use(maskMesh.program);
-    maskLocs.set(u, vw, vh, fPrograms.epoch());
+    maskLocs.set(u, vp, fPrograms.epoch());
     glUniform1i(maskLocs.uMask, 0);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, maskTexId);
@@ -865,8 +879,8 @@ struct PatternLocs {
    * current program (the one these locations belong to); the resolution
    * is skipped when unchanged in the same `ProgramTracker` `epoch`.
    */
-  void set(in PatternUniforms u, float vw, float vh, uint epoch) {
-    fResolution.upload(uResolution, vw, vh, epoch);
+  void set(in PatternUniforms u, in Viewport vp, uint epoch) {
+    fResolution.upload(uResolution, vp.vw, vp.vh, epoch);
     glUniform1i(uTexture, 0);
     glUniformMatrix3fv(uInvXf, 1, GL_FALSE, u.invXf.ptr);
     glUniform4f(uTint, u.tint.r, u.tint.g, u.tint.b, u.tint.a);
@@ -934,15 +948,14 @@ struct PatternPipeline {
     const(float)[] xyuv,
     GLuint maskTexId,
     in PatternUniforms u,
-    float vw,
-    float vh
+    in Viewport vp
   ) {
     if (u.textureId == 0 || maskTexId == 0 || xyuv.length < 12) {
       return;
     }
     TexturePipeline.setupBlendForMode(u.mode);
     fPrograms.use(maskMesh.program);
-    maskLocs.set(u, vw, vh, fPrograms.epoch());
+    maskLocs.set(u, vp, fPrograms.epoch());
     glUniform1i(maskLocs.uMask, 1);
 
     glActiveTexture(GL_TEXTURE1);
@@ -965,14 +978,13 @@ struct PatternPipeline {
   void drawTriangles(
     const(float)[] vertices,
     in PatternUniforms u,
-    float vw,
-    float vh
+    in Viewport vp
   ) {
     if (u.textureId == 0 || vertices.length < 6) {
       return;
     }
     TexturePipeline.setupBlendForMode(u.mode);
-    drawTrianglesWithCurrentState(vertices, u, vw, vh);
+    drawTrianglesWithCurrentState(vertices, u, vp);
   }
 
   /**
@@ -982,14 +994,13 @@ struct PatternPipeline {
   void drawTrianglesWithCurrentState(
     const(float)[] vertices,
     in PatternUniforms u,
-    float vw,
-    float vh
+    in Viewport vp
   ) {
     if (u.textureId == 0 || vertices.length < 6) {
       return;
     }
     fPrograms.use(mesh.program);
-    locs.set(u, vw, vh, fPrograms.epoch());
+    locs.set(u, vp, fPrograms.epoch());
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, u.textureId);

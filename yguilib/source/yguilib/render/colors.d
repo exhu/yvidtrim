@@ -1,3 +1,4 @@
+/// Named opaque `ColorF` constants (16-color CGA-like palette).
 module yguilib.render.colors;
 import yguilib.render.render_types : ColorF;
 enum black = ColorF(0.0f, 0.0f, 0.0f, 1.0f);

@@ -1,3 +1,9 @@
+/**
+ * Plain value types shared by the Renderer, Canvas and widgets: points,
+ * rects, colors, dash patterns and finite/bounds/color helpers (the 2D
+ * transform is `yguilib.render.canvas.types.Transform2d`). No GL, no
+ * allocation.
+ */
 module yguilib.render.render_types;
 
 struct PointF {
@@ -50,19 +56,23 @@ alias Color = ColorF;
  */
 RectF intersectRects(in RectF a, in RectF b) {
   import std.algorithm : max, min;
-  float x1 = max(a.x, b.x);
-  float y1 = max(a.y, b.y);
-  float x2 = min(a.x + a.width, b.x + b.width);
-  float y2 = min(a.y + a.height, b.y + b.height);
-  float w = x2 - x1;
-  float h = y2 - y1;
-  if (w < 0.0f) {
-    w = 0.0f;
-  }
-  if (h < 0.0f) {
-    h = 0.0f;
-  }
-  return RectF(x1, y1, w, h);
+  const float x1 = max(a.x, b.x);
+  const float y1 = max(a.y, b.y);
+  const float x2 = min(a.x + a.width, b.x + b.width);
+  const float y2 = min(a.y + a.height, b.y + b.height);
+  const float w = x2 - x1;
+  const float h = y2 - y1;
+  return RectF(x1, y1, w < 0.0f ? 0.0f : w, h < 0.0f ? 0.0f : h);
+}
+
+/**
+ * Dash pattern of Renderer lines and outlines (logic units): visible
+ * dashes of `dashLen` separated by gaps of `gapLen`. `DashPattern.init`
+ * (or either length <= 0) draws a solid line.
+ */
+struct DashPattern {
+  float dashLen = 0.0f;
+  float gapLen = 0.0f;
 }
 
 unittest {

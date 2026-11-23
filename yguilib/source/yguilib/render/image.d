@@ -17,29 +17,29 @@ final class Image {
    */
   this(int width, int height) {
     assert(width >= 0 && height >= 0, "image size must not be negative");
-    width_ = width;
-    height_ = height;
+    fWidth = width;
+    fHeight = height;
     pixels = new ubyte[cast(size_t)width * height * 4];
   }
 
   /// Width in pixels.
   int width() const {
-    return width_;
+    return fWidth;
   }
 
   /// Height in pixels.
   int height() const {
-    return height_;
+    return fHeight;
   }
 
   /// True when the image has no pixels.
   bool isEmpty() const {
-    return width_ == 0 || height_ == 0;
+    return fWidth == 0 || fHeight == 0;
   }
 
   /// Row pitch in bytes (always `width * 4`).
   int pitch() const {
-    return width_ * 4;
+    return fWidth * 4;
   }
 
   /**
@@ -101,7 +101,7 @@ final class Image {
       return false;
     }
     const int rc = yguilib_sdl3_image_save_png(
-      pixels.ptr, width_, height_, pitch(), path.toStringz()
+      pixels.ptr, fWidth, fHeight, pitch(), path.toStringz()
     );
     if (rc != 0) {
       errorf("Image.savePng(%s) failed: %s", path, lastError());
@@ -115,9 +115,9 @@ final class Image {
     import std.algorithm.mutation : swapRanges;
 
     const size_t rowBytes = cast(size_t)pitch();
-    foreach (y; 0 .. height_ / 2) {
+    foreach (y; 0 .. fHeight / 2) {
       const size_t top = y * rowBytes;
-      const size_t bottom = (height_ - 1 - y) * rowBytes;
+      const size_t bottom = (fHeight - 1 - y) * rowBytes;
       swapRanges(
         pixels[top .. top + rowBytes],
         pixels[bottom .. bottom + rowBytes]
@@ -129,7 +129,7 @@ final class Image {
   ubyte[] pixels;
 
   invariant {
-    assert(pixels.length == cast(size_t)width_ * height_ * 4,
+    assert(pixels.length == cast(size_t)fWidth * fHeight * 4,
       "pixels length must match width * height * 4");
   }
 
@@ -167,8 +167,8 @@ private:
     return yguilib_sdl3_image_get_error().fromStringz().idup;
   }
 
-  int width_;
-  int height_;
+  int fWidth;
+  int fHeight;
 }
 
 // Zeroed construction and flipVertical row order.

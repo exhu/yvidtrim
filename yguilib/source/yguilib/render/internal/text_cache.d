@@ -1,3 +1,8 @@
+/**
+ * Text bitmaps as GL textures: one texture per (font id, raster size,
+ * outline, string), kept in an LRU `TextCache` with per-frame eviction
+ * protection (see the class doc).
+ */
 module yguilib.render.internal.text_cache;
 
 package(yguilib):
@@ -133,7 +138,11 @@ final class TextCache {
     fEvictScratch.clear();
   }
 
-  TextTexture getOrCreate(Font font, string text, int outlinePx) {
+  /**
+   * Cached texture of `text` (see `createTextTexture`), created on a miss.
+   * Returns an invalid texture for a null/destroyed font or empty text.
+   */
+  TextTexture textureFor(Font font, string text, int outlinePx) {
     if (font is null || font.handle is null ||
         font.id == invalidFontId || text.length == 0) {
       return TextTexture();
@@ -198,17 +207,17 @@ final class TextCache {
     int w = 0;
     int h = 0;
     yguilib_sdl3_ttf_get_surface_size(surf, &w, &h);
-    int pitch = yguilib_sdl3_ttf_get_surface_pitch(surf);
+    const int pitch = yguilib_sdl3_ttf_get_surface_pitch(surf);
     const void* pixels = yguilib_sdl3_ttf_get_surface_pixels(surf);
     if (w <= 0 || h <= 0 || pixels is null) {
       return TextTexture();
     }
 
-    GLuint texId = uploadRgbaTexture(pixels, w, h, pitch);
+    const GLuint texId = uploadRgbaTexture(pixels, w, h, pitch);
     return TextTexture(texId, w, h);
   }
 
-  private:
+private:
   /// Hard cap on `length`, reached only within one frame.
   size_t hardCap() const {
     return 2 * maxEntries;
@@ -282,21 +291,21 @@ unittest {
   // Insert 8 distinct entries (capacity reached)
   tc.beginFrame();
   foreach (i; 0 .. 8) {
-    TextTexture tex = tc.getOrCreate(fontA, "item" ~ i.to!string, 0);
+    TextTexture tex = tc.textureFor(fontA, "item" ~ i.to!string, 0);
     assert(tex.isValid());
   }
   assert(tc.length == 8);
 
   // Cache hit on "item0" in a new frame makes it the most recently used
   tc.beginFrame();
-  TextTexture tex0 = tc.getOrCreate(fontA, "item0", 0);
+  TextTexture tex0 = tc.textureFor(fontA, "item0", 0);
   assert(tex0.isValid());
   assert(tc.length == 8);
 
   // Adding 9th item triggers eviction of oldest 25% (8 / 4 = 2 items).
   // "item1" and "item2" were the oldest and should be evicted.
   // "item0" was touched and must still be present.
-  TextTexture tex8 = tc.getOrCreate(fontA, "item8", 0);
+  TextTexture tex8 = tc.textureFor(fontA, "item8", 0);
   assert(tex8.isValid());
   assert(tc.length == 7);
   assert(!tc.contains(fontA, "item1", 0));
@@ -344,7 +353,7 @@ unittest {
   // Entries used in the current frame are not evicted: the cache grows.
   tc.beginFrame();
   foreach (i; 0 .. 9) {
-    assert(tc.getOrCreate(font, keys[i], 0).isValid());
+    assert(tc.textureFor(font, keys[i], 0).isValid());
   }
   assert(tc.length == 9);
   foreach (i; 0 .. 9) {
@@ -353,9 +362,9 @@ unittest {
 
   // Next frame: only untouched (stale) entries are evicted.
   tc.beginFrame();
-  assert(tc.getOrCreate(font, keys[0], 0).isValid());
-  assert(tc.getOrCreate(font, keys[1], 0).isValid());
-  assert(tc.getOrCreate(font, keys[9], 0).isValid());
+  assert(tc.textureFor(font, keys[0], 0).isValid());
+  assert(tc.textureFor(font, keys[1], 0).isValid());
+  assert(tc.textureFor(font, keys[9], 0).isValid());
   assert(tc.length == 8); // 9 - 2 evicted + 1
   assert(tc.contains(font, keys[0], 0));
   assert(tc.contains(font, keys[1], 0));
@@ -369,7 +378,7 @@ unittest {
   // Hard cap: one frame with more than 2 * maxEntries strings.
   tc.beginFrame();
   foreach (i; 10 .. 40) {
-    assert(tc.getOrCreate(font, keys[i], 0).isValid());
+    assert(tc.textureFor(font, keys[i], 0).isValid());
     assert(tc.length <= 16);
   }
   assert(tc.length >= 8);
@@ -378,12 +387,12 @@ unittest {
   // Hits on a cached key do not allocate.
   const string hot = keys[39];
   foreach (_; 0 .. 10) {
-    assert(tc.getOrCreate(font, hot, 0).isValid());
+    assert(tc.textureFor(font, hot, 0).isValid());
   }
   GC.collect();
   const before = GC.stats();
   foreach (_; 0 .. 1000) {
-    assert(tc.getOrCreate(font, hot, 0).isValid());
+    assert(tc.textureFor(font, hot, 0).isValid());
   }
   const after = GC.stats();
   assert(after.allocatedInCurrentThread == before.allocatedInCurrentThread);
@@ -412,8 +421,8 @@ unittest {
   auto tc = new TextCache(8);
   scope(exit) tc.clear();
 
-  const fill = tc.getOrCreate(font, "Hi", 0);
-  const ring = tc.getOrCreate(font, "Hi", 3);
+  const fill = tc.textureFor(font, "Hi", 0);
+  const ring = tc.textureFor(font, "Hi", 3);
   assert(fill.isValid() && ring.isValid());
   assert(fill.textureId != ring.textureId);
   assert(tc.length == 2);
@@ -423,7 +432,7 @@ unittest {
   assert(ring.height == fill.height + 6);
   // the shared font is back to its normal outline
   assert(yguilib_sdl3_ttf_get_font_outline(font.handle) == 0);
-  const again = tc.getOrCreate(font, "Hi", 0);
+  const again = tc.textureFor(font, "Hi", 0);
   assert(again.textureId == fill.textureId);
   assert(!TextCache.createTextTexture(font, "Hi", -1).isValid());
 }

@@ -1,26 +1,18 @@
+/**
+ * TTF font handle (SDL_ttf wrapper) with a logical point size and a
+ * raster scale.
+ *
+ * `Font` objects are created and cached by `FontManager`; a font is freed
+ * only by an explicit main-thread `destroy()`. Every live font has a unique
+ * monotonic `id`, used as the `TextCache` key.
+ */
 module yguilib.render.font;
 
 import yguilib.clibs.sdl3_ttf;
 import yguilib.render.render_types : PointF;
 import yguilib.assets : defaultTtfFontData;
 
-package(yguilib) enum float defaultFontPtSize = 11.0f;
-package(yguilib) enum ulong invalidFontId = 0;
-
 final class Font {
-  private this(
-    yguilib_sdl3_ttf_Font* handle,
-    float ptSize,
-    float scale
-  ) {
-    assert(handle !is null);
-    assert(ptSize > 0.0f, "ptSize must be positive");
-    this.handle = handle;
-    this.logicalPtSize = ptSize;
-    this.currentScale = scale > 0.0f ? scale : 1.0f;
-    this.id_ = ++nextFontId;
-  }
-
   /**
    * Loads a font from memory data.
    *
@@ -40,7 +32,7 @@ final class Font {
   ) {
     assert(fontData.length > 0, "fontData must not be empty");
     assert(ptSize > 0.0f, "ptSize must be positive");
-    float effectiveScale = scale > 0.0f ? scale : 1.0f;
+    const float effectiveScale = scale > 0.0f ? scale : 1.0f;
     auto h = yguilib_sdl3_ttf_open_font_from_mem(
       fontData.ptr,
       fontData.length,
@@ -71,7 +63,7 @@ final class Font {
   ) {
     assert(filePath.length > 0, "filePath must not be empty");
     assert(ptSize > 0.0f, "ptSize must be positive");
-    float effectiveScale = scale > 0.0f ? scale : 1.0f;
+    const float effectiveScale = scale > 0.0f ? scale : 1.0f;
     import std.string : toStringz;
     auto h = yguilib_sdl3_ttf_open_font(
       filePath.toStringz(),
@@ -93,15 +85,7 @@ final class Font {
       yguilib_sdl3_ttf_close_font(handle);
       handle = null;
     }
-    id_ = invalidFontId;
-  }
-
-  /**
-   * Gets the unique monotonic identifier of this font instance
-   * (`invalidFontId` if destroyed).
-   */
-  package(yguilib) @property ulong id() const {
-    return id_;
+    fId = invalidFontId;
   }
 
   /**
@@ -116,28 +100,6 @@ final class Font {
    */
   @property float scaledSize() const {
     return logicalPtSize * currentScale;
-  }
-
-  /**
-   * Dynamically updates the rendering scaling factor of the font.
-   *
-   * Kept as an internal renderer detail so the font rasterizer matches
-   * display and units zoom changes without reallocating font resources.
-   *
-   * @param newScale New scaling multiplier (displayScaling * unitsScaling).
-   * @return true if resized successfully, false otherwise.
-   */
-  package(yguilib) bool setScale(float newScale) {
-    if (!handle) {
-      return false;
-    }
-    float effectiveScale = newScale > 0.0f ? newScale : 1.0f;
-    float targetSize = logicalPtSize * effectiveScale;
-    if (yguilib_sdl3_ttf_set_font_size(handle, targetSize) == 0) {
-      currentScale = effectiveScale;
-      return true;
-    }
-    return false;
   }
 
   int height() const {
@@ -174,15 +136,65 @@ final class Font {
     return PointF(0.0f, 0.0f);
   }
 
-  package(yguilib) yguilib_sdl3_ttf_Font* handle;
+package(yguilib):
+  /**
+   * Gets the unique monotonic identifier of this font instance
+   * (`invalidFontId` if destroyed).
+   */
+  @property ulong id() const {
+    return fId;
+  }
+
+  /**
+   * Dynamically updates the rendering scaling factor of the font.
+   *
+   * Kept as an internal renderer detail so the font rasterizer matches
+   * display and units zoom changes without reallocating font resources.
+   *
+   * Params:
+   *   newScale = New scaling multiplier (displayScaling * unitsScaling).
+   * Returns: true if resized successfully, false otherwise.
+   */
+  bool scale(float newScale) {
+    if (!handle) {
+      return false;
+    }
+    const float effectiveScale = newScale > 0.0f ? newScale : 1.0f;
+    const float targetSize = logicalPtSize * effectiveScale;
+    if (yguilib_sdl3_ttf_set_font_size(handle, targetSize) == 0) {
+      currentScale = effectiveScale;
+      return true;
+    }
+    return false;
+  }
+
+  yguilib_sdl3_ttf_Font* handle;
 
 private:
-  ulong id_ = invalidFontId;
+  this(
+    yguilib_sdl3_ttf_Font* handle,
+    float ptSize,
+    float scale
+  ) {
+    assert(handle !is null);
+    assert(ptSize > 0.0f, "ptSize must be positive");
+    this.handle = handle;
+    this.logicalPtSize = ptSize;
+    this.currentScale = scale > 0.0f ? scale : 1.0f;
+    this.fId = ++nextFontId;
+  }
+
+  ulong fId = invalidFontId;
   float logicalPtSize;
   float currentScale = 1.0f;
 }
 
-private ulong nextFontId = invalidFontId;
+package(yguilib):
+enum float defaultFontPtSize = 11.0f;
+enum ulong invalidFontId = 0;
+
+private:
+ulong nextFontId = invalidFontId;
 
 unittest {
   import yguilib.clibs.sdl3;

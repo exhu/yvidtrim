@@ -74,7 +74,7 @@ void applyDashInto(
     dst.infos.put(c.infos[]);
     return;
   }
-  const DashPattern pat = DashPattern(dash, offset);
+  const DashPhase pat = DashPhase(dash, offset);
   foreach (info; c.infos[]) {
     const PointF[] pts = c.points[][info.start .. info.start + info.count];
     dashContour(pts, info.closed, pat, dst);
@@ -118,7 +118,7 @@ bool tooManyDashes(ref const Contours c, in LineDash dash)
 }
 
 /// Dash pattern state: segment lengths and the phase start position.
-struct DashPattern {
+struct DashPhase {
   LineDash dash;
   size_t len;
   size_t startIdx;
@@ -153,6 +153,13 @@ struct DashWriter {
   Contours* dst;
   bool open;
   size_t start;
+  /// `dst` info and point counts before this contour.
+  size_t firstInfo;
+  size_t firstPoint;
+  /// True when the contour starts inside a dash ("on").
+  bool startedOn;
+  /// Number of dash/gap boundaries crossed so far.
+  size_t toggles;
 
   void startSub(PointF p) nothrow @safe {
     open = true;
@@ -181,19 +188,40 @@ struct DashWriter {
     open = false;
     return ContourInfo(start, dst.points[].length - start, false);
   }
+
+  /**
+   * Ends the contour `pts` whose last dash is still open: a contour that
+   * never toggled is kept whole, a closed one that started "on" merges
+   * its last dash into the first, and a 1-point last dash is dropped.
+   */
+  void finish(const PointF[] pts, bool closed) nothrow @safe {
+    assert(open);
+    if (toggles == 0) {
+      // fully "on": keep the contour as is (closed without the repeated end)
+      discardSub();
+      dst.points.put(pts);
+      dst.infos.put(ContourInfo(firstPoint, pts.length, closed));
+    } else if (closed && startedOn) {
+      mergeSeam(this, firstInfo, *dst);
+    } else if (dst.points[].length - start > 1) {
+      dst.infos.put(endSub());
+    } else {
+      // a dash starting exactly at the seam (rounding) has no length
+      discardSub();
+    }
+  }
 }
 
 void dashContour(
-  const PointF[] pts, bool closed, in DashPattern pat, ref Contours dst
+  const PointF[] pts, bool closed, in DashPhase pat, ref Contours dst
 ) nothrow @safe {
-  const size_t firstInfo = dst.infos[].length;
-  const size_t firstPoint = dst.points[].length;
   DashWriter w = DashWriter(() @trusted { return &dst; }());
+  w.firstInfo = dst.infos[].length;
+  w.firstPoint = dst.points[].length;
   size_t idx = pat.startIdx;
   float left = pat.startLeft;
-  const bool startedOn = idx % 2 == 0;
-  size_t toggles = 0;
-  if (startedOn) {
+  w.startedOn = idx % 2 == 0;
+  if (w.startedOn) {
     w.startSub(pts[0]);
   }
   const size_t segCount = closed ? pts.length : pts.length - 1;
@@ -215,28 +243,15 @@ void dashContour(
       }
       idx = (idx + 1) % pat.len;
       left = pat.seg(idx);
-      toggles += 1;
+      w.toggles += 1;
     }
     left -= len - pos;
     if (w.open) {
       w.addPoint(b);
     }
   }
-  if (!w.open) {
-    return;
-  }
-  if (toggles == 0) {
-    // fully "on": keep the contour as is (closed without the repeated end)
-    w.discardSub();
-    dst.points.put(pts);
-    dst.infos.put(ContourInfo(firstPoint, pts.length, closed));
-  } else if (closed && startedOn) {
-    mergeSeam(w, firstInfo, dst);
-  } else if (dst.points[].length - w.start > 1) {
-    dst.infos.put(w.endSub());
-  } else {
-    // a dash starting exactly at the seam (rounding) has no length
-    w.discardSub();
+  if (w.open) {
+    w.finish(pts, closed);
   }
 }
 

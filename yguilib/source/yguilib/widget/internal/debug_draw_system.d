@@ -4,7 +4,7 @@ package(yguilib):
 
 import yguilib.render : Renderer;
 import yguilib.render.font : Font;
-import yguilib.render.render_types : PointF, RectF, ColorF;
+import yguilib.render.render_types : ColorF, DashPattern, PointF, RectF;
 import yguilib.widget : Widget;
 import yguilib.widget.drawing_components : DebugDrawComponent;
 import yguilib.widget.system : SystemPhase, WidgetSystem,
@@ -118,7 +118,7 @@ private:
     if (w.visible) {
       r.drawRectWithWidth(absRect, 1.0f, fgColor);
     } else {
-      r.drawRectDashed(absRect, 1.0f, 4.0f, 3.0f, fgColor);
+      r.drawRectDashed(absRect, 1.0f, DashPattern(4.0f, 3.0f), fgColor);
     }
 
     Font font = r.defaultFont();

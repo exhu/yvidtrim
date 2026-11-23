@@ -28,12 +28,12 @@ import yguilib.render.texture : BorrowedTextureInfo, Texture;
 final class RenderTarget {
   /// Width in pixels (0 when invalid).
   int pixelWidth() const {
-    return pixelWidth_;
+    return fPixelWidth;
   }
 
   /// Height in pixels (0 when invalid).
   int pixelHeight() const {
-    return pixelHeight_;
+    return fPixelHeight;
   }
 
   /// True while the GL objects are allocated and complete.
@@ -43,7 +43,7 @@ final class RenderTarget {
 
   /// True if drawing is multisampled (resolved at `endTarget`).
   bool isMsaa() const {
-    return samples_ >= 2;
+    return fSamples >= 2;
   }
 
   /**
@@ -55,7 +55,7 @@ final class RenderTarget {
    * finished `endTarget`.
    */
   Texture texture() {
-    return tex_;
+    return fTex;
   }
 
   /**
@@ -72,10 +72,10 @@ final class RenderTarget {
     }
     GLint prevRead = 0;
     glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prevRead);
-    auto img = new Image(pixelWidth_, pixelHeight_);
+    auto img = new Image(fPixelWidth, fPixelHeight);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, resolveFbo);
     glPixelStorei(GL_PACK_ALIGNMENT, 4);
-    glReadPixels(0, 0, pixelWidth_, pixelHeight_, GL_RGBA,
+    glReadPixels(0, 0, fPixelWidth, fPixelHeight, GL_RGBA,
       GL_UNSIGNED_BYTE, img.pixels.ptr);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, cast(GLuint)prevRead);
     unpremultiply(img.pixels);
@@ -95,8 +95,8 @@ package(yguilib.render):
    * `allocate` before use.
    */
   this(int samples) {
-    samples_ = samples >= 2 ? samples : 0;
-    tex_ = new Texture();
+    fSamples = samples >= 2 ? samples : 0;
+    fTex = new Texture();
   }
 
   /// Number of `Renderer.beginTarget` frames using this target (0 or 1).
@@ -125,9 +125,9 @@ package(yguilib.render):
       glGenFramebuffers(1, &msaaFbo);
       glGenRenderbuffers(1, &msaaColorRb);
       glGenRenderbuffers(1, &depthStencilRb);
-      allocateRenderbuffer(msaaColorRb, GL_RGBA8, samples_, pw, ph);
+      allocateRenderbuffer(msaaColorRb, GL_RGBA8, fSamples, pw, ph);
       allocateRenderbuffer(
-        depthStencilRb, GL_DEPTH24_STENCIL8, samples_, pw, ph
+        depthStencilRb, GL_DEPTH24_STENCIL8, fSamples, pw, ph
       );
       ok = attachAndCheck(
         AttachmentIds(msaaFbo, 0, msaaColorRb, depthStencilRb),
@@ -145,15 +145,15 @@ package(yguilib.render):
       deleteAttachments();
       return false;
     }
-    pixelWidth_ = pw;
-    pixelHeight_ = ph;
+    fPixelWidth = pw;
+    fPixelHeight = ph;
     BorrowedTextureInfo info;
     info.id = colorTex;
     info.width = pw;
     info.height = ph;
     info.premultiplied = true;
     info.bottomUp = true;
-    tex_ = Texture.borrowedFromInfo(info);
+    fTex = Texture.borrowedFromInfo(info);
     return true;
   }
 
@@ -182,8 +182,8 @@ package(yguilib.render):
     }
     glBindFramebuffer(GL_READ_FRAMEBUFFER, msaaFbo);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, resolveFbo);
-    glBlitFramebuffer(0, 0, pixelWidth_, pixelHeight_, 0, 0, pixelWidth_,
-      pixelHeight_, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glBlitFramebuffer(0, 0, fPixelWidth, fPixelHeight, 0, 0, fPixelWidth,
+      fPixelHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     glBindFramebuffer(GL_FRAMEBUFFER, currentFbo);
     if (scissorEnabled) {
       glEnable(GL_SCISSOR_TEST);
@@ -191,10 +191,10 @@ package(yguilib.render):
   }
 
 private:
-  /// Deletes every GL object and invalidates `tex_`.
+  /// Deletes every GL object and invalidates `fTex`.
   void deleteAttachments() {
-    if (tex_.isValid()) {
-      tex_.releaseBorrowed();
+    if (fTex.isValid()) {
+      fTex.releaseBorrowed();
     }
     deleteFramebuffer(resolveFbo);
     deleteFramebuffer(msaaFbo);
@@ -204,8 +204,8 @@ private:
     }
     deleteRenderbuffer(msaaColorRb);
     deleteRenderbuffer(depthStencilRb);
-    pixelWidth_ = 0;
-    pixelHeight_ = 0;
+    fPixelWidth = 0;
+    fPixelHeight = 0;
   }
 
   static void deleteFramebuffer(ref GLuint fbo) {
@@ -223,13 +223,13 @@ private:
   }
 
   invariant {
-    assert(tex_ !is null);
+    assert(fTex !is null);
   }
 
-  int pixelWidth_;
-  int pixelHeight_;
+  int fPixelWidth;
+  int fPixelHeight;
   /// MSAA sample count (0 = no MSAA).
-  const int samples_;
+  const int fSamples;
   /// Resolve FBO (the only FBO without MSAA) and its color texture.
   GLuint resolveFbo;
   GLuint colorTex;
@@ -238,7 +238,7 @@ private:
   GLuint msaaColorRb;
   /// Depth24-stencil8 renderbuffer of the draw FBO.
   GLuint depthStencilRb;
-  Texture tex_;
+  Texture fTex;
 }
 
 private:

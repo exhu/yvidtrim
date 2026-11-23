@@ -29,17 +29,17 @@ import yguilib.render.internal.gl_util : replaceRgbaTextureImage,
 final class Texture {
   /// Width in pixels (0 after `destroy()`).
   int width() const {
-    return width_;
+    return fWidth;
   }
 
   /// Height in pixels (0 after `destroy()`).
   int height() const {
-    return height_;
+    return fHeight;
   }
 
   /// True until `destroy()` is called.
   bool isValid() const {
-    return id_ != 0;
+    return fId != 0;
   }
 
   /**
@@ -47,31 +47,31 @@ final class Texture {
    * change. Recreates the GL texture if it was destroyed. Main thread only.
    */
   void update(in Image img) {
-    assert(!borrowed_, "update() on a borrowed texture");
+    assert(!fBorrowed, "update() on a borrowed texture");
     assert(img !is null, "img must not be null");
     assert(!img.isEmpty(), "img must not be empty");
-    if (id_ == 0) {
-      id_ = uploadRgbaTexture(
+    if (fId == 0) {
+      fId = uploadRgbaTexture(
         img.pixels.ptr, img.width(), img.height(), img.pitch()
       );
     } else {
       replaceRgbaTextureImage(
-        id_, img.pixels.ptr, img.width(), img.height(), img.pitch()
+        fId, img.pixels.ptr, img.width(), img.height(), img.pitch()
       );
     }
-    width_ = img.width();
-    height_ = img.height();
+    fWidth = img.width();
+    fHeight = img.height();
   }
 
   /// Deletes the GL texture. Idempotent. Main thread only.
   void destroy() {
-    assert(!borrowed_, "destroy() on a borrowed texture");
-    if (id_ != 0) {
-      glDeleteTextures(1, &id_);
-      id_ = 0;
+    assert(!fBorrowed, "destroy() on a borrowed texture");
+    if (fId != 0) {
+      glDeleteTextures(1, &fId);
+      fId = 0;
     }
-    width_ = 0;
-    height_ = 0;
+    fWidth = 0;
+    fHeight = 0;
   }
 
 package(yguilib):
@@ -86,33 +86,33 @@ package(yguilib):
   static Texture borrowedFromInfo(in BorrowedTextureInfo info) {
     assert(info.id != 0, "borrowed texture id must not be 0");
     auto t = new Texture();
-    t.id_ = info.id;
-    t.width_ = info.width;
-    t.height_ = info.height;
-    t.premultiplied_ = info.premultiplied;
-    t.bottomUp_ = info.bottomUp;
-    t.borrowed_ = true;
+    t.fId = info.id;
+    t.fWidth = info.width;
+    t.fHeight = info.height;
+    t.fPremultiplied = info.premultiplied;
+    t.fBottomUp = info.bottomUp;
+    t.fBorrowed = true;
     return t;
   }
 
   /// GL texture name (0 after `destroy()`).
   GLuint id() const {
-    return id_;
+    return fId;
   }
 
   /// True if the texels hold premultiplied alpha (false for Image uploads).
   bool premultiplied() const {
-    return premultiplied_;
+    return fPremultiplied;
   }
 
   /// True if the first row is at the bottom (false for Image uploads).
   bool bottomUp() const {
-    return bottomUp_;
+    return fBottomUp;
   }
 
   /// True if the GL object is owned by someone else (render target).
   bool borrowed() const {
-    return borrowed_;
+    return fBorrowed;
   }
 
   /**
@@ -120,19 +120,19 @@ package(yguilib):
    * the texture becomes invalid with size 0. Only for borrowed textures.
    */
   void releaseBorrowed() {
-    assert(borrowed_, "releaseBorrowed() on an owned texture");
-    id_ = 0;
-    width_ = 0;
-    height_ = 0;
+    assert(fBorrowed, "releaseBorrowed() on an owned texture");
+    fId = 0;
+    fWidth = 0;
+    fHeight = 0;
   }
 
 private:
-  GLuint id_;
-  int width_;
-  int height_;
-  bool premultiplied_;
-  bool bottomUp_;
-  bool borrowed_;
+  GLuint fId;
+  int fWidth;
+  int fHeight;
+  bool fPremultiplied;
+  bool fBottomUp;
+  bool fBorrowed;
 }
 
 /// GL texture wrapped by `Texture.borrowedFromInfo`.

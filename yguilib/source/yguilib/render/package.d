@@ -1,3 +1,13 @@
+/**
+ * Hardware 2D renderer over GL ES (`Renderer`), owned by `Window`.
+ *
+ * Draws flat, rounded, dashed, textured and text primitives in logic
+ * units (pixels = logic * `totalScaling()`), keeps the scissor clip
+ * stack, offscreen render targets (`beginTarget`/`endTarget`), the font
+ * manager, the text texture cache and the shared pipelines used by
+ * `Canvas`. The framebuffer, viewport, clear color, scissor and current
+ * program are tracked, never queried from GL (debug builds check).
+ */
 module yguilib.render;
 
 import glad2.gles2;
@@ -10,8 +20,9 @@ import yguilib.render.internal.offscreen : OffscreenTarget,
   SavedTargetState;
 import yguilib.render.internal.gl_util : ProgramTracker;
 import yguilib.render.internal.pipelines : BlurPipeline, ColorPipeline,
-  GradientPipeline, PatternPipeline, RoundRectPipeline, TextureMode,
-  TexturePipeline, TexturedQuad, Viewport, textureModeFor;
+  GradientPipeline, PatternPipeline, RoundRectPipeline, RoundRectShape,
+  TextureMode, TexturePipeline, TexturedQuad, ThickLine, Viewport,
+  textureModeFor;
 import yguilib.render.internal.text_cache : TextCache, TextTexture;
 import yguilib.render.render_types;
 import yguilib.render.render_target : RenderTarget;
@@ -101,7 +112,7 @@ final class Renderer {
    * zooming in/out UI for user preferences). Defaults to 1.0.
    */
   void unitsScaling(float scaling) {
-    float newScale = scaling > 0.0f ? scaling : 1.0f;
+    const float newScale = scaling > 0.0f ? scaling : 1.0f;
     if (newScale != fUnitsScaling) {
       fUnitsScaling = newScale;
       onScalingChanged();
@@ -116,7 +127,7 @@ final class Renderer {
   }
 
   void displayScaling(float scaling) {
-    float newScale = scaling > 0.0f ? scaling : 1.0f;
+    const float newScale = scaling > 0.0f ? scaling : 1.0f;
     if (newScale != fDisplayScaling) {
       fDisplayScaling = newScale;
       onScalingChanged();
@@ -259,32 +270,34 @@ final class Renderer {
     if (!initialized) {
       return;
     }
-    const Viewport v = vp();
-    colorPipeline.drawFillRect(rect, color, v.vw, v.vh);
+    colorPipeline.drawFillRect(rect, color, logicViewport());
   }
 
   /**
    * Draws a 1-pixel line connecting two points.
    *
-   * @param point1 Start point in logic-space units.
-   * @param point2 End point in logic-space units.
-   * @param color Line color.
+   * Params:
+   *   point1 = Start point in logic-space units.
+   *   point2 = End point in logic-space units.
+   *   color = Line color.
    */
   void drawThinLineWithPoints(PointF point1, PointF point2, ColorF color) {
     if (!initialized) {
       return;
     }
-    const Viewport v = vp();
-    colorPipeline.drawThinLineWithPoints(point1, point2, color, v.vw, v.vh);
+    colorPipeline.drawThinLineWithPoints(
+      point1, point2, color, logicViewport()
+    );
   }
 
   /**
    * Draws a line with configurable thickness.
    *
-   * @param point1 Start point in logic-space units.
-   * @param point2 End point in logic-space units.
-   * @param lineWidth Line thickness in logic-space units.
-   * @param color Line color.
+   * Params:
+   *   point1 = Start point in logic-space units.
+   *   point2 = End point in logic-space units.
+   *   lineWidth = Line thickness in logic-space units.
+   *   color = Line color.
    */
   void drawLineWithPoints(
     PointF point1,
@@ -292,57 +305,56 @@ final class Renderer {
     float lineWidth,
     ColorF color
   ) {
-    drawLineDashed(point1, point2, lineWidth, 0.0f, 0.0f, color);
+    drawLineDashed(point1, point2, lineWidth, DashPattern.init, color);
   }
 
   /**
    * Draws a dashed line with configurable thickness and dash pattern.
    *
-   * @param point1 Start point in logic-space units.
-   * @param point2 End point in logic-space units.
-   * @param lineWidth Line thickness in logic-space units.
-   * @param dashLen Length of each visible dash segment.
-   * @param gapLen Length of each gap between dashes.
-   * @param color Line color.
+   * Params:
+   *   point1 = Start point in logic-space units.
+   *   point2 = End point in logic-space units.
+   *   lineWidth = Line thickness in logic-space units.
+   *   dash = Dash and gap lengths (`DashPattern.init` draws solid).
+   *   color = Line color.
    */
   void drawLineDashed(
     PointF point1,
     PointF point2,
     float lineWidth,
-    float dashLen,
-    float gapLen,
+    DashPattern dash,
     ColorF color
   ) {
     if (!initialized) {
       return;
     }
-    const Viewport v = vp();
-    colorPipeline.drawDashedLineWithPoints(
-      point1, point2, lineWidth, dashLen, gapLen, color, v.vw, v.vh
+    colorPipeline.drawDashedLine(
+      ThickLine(point1, point2, lineWidth), dash, color, logicViewport()
     );
   }
 
   /**
    * Draws a rectangle outline with configurable line width.
    *
-   * @param rect Bounding rectangle in logic-space units.
-   * @param lineWidth Outline thickness in logic-space units.
-   * lineWidth grows inside, i.e. rect is always outer boundary.
-   * @param color Outline color.
+   * Params:
+   *   rect = Bounding rectangle in logic-space units.
+   *   lineWidth = Outline thickness in logic-space units; it grows
+   *     inside, i.e. rect is always the outer boundary.
+   *   color = Outline color.
    */
   void drawRectWithWidth(RectF rect, float lineWidth, ColorF color) {
     if (!initialized) {
       return;
     }
-    const Viewport v = vp();
-    colorPipeline.drawRectWithWidth(rect, lineWidth, color, v.vw, v.vh);
+    colorPipeline.drawRectWithWidth(rect, lineWidth, color, logicViewport());
   }
 
   /**
    * Draws a rectangle outline with default line width (1.0).
    *
-   * @param rect Bounding rectangle in logic-space units.
-   * @param color Outline color.
+   * Params:
+   *   rect = Bounding rectangle in logic-space units.
+   *   color = Outline color.
    */
   void drawRect(RectF rect, ColorF color) {
     drawRectWithWidth(rect, 1.0f, color);
@@ -352,55 +364,44 @@ final class Renderer {
    * Draws a dashed rectangle outline with configurable line
    * width and dash pattern.
    *
-   * @param rect Bounding rectangle in logic-space units.
-   * @param lineWidth Outline thickness in logic-space units.
-   * lineWidth grows inside, i.e. rect is always outer boundary.
-   * @param dashLen Length of each visible dash segment.
-   * @param gapLen Length of each gap between dashes.
-   * @param color Outline color.
+   * Params:
+   *   rect = Bounding rectangle in logic-space units.
+   *   lineWidth = Outline thickness in logic-space units; it grows
+   *     inside, i.e. rect is always the outer boundary.
+   *   dash = Dash and gap lengths (`DashPattern.init` draws solid).
+   *   color = Outline color.
    */
   void drawRectDashed(
     RectF rect,
     float lineWidth,
-    float dashLen,
-    float gapLen,
+    DashPattern dash,
     ColorF color
   ) {
-    if (!initialized) {
-      return;
-    }
-    const Viewport v = vp();
-    rrPipeline.draw(
-      rect, 0.0f, lineWidth, dashLen, gapLen, color, v.vw, v.vh, v.scale
-    );
+    drawRoundRectDashed(rect, 0.0f, lineWidth, dash, color);
   }
 
   /**
    * Draws a filled rounded rectangle with anti-aliased corners.
    *
-   * @param rect Bounding rectangle in logic-space units.
-   * @param radius Corner radius (clamped to half the smallest dimension).
-   * @param color Fill color.
+   * Params:
+   *   rect = Bounding rectangle in logic-space units.
+   *   radius = Corner radius (clamped to half the smallest dimension).
+   *   color = Fill color.
    */
   void drawFillRoundRect(RectF rect, float radius, ColorF color) {
-    if (!initialized) {
-      return;
-    }
-    const Viewport v = vp();
-    rrPipeline.draw(
-      rect, radius, 0.0f, 0.0f, 0.0f, color, v.vw, v.vh, v.scale
-    );
+    drawRoundRectDashed(rect, radius, 0.0f, DashPattern.init, color);
   }
 
   /**
    * Draws a rounded rectangle outline with configurable line width
    * and anti-aliased corners.
    *
-   * @param rect Bounding rectangle in logic-space units.
-   * @param radius Corner radius (clamped to half the smallest dimension).
-   * @param lineWidth Outline thickness in logic-space units.
-   * lineWidth grows inside, i.e. rect is always outer boundary.
-   * @param color Outline color.
+   * Params:
+   *   rect = Bounding rectangle in logic-space units.
+   *   radius = Corner radius (clamped to half the smallest dimension).
+   *   lineWidth = Outline thickness in logic-space units; it grows
+   *     inside, i.e. rect is always the outer boundary.
+   *   color = Outline color.
    */
   void drawRoundRect(
     RectF rect,
@@ -408,48 +409,38 @@ final class Renderer {
     float lineWidth,
     ColorF color
   ) {
-    if (!initialized) {
-      return;
-    }
-    const Viewport v = vp();
-    rrPipeline.draw(
-      rect, radius, lineWidth, 0.0f, 0.0f, color, v.vw, v.vh, v.scale
-    );
+    drawRoundRectDashed(rect, radius, lineWidth, DashPattern.init, color);
   }
 
   /**
    * Draws a dashed rounded rectangle outline with configurable line
    * width and dash pattern.
    *
-   * @param rect Bounding rectangle in logic-space units.
-   * @param radius Corner radius (clamped to half the smallest dimension).
-   * @param lineWidth Outline thickness in logic-space units.
-   * @param dashLen Length of each visible dash segment.
-   * @param gapLen Length of each gap between dashes.
-   * @param color Outline color.
+   * Params:
+   *   rect = Bounding rectangle in logic-space units.
+   *   radius = Corner radius (clamped to half the smallest dimension).
+   *   lineWidth = Outline thickness in logic-space units (0 fills).
+   *   dash = Dash and gap lengths (`DashPattern.init` draws solid).
+   *   color = Outline color.
    */
   void drawRoundRectDashed(
     RectF rect,
     float radius,
     float lineWidth,
-    float dashLen,
-    float gapLen,
+    DashPattern dash,
     ColorF color
   ) {
     if (!initialized) {
       return;
     }
-    const Viewport v = vp();
     rrPipeline.draw(
-      rect, radius, lineWidth, dashLen, gapLen, color, v.vw, v.vh, v.scale
+      RoundRectShape(rect, radius, lineWidth, dash), color, logicViewport()
     );
   }
 
   void pushClipRect(RectF rect) {
     clipStack.push(
       rect,
-      logicWidth(),
-      logicHeight(),
       viewportPixelWidth,
       viewportPixelHeight,
       totalScaling()
@@ -488,13 +479,15 @@ final class Renderer {
    * If ptSize is non-positive, NaN, or infinity, it automatically falls back
    * to defaultFontPtSize.
    *
-   * @param ptSize Logical point size in user space (defaults to 11.0f).
-   * @param fontName Registered font name, or null/empty for default font.
-   * @return A cached Font instance, or null if FontManager is not initialized.
+   * Params:
+   *   ptSize = Logical point size in user space (defaults to 11.0f).
+   *   fontName = Registered font name, or null/empty for default font.
+   * Returns: A cached Font instance, or null if FontManager is not
+   *   initialized.
    */
   Font font(float ptSize, string fontName) {
     if (fontManager !is null) {
-      return fontManager.getFont(ptSize, fontName, totalScaling());
+      return fontManager.fontWithSize(ptSize, fontName, totalScaling());
     }
     return null;
   }
@@ -506,7 +499,7 @@ final class Renderer {
    * retrieves the managed default font instance via font(defaultFontPtSize).
    * The default font is created lazily on demand on first request.
    *
-   * @return The default Font instance.
+   * Returns: The default Font instance.
    */
   Font defaultFont() {
     if (fDefaultFont !is null) {
@@ -521,8 +514,9 @@ final class Renderer {
    * Registered fonts can subsequently be resolved by name in font,
    * measureText, and drawText.
    *
-   * @param fontName Unique name identifying the font face.
-   * @param fontData In-memory TTF data buffer.
+   * Params:
+   *   fontName = Unique name identifying the font face.
+   *   fontData = In-memory TTF data buffer.
    */
   void registerFontFromMemory(string fontName, const(void)[] fontData) {
     if (fontManager !is null) {
@@ -536,8 +530,9 @@ final class Renderer {
    * Registered fonts can subsequently be resolved by name in font,
    * measureText, and drawText.
    *
-   * @param fontName Unique name identifying the font face.
-   * @param filePath Path to the TTF font file.
+   * Params:
+   *   fontName = Unique name identifying the font face.
+   *   filePath = Path to the TTF font file.
    */
   void registerFontFromFile(string fontName, string filePath) {
     if (fontManager !is null) {
@@ -548,8 +543,9 @@ final class Renderer {
   /**
    * Checks whether a font face is registered or is the built-in default font.
    *
-   * @param fontName Name of the font face to check.
-   * @return true if the font face exists or is default, false otherwise.
+   * Params:
+   *   fontName = Name of the font face to check.
+   * Returns: true if the font face exists or is default, false otherwise.
    */
   bool hasFont(string fontName) const {
     return fontManager !is null ? fontManager.hasFont(fontName) : false;
@@ -562,9 +558,10 @@ final class Renderer {
    * Font point sizes (`ptSize`) in user space are unscaled logical points.
    * Scaling is automatically applied by the renderer as an internal detail.
    *
-   * @param fontData TTF binary data in memory.
-   * @param ptSize Unscaled logical point size in user space.
-   * @return A newly allocated Font instance.
+   * Params:
+   *   fontData = TTF binary data in memory.
+   *   ptSize = Unscaled logical point size in user space.
+   * Returns: A newly allocated Font instance.
    */
   Font createFontFromMemory(const(void)[] fontData, float ptSize) {
     return Font.fromMemory(fontData, ptSize, totalScaling());
@@ -577,9 +574,10 @@ final class Renderer {
    * Font point sizes (`ptSize`) in user space are unscaled logical points.
    * Scaling is automatically applied by the renderer as an internal detail.
    *
-   * @param filePath Path to the TTF font file.
-   * @param ptSize Unscaled logical point size in user space.
-   * @return A newly allocated Font instance.
+   * Params:
+   *   filePath = Path to the TTF font file.
+   *   ptSize = Unscaled logical point size in user space.
+   * Returns: A newly allocated Font instance.
    */
   Font createFontFromFile(string filePath, float ptSize) {
     return Font.fromFile(filePath, ptSize, totalScaling());
@@ -588,7 +586,7 @@ final class Renderer {
   /**
    * Assigns the default font (null restores the managed one). The font
    * stays caller owned; on a display or units scaling change the renderer
-   * resizes it in place (`Font.setScale`) to the new total scaling.
+   * resizes it in place (`Font.scale`) to the new total scaling.
    */
   void defaultFont(Font font) {
     if (fOwnsDefaultFont && fDefaultFont !is null) {
@@ -609,10 +607,9 @@ final class Renderer {
       return;
     }
     // a whole straight-alpha texture stretched to destRect
-    const Viewport v = vp();
     texPipeline.drawTexturedQuad(
-      texId, TexturedQuad(destRect, RectF(0, 0, 1, 1), color), v.vw, v.vh,
-      TextureMode.straight
+      texId, TexturedQuad(destRect, RectF(0, 0, 1, 1), color),
+      logicViewport(), TextureMode.straight
     );
   }
 
@@ -661,12 +658,10 @@ final class Renderer {
       assert(!isActiveTargetTexture(t),
         "drawing the texture of an active render target (feedback loop)");
     }
-    const Viewport v = vp();
     texPipeline.drawTexturedQuad(
       t.id(),
       TexturedQuad(dest, textureUv(t, srcPx), tint),
-      v.vw,
-      v.vh,
+      logicViewport(),
       textureModeFor(t)
     );
   }
@@ -861,10 +856,11 @@ final class Renderer {
    * If font is null, the managed default font (created lazily on demand)
    * is used. Text rasterization is cached in OpenGL textures via TextCache.
    *
-   * @param text Text string to render.
-   * @param pos Top-left position in logical coordinates.
-   * @param color Text color (defaults to opaque white).
-   * @param font Optional font instance (defaults to null for default font).
+   * Params:
+   *   text = Text string to render.
+   *   pos = Top-left position in logical coordinates.
+   *   color = Text color (defaults to opaque white).
+   *   font = Optional font instance (null for the default font).
    */
   void drawTextWithFont(
     string text,
@@ -877,7 +873,7 @@ final class Renderer {
       return;
     }
 
-    TextTexture tex = textCache.getOrCreate(f, text, 0);
+    const TextTexture tex = textCache.textureFor(f, text, 0);
     if (tex.isValid()) {
       drawTextTexture(tex, pos, color);
     }
@@ -888,11 +884,12 @@ final class Renderer {
    *
    * The font instance is retrieved or lazily created on demand via font.
    *
-   * @param text Text string to render.
-   * @param pos Top-left position in logical coordinates.
-   * @param color Text color.
-   * @param ptSize Logical point size in user space.
-   * @param fontName Registered font name, or null/empty for default font.
+   * Params:
+   *   text = Text string to render.
+   *   pos = Top-left position in logical coordinates.
+   *   color = Text color.
+   *   ptSize = Logical point size in user space.
+   *   fontName = Registered font name, or null/empty for default font.
    */
   void drawTextWithFontName(
     string text,
@@ -911,9 +908,10 @@ final class Renderer {
    * If font is null, the managed default font (created lazily on demand)
    * is used. Returned dimensions are scaled to user logical units.
    *
-   * @param text Text string to measure.
-   * @param font Optional font instance (null uses default font).
-   * @return Dimensions of the measured text in logical units.
+   * Params:
+   *   text = Text string to measure.
+   *   font = Optional font instance (null uses default font).
+   * Returns: Dimensions of the measured text in logical units.
    */
   PointF measureTextWithFont(string text, Font font) {
     Font f = font !is null ? font : defaultFont();
@@ -929,10 +927,11 @@ final class Renderer {
    * The font instance is retrieved or lazily created on demand via font.
    * Returned dimensions are scaled to user logical units.
    *
-   * @param text Text string to measure.
-   * @param ptSize Logical point size in user space.
-   * @param fontName Registered font name, or null/empty for default font.
-   * @return Dimensions of the measured text in logical units.
+   * Params:
+   *   text = Text string to measure.
+   *   ptSize = Logical point size in user space.
+   *   fontName = Registered font name, or null/empty for default font.
+   * Returns: Dimensions of the measured text in logical units.
    */
   PointF measureTextWithFontName(
     string text,
@@ -989,6 +988,11 @@ package(yguilib.render):
       fClearColor[3]);
   }
 
+  /// Logic viewport size and total scaling for the pipeline draws.
+  Viewport logicViewport() const {
+    return Viewport(logicWidth(), logicHeight(), totalScaling());
+  }
+
   /// True while a clip rect is pushed (the GL scissor test is on).
   bool scissorEnabled() const {
     return !clipStack.isEmpty();
@@ -1013,14 +1017,14 @@ package(yguilib.render):
 
   /**
    * Font resolved by size and name rasterized at `rasterScale` (quantized
-   * to 1/8 steps, see `FontManager.getFontAtScale`); null when not
+   * to 1/8 steps, see `FontManager.fontAtScale`); null when not
    * initialized. Used by `Canvas` text.
    */
   Font fontAtScale(float ptSize, string fontName, float rasterScale) {
     if (fontManager is null) {
       return null;
     }
-    return fontManager.getFontAtScale(ptSize, fontName, rasterScale);
+    return fontManager.fontAtScale(ptSize, fontName, rasterScale);
   }
 
   /// Cached white-on-transparent bitmap of `text` (invalid when none).
@@ -1028,7 +1032,7 @@ package(yguilib.render):
     if (textCache is null) {
       return TextTexture();
     }
-    return textCache.getOrCreate(f, text, outlinePx);
+    return textCache.textureFor(f, text, outlinePx);
   }
 
   /// Shared flat color pipeline (used by `Canvas`).
@@ -1135,11 +1139,6 @@ private:
     }
   }
 
-  /// Logic viewport size and total scaling for the pipeline draws.
-  Viewport vp() const {
-    return Viewport(logicWidth(), logicHeight(), totalScaling());
-  }
-
   void drawTextTexture(
     in TextTexture tex,
     PointF pos,
@@ -1213,14 +1212,14 @@ private:
    * is mid-frame, with this renderer's context current).
    */
   void onScalingChanged() {
-    float totalScale = totalScaling();
+    const float totalScale = totalScaling();
     if (fontManager !is null) {
-      fontManager.setScaling(totalScale);
+      fontManager.scaling(totalScale);
     }
     if (fDefaultFont !is null) {
       // a user font has no known source to re-create it from: resize the
-      // handle in place, as FontManager.setScaling does
-      fDefaultFont.setScale(totalScale);
+      // handle in place, as FontManager.scaling does
+      fDefaultFont.scale(totalScale);
     }
     clearTextCache();
     fPrograms.invalidate();
@@ -1646,8 +1645,8 @@ unittest {
   assert(factoryFont.scaledSize == 28.0f);
   assert(factoryFont.height > 0);
 
-  // In-place setScale updates raster size while preserving unscaled size
-  assert(factoryFont.setScale(1.0f));
+  // In-place scale() updates raster size while preserving unscaled size
+  assert(factoryFont.scale(1.0f));
   assert(factoryFont.size == 14.0f);
   assert(factoryFont.scaledSize == 14.0f);
 
@@ -1735,8 +1734,7 @@ unittest {
     RectF(50.0f, 50.0f, 100.0f, 60.0f),
     10.0f,
     3.0f,
-    8.0f,
-    6.0f,
+    DashPattern(8.0f, 6.0f),
     ColorF(1.0f, 1.0f, 0.0f, 1.0f)
   );
   // Center (100, 80) -> GL y = 160 should be hollow (black)
@@ -1804,8 +1802,7 @@ unittest {
   renderer.drawRectDashed(
     RectF(50.0f, 50.0f, 100.0f, 60.0f),
     3.0f,
-    8.0f,
-    6.0f,
+    DashPattern(8.0f, 6.0f),
     ColorF(1.0f, 1.0f, 0.0f, 1.0f)
   );
   // Center (100, 80) -> hollow (black)
@@ -1834,8 +1831,7 @@ unittest {
     RectF(20.0f, 20.0f, 30.0f, 20.0f),
     4.0f,
     2.0f,
-    4.0f,
-    3.0f,
+    DashPattern(4.0f, 3.0f),
     ColorF(0.0f, 0.0f, 1.0f, 1.0f)
   );
   // Center (35, 30) -> hollow (black)
@@ -1885,8 +1881,7 @@ unittest {
     PointF(50.0f, 150.0f),
     PointF(200.0f, 150.0f),
     4.0f,
-    10.0f,
-    10.0f,
+    DashPattern(10.0f, 10.0f),
     ColorF(0.0f, 1.0f, 0.0f, 1.0f)
   );
   // First dash: (55, 150) -> green
@@ -1905,8 +1900,7 @@ unittest {
     PointF(50.0f, 150.0f),
     PointF(200.0f, 150.0f),
     4.0f,
-    10.0f,
-    10.0f,
+    DashPattern(10.0f, 10.0f),
     ColorF(0.0f, 0.0f, 1.0f, 1.0f)
   );
   glReadPixels(55, 240 - 150, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);

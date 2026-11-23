@@ -25,7 +25,7 @@ import yguilib.render.canvas.types;
 import yguilib.render.internal.offscreen : SavedTargetState;
 import yguilib.render.internal.path_flatten : Contours;
 import yguilib.render.internal.pipelines : GradientUniforms, PatternUniforms,
-  TextureMode, rectTriangles, textureModeFor;
+  TextureMode, Viewport, rectTriangles, textureModeFor;
 import yguilib.render.render_types;
 import yguilib.render.texture : Texture;
 
@@ -44,11 +44,11 @@ import yguilib.render.texture : Texture;
  * `drawImage*` blits textures (images and `RenderTarget.texture()`) as
  * textured triangles honoring the transform, clip and shadow, unlike
  * `Renderer.drawImage`, which ignores all three.
+ *
+ * Do not replicate standalone path functions, like `ctx.arc` or
+ * `ctx.beginPath`: the user is expected to use `Path2d` to draw paths.
  */
 final class Canvas {
-// do not replicate standalone path functions, like ctx.arc or ctx.beginPath,
-// the user is expected to use Path2d instead to draw paths
-
   /// Created by `Renderer`; `r` must not be null.
   this(Renderer r) {
     assert(r !is null);
@@ -66,7 +66,10 @@ final class Canvas {
    * black, honoring the Canvas clip and the scissor. Without a Canvas
    * clip and with a translate/scale transform this is a scissored
    * `glClear` of the pixels whose centers are inside the rect (the
-   * pixels the stencil fill would cover).
+   * pixels the stencil fill would cover). That clear is not antialiased:
+   * on a multisampled framebuffer a fractional edge is cut at the pixel
+   * centers instead of partially covering the edge pixels (rotation,
+   * skew or a Canvas clip use the antialiased stencil path).
    */
   void clearRect(RectF rect) {
     if (fRenderer.isInitialized() && !clipActive()) {
@@ -202,7 +205,6 @@ final class Canvas {
 
   /// Strokes `path` with `strokeStyle`; overlaps are painted once.
   void stroke(Path2d path) {
-    import glad2.gles2 : GL_TRIANGLES;
     import yguilib.render.internal.path_flatten : flattenPath;
     import yguilib.render.internal.path_stroker : StrokeParams,
       strokeContours;
@@ -291,7 +293,6 @@ final class Canvas {
     RectF dest,
     ColorF tint
   ) {
-    import yguilib.render.internal.pipelines : TextureMode;
     import yguilib.render.internal.stencil_ops : beginClipTest, endStencil;
 
     if (!fRenderer.isInitialized() || t is null || !t.isValid()
@@ -309,7 +310,7 @@ final class Canvas {
     beginClipTest(clipActive());
     fRenderer.texturePipelineRef().drawTexturedTriangles(
       t.id(), fImageVerts[], tint, textureModeFor(t),
-      fRenderer.logicWidth(), fRenderer.logicHeight()
+      fRenderer.logicViewport()
     );
     endStencil();
   }
@@ -474,7 +475,7 @@ final class Canvas {
    * an invisible fill.
    */
   void fillText(string text, PointF pos) {
-    drawFilledText(text, pos, float.infinity);
+    drawTextBitmap(text, pos, float.infinity, 0);
   }
 
   /**
@@ -488,7 +489,7 @@ final class Canvas {
     if (!isFinite(maxWidth) || !(maxWidth > 0)) {
       return;
     }
-    drawFilledText(text, pos, maxWidth);
+    drawTextBitmap(text, pos, maxWidth, 0);
   }
 
   /**
@@ -500,7 +501,7 @@ final class Canvas {
    * dash are ignored. Same no-ops as `fillText`.
    */
   void strokeText(string text, PointF pos) {
-    drawFilledText(text, pos, float.infinity, true);
+    drawTextBitmap(text, pos, float.infinity, strokeOutlinePx());
   }
 
   /// Like `strokeText` with the `fillTextWithMaxWidth` squeeze.
@@ -510,7 +511,7 @@ final class Canvas {
     if (!isFinite(maxWidth) || !(maxWidth > 0)) {
       return;
     }
-    drawFilledText(text, pos, maxWidth, true);
+    drawTextBitmap(text, pos, maxWidth, strokeOutlinePx());
   }
 
 package(yguilib):
@@ -878,7 +879,7 @@ private:
     case FillStyle.Kind.radialGradient:
       const GradientUniforms u = gradientUniforms(style, st.xf.inverse());
       fRenderer.gradientPipelineRef().drawTriangles(
-        verts, u, fRenderer.logicWidth(), fRenderer.logicHeight()
+        verts, u, fRenderer.logicViewport()
       );
       return;
     case FillStyle.Kind.pattern:
@@ -886,7 +887,7 @@ private:
         style, Transform2d.identity(), textureModeFor(style.pattern.texture)
       );
       fRenderer.patternPipelineRef().drawTriangles(
-        verts, u, fRenderer.logicWidth(), fRenderer.logicHeight()
+        verts, u, fRenderer.logicViewport()
       );
       return;
     }
@@ -945,8 +946,7 @@ private:
     } else {
       glDisable(GL_BLEND);
       fRenderer.colorPipelineRef().drawArraysWithCurrentState(
-        GL_TRIANGLES, cover[], style.color, fRenderer.logicWidth(),
-        fRenderer.logicHeight()
+        GL_TRIANGLES, cover[], style.color, fRenderer.logicViewport()
       );
       // the next draw re-enables blending via setupAlphaBlendState
     }
@@ -1102,8 +1102,7 @@ private:
 
     const float ox = b.x / scale;
     const float oy = b.y / scale;
-    const float vw = b.width / scale;
-    const float vh = b.height / scale;
+    const Viewport mask = maskViewport(b, scale);
     const(float)[] verts = fVerts[];
     fShadowVerts.clear();
     for (size_t i = 0; i + 1 < verts.length; i += 2) {
@@ -1115,17 +1114,22 @@ private:
     case ShadowShape.fill:
       beginWinding(rule);
       color.drawArrays(GL_TRIANGLES, fShadowVerts[], ColorF(0, 0, 0, 0),
-        vw, vh);
+        mask);
       beginCover(rule, false);
-      const float[12] cover = rectTriangles(RectF(0, 0, vw, vh));
-      drawMaskPaint(cover[], style, PointF(ox, oy), vw, vh);
+      const float[12] cover = rectTriangles(RectF(0, 0, mask.vw, mask.vh));
+      drawMaskPaint(cover[], style, PointF(ox, oy), mask);
       endStencil();
       break;
     case ShadowShape.stroke:
       // no blending: overlapping triangles rewrite the same alpha
-      drawMaskPaint(fShadowVerts[], style, PointF(ox, oy), vw, vh);
+      drawMaskPaint(fShadowVerts[], style, PointF(ox, oy), mask);
       break;
     }
+  }
+
+  /// Logic viewport of shadow pass box `b` (`scale` mask px per unit).
+  static Viewport maskViewport(in PixelBox b, float scale) {
+    return Viewport(b.width / scale, b.height / scale, scale);
   }
 
   /**
@@ -1138,8 +1142,7 @@ private:
     const(float)[] verts,
     in FillStyle style,
     PointF origin,
-    float vw,
-    float vh
+    in Viewport mask
   ) {
     import glad2.gles2 : GL_BLEND, GL_TRIANGLES, glDisable;
 
@@ -1148,7 +1151,7 @@ private:
     final switch (style.kind) {
     case FillStyle.Kind.color:
       fRenderer.colorPipelineRef().drawArraysWithCurrentState(
-        GL_TRIANGLES, verts, ColorF(1, 1, 1, style.color.a), vw, vh
+        GL_TRIANGLES, verts, ColorF(1, 1, 1, style.color.a), mask
       );
       return;
     case FillStyle.Kind.linearGradient:
@@ -1161,7 +1164,7 @@ private:
         u.stopColors[i * 4 .. i * 4 + 3] = 1.0f;
       }
       fRenderer.gradientPipelineRef().drawTrianglesWithCurrentState(
-        verts, u, vw, vh
+        verts, u, mask
       );
       return;
     case FillStyle.Kind.pattern:
@@ -1169,7 +1172,7 @@ private:
         style, Transform2d.translation(origin), TextureMode.alphaMask
       );
       fRenderer.patternPipelineRef().drawTrianglesWithCurrentState(
-        verts, u, vw, vh
+        verts, u, mask
       );
       return;
     }
@@ -1187,7 +1190,6 @@ private:
     float scale
   ) {
     import glad2.gles2 : GL_BLEND, glDisable;
-    import yguilib.render.internal.pipelines : TextureMode;
 
     const float ox = b.x / scale;
     const float oy = b.y / scale;
@@ -1202,7 +1204,7 @@ private:
     // the next draw re-enables blending via setupAlphaBlendState
     fRenderer.texturePipelineRef().drawTexturedTrianglesWithCurrentState(
       texId, fShadowVerts[], ColorF(1, 1, 1, alpha), TextureMode.alphaMask,
-      b.width / scale, b.height / scale
+      maskViewport(b, scale)
     );
   }
 
@@ -1244,7 +1246,7 @@ private:
     case FillStyle.Kind.radialGradient:
       const GradientUniforms u = gradientUniforms(style, st.xf.inverse());
       fRenderer.gradientPipelineRef().drawMasked(
-        xyuv, maskTex, u, fRenderer.logicWidth(), fRenderer.logicHeight()
+        xyuv, maskTex, u, fRenderer.logicViewport()
       );
       return;
     case FillStyle.Kind.pattern:
@@ -1252,7 +1254,7 @@ private:
         style, Transform2d.identity(), textureModeFor(style.pattern.texture)
       );
       fRenderer.patternPipelineRef().drawMasked(
-        xyuv, maskTex, u, fRenderer.logicWidth(), fRenderer.logicHeight()
+        xyuv, maskTex, u, fRenderer.logicViewport()
       );
       return;
     }
@@ -1262,47 +1264,101 @@ private:
   enum int maxTextOutlinePx = 64;
 
   /**
-   * Implementation of `fillText` / `strokeText`; `maxWidth` infinity means
+   * Text raster scale: display scaling times the transform scale
+   * (`sqrt(|det|)`), before the font manager quantizes it.
+   */
+  float textRasterScale() const {
+    import std.math : abs, sqrt;
+
+    return fRenderer.totalScaling() * sqrt(abs(st.xf.determinant()));
+  }
+
+  /**
+   * Outline ring width (bitmap px) of `strokeText`: `lineWidth / 2` at
+   * the text raster scale, rounded, clamped to [1, `maxTextOutlinePx`].
+   */
+  int strokeOutlinePx() const {
+    import std.math : isFinite, lrint;
+
+    // SDL_ttf outline is centered on the contour: radius = lineWidth / 2
+    const float px = 0.5f * st.lineWidth * textRasterScale();
+    const int op = isFinite(px) ? cast(int)lrint(px) : 1;
+    return op < 1 ? 1 : (op > maxTextOutlinePx ? maxTextOutlinePx : op);
+  }
+
+  /**
+   * Implementation of `fillText` / `strokeText`: draws the bitmap of
+   * `text` (glyph fill for `outlinePx` 0, otherwise the outline ring of
+   * that width, painted with the stroke style); `maxWidth` infinity means
    * unlimited.
    */
-  void drawFilledText(
-    string text, PointF pos, float maxWidth, bool stroke = false
+  void drawTextBitmap(
+    string text, PointF pos, float maxWidth, int outlinePx
   ) {
-    import std.math : abs, isFinite, lrint, sqrt;
-    import yguilib.render.internal.pipelines : TextureMode;
     import yguilib.render.internal.stencil_ops : beginClipTest, endStencil;
 
-    const FillStyle paint = stroke ? st.stroke : st.fill;
+    assert(outlinePx >= 0);
+    const FillStyle paint = outlinePx > 0 ? st.stroke : st.fill;
     if (!fRenderer.isInitialized() || text.length == 0
       || !isFinitePoint(pos) || !paintVisible(paint)
       || !patternDrawable(paint) || !st.xf.isInvertible()) {
       return;
     }
-    const float det = abs(st.xf.determinant());
     const spec = st.fontSpec;
-    const float effScale = fRenderer.totalScaling() * sqrt(det);
-    Font f = fRenderer.fontAtScale(spec.ptSize, spec.name, effScale);
+    Font f = fRenderer.fontAtScale(
+      spec.ptSize, spec.name, textRasterScale()
+    );
     if (f is null) {
       return;
     }
-    // outline ring width in bitmap pixels (0 for fill)
-    int op = 0;
-    if (stroke) {
-      // SDL_ttf outline is centered on the contour: radius = lineWidth / 2
-      const float px = 0.5f * st.lineWidth * effScale;
-      op = isFinite(px) ? cast(int)lrint(px) : 1;
-      op = op < 1 ? 1 : (op > maxTextOutlinePx ? maxTextOutlinePx : op);
-    }
-    const TextTexture tex = fRenderer.textTextureFor(f, text, op);
+    const TextTexture tex = fRenderer.textTextureFor(f, text, outlinePx);
     if (!tex.isValid()) {
       return;
     }
+    buildTextVerts(f, text, TextBitmap(tex, outlinePx), pos, maxWidth);
+    const bool solid = paint.kind == FillStyle.Kind.color;
+    if (st.shadow.isVisible()) {
+      drawImageShadow(tex.textureId, solid ? paint.color.a : 1.0f);
+    }
+    beginClipTest(clipActive());
+    if (solid) {
+      fRenderer.texturePipelineRef().drawTexturedTriangles(
+        tex.textureId, fImageVerts[], paint.color, TextureMode.straight,
+        fRenderer.logicViewport()
+      );
+    } else {
+      drawMaskedPaint(fImageVerts[], tex.textureId, paint);
+    }
+    endStencil();
+  }
+
+  /// Text bitmap and its outline ring width (0 for a glyph fill).
+  struct TextBitmap {
+    TextTexture tex;
+    int outlinePx;
+  }
+
+  /**
+   * `fImageVerts` = the quad of `bmp` (the bitmap of `text` in font `f`)
+   * anchored at `pos` by the current align, baseline and direction,
+   * squeezed horizontally to `maxWidth` about the anchor.
+   */
+  void buildTextVerts(
+    Font f,
+    string text,
+    in TextBitmap bmp,
+    PointF pos,
+    float maxWidth
+  ) {
+    import std.math : abs;
+
+    const TextTexture tex = bmp.tex;
     // bitmap pixels per user unit (the quantized font scale)
     const float q = f.scaledSize / f.size;
     // advance width at the raster scale (what measureText reports, not
     // the bitmap width) and the outline margin, in user units
     const float gw = f.measureText(text).x / q;
-    const float margin = op / q;
+    const float margin = bmp.outlinePx / q;
     const TextMetrics m = TextMetrics(gw, f.ascent / q, abs(f.descent) / q);
     const PointF off = textAnchorOffset(
       m, st.textAlign, st.textBaseline, st.direction
@@ -1317,20 +1373,6 @@ private:
         tex.width / q * s, tex.height / q
       )
     );
-    const bool solid = paint.kind == FillStyle.Kind.color;
-    if (st.shadow.isVisible()) {
-      drawImageShadow(tex.textureId, solid ? paint.color.a : 1.0f);
-    }
-    beginClipTest(clipActive());
-    if (solid) {
-      fRenderer.texturePipelineRef().drawTexturedTriangles(
-        tex.textureId, fImageVerts[], paint.color, TextureMode.straight,
-        fRenderer.logicWidth(), fRenderer.logicHeight()
-      );
-    } else {
-      drawMaskedPaint(fImageVerts[], tex.textureId, paint);
-    }
-    endStencil();
   }
 
   /**
@@ -1369,7 +1411,7 @@ private:
    */
   void compositeShadow(in PixelBox b, float scale) {
     import yguilib.render.internal.offscreen : OffscreenTarget;
-    import yguilib.render.internal.pipelines : TextureMode, TexturedQuad;
+    import yguilib.render.internal.pipelines : TexturedQuad;
     import yguilib.render.internal.stencil_ops : beginClipTest, endStencil;
 
     const OffscreenTarget* a = &fRenderer.offscreenTargetRef(0);
@@ -1388,8 +1430,7 @@ private:
     q.color = st.shadow.color;
     beginClipTest(clipActive());
     fRenderer.texturePipelineRef().drawTexturedQuad(
-      a.texture, q, fRenderer.logicWidth(), fRenderer.logicHeight(),
-      TextureMode.straight
+      a.texture, q, fRenderer.logicViewport(), TextureMode.straight
     );
     endStencil();
   }
@@ -1477,8 +1518,7 @@ private:
       return;
     }
     fRenderer.colorPipelineRef().drawArrays(
-      GL_TRIANGLES, verts, color, fRenderer.logicWidth(),
-      fRenderer.logicHeight()
+      GL_TRIANGLES, verts, color, fRenderer.logicViewport()
     );
   }
 

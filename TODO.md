@@ -1,4 +1,4 @@
-- human review of canvas and renderer implementation
+- glyph atlas for text (canvas-render-review 3.7)
 - build widget library
 -- checkbox
 -- combobox

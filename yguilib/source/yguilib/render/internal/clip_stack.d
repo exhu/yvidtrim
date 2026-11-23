@@ -1,3 +1,10 @@
+/**
+ * Renderer scissor clip stack (`Renderer.pushClipRect`): nested logic
+ * rects, each intersected with its parent, applied as the GL scissor box
+ * snapped outward to whole pixels. The stack owns the scissor: the test
+ * is enabled exactly while it is not empty, and `appliedBox()` tracks
+ * the box without GL queries.
+ */
 module yguilib.render.internal.clip_stack;
 
 package(yguilib):
@@ -7,22 +14,18 @@ import std.array : Appender;
 import yguilib.render.render_types : RectF, intersectRects;
 
 struct ClipStack {
-  void push(
-    RectF rect,
-    float vw,
-    float vh,
-    int pixelW,
-    int pixelH,
-    float scale
-  ) {
+  /**
+   * Pushes `rect` (logic units) intersected with the top rect, or with
+   * the viewport (`pixelW` x `pixelH` pixels at `scale` pixels per logic
+   * unit) when empty, and applies it as the scissor.
+   */
+  void push(RectF rect, int pixelW, int pixelH, float scale) {
     const auto stackData = stack[];
-    RectF active;
-    if (stackData.length == 0) {
-      active = RectF(0, 0, vw, vh);
-    } else {
-      active = stackData[$ - 1];
-    }
-    RectF clipped = intersectRects(active, rect);
+    const RectF active = stackData.length == 0
+      ? RectF(0, 0, logicFromPixels(pixelW, scale),
+        logicFromPixels(pixelH, scale))
+      : stackData[$ - 1];
+    const RectF clipped = intersectRects(active, rect);
     stack ~= clipped;
     applyScissor(clipped, pixelW, pixelH, scale);
   }
@@ -143,6 +146,12 @@ struct ClipStack {
     fAppliedBox = box;
   }
 
+  /// Logic units of `pixels` at `scale` (as `Renderer.logicWidth`).
+  static float logicFromPixels(int pixels, float scale)
+    nothrow @safe @nogc pure {
+    return scale > 0.0f ? cast(float)pixels / scale : cast(float)pixels;
+  }
+
   /// Converts a logical clip rect into a GL scissor box
   /// `[x, y, w, h]` (bottom-left origin) in whole pixels.
   static int[4] scissorBox(
@@ -154,15 +163,15 @@ struct ClipStack {
     import std.algorithm : max, min;
     import std.math : ceil, floor;
 
-    float px = rect.x * scale;
-    float py = rect.y * scale;
-    float pw = rect.width * scale;
-    float ph = rect.height * scale;
+    const float px = rect.x * scale;
+    const float py = rect.y * scale;
+    const float pw = rect.width * scale;
+    const float ph = rect.height * scale;
 
-    float clampedX = max(0.0f, px);
-    float clampedY = max(0.0f, py);
-    float clampedRight = min(cast(float)pixelW, px + pw);
-    float clampedBottom = min(cast(float)pixelH, py + ph);
+    const float clampedX = max(0.0f, px);
+    const float clampedY = max(0.0f, py);
+    const float clampedRight = min(cast(float)pixelW, px + pw);
+    const float clampedBottom = min(cast(float)pixelH, py + ph);
 
     // Snap outward to whole pixels: floor the left/top edges and ceil the
     // right/bottom edges independently. Truncating origin and size
@@ -181,8 +190,9 @@ struct ClipStack {
     ];
   }
 
-  private Appender!(RectF[]) stack;
-  private int[4] fAppliedBox;
+private:
+  Appender!(RectF[]) stack;
+  int[4] fAppliedBox;
 }
 
 unittest {
