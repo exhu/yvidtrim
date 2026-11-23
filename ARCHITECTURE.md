@@ -64,6 +64,7 @@ yvidtrim/
 │   │   └── internal/      # UiSystemImpl, TimerService, UiSystemController
 │   ├── yguilib-clibs/     # Private C wrappers: SDL3, SDL3_ttf, SDL3_image
 │   ├── examples/helloworld/ # Standalone Hello World example executable
+│   ├── benchmarks/        # textbench, built only with -Dbenchmarks=true
 │   └── assets/            # Embedded resources (fonts, shaders) via import("")
 ├── yvidtrim-clibs/        # Private C wrappers for editor (SDL3, FFmpeg future)
 └── subprojects/           # Meson subprojects (glad2gles31, glad2gles31d)

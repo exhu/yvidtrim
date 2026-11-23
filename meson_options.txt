@@ -1,0 +1,6 @@
+option(
+  'benchmarks',
+  type : 'boolean',
+  value : false,
+  description : 'Build benchmark programs (e.g. textbench); not built by default',
+)

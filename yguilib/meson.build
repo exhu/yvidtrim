@@ -157,3 +157,14 @@ helloworld_test_exe = executable(
   dependencies : [yguilib_dep],
 )
 test('helloworld_test', helloworld_test_exe)
+
+# Benchmarks are built only on request:
+#   meson setup _build --reconfigure -Dbenchmarks=true
+if get_option('benchmarks')
+  textbench_exe = executable(
+    'textbench',
+    files('benchmarks/textbench/app.d'),
+    d_import_dirs : [yguilib_inc],
+    dependencies : [yguilib_dep],
+  )
+endif
