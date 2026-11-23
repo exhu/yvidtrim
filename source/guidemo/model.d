@@ -152,6 +152,8 @@ final class CanvasPageModel : VersionedModel {
   bool animating = true;
   /// Section shown in slot 7, cycled with [I].
   CanvasSlot7 slot7 = CanvasSlot7.images;
+  /// Blur radius of the hard (initially blur 0) shadow, cycled with [S].
+  int hardShadowBlur = 0;
   /// Incremented by each [P] request to save the offscreen image.
   uint offscreenSaveSerial = 0;
   /// PNG path for the latest offscreen save request.

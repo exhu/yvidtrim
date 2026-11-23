@@ -7,7 +7,8 @@
  * [I] cycles slot 7 through the interop, image, offscreen and patterns
  * sections; [P] shows the offscreen section and requests an
  * `offscreen-<time>.png` save (performed by the page draw on the main
- * thread). `onPop` releases the page GPU resources while the GL context
+ * thread). [S] cycles the shadows section's hard shadow blur through
+ * 0, 2, .., 16. `onPop` releases the page GPU resources while the GL context
  * is still alive.
  */
 module guidemo.pages.canvas_controller;
@@ -30,6 +31,10 @@ enum uint canvasAnimIntervalMs = 33;
 enum float canvasDashSpeed = 24.0f;
 /// Rotation speed in radians per second.
 enum float canvasRotationSpeed = 1.2f;
+/// Largest hard shadow blur reached by the [S] cycle.
+enum int canvasMaxShadowBlur = 16;
+/// Hard shadow blur increment per [S] press.
+enum int canvasShadowBlurStep = 2;
 
 /// Parameters for constructing CanvasPageController.
 alias CanvasPageControllerParams =
@@ -132,6 +137,14 @@ final class CanvasPageController : DefaultController {
       requestOffscreenSave();
       return HandleResult(HandleResult.Result.update, true);
     }
+    if (ev.kind == AppEvent.Kind.keyDown
+        && isPageActive(demoTracker.model, DemoPage.canvas)
+        && isKey(ev, Keycode.s, Scancode.s)) {
+      auto m = tracker.edit();
+      m.hardShadowBlur = nextShadowBlur(m.hardShadowBlur);
+      tracker.commit(m);
+      return HandleResult(HandleResult.Result.update, true);
+    }
     return super.handleEvent(ev);
   }
 
@@ -139,6 +152,11 @@ private:
   /// Returns the slot 7 section after `s` in the [I] cycle.
   static CanvasSlot7 nextSlot7(CanvasSlot7 s) {
     return s == CanvasSlot7.max ? CanvasSlot7.min : cast(CanvasSlot7)(s + 1);
+  }
+
+  /// Returns the [S] cycle blur after `b`: 0, 2, .., 16, then 0 again.
+  static int nextShadowBlur(int b) {
+    return b >= canvasMaxShadowBlur ? 0 : b + canvasShadowBlurStep;
   }
 
   /// Shows the offscreen section and asks its draw to save a PNG.
@@ -268,6 +286,18 @@ unittest {
     ctrl.handleEvent(makeKeyDown(Keycode.p, Scancode.p));
     assert(pageTracker.model.offscreenSaveSerial == 2);
   }
+
+  // [S] cycles the hard shadow blur 0, 2, .., 16 and wraps to 0
+  assert(pageTracker.model.hardShadowBlur == 0);
+  auto hrS = ctrl.handleEvent(makeKeyDown(Keycode.s, Scancode.s));
+  assert(hrS.consume);
+  assert(pageTracker.model.hardShadowBlur == 2);
+  foreach (_; 0 .. 7) {
+    ctrl.handleEvent(makeKeyDown(Keycode.s, Scancode.s));
+  }
+  assert(pageTracker.model.hardShadowBlur == 16);
+  ctrl.handleEvent(makeKeyDown(Keycode.s, Scancode.s));
+  assert(pageTracker.model.hardShadowBlur == 0);
 
   // Switching away stops the timer
   dm = demoTracker.edit();

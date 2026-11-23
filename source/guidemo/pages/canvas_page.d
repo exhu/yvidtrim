@@ -16,7 +16,8 @@
  * The sample PNG is decoded once; its `Texture` and the `RenderTarget`
  * are created lazily on the first draw and released by
  * `releaseGpuResources()` (main thread). A [P] request in the model is
- * saved as a PNG by the offscreen draw.
+ * saved as a PNG by the offscreen draw. The shadows section's hard shadow
+ * blur comes from the model (cycled with [S]).
  */
 module guidemo.pages.canvas_page;
 
@@ -84,6 +85,8 @@ final class CanvasPage {
     offscreenWidget.update(WidgetUpdateScope.visuals);
     patternsWidget.update(WidgetUpdateScope.visuals);
     textWidget.update(WidgetUpdateScope.visuals);
+    // [S] changes the hard shadow blur
+    shadowsWidget.update(WidgetUpdateScope.visuals);
     return true;
   }
 
@@ -99,7 +102,7 @@ final class CanvasPage {
       CanvasSlot7.patterns: " | [I] Show text",
       CanvasSlot7.text: " | [I] Show interop",
     ];
-    return anim ~ next[tracker.model.slot7] ~ " | [P] Save offscreen PNG";
+    return anim ~ next[tracker.model.slot7] ~ statusTail;
   }
 
   /**
@@ -155,7 +158,9 @@ private:
     interopWidget = addSection(
       2, 1, "7. Canvas + Renderer interop", "canvasInterop", &drawInterop
     );
-    addSection(3, 1, "8. Shadows", "canvasShadows", &drawShadows);
+    shadowsWidget = addSection(
+      3, 1, "8. Shadows", "canvasShadows", &drawShadows
+    );
     // share slot 7 with the interop section, cycled with [I]
     imagesWidget = addSection(
       2, 1, "9. Images (drawImage)", "canvasImages", &drawImages
@@ -639,6 +644,7 @@ private:
 
     Shadow hard;
     hard.offset = PointF(8, 8);
+    hard.blur = tracker.model.hardShadowBlur;
     hard.color = ColorF(0.95f, 0.45f, 0.25f, 0.9f);
     c.shadow(hard);
     c.fillStyle(FillStyle.solid(ColorF(0.95f, 0.85f, 0.35f, 1)));
@@ -655,8 +661,20 @@ private:
     c.stroke(shadowLine);
     c.restore();
     labelAt(r, "blur 14", PointF(48, 108));
-    labelAt(r, "blur 0", PointF(178, 108));
+    labelAt(r, hardBlurLabel(), PointF(178, 108));
     labelAt(r, "stroke", PointF(110, 205));
+  }
+
+  /// "blur N" label of the hard shadow, cached until the blur changes.
+  string hardBlurLabel() {
+    import std.conv : to;
+
+    const int blur = tracker.model.hardShadowBlur;
+    if (hardBlurText is null || hardBlurTextValue != blur) {
+      hardBlurText = "blur " ~ blur.to!string;
+      hardBlurTextValue = blur;
+    }
+    return hardBlurText;
   }
 
   // Section 9: the sample texture 1:1, tinted, src quadrant and 2x.
@@ -912,13 +930,11 @@ private:
     c.fontSpec(FontSpec(26.0f, null));
     c.fillText("Gradient", PointF(190, 130));
 
-    // stroked text plus a fill with a drop shadow
+    // outline-only stroked text, then filled text with a drop shadow
     c.save();
     c.fontSpec(FontSpec(26.0f, null));
     c.lineWidth(1.5f);
     c.strokeStyle(FillStyle.solid(ColorF(0.55f, 0.90f, 1.0f, 1)));
-    c.fillStyle(FillStyle.solid(ColorF(0.10f, 0.20f, 0.35f, 1)));
-    c.fillText("Stroke", PointF(60, 205));
     c.strokeText("Stroke", PointF(60, 205));
     Shadow sh;
     sh.offset = PointF(3, 4);
@@ -1029,6 +1045,8 @@ private:
     );
   }
 
+  /// Status hints after the [I] hint.
+  enum string statusTail = " | [P] Save offscreen PNG | [S] Shadow blur";
   enum float cardWidth = 290;
   enum float cardHeight = 280;
   enum float cardGap = 20;
@@ -1043,6 +1061,7 @@ private:
   Widget strokesWidget;
   Widget transformsWidget;
   Widget interopWidget;
+  Widget shadowsWidget;
   Widget imagesWidget;
   Widget offscreenWidget;
   Widget patternsWidget;
@@ -1054,6 +1073,9 @@ private:
   RenderTarget offscreen;
   /// Last `offscreenSaveSerial` handled by the offscreen draw.
   uint savedSerial;
+  /// Cached `hardBlurLabel()` text and the blur it was built for.
+  string hardBlurText;
+  int hardBlurTextValue;
   Path2d curves;
   Path2d arcs;
   Path2d arcToPath;
@@ -1115,7 +1137,7 @@ unittest {
   assert(
     page.formatStatus()
       == "[Space] Pause animation | [I] Show offscreen"
-      ~ " | [P] Save offscreen PNG"
+      ~ " | [P] Save offscreen PNG | [S] Shadow blur"
   );
 
   // the sample PNG decodes once; slot 7 shows images, others are hidden
@@ -1155,7 +1177,7 @@ unittest {
   assert(!offscreenCard.visible && !patternsCard.visible);
   assert(
     page.formatStatus() == "[Space] Pause animation | [I] Show images"
-      ~ " | [P] Save offscreen PNG"
+      ~ " | [P] Save offscreen PNG | [S] Shadow blur"
   );
   m = tracker.edit();
   m.slot7 = CanvasSlot7.offscreen;
@@ -1165,7 +1187,7 @@ unittest {
   assert(offscreenCard.visible && !patternsCard.visible);
   assert(
     page.formatStatus() == "[Space] Pause animation | [I] Show patterns"
-      ~ " | [P] Save offscreen PNG"
+      ~ " | [P] Save offscreen PNG | [S] Shadow blur"
   );
   m = tracker.edit();
   m.slot7 = CanvasSlot7.patterns;
@@ -1175,15 +1197,23 @@ unittest {
   assert(!offscreenCard.visible && patternsCard.visible);
   assert(
     page.formatStatus() == "[Space] Pause animation | [I] Show text"
-      ~ " | [P] Save offscreen PNG"
+      ~ " | [P] Save offscreen PNG | [S] Shadow blur"
   );
   m = tracker.edit();
   m.slot7 = CanvasSlot7.text;
   tracker.commit(m);
   assert(page.update());
   assert(textCard.visible && !patternsCard.visible);
+
+  // the hard shadow label follows the model blur
+  assert(page.hardBlurLabel() == "blur 0");
+  m = tracker.edit();
+  m.hardShadowBlur = 12;
+  tracker.commit(m);
+  assert(page.update());
+  assert(page.hardBlurLabel() == "blur 12");
   assert(
     page.formatStatus() == "[Space] Pause animation | [I] Show interop"
-      ~ " | [P] Save offscreen PNG"
+      ~ " | [P] Save offscreen PNG | [S] Shadow blur"
   );
 }

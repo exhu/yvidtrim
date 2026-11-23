@@ -1124,7 +1124,8 @@ private:
     // outline ring width in bitmap pixels (0 for fill)
     int op = 0;
     if (stroke) {
-      const float px = st.lineWidth * effScale;
+      // SDL_ttf outline is centered on the contour: radius = lineWidth / 2
+      const float px = 0.5f * st.lineWidth * effScale;
       op = isFinite(px) ? cast(int)lrint(px) : 1;
       op = op < 1 ? 1 : (op > maxTextOutlinePx ? maxTextOutlinePx : op);
     }
