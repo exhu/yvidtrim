@@ -76,10 +76,6 @@ final class Renderer {
       fontManager.destroy();
       fontManager = null;
     }
-    if (fOwnsDefaultFont && fDefaultFont !is null) {
-      fDefaultFont.destroy();
-      fDefaultFont = null;
-    }
     foreach (ref t; offscreenTargets) {
       t.destroy();
     }
@@ -589,11 +585,7 @@ final class Renderer {
    * resizes it in place (`Font.scale`) to the new total scaling.
    */
   void defaultFont(Font font) {
-    if (fOwnsDefaultFont && fDefaultFont !is null) {
-      fDefaultFont.destroy();
-    }
     fDefaultFont = font;
-    fOwnsDefaultFont = false;
   }
 
   void clearTextCache() {
@@ -1263,7 +1255,6 @@ private:
   TextCache textCache;
   FontManager fontManager;
   Font fDefaultFont;
-  bool fOwnsDefaultFont;
   bool initialized;
   Canvas fCanvas;
 }
