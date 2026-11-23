@@ -11,6 +11,7 @@
 module yguilib.render;
 
 import glad2.gles2;
+import std.array : Appender;
 import yguilib.events : AppEvent;
 import yguilib.render.internal.clip_stack : ClipStack;
 import yguilib.render.font : Font, defaultFontPtSize;
@@ -18,12 +19,12 @@ import yguilib.render.font_manager : FontManager;
 import yguilib.render.image : Image;
 import yguilib.render.internal.offscreen : OffscreenTarget,
   SavedTargetState;
-import yguilib.render.internal.gl_util : ProgramTracker;
+import yguilib.render.internal.gl_util : ProgramTracker, maxTextureSize;
 import yguilib.render.internal.pipelines : BlurPipeline, ColorPipeline,
   GradientPipeline, PatternPipeline, RoundRectPipeline, RoundRectShape,
   TextureMode, TexturePipeline, TexturedQuad, ThickLine, Viewport,
   textureModeFor;
-import yguilib.render.internal.text_cache : TextCache, TextTexture;
+import yguilib.render.internal.text_cache : TextRun, TextRunCache;
 import yguilib.render.render_types;
 import yguilib.render.render_target : RenderTarget;
 import yguilib.render.texture : Texture;
@@ -247,7 +248,7 @@ final class Renderer {
    * Inside `beginTarget` it clears the target; `color` is stored as-is,
    * so it should be premultiplied (target textures are premultiplied).
    * Outside render targets it also starts a new text cache frame
-   * (`TextCache.beginFrame`), protecting this frame's strings.
+   * (`TextRunCache.beginFrame`), protecting this frame's strings.
    */
   void clearFrame(ColorF color) {
     clearColor(color);
@@ -846,7 +847,7 @@ final class Renderer {
    * font.
    *
    * If font is null, the managed default font (created lazily on demand)
-   * is used. Text rasterization is cached in OpenGL textures via TextCache.
+   * is used. Glyph runs are cached via TextRunCache over one glyph atlas.
    *
    * Params:
    *   text = Text string to render.
@@ -865,10 +866,7 @@ final class Renderer {
       return;
     }
 
-    const TextTexture tex = textCache.textureFor(f, text, 0);
-    if (tex.isValid()) {
-      drawTextTexture(tex, pos, color);
-    }
+    drawTextRun(textCache.runFor(f, text, 0), pos, color);
   }
 
   /**
@@ -1019,12 +1017,25 @@ package(yguilib.render):
     return fontManager.fontAtScale(ptSize, fontName, rasterScale);
   }
 
-  /// Cached white-on-transparent bitmap of `text` (invalid when none).
-  TextTexture textTextureFor(Font f, string text, int outlinePx) {
+  /**
+   * Cached glyph run of `text` (null when none), valid until the next
+   * `textRunFor` call; its slots sample `glyphAtlasTexture()`.
+   */
+  const(TextRun)* textRunFor(Font f, string text, int outlinePx) {
     if (textCache is null) {
-      return TextTexture();
+      return null;
     }
-    return textCache.textureFor(f, text, outlinePx);
+    return textCache.runFor(f, text, outlinePx);
+  }
+
+  /// The glyph atlas texture (0 before the first glyph).
+  GLuint glyphAtlasTexture() const {
+    return textCache is null ? 0 : textCache.atlasTexture();
+  }
+
+  /// Glyph atlas width and height in pixels (0 before initialization).
+  int glyphAtlasSize() const {
+    return textCache is null ? 0 : textCache.atlasSize();
   }
 
   /// Shared flat color pipeline (used by `Canvas`).
@@ -1116,7 +1127,11 @@ private:
     gradientPipeline.initialize(&fPrograms);
     patternPipeline.initialize(&fPrograms);
     blurPipeline.initialize(&fPrograms);
-    textCache = new TextCache(TextCache.maxCacheEntries);
+    import std.algorithm.comparison : min;
+
+    textCache = new TextRunCache(
+      TextRunCache.maxCacheEntries, 512, min(4096, maxTextureSize())
+    );
     fontManager = new FontManager();
     fontManager.onFontDestroyed(&onFontDestroyed);
     fCanvas = new Canvas(this);
@@ -1124,42 +1139,45 @@ private:
     initialized = true;
   }
 
-  /// Drops the text textures of a font the font manager is destroying.
+  /// Drops the text runs of a font the font manager is destroying.
   void onFontDestroyed(ulong fontId) {
     if (textCache !is null) {
       textCache.removeFont(fontId);
     }
   }
 
-  void drawTextTexture(
-    in TextTexture tex,
-    PointF pos,
-    ColorF color
-  ) {
-    if (!tex.isValid()) {
+  /// Draws `run` (null allowed) at `pos` as one batch of glyph quads.
+  void drawTextRun(const(TextRun)* run, PointF pos, ColorF color) {
+    if (run is null) {
       return;
     }
     import std.math : round;
 
     const float screenX = round(pixelsFromLogicFloat(pos.x));
     const float screenY = round(pixelsFromLogicFloat(pos.y));
-    const float screenW = cast(float)tex.width;
-    const float screenH = cast(float)tex.height;
-
-    const float logicX0 = logicFromPixelsFloat(screenX);
-    const float logicY0 = logicFromPixelsFloat(screenY);
-    const float logicX1 = logicFromPixelsFloat(screenX + screenW);
-    const float logicY1 = logicFromPixelsFloat(screenY + screenH);
-
-    drawTexture(
-      tex.textureId,
-      RectF(
-        logicX0,
-        logicY0,
-        logicX1 - logicX0,
-        logicY1 - logicY0
-      ),
-      color
+    const float invAtlas = 1.0f / glyphAtlasSize();
+    fTextVerts.clear();
+    foreach (ref g; run.glyphs) {
+      if (g.slot.w <= 0) {
+        continue;
+      }
+      const float x0 = logicFromPixelsFloat(screenX + g.dx);
+      const float y0 = logicFromPixelsFloat(screenY + g.dy);
+      const float x1 = logicFromPixelsFloat(screenX + g.dx + g.dw);
+      const float y1 = logicFromPixelsFloat(screenY + g.dy + g.dh);
+      const float u0 = (g.slot.x + g.srcX) * invAtlas;
+      const float v0 = (g.slot.y + g.srcY) * invAtlas;
+      const float u1 = (g.slot.x + g.srcX + g.srcW) * invAtlas;
+      const float v1 = (g.slot.y + g.srcY + g.srcH) * invAtlas;
+      const float[24] quad = [
+        x0, y0, u0, v0,  x1, y0, u1, v0,  x0, y1, u0, v1,
+        x1, y0, u1, v0,  x1, y1, u1, v1,  x0, y1, u0, v1,
+      ];
+      fTextVerts.put(quad[]);
+    }
+    texPipeline.drawTexturedTriangles(
+      glyphAtlasTexture(), fTextVerts[], color, TextureMode.straight,
+      logicViewport()
     );
   }
 
@@ -1252,7 +1270,9 @@ private:
    */
   TargetFrame[] targetFrames;
   size_t fTargetDepth;
-  TextCache textCache;
+  TextRunCache textCache;
+  /// Reused (x, y, u, v) vertices of `drawTextRun`.
+  Appender!(float[]) fTextVerts;
   FontManager fontManager;
   Font fDefaultFont;
   bool initialized;
@@ -2139,7 +2159,7 @@ unittest {
   assert(glGetError() == GL_NO_ERROR);
 }
 
-// Destroyed fonts take their TextCache textures with them (review 2.4).
+// Destroyed fonts take their text runs with them (review 2.4).
 unittest {
   import yguilib.render.internal.gl_test_util : GlTestWindow;
 
@@ -2151,14 +2171,14 @@ unittest {
 
   auto r = w.renderer();
   FontManager fm = r.fontManager;
-  TextCache tc = r.textCache;
+  TextRunCache tc = r.textCache;
   assert(fm.scaledCount() == 0);
 
   // Fill the scaled cache up to the flush threshold.
   ulong[] ids;
   foreach (i; 0 .. 64) {
     Font f = r.fontAtScale(10.0f, null, 1.0f + i / 8.0f);
-    assert(r.textTextureFor(f, "x", 0).isValid());
+    assert(r.textRunFor(f, "x", 0) !is null);
     ids ~= f.id;
   }
   assert(fm.scaledCount() == 64);
@@ -2174,18 +2194,84 @@ unittest {
     assert(tc.countForFont(id) == 0);
   }
   assert(tc.length == texts - 64);
-  assert(r.textTextureFor(next, "x", 0).isValid());
+  assert(r.textRunFor(next, "x", 0) !is null);
 
   // Re-registering a face drops the textures of its fonts.
   const(void)[] data = cast(const(void)[])defaultTtfFontData;
   r.registerFontFromMemory("Foo", data);
   Font foo = r.font(12.0f, "Foo");
   const ulong fooId = foo.id;
-  assert(r.textTextureFor(foo, "foo", 0).isValid());
-  assert(r.textTextureFor(foo, "foo", 2).isValid());
+  assert(r.textRunFor(foo, "foo", 0) !is null);
+  assert(r.textRunFor(foo, "foo", 2) !is null);
   assert(tc.countForFont(fooId) == 2);
   r.registerFontFromMemory("Foo", data);
   assert(tc.countForFont(fooId) == 0);
   assert(foo.id == invalidFontId);
   assert(r.font(12.0f, "Foo").id != fooId);
+}
+
+// Glyph quads match the blended whole-string bitmap, and 600 distinct
+// strings in one frame all draw from one atlas texture.
+unittest {
+  import std.conv : to;
+  import yguilib.clibs.sdl3_ttf;
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
+  import yguilib.render.internal.gl_util : uploadRgbaTexture;
+
+  auto w = GlTestWindow("test_renderer_text_oracle");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+
+  auto r = w.renderer();
+  Font f = r.fontAtScale(14.0f, null, 1.0f);
+  const string text = "Hello, Ag";
+  const ColorF white = ColorF(1, 1, 1, 1);
+
+  r.clearFrame(ColorF(0, 0, 0, 1));
+  r.drawTextWithFont(text, PointF(10, 10), white, f);
+  Image glyphs = r.readPixels(0, 0, 160, 60);
+  assert(glyphs !is null);
+
+  auto surf = yguilib_sdl3_ttf_render_text_blended(
+    f.handle, text.ptr, text.length, 255, 255, 255, 255
+  );
+  assert(surf !is null);
+  scope(exit) yguilib_sdl3_ttf_destroy_surface(surf);
+  int sw = 0;
+  int sh = 0;
+  yguilib_sdl3_ttf_get_surface_size(surf, &sw, &sh);
+  GLuint tex = uploadRgbaTexture(
+    yguilib_sdl3_ttf_get_surface_pixels(surf), sw, sh,
+    yguilib_sdl3_ttf_get_surface_pitch(surf)
+  );
+  scope(exit) glDeleteTextures(1, &tex);
+  r.clearFrame(ColorF(0, 0, 0, 1));
+  r.drawTexture(tex, RectF(10, 10, sw, sh), white);
+  Image whole = r.readPixels(0, 0, 160, 60);
+  assert(whole !is null);
+
+  int maxDiff = 0;
+  int lit = 0;
+  foreach (i; 0 .. glyphs.pixels.length) {
+    const int d = glyphs.pixels[i] > whole.pixels[i]
+      ? glyphs.pixels[i] - whole.pixels[i]
+      : whole.pixels[i] - glyphs.pixels[i];
+    maxDiff = d > maxDiff ? d : maxDiff;
+    lit += (i % 4 == 0 && glyphs.pixels[i] > 60) ? 1 : 0;
+  }
+  assert(lit > 50);
+  assert(maxDiff <= 2, "max channel difference " ~ maxDiff.to!string);
+
+  // 600 distinct strings in one frame, one atlas texture.
+  r.clearFrame(ColorF(0, 0, 0, 1));
+  const GLuint atlasTex = r.glyphAtlasTexture();
+  assert(atlasTex != 0);
+  foreach (i; 0 .. 600) {
+    const string s = "str" ~ i.to!string;
+    assert(r.textRunFor(f, s, 0) !is null);
+    r.drawTextWithFont(s, PointF(i % 20 * 15, i / 20 * 7), white, f);
+    assert(r.glyphAtlasTexture() == atlasTex || i > 0);
+  }
+  assert(r.glyphAtlasSize() >= 512);
+  assert(glGetError() == GL_NO_ERROR);
 }

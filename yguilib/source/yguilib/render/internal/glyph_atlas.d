@@ -155,13 +155,15 @@ final class GlyphAtlas {
     }
   }
 
-  /// Frees the texture (main thread only).
+  /// Frees the texture and drops all keys (main thread only).
   void destroy() {
     if (fTexture != 0) {
       glDeleteTextures(1, &fTexture);
       fTexture = 0;
     }
     fSlots.clear();
+    fPacker.reset(fSize);
+    fGeneration++;
   }
 
 private:

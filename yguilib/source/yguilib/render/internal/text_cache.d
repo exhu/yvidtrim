@@ -1,7 +1,7 @@
 /**
- * Text bitmaps as GL textures: one texture per (font id, raster size,
- * outline, string), kept in an LRU `TextCache` with per-frame eviction
- * protection (see the class doc).
+ * Glyph runs over the shared `GlyphAtlas`: one `TextRun` per (font id,
+ * raster size, outline, string), kept in an LRU `TextRunCache` with
+ * per-frame eviction protection (see the class doc).
  */
 module yguilib.render.internal.text_cache;
 
@@ -10,29 +10,44 @@ package(yguilib):
 import glad2.gles2;
 import std.array : Appender;
 import yguilib.clibs.sdl3_ttf;
-import yguilib.render.internal.gl_util : uploadRgbaTexture;
 import yguilib.render.font : Font, invalidFontId;
+import yguilib.render.internal.glyph_atlas : GlyphAtlas, GlyphLookup,
+  GlyphSlot;
 
-struct TextTexture {
-  GLuint textureId = 0;
-  int width = 0;
-  int height = 0;
+/**
+ * One laid out glyph of a run: its pixel rect `dx, dy, dw, dh` relative
+ * to the run origin, and the atlas rect it samples,
+ * `(slot.x + srcX, slot.y + srcY, srcW, srcH)`. `slot.w == 0` means the
+ * glyph draws nothing (blank or unresolved).
+ */
+struct RunGlyph {
+  short dx;
+  short dy;
+  short dw;
+  short dh;
+  uint glyph;
+  GlyphSlot slot;
+  short srcX;
+  short srcY;
+  short srcW;
+  short srcH;
+}
 
-  bool isValid() const {
-    return textureId != 0;
-  }
-
-  void destroy() {
-    if (textureId != 0) {
-      glDeleteTextures(1, &textureId);
-      textureId = 0;
-    }
-    width = 0;
-    height = 0;
-  }
+/// Laid out text: pixel size and glyph quads, valid for `atlasGen`.
+struct TextRun {
+  /// Text area in pixels (includes the outline ring).
+  int width;
+  int height;
+  /// GC array owned by the cache entry.
+  RunGlyph[] glyphs;
+  /// Atlas generation the slots belong to.
+  ulong atlasGen;
 }
 
 private:
+
+/// `TextRun.atlasGen` of a run whose slots are incomplete.
+enum ulong unresolvedGen = ulong.max;
 
 struct TextCacheKey {
   ulong fontId;
@@ -42,8 +57,8 @@ struct TextCacheKey {
 }
 
 struct TextCacheEntry {
-  TextTexture texture;
-  /// `TextCache.fTick` of the last hit or of the insert.
+  TextRun run;
+  /// `TextRunCache.fTick` of the last hit or of the insert.
   ulong lastUse;
 }
 
@@ -55,36 +70,52 @@ struct EvictCandidate {
 package(yguilib):
 
 /**
- * LRU cache of text textures keyed by font id, size, outline and text.
+ * LRU cache of text runs keyed by font id, size, outline and text, over
+ * one `GlyphAtlas` that holds the glyph images.
  *
  * Every hit and insert stamps the entry with an increasing tick, so a
  * hit does not allocate. `beginFrame()` marks the start of a frame
  * (called by `Renderer.clearFrame` outside render targets).
  *
+ * A run returned by `runFor` is valid until the next `runFor` call (which
+ * may grow or clear the atlas); draw it right away.
+ *
  * Eviction policy: when an insert finds `length >= maxEntries`, the
  * oldest `max(1, maxEntries / 4)` entries not used since the last
- * `beginFrame()` are destroyed. Entries used in the current frame are
+ * `beginFrame()` are removed. Entries used in the current frame are
  * kept, so a frame drawing more than `maxEntries` strings lets the cache
  * grow instead of thrashing; at the hard cap of `2 * maxEntries` the
  * oldest entries are evicted anyway, even those used in this frame.
  */
-final class TextCache {
+final class TextRunCache {
   enum size_t maxCacheEntries = 512;
 
-  this(size_t maxEntries) {
+  /// Atlas sizes: see `GlyphAtlas`; the texture is created on first use.
+  this(size_t maxEntries, int atlasInitial, int atlasMax) {
     assert(maxEntries > 0, "maxEntries must be positive");
     this.maxEntries = maxEntries;
+    fAtlas = new GlyphAtlas(atlasInitial, atlasMax);
   }
 
-  // No destructor: textures are freed only by an explicit `clear()` on
-  // the main thread with the GL context current (see `texture.d`).
+  // No destructor: the atlas texture is freed only by an explicit
+  // `clear()` on the main thread with the GL context current.
 
   @property size_t length() const {
     return cache.length;
   }
 
+  /// The atlas texture (0 until the first glyph is rasterized).
+  GLuint atlasTexture() const {
+    return fAtlas.texture();
+  }
+
+  /// Atlas width and height in pixels.
+  int atlasSize() const {
+    return fAtlas.size();
+  }
+
   version (unittest) {
-    /// Number of cached textures rendered with the font `fontId`.
+    /// Number of cached runs of the font `fontId`.
     size_t countForFont(ulong fontId) const {
       size_t n = 0;
       foreach (key, ref entry; cache) {
@@ -92,11 +123,16 @@ final class TextCache {
       }
       return n;
     }
+
+    /// The atlas (tests).
+    GlyphAtlas atlas() {
+      return fAtlas;
+    }
   }
 
   /**
-   * Destroys and removes every texture rendered with the font `fontId`.
-   * Called before that font is destroyed, since its id is never reused.
+   * Removes every run of the font `fontId` and its atlas keys. Called
+   * before that font is destroyed, since its id is never reused.
    */
   void removeFont(ulong fontId) {
     fEvictScratch.clear();
@@ -109,6 +145,7 @@ final class TextCache {
       removeKey(cand.key);
     }
     fEvictScratch.clear();
+    fAtlas.removeFont(fontId);
   }
 
   /**
@@ -130,22 +167,24 @@ final class TextCache {
     return (key in cache) !is null;
   }
 
+  /// Removes every run and frees the atlas texture.
   void clear() {
-    foreach (key, ref entry; cache) {
-      entry.texture.destroy();
-    }
     cache.clear();
     fEvictScratch.clear();
+    fAtlas.destroy();
   }
 
   /**
-   * Cached texture of `text` (see `createTextTexture`), created on a miss.
-   * Returns an invalid texture for a null/destroyed font or empty text.
+   * Cached run of `text` with outline `outlinePx` (0 for the glyph fill,
+   * else the outline ring `outlinePx` larger per side), laid out on a
+   * miss; its glyph slots are re-resolved when the atlas generation
+   * changed. Returns null for a null/destroyed font, empty text or a
+   * layout failure. The shared font's outline is reset to 0 afterwards.
    */
-  TextTexture textureFor(Font font, string text, int outlinePx) {
+  const(TextRun)* runFor(Font font, string text, int outlinePx) {
     if (font is null || font.handle is null ||
-        font.id == invalidFontId || text.length == 0) {
-      return TextTexture();
+        font.id == invalidFontId || text.length == 0 || outlinePx < 0) {
+      return null;
     }
 
     const TextCacheKey key = TextCacheKey(
@@ -154,78 +193,134 @@ final class TextCache {
     auto p = key in cache;
     if (p !is null) {
       p.lastUse = ++fTick;
-      return p.texture;
+      if (p.run.atlasGen != fAtlas.generation) {
+        if (!applyOutline(font, outlinePx)) {
+          return null;
+        }
+        scope(exit) resetOutline(font, outlinePx);
+        resolveSlots(font, outlinePx, p.run);
+      }
+      return &p.run;
     }
+
+    if (!applyOutline(font, outlinePx)) {
+      return null;
+    }
+    scope(exit) resetOutline(font, outlinePx);
+    TextRun run;
+    if (!layoutRun(font, text, outlinePx, run)) {
+      return null;
+    }
+    resolveSlots(font, outlinePx, run);
 
     if (cache.length >= maxEntries) {
       evictOldest();
     }
-
-    TextTexture tex = createTextTexture(font, text, outlinePx);
-    if (tex.isValid()) {
-      cache[key] = TextCacheEntry(tex, ++fTick);
-    }
-    return tex;
-  }
-
-  /**
-   * White-on-transparent bitmap of `text`. With `outlinePx` > 0 the bitmap
-   * is the glyph outline ring (hole inside), `outlinePx` larger per side;
-   * the shared font's outline is reset to 0 afterwards.
-   */
-  static TextTexture createTextTexture(
-    Font font, string text, int outlinePx
-  ) {
-    if (font is null || font.handle is null || text.length == 0
-      || outlinePx < 0) {
-      return TextTexture();
-    }
-    if (outlinePx > 0 &&
-        yguilib_sdl3_ttf_set_font_outline(font.handle, outlinePx) != 0) {
-      return TextTexture();
-    }
-    scope(exit) {
-      if (outlinePx > 0) {
-        yguilib_sdl3_ttf_set_font_outline(font.handle, 0);
-      }
-    }
-
-    auto surf = yguilib_sdl3_ttf_render_text_blended(
-      font.handle,
-      text.ptr,
-      text.length,
-      255,
-      255,
-      255,
-      255
-    );
-    if (surf is null) {
-      return TextTexture();
-    }
-    scope(exit) yguilib_sdl3_ttf_destroy_surface(surf);
-
-    int w = 0;
-    int h = 0;
-    yguilib_sdl3_ttf_get_surface_size(surf, &w, &h);
-    const int pitch = yguilib_sdl3_ttf_get_surface_pitch(surf);
-    const void* pixels = yguilib_sdl3_ttf_get_surface_pixels(surf);
-    if (w <= 0 || h <= 0 || pixels is null) {
-      return TextTexture();
-    }
-
-    const GLuint texId = uploadRgbaTexture(pixels, w, h, pitch);
-    return TextTexture(texId, w, h);
+    cache[key] = TextCacheEntry(run, ++fTick);
+    return &(key in cache).run;
   }
 
 private:
+  static bool applyOutline(Font font, int outlinePx) {
+    return outlinePx == 0
+      || yguilib_sdl3_ttf_set_font_outline(font.handle, outlinePx) == 0;
+  }
+
+  static void resetOutline(Font font, int outlinePx) {
+    if (outlinePx > 0) {
+      yguilib_sdl3_ttf_set_font_outline(font.handle, 0);
+    }
+  }
+
+  /**
+   * Fills size and glyph rects of `run` (slots left empty). SDL_ttf lays
+   * outlined glyphs out `outlinePx` right and below the top-left of the
+   * rendered surface, so the rects are shifted back by it.
+   */
+  bool layoutRun(Font font, string text, int outlinePx, ref TextRun run) {
+    if (fQuads.length == 0) {
+      fQuads.length = 64;
+    }
+    int w = 0;
+    int h = 0;
+    int n = yguilib_sdl3_ttf_layout_text(
+      font.handle, text.ptr, text.length, fQuads.ptr,
+      cast(int)fQuads.length, &w, &h
+    );
+    if (n > cast(int)fQuads.length) {
+      fQuads.length = n;
+      n = yguilib_sdl3_ttf_layout_text(
+        font.handle, text.ptr, text.length, fQuads.ptr,
+        cast(int)fQuads.length, &w, &h
+      );
+    }
+    if (n <= 0 || n > cast(int)fQuads.length) {
+      return false;
+    }
+    run.width = w;
+    run.height = h;
+    run.glyphs = new RunGlyph[n];
+    foreach (i, ref g; run.glyphs) {
+      const q = fQuads[i];
+      g.dx = cast(short)(q.dstX - outlinePx);
+      g.dy = cast(short)(q.dstY - outlinePx);
+      g.dw = cast(short)q.dstW;
+      g.dh = cast(short)q.dstH;
+      g.glyph = q.glyphIndex;
+      g.srcX = cast(short)q.srcX;
+      g.srcY = cast(short)q.srcY;
+      g.srcW = cast(short)q.srcW;
+      g.srcH = cast(short)q.srcH;
+    }
+    run.atlasGen = unresolvedGen;
+    return true;
+  }
+
+  /**
+   * Resolves the atlas slot of every glyph of `run` (the font outline is
+   * already set). The atlas growing or clearing in the middle restarts
+   * the loop once; after a second change the stale slots are emptied and
+   * the run is marked unresolved, so the next use retries.
+   */
+  void resolveSlots(Font font, int outlinePx, ref TextRun run) {
+    foreach (attempt; 0 .. 2) {
+      const ulong gen = fAtlas.generation;
+      size_t changedAt = run.glyphs.length;
+      foreach (i, ref g; run.glyphs) {
+        const GlyphLookup l = fAtlas.slotFor(font, outlinePx, g.glyph);
+        if (fAtlas.generation != gen) {
+          changedAt = i;
+          break;
+        }
+        g.slot = l.ok ? l.slot : GlyphSlot.init;
+      }
+      if (changedAt == run.glyphs.length) {
+        run.atlasGen = gen;
+        return;
+      }
+      if (attempt == 1) {
+        foreach (i, ref g; run.glyphs) {
+          g.slot = GlyphSlot.init;
+        }
+        run.atlasGen = unresolvedGen;
+        if (!fLoggedThrash) {
+          import std.logger : warningf;
+
+          fLoggedThrash = true;
+          warningf("TextRunCache: atlas full, text run not resolved");
+        }
+      }
+    }
+  }
+
   /// Hard cap on `length`, reached only within one frame.
   size_t hardCap() const {
     return 2 * maxEntries;
   }
 
   /**
-   * Destroys the oldest `max(1, maxEntries / 4)` entries not used in the
-   * current frame. With none and `length` at `hardCap()`, it destroys
+   * Removes the oldest `max(1, maxEntries / 4)` entries not used in the
+   * current frame. With none and `length` at `hardCap()`, it removes
    * the oldest entries regardless; otherwise the cache grows.
    */
   void evictOldest() {
@@ -251,20 +346,21 @@ private:
   }
 
   void removeKey(const TextCacheKey key) {
-    if (auto p = key in cache) {
-      p.texture.destroy();
-      cache.remove(key);
-    }
+    cache.remove(key);
   }
 
   size_t maxEntries = maxCacheEntries;
   TextCacheEntry[TextCacheKey] cache;
+  GlyphAtlas fAtlas;
   /// Incremented on every hit and insert (see `TextCacheEntry.lastUse`).
   ulong fTick = 0;
   /// First tick of the current frame (set by `beginFrame()`).
   ulong fFrameStartTick = 0;
   /// Reused eviction / removal buffer, so evicting rarely allocates.
   Appender!(EvictCandidate[]) fEvictScratch;
+  /// Reused layout output buffer.
+  yguilib_sdl3_ttf_GlyphQuad[] fQuads;
+  bool fLoggedThrash;
 }
 
 unittest {
@@ -285,28 +381,28 @@ unittest {
   );
   scope(exit) fontA.destroy();
 
-  auto tc = new TextCache(8);
+  auto tc = new TextRunCache(8, 512, 2048);
   scope(exit) tc.clear();
 
   // Insert 8 distinct entries (capacity reached)
   tc.beginFrame();
   foreach (i; 0 .. 8) {
-    TextTexture tex = tc.textureFor(fontA, "item" ~ i.to!string, 0);
-    assert(tex.isValid());
+    const tex = tc.runFor(fontA, "item" ~ i.to!string, 0);
+    assert(tex !is null);
   }
   assert(tc.length == 8);
 
   // Cache hit on "item0" in a new frame makes it the most recently used
   tc.beginFrame();
-  TextTexture tex0 = tc.textureFor(fontA, "item0", 0);
-  assert(tex0.isValid());
+  const tex0 = tc.runFor(fontA, "item0", 0);
+  assert(tex0 !is null);
   assert(tc.length == 8);
 
   // Adding 9th item triggers eviction of oldest 25% (8 / 4 = 2 items).
   // "item1" and "item2" were the oldest and should be evicted.
   // "item0" was touched and must still be present.
-  TextTexture tex8 = tc.textureFor(fontA, "item8", 0);
-  assert(tex8.isValid());
+  const tex8 = tc.runFor(fontA, "item8", 0);
+  assert(tex8 !is null);
   assert(tc.length == 7);
   assert(!tc.contains(fontA, "item1", 0));
   assert(!tc.contains(fontA, "item2", 0));
@@ -342,7 +438,7 @@ unittest {
   );
   scope(exit) font.destroy();
 
-  auto tc = new TextCache(8);
+  auto tc = new TextRunCache(8, 512, 2048);
   scope(exit) tc.clear();
 
   string[] keys;
@@ -353,7 +449,7 @@ unittest {
   // Entries used in the current frame are not evicted: the cache grows.
   tc.beginFrame();
   foreach (i; 0 .. 9) {
-    assert(tc.textureFor(font, keys[i], 0).isValid());
+    assert(tc.runFor(font, keys[i], 0) !is null);
   }
   assert(tc.length == 9);
   foreach (i; 0 .. 9) {
@@ -362,9 +458,9 @@ unittest {
 
   // Next frame: only untouched (stale) entries are evicted.
   tc.beginFrame();
-  assert(tc.textureFor(font, keys[0], 0).isValid());
-  assert(tc.textureFor(font, keys[1], 0).isValid());
-  assert(tc.textureFor(font, keys[9], 0).isValid());
+  assert(tc.runFor(font, keys[0], 0) !is null);
+  assert(tc.runFor(font, keys[1], 0) !is null);
+  assert(tc.runFor(font, keys[9], 0) !is null);
   assert(tc.length == 8); // 9 - 2 evicted + 1
   assert(tc.contains(font, keys[0], 0));
   assert(tc.contains(font, keys[1], 0));
@@ -378,7 +474,7 @@ unittest {
   // Hard cap: one frame with more than 2 * maxEntries strings.
   tc.beginFrame();
   foreach (i; 10 .. 40) {
-    assert(tc.textureFor(font, keys[i], 0).isValid());
+    assert(tc.runFor(font, keys[i], 0) !is null);
     assert(tc.length <= 16);
   }
   assert(tc.length >= 8);
@@ -387,12 +483,12 @@ unittest {
   // Hits on a cached key do not allocate.
   const string hot = keys[39];
   foreach (_; 0 .. 10) {
-    assert(tc.textureFor(font, hot, 0).isValid());
+    assert(tc.runFor(font, hot, 0) !is null);
   }
   GC.collect();
   const before = GC.stats();
   foreach (_; 0 .. 1000) {
-    assert(tc.textureFor(font, hot, 0).isValid());
+    assert(tc.runFor(font, hot, 0) !is null);
   }
   const after = GC.stats();
   assert(after.allocatedInCurrentThread == before.allocatedInCurrentThread);
@@ -418,13 +514,13 @@ unittest {
   );
   scope(exit) font.destroy();
 
-  auto tc = new TextCache(8);
+  auto tc = new TextRunCache(8, 512, 2048);
   scope(exit) tc.clear();
 
-  const fill = tc.textureFor(font, "Hi", 0);
-  const ring = tc.textureFor(font, "Hi", 3);
-  assert(fill.isValid() && ring.isValid());
-  assert(fill.textureId != ring.textureId);
+  const fill = tc.runFor(font, "Hi", 0);
+  const ring = tc.runFor(font, "Hi", 3);
+  assert(fill !is null && ring !is null);
+  assert(fill !is ring);
   assert(tc.length == 2);
   assert(tc.contains(font, "Hi", 0) && tc.contains(font, "Hi", 3));
   assert(!tc.contains(font, "Hi", 2));
@@ -432,7 +528,48 @@ unittest {
   assert(ring.height == fill.height + 6);
   // the shared font is back to its normal outline
   assert(yguilib_sdl3_ttf_get_font_outline(font.handle) == 0);
-  const again = tc.textureFor(font, "Hi", 0);
-  assert(again.textureId == fill.textureId);
-  assert(!TextCache.createTextTexture(font, "Hi", -1).isValid());
+  assert(tc.runFor(font, "Hi", 0) is fill);
+  assert(tc.runFor(font, "Hi", -1) is null);
+  assert(tc.runFor(font, "", 0) is null);
+  assert(tc.runFor(null, "Hi", 0) is null);
+}
+
+// Runs resolve to atlas slots, are re-resolved after an atlas clear and
+// removeFont drops runs and atlas keys.
+unittest {
+  import yguilib.assets : defaultTtfFontData;
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
+
+  auto w = GlTestWindow("test_text_cache_atlas");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+
+  Font font = Font.fromMemory(
+    cast(const(void)[])defaultTtfFontData, 16.0f, 1.0f
+  );
+  scope(exit) font.destroy();
+
+  auto tc = new TextRunCache(8, 512, 2048);
+  scope(exit) tc.clear();
+  assert(tc.atlasTexture() == 0);
+
+  const run = tc.runFor(font, "Ag g", 0);
+  assert(run !is null && run.glyphs.length == 3);
+  assert(tc.atlasTexture() != 0 && tc.atlasSize() == 512);
+  assert(run.atlasGen == tc.atlas.generation);
+  assert(run.glyphs[0].slot.w > 0 && run.glyphs[1].slot.w > 0);
+  // the repeated glyph shares one slot
+  assert(run.glyphs[1].slot == run.glyphs[2].slot);
+  assert(tc.atlas.length == 2);
+
+  tc.atlas.clear();
+  assert(run.atlasGen != tc.atlas.generation);
+  const again = tc.runFor(font, "Ag g", 0);
+  assert(again is run);
+  assert(again.atlasGen == tc.atlas.generation);
+  assert(again.glyphs[0].slot.w > 0);
+  assert(yguilib_sdl3_ttf_get_font_outline(font.handle) == 0);
+
+  tc.removeFont(font.id);
+  assert(tc.length == 0 && tc.atlas.length == 0);
 }

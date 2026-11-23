@@ -9,7 +9,7 @@
     rotating with the path, which shows on diagonal lines.
 
     Text (`fillText`, `strokeText`, `measureText`) draws glyph bitmaps from
-    the `TextCache` as transformed quads, rasterized at the effective scale.
+    the `TextRunCache` as transformed quads, rasterized at the effective scale.
     `strokeText` is an SDL_ttf outline ring: caps, joins and dash are
     ignored. `direction` affects only `start`/`end` alignment.
 */
@@ -20,7 +20,7 @@ import std.array : Appender;
 import yguilib.render : Renderer;
 import yguilib.render.canvas.path2d : Path2d;
 import yguilib.render.font : Font;
-import yguilib.render.internal.text_cache : TextTexture;
+import yguilib.render.internal.text_cache : TextRun;
 import yguilib.render.canvas.types;
 import yguilib.render.internal.offscreen : SavedTargetState;
 import yguilib.render.internal.path_flatten : Contours;
@@ -1213,10 +1213,15 @@ private:
 
   /// Like `buildImageVerts` with an explicit normalized `uv` rect.
   void buildImageVertsUv(in RectF uv, in RectF dest) {
+    fImageVerts.clear();
+    appendImageVerts(uv, dest);
+  }
+
+  /// Appends the transformed quad of `buildImageVertsUv` to `fImageVerts`.
+  void appendImageVerts(in RectF uv, in RectF dest) {
     import yguilib.render.internal.pipelines : quadVertices;
 
     const float[24] local = quadVertices(dest, uv);
-    fImageVerts.clear();
     for (size_t i = 0; i < local.length; i += 4) {
       const PointF p = st.xf.apply(PointF(local[i], local[i + 1]));
       const float[4] v = [p.x, p.y, local[i + 2], local[i + 3]];
@@ -1329,66 +1334,73 @@ private:
     if (f is null) {
       return;
     }
-    const TextTexture tex = fRenderer.textTextureFor(f, text, outlinePx);
-    if (!tex.isValid()) {
+    const TextRun* run = fRenderer.textRunFor(f, text, outlinePx);
+    if (run is null) {
       return;
     }
-    buildTextVerts(f, text, TextBitmap(tex, outlinePx), pos, maxWidth);
+    const GLuint atlasTex = fRenderer.glyphAtlasTexture();
+    buildTextVerts(f, text, *run, outlinePx, pos, maxWidth);
     const bool solid = paint.kind == FillStyle.Kind.color;
     if (st.shadow.isVisible()) {
-      drawImageShadow(tex.textureId, solid ? paint.color.a : 1.0f);
+      drawImageShadow(atlasTex, solid ? paint.color.a : 1.0f);
     }
     beginClipTest(clipActive());
     if (solid) {
       fRenderer.texturePipelineRef().drawTexturedTriangles(
-        tex.textureId, fImageVerts[], paint.color, TextureMode.straight,
+        atlasTex, fImageVerts[], paint.color, TextureMode.straight,
         fRenderer.logicViewport()
       );
     } else {
-      drawMaskedPaint(fImageVerts[], tex.textureId, paint);
+      drawMaskedPaint(fImageVerts[], atlasTex, paint);
     }
     endStencil();
   }
 
-  /// Text bitmap and its outline ring width (0 for a glyph fill).
-  struct TextBitmap {
-    TextTexture tex;
-    int outlinePx;
-  }
-
   /**
-   * `fImageVerts` = the quad of `bmp` (the bitmap of `text` in font `f`)
-   * anchored at `pos` by the current align, baseline and direction,
+   * `fImageVerts` = the glyph quads of `run` (the run of `text` in font
+   * `f` with outline ring width `outlinePx`, 0 for a fill) anchored at
+   * `pos` by the current align, baseline and direction,
    * squeezed horizontally to `maxWidth` about the anchor.
    */
   void buildTextVerts(
     Font f,
     string text,
-    in TextBitmap bmp,
+    in TextRun run,
+    int outlinePx,
     PointF pos,
     float maxWidth
   ) {
-    const TextTexture tex = bmp.tex;
     // bitmap pixels per user unit (the quantized font scale)
     const float q = f.scaledSize / f.size;
     // advance width at the raster scale (what measureText reports, not
     // the bitmap width) and the outline margin, in user units
     const TextMetrics m = textMetricsOf(f, text);
     const float gw = m.width;
-    const float margin = bmp.outlinePx / q;
+    const float margin = outlinePx / q;
     const PointF off = textAnchorOffset(
       m, st.textAlign, st.textBaseline, st.direction
     );
     // maxWidth squeezes x about the anchor
     const float s = gw > maxWidth ? maxWidth / gw : 1.0f;
     const float x0 = pos.x + off.x * s;
-    buildImageVertsUv(
-      RectF(0, 0, 1, 1),
-      RectF(
-        x0 - margin * s, pos.y + off.y - margin,
-        tex.width / q * s, tex.height / q
-      )
-    );
+    const float atlas = fRenderer.glyphAtlasSize();
+    const float ox = x0 - margin * s;
+    const float oy = pos.y + off.y - margin;
+    fImageVerts.clear();
+    foreach (ref g; run.glyphs) {
+      if (g.slot.w <= 0) {
+        continue;
+      }
+      appendImageVerts(
+        RectF(
+          (g.slot.x + g.srcX) / atlas, (g.slot.y + g.srcY) / atlas,
+          g.srcW / atlas, g.srcH / atlas
+        ),
+        RectF(
+          ox + g.dx / q * s, oy + g.dy / q, g.dw / q * s, g.dh / q
+        )
+      );
+    }
   }
 
   /**
