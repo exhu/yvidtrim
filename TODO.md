@@ -1,6 +1,3 @@
-- add helpers to canvas api to decode Path2D string (e.g. "M 155 112 C 165 88, 225 88, 235 106 Z") into Path2d instance, and decode color from strings like "#2b3140" to ColorF to easily port js canvas snipepts.
-- add new page to guidemo which draws gamepad via translating related js snippet from documentation/gamepad-canvas-by-gemini.html using helpers from todo item above and yguilib.render.canvas api with Path2d.
-
 - experiment with a RunGlyph pool (reuse evicted runs' RunGlyph[] or one pooled buffer) and a larger maxCacheEntries in text_cache.d, check with textbench `many` whether RSS / GC free heap drops (see "Memory investigation" in documentation/text-atlas-benchmark.md)
 - cross-label text batching (queue glyph quads, flush on state change) (canvas-render-review 3.7)
 - build widget library

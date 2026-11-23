@@ -33,10 +33,17 @@ string formatPageStatus(DemoPage page, string details) {
 string formatGlobalHints(DebugDrawMode mode) {
   import std.format : format;
 
+  if (demoPages.length >= 10) {
+    return format(
+      "[Tab/1-0] Page | [F1] Debug draw: %s | [F12] Screenshot | "
+        ~ "[Q/Esc] Quit",
+      mode
+    );
+  }
   return format(
     "[Tab/1-%d] Page | [F1] Debug draw: %s | [F12] Screenshot | "
       ~ "[Q/Esc] Quit",
-    demoPages.length % 10,
+    demoPages.length,
     mode
   );
 }
@@ -54,7 +61,7 @@ string[] headerTabNames() {
 }
 
 unittest {
-  assert(pageCount() == 10);
+  assert(pageCount() == 11);
 
   auto m = new DemoModel();
   assert(isPageActive(m, DemoPage.layoutPainter));
@@ -78,11 +85,12 @@ unittest {
   );
 
   auto tabs = headerTabNames();
-  assert(tabs.length == 10);
+  assert(tabs.length == 11);
   assert(tabs[0] == "[1] Layout & Paint");
   assert(tabs[5] == "[6] Scrollbars");
   assert(tabs[6] == "[7] VirtList");
   assert(tabs[7] == "[8] Knob (Lock)");
   assert(tabs[8] == "[9] Button");
   assert(tabs[9] == "[10] Canvas");
+  assert(tabs[10] == "[11] Gamepad");
 }

@@ -47,7 +47,7 @@
  *                 Page 3: Hover Ctrl, Page 4: Hover System,
  *                 Page 5: TabControl, Page 6: Scrollbars, Page 7: VirtList,
  *                 Page 8: Knob / cursor lock, Page 9: Button,
- *                 Page 10 ([0]): Canvas)
+ *                 Page 10 ([0]): Canvas, Page 11: Gamepad)
  *   [Space]       Toggle Canvas page animation (Page 10)
  *   [I]           Swap Canvas interop / image section (Page 10)
  *   [M]           Toggle multiline on interactive TextLabel
@@ -74,14 +74,16 @@ import guidemo.controller : DemoController, DemoControllerParams;
 import guidemo.hover_button : HoverButtonController;
 import yguilib.controls.hover_button_system : AnimatedHoverButtonSystem;
 import guidemo.model : ButtonPageModel, ButtonSystemPageModel,
-  CanvasPageModel, DemoModel, KnobPageModel, LayoutPainterPageModel,
-  SimpleButtonPageModel, TextLabelPageModel;
+  CanvasPageModel, DemoModel, GamepadPageModel, KnobPageModel,
+  LayoutPainterPageModel, SimpleButtonPageModel, TextLabelPageModel;
 import guidemo.pages.button_controller : ButtonPageController;
 import guidemo.pages.button_page : ButtonPage;
 import guidemo.pages.button_system_controller : ButtonSystemPageController;
 import guidemo.pages.button_system_page : ButtonSystemPage;
 import guidemo.pages.canvas_controller : CanvasPageController;
 import guidemo.pages.canvas_page : CanvasPage;
+import guidemo.pages.gamepad_controller : GamepadPageController;
+import guidemo.pages.gamepad_page : GamepadPage;
 import guidemo.pages.knob_controller : KnobPageController;
 import guidemo.pages.knob_page : KnobPage;
 import guidemo.pages.layout_painter_controller : LayoutPainterPageController;
@@ -193,6 +195,7 @@ void registerDemoPages(
   registerKnobPage(ui, demoTracker, rootWidget);
   registerSimpleButtonPage(ui, demoTracker, rootWidget);
   registerCanvasPage(ui, demoTracker, rootWidget);
+  registerGamepadPage(ui, demoTracker, rootWidget);
 }
 
 /**
@@ -319,6 +322,18 @@ void registerCanvasPage(
   Widget rootWidget
 ) {
   registerSimplePage!(CanvasPage, CanvasPageController, CanvasPageModel)(
+    ui,
+    demoTracker,
+    rootWidget
+  );
+}
+
+void registerGamepadPage(
+  UiSystem ui,
+  ref ModelTracker!DemoModel demoTracker,
+  Widget rootWidget
+) {
+  registerSimplePage!(GamepadPage, GamepadPageController, GamepadPageModel)(
     ui,
     demoTracker,
     rootWidget

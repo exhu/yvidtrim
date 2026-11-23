@@ -2163,3 +2163,40 @@ unittest {
   assert(sq.y0 == full.y0 && sq.y1 == full.y1);
   assert(glGetError() == GL_NO_ERROR);
 }
+
+// Path2d.fromSvgPath GL rendering (cubic curve + SVG arc, fill + stroke)
+unittest {
+  auto w = GlTestWindow("test_canvas_svg_path");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+  auto r = w.renderer();
+  auto cv = w.canvas();
+
+  const black = ColorF(0, 0, 0, 1);
+  auto shape = Path2d.fromSvgPath(
+    "M 60 120 C 60 60, 140 60, 140 120 "
+    ~ "A 60 60 0 0 1 260 120 L 260 200 L 60 200 Z"
+  );
+  assert(!shape.isEmpty());
+
+  r.clearFrame(black);
+  cv.fillStyle(FillStyle.solidFromString("#2b3140"));
+  cv.strokeStyle(StrokeStyle.solidFromString("#ef4444"));
+  cv.lineWidth(6);
+  cv.fill(shape);
+  cv.stroke(shape);
+
+  // Fill interior (#2b3140 -> 43, 49, 64)
+  assert(isRgb(100, 100, 43, 49, 64));
+  assert(isRgb(200, 90, 43, 49, 64));
+  assert(isRgb(160, 160, 43, 49, 64));
+  // Stroke on cubic peak (100, 75), arc peak (200, 60), bottom (160, 200)
+  assert(isRgb(100, 75, 239, 68, 68));
+  assert(isRgb(200, 60, 239, 68, 68));
+  assert(isRgb(160, 200, 239, 68, 68));
+  // Outside background
+  assert(isRgb(20, 20, 0, 0, 0));
+  assert(isRgb(100, 50, 0, 0, 0));
+  assert(isRgb(200, 40, 0, 0, 0));
+  assert(glGetError() == GL_NO_ERROR);
+}

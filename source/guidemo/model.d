@@ -29,6 +29,7 @@ enum DemoPage : size_t {
   knob,
   simpleButton,
   canvas,
+  gamepad,
 }
 
 /// Display metadata for a single guidemo page.
@@ -49,6 +50,7 @@ immutable DemoPageMeta[DemoPage.max + 1] demoPages = [
   DemoPage.knob: DemoPageMeta("Knob (Lock)", "Knob"),
   DemoPage.simpleButton: DemoPageMeta("Button", "Button"),
   DemoPage.canvas: DemoPageMeta("Canvas", "Canvas"),
+  DemoPage.gamepad: DemoPageMeta("Gamepad", "Gamepad"),
 ];
 
 /// Model holding shared global state for the demo.
@@ -168,3 +170,6 @@ enum CanvasSlot7 {
   patterns,
   text,
 }
+
+/// Model holding Page 11 (Gamepad Canvas 2D showcase) state.
+final class GamepadPageModel : VersionedModel {}

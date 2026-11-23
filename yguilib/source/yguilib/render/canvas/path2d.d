@@ -34,8 +34,9 @@ size_t pointCountOfVerb(PathVerb v) nothrow @safe @nogc pure {
 }
 
 /**
- * Similar to Canvas web API Path2D (MDN semantics), but without text
- * strings; uses float for coords and angles (radians).
+ * Similar to Canvas web API Path2D (MDN semantics), including SVG path
+ * data strings via `fromSvgPath` and `addSvgPath`; uses float for coords
+ * and angles (radians).
  * Arcs and ellipses are stored as cubic Bézier segments of at most 90°.
  * Negative radii and non-finite inputs are ignored (no-op).
  */
@@ -299,6 +300,24 @@ final class Path2d {
     fCurrent = t.apply(otherCur);
   }
 
+  /// Creates a `Path2d` parsed from an SVG path data string `d`.
+  static Path2d fromSvgPath(string d) nothrow @safe {
+    auto p = new Path2d();
+    p.addSvgPath(d);
+    return p;
+  }
+
+  /**
+   * Parses SVG path data string `d` and appends its commands to `this`.
+   * Stops on the first syntax error, keeping any already-emitted commands,
+   * and returns `false` on error (`true` on success).
+   */
+  bool addSvgPath(string d) nothrow @safe {
+    import yguilib.render.internal.svg_path_parser : parseSvgPathInto;
+
+    return parseSvgPathInto(this, d);
+  }
+
   /// Removes all subpaths, keeping the buffer capacity.
   void clear() nothrow @safe {
     fVerbs.clear();
@@ -328,6 +347,23 @@ package(yguilib):
   /// Stored points for all verbs, in order.
   const(PointF)[] points() const nothrow @safe @nogc {
     return fPoints[];
+  }
+
+  /**
+   * Appends an SVG elliptical arc as cubic Bézier segments of at most 90°
+   * directly from the current point (without inserting a `lineTo` to the
+   * arc start) and snaps the final endpoint to `arc.endPoint`.
+   */
+  void appendSvgArc(in SvgArcParams arc) nothrow @safe {
+    import std.math : isFinite;
+
+    if (arc.sweep == 0 || !isFinitePoint(arc.center)
+        || !isFinitePoint(arc.radii) || !isFinitePoint(arc.endPoint)
+        || !isFinite(arc.rotation) || !isFinite(arc.startAngle)
+        || !isFinite(arc.sweep)) {
+      return;
+    }
+    appendArcCubics(arc, true);
   }
 
 private:
@@ -374,21 +410,17 @@ private:
     float startAngle,
     float sweep
   ) nothrow @safe {
-    import std.math : abs, ceil, cos, PI, sin, tan;
+    import std.math : abs, cos, PI, sin;
 
     const double cr = cos(cast(double) rotation);
     const double sr = sin(cast(double) rotation);
-    PointF map(double ux, double uy) {
-      const double x = ux * radii.x;
-      const double y = uy * radii.y;
-      return PointF(
-        cast(float)(center.x + x * cr - y * sr),
-        cast(float)(center.y + x * sr + y * cr)
-      );
-    }
-
     const double a0 = startAngle;
-    const PointF start = map(cos(a0), sin(a0));
+    const double x0 = cos(a0) * radii.x;
+    const double y0 = sin(a0) * radii.y;
+    const PointF start = PointF(
+      cast(float)(center.x + x0 * cr - y0 * sr),
+      cast(float)(center.y + x0 * sr + y0 * cr)
+    );
     if (fHasSubpath) {
       lineTo(start);
     } else {
@@ -398,10 +430,31 @@ private:
       return;
     }
     const bool full = abs(sweep) >= 2 * PI - 1e-6;
-    int n = cast(int) ceil(abs(sweep) / (PI / 2) - 1e-4);
+    const SvgArcParams params = SvgArcParams(
+      center, radii, rotation, startAngle, sweep, start
+    );
+    appendArcCubics(params, full);
+  }
+
+  void appendArcCubics(in SvgArcParams arc, bool snapEnd) nothrow @safe {
+    import std.math : abs, ceil, cos, PI, sin, tan;
+
+    const double cr = cos(cast(double) arc.rotation);
+    const double sr = sin(cast(double) arc.rotation);
+    PointF map(double ux, double uy) {
+      const double x = ux * arc.radii.x;
+      const double y = uy * arc.radii.y;
+      return PointF(
+        cast(float)(arc.center.x + x * cr - y * sr),
+        cast(float)(arc.center.y + x * sr + y * cr)
+      );
+    }
+
+    int n = cast(int) ceil(abs(cast(double) arc.sweep) / (PI / 2) - 1e-4);
     n = n < 1 ? 1 : n;
-    const double step = cast(double) sweep / n;
+    const double step = cast(double) arc.sweep / n;
     const double k = 4.0 / 3.0 * tan(step / 4);
+    const double a0 = arc.startAngle;
     foreach (i; 0 .. n) {
       const double s0 = a0 + step * i;
       const double s1 = s0 + step;
@@ -409,7 +462,8 @@ private:
       const double n0 = sin(s0);
       const double c1 = cos(s1);
       const double n1 = sin(s1);
-      const PointF end = (full && i == n - 1) ? start : map(c1, n1);
+      const PointF end = (snapEnd && i == n - 1)
+        ? arc.endPoint : map(c1, n1);
       bezierCurveTo(
         map(c0 - k * n0, n0 + k * c0),
         map(c1 + k * n1, n1 - k * c1),
@@ -417,6 +471,18 @@ private:
       );
     }
   }
+}
+
+package(yguilib):
+
+/// Center-parameterized arc descriptor for `Path2d.appendSvgArc`.
+struct SvgArcParams {
+  PointF center;
+  PointF radii;
+  float rotation = 0;
+  float startAngle = 0;
+  float sweep = 0;
+  PointF endPoint;
 }
 
 // Path2d
@@ -559,6 +625,34 @@ unittest {
   }
   const after = GC.stats();
   assert(p.verbs.length == nv && q.points.length == nq);
+  assert(after.allocatedInCurrentThread == before.allocatedInCurrentThread);
+  assert(
+    after.usedSize + after.freeSize <= before.usedSize + before.freeSize
+  );
+}
+
+// warmed-up Path2d.addSvgPath (curves and arcs) allocates 0 bytes
+unittest {
+  import core.memory : GC;
+
+  enum string svg =
+    "M 10 20 L 30 40 H 50 V 60 "
+    ~ "C 60 10, 90 10, 100 60 S 130 90, 150 60 "
+    ~ "Q 160 20, 180 60 T 210 60 "
+    ~ "A 25 15 30 0 1 260 60 Z";
+  auto p = new Path2d();
+  assert(p.addSvgPath(svg));
+  const size_t nv = p.verbs.length;
+  const size_t np = p.points.length;
+
+  GC.collect();
+  const before = GC.stats();
+  foreach (_; 0 .. 100) {
+    p.clear();
+    assert(p.addSvgPath(svg));
+  }
+  const after = GC.stats();
+  assert(p.verbs.length == nv && p.points.length == np);
   assert(after.allocatedInCurrentThread == before.allocatedInCurrentThread);
   assert(
     after.usedSize + after.freeSize <= before.usedSize + before.freeSize

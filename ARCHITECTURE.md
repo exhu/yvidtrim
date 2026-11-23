@@ -26,9 +26,9 @@ yvidtrim/
 │       ├── common.d       # PageControllerParams, section cards, page sync
 │       ├── model.d, view.d, demo_model_helpers.d, hover_button.d
 │       │                  # demo models, shell view, helpers, hover demo
-│       └── pages/         # Showcase views/controllers (knob_page.d:
-│                          # CursorCapture.lock; canvas_page.d: Canvas,
-│                          # images, patterns, text; virtlist_*.d)
+│       └── pages/         # Showcase views/controllers (knob_page.d: lock;
+│                          # canvas_page.d: Canvas/images/patterns/text;
+│                          # gamepad_page.d: SVG Path2d; virtlist_*.d)
 ├── yguilib/               # Independent GUI library (no yvidtrim dependency)
 │   ├── source/yguilib/
 │   │   ├── allochelpers.d # SmallBuffer, RingBuffer, ReusableArray containers
@@ -54,9 +54,9 @@ yvidtrim/
 │   │   ├── render/        # Hardware Renderer, FontManager, shader pipelines
 │   │   │   ├── canvas/    # Canvas, path2d, types, package_test (GL tests)
 │   │   │   ├── image.d, texture.d, render_target.d # Image/Texture/RenderTarget
-│   │   │   └── internal/  # pipelines, path_*, stencil_ops, offscreen,
-│   │   │                  # clip_stack, text_cache, glyph_atlas, gl_util,
-│   │   │                  # gl_test_util
+│   │   │   └── internal/  # pipelines, path_*, svg_path_parser,
+│   │   │                  # stencil_ops, offscreen, clip_stack,
+│   │   │                  # text_cache, glyph_atlas, gl_util, gl_test_util
 │   │   ├── widget/        # Widget entity, components, builder, WidgetSystem
 │   │   │   ├── virtlist_components.d # VirtListProvider & VirtListComponent
 │   │   │   └── internal/virtlist_system.d # Recycling, layout & wheel scroll

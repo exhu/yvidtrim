@@ -4,7 +4,7 @@
 module yguilib.render.canvas.types;
 
 import yguilib.render.font : defaultFontPtSize;
-import yguilib.render.render_types : ColorF, PointF;
+import yguilib.render.render_types : ColorF, colorFromString, PointF;
 import yguilib.render.texture : Texture;
 
 /**
@@ -420,11 +420,16 @@ struct FillStyle {
   }
 
   /// Solid color paint.
-  static FillStyle solid(ColorF c) nothrow @safe @nogc {
+  static FillStyle solid(ColorF c) nothrow @safe @nogc pure {
     FillStyle s;
     s.fKind = Kind.color;
     s.fColor = c;
     return s;
+  }
+
+  /// Solid color paint decoded from a CSS/hex string (`colorFromString`).
+  static FillStyle solidFromString(string s) nothrow @safe @nogc pure {
+    return solid(colorFromString(s));
   }
 
   /// Linear gradient paint.
@@ -534,6 +539,15 @@ unittest {
   assert(cp.kind == FillStyle.Kind.linearGradient && cp.linear.p1.x == 10);
   cp = FillStyle.solid(ColorF(0, 1, 0, 1));
   assert(cp.color == ColorF(0, 1, 0, 1));
+
+  const fsStr = FillStyle.solidFromString("#2b3140");
+  assert(fsStr.kind == FillStyle.Kind.color);
+  assert(fsStr.color == ColorF(0x2b / 255.0f, 0x31 / 255.0f,
+    0x40 / 255.0f, 1.0f));
+  const ssStr = StrokeStyle.solidFromString("rgba(75, 85, 107, 0.5)");
+  assert(ssStr.kind == FillStyle.Kind.color);
+  assert(ssStr.color == ColorF(75 / 255.0f, 85 / 255.0f,
+    107 / 255.0f, 0.5f));
 }
 
 /**
