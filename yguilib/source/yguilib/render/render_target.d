@@ -282,7 +282,8 @@ unittest {
   import std.math : abs;
   import yguilib.clibs.sdl3;
   import yguilib.render : Renderer;
-  import yguilib.render.canvas : FillStyle, Path2d;
+  import yguilib.render.canvas.path2d : Path2d;
+  import yguilib.render.canvas.types : FillStyle;
   import yguilib.render.internal.clip_stack : ClipStack;
   import yguilib.render.render_types : ColorF, PointF, RectF;
   import yguilib.window : Window;

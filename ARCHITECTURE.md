@@ -59,7 +59,7 @@ yvidtrim/
 │   │   │   └── virtlist.d            # Composite VirtList widget & view
 │   │   ├── events/        # AppEvent, builder, and thread-safe MessageBus
 │   │   ├── render/        # Hardware Renderer, FontManager, shader pipelines
-│   │   │   ├── canvas.d   # Canvas 2D context, Path2d, Transform2d, paints
+│   │   │   ├── canvas/    # Canvas (package.d), path2d.d, types.d
 │   │   │   ├── image.d, texture.d, render_target.d # Image/Texture/RenderTarget
 │   │   │   └── internal/  # pipelines, path_*, stencil_ops, offscreen
 │   │   ├── widget/        # Widget entity, components, builder, WidgetSystem

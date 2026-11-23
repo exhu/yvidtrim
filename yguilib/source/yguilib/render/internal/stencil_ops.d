@@ -10,7 +10,7 @@ module yguilib.render.internal.stencil_ops;
 package(yguilib):
 
 import glad2.gles2;
-import yguilib.render.canvas : FillRule;
+import yguilib.render.canvas.types : FillRule;
 
 /// Stencil bit 7: inside the current Canvas clip.
 enum uint clipBit = 0x80;

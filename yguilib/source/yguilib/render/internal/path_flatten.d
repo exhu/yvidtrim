@@ -4,7 +4,8 @@ module yguilib.render.internal.path_flatten;
 package(yguilib):
 
 import std.array : Appender;
-import yguilib.render.canvas : Path2d, PathVerb, Transform2d;
+import yguilib.render.canvas.path2d : Path2d, PathVerb;
+import yguilib.render.canvas.types : Transform2d;
 import yguilib.render.render_types : PointF;
 
 /// One polyline in `Contours.points[start .. start + count]`.

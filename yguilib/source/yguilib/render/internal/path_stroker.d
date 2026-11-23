@@ -9,7 +9,7 @@ package(yguilib):
 
 import std.array : Appender;
 import std.math : PI, abs, acos, atan2, ceil, cos, isFinite, sin, sqrt;
-import yguilib.render.canvas : LineCap, LineJoin;
+import yguilib.render.canvas.types : LineCap, LineJoin;
 import yguilib.render.internal.path_flatten : ContourInfo, Contours;
 import yguilib.render.render_types : PointF;
 

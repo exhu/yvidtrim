@@ -29,7 +29,7 @@
  * 3. controls/button.d:
  *    - Plain push Button: press fade + caption sink animation, drag-off
  *      cancel, release-inside click, disabled state, fixed/auto sizing.
- * 4. render/canvas.d (via CustomDraw / WidgetBuilder.onDraw):
+ * 4. render/canvas/ (via CustomDraw / WidgetBuilder.onDraw):
  *    - Path2d curves, arcs, ellipses, round rects; nonZero/evenOdd fills;
  *      caps, joins, miter limit, animated dashes; transforms; clips;
  *      linear/radial gradients; Canvas + Renderer interop.

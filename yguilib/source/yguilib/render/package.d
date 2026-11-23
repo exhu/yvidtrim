@@ -16,7 +16,7 @@ import yguilib.render.render_types;
 import yguilib.render.render_target : RenderTarget;
 import yguilib.render.texture : Texture;
 import yguilib.assets : defaultTtfFontData;
-import yguilib.render.canvas;
+import yguilib.render.canvas : Canvas;
 
 /// Managed by Window class. Lower level 2d api.
 final class Renderer {

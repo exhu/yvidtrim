@@ -23,9 +23,11 @@ import guidemo.common : makeSectionCard;
 import guidemo.model : CanvasPageModel, CanvasSlot7;
 import yguilib.model : ModelTracker;
 import yguilib.render : Renderer;
-import yguilib.render.canvas : Canvas, FillRule, FillStyle, LineCap,
-  LineDash, LineJoin, LinearGradient, Path2d, Pattern, PatternRepeat,
-  RadialGradient, Shadow, Transform2d;
+import yguilib.render.canvas : Canvas;
+import yguilib.render.canvas.path2d : Path2d;
+import yguilib.render.canvas.types : FillRule, FillStyle, LineCap, LineDash,
+  LineJoin, LinearGradient, Pattern, PatternRepeat, RadialGradient, Shadow,
+  Transform2d;
 import yguilib.render.image : Image;
 import yguilib.render.render_target : RenderTarget;
 import yguilib.render.texture : Texture;

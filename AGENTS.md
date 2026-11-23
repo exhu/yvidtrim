@@ -86,6 +86,9 @@ Adhere to `.editorconfig` and `codestyle.md`:
 - Invoke skill scripts directly without wrapping them in `echo` banners or
   ad-hoc shell filters/counters (`awk`, `wc`, `sed`, `grep`). If a skill lacks
   needed output or checks, enhance the skill script instead.
+- Do not run ad-hoc inline scripts (`python3 -c`, `perl -e`, etc.) in the
+  shell to edit, split, or inspect files; use built-in file tools
+  (`read_file`, `write_file`, `edit_file`) or a D skill script via `rdmd`.
 
 ## Markdown documentation
 Use ascii for diagrams in `.md` files, e.g. for plans.

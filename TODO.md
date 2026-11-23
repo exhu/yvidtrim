@@ -1,4 +1,3 @@
-- move canvas.d into package yguilib.render.canvas (as package.d), move Path2d to a dedicated module inside it yguilib.render.canvas.path2d ; also suggest spliting other types into yguilib.render.canvas.common or *.types module.
 - implement text support in canvas api to allow rotate text etc.
 - review canvas and renderer implementation, look for repeated memory allocations
 - human review of canvas and renderer implementation
