@@ -766,3 +766,122 @@ struct GradientPipeline {
     );
   }
 }
+
+/// Uniform values of `PatternPipeline` (see `pattern.frag.glsl`).
+struct PatternUniforms {
+  GLuint textureId;
+  /// Logic to normalized tile UV (top-left [0, 1]) as column-major mat3.
+  float[9] invXf = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+  /// Straight-alpha tint color.
+  ColorF tint = ColorF(1, 1, 1, 1);
+  /// Repeat mask: bit 0 = repeat X, bit 1 = repeat Y (0..3).
+  int repeat;
+  TextureMode mode = TextureMode.straight;
+  /// True for GL bottom-up render target textures.
+  bool bottomUp;
+}
+
+/**
+ * Shader pipeline for image pattern paint over vec2 triangles in logic
+ * coordinates.
+ */
+struct PatternPipeline {
+  GLuint program;
+  GLuint vao;
+  GLuint vbo;
+  GLuint[4] samplers;
+  GLint uResolutionLoc = -1;
+  GLint uTextureLoc = -1;
+  GLint uInvXfLoc = -1;
+  GLint uTintLoc = -1;
+  GLint uRepeatLoc = -1;
+  GLint uModeLoc = -1;
+  GLint uBottomUpLoc = -1;
+
+  void initialize() {
+    program = buildProgram(
+      paintVertexShaderSource, patternFragmentShaderSource
+    );
+    uResolutionLoc = glGetUniformLocation(program, "uResolution\0".ptr);
+    uTextureLoc = glGetUniformLocation(program, "uTexture\0".ptr);
+    uInvXfLoc = glGetUniformLocation(program, "uInvXf\0".ptr);
+    uTintLoc = glGetUniformLocation(program, "uTint\0".ptr);
+    uRepeatLoc = glGetUniformLocation(program, "uRepeat\0".ptr);
+    uModeLoc = glGetUniformLocation(program, "uMode\0".ptr);
+    uBottomUpLoc = glGetUniformLocation(program, "uBottomUp\0".ptr);
+
+    const VertexArrayHandles h = createVec2VertexArray();
+    vao = h.vao;
+    vbo = h.vbo;
+
+    glGenSamplers(4, samplers.ptr);
+    foreach (i; 0 .. 4) {
+      glSamplerParameteri(samplers[i], GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      glSamplerParameteri(samplers[i], GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+      const GLint wrapS = (i & 1) ? GL_REPEAT : GL_CLAMP_TO_EDGE;
+      const GLint wrapT = (i & 2) ? GL_REPEAT : GL_CLAMP_TO_EDGE;
+      glSamplerParameteri(samplers[i], GL_TEXTURE_WRAP_S, wrapS);
+      glSamplerParameteri(samplers[i], GL_TEXTURE_WRAP_T, wrapT);
+    }
+  }
+
+  void destroy() {
+    if (samplers[0] != 0) {
+      glDeleteSamplers(4, samplers.ptr);
+      samplers = 0;
+    }
+    destroyProgramAndBuffers(program, vao, vbo);
+  }
+
+  /// Draws triangles with the blending for `u.mode`; stencil state is left
+  /// unchanged. `u.textureId` 0 or fewer than 3 vertices draw nothing.
+  void drawTriangles(
+    const(float)[] vertices,
+    in PatternUniforms u,
+    float vw,
+    float vh
+  ) {
+    if (u.textureId == 0 || vertices.length < 6) {
+      return;
+    }
+    TexturePipeline.setupBlendForMode(u.mode);
+    drawTrianglesWithCurrentState(vertices, u, vw, vh);
+  }
+
+  /**
+   * Like `drawTriangles` but keeps the current blend, cull and depth state
+   * (e.g. blending disabled to write paint alpha into a shadow mask).
+   */
+  void drawTrianglesWithCurrentState(
+    const(float)[] vertices,
+    in PatternUniforms u,
+    float vw,
+    float vh
+  ) {
+    if (u.textureId == 0 || vertices.length < 6) {
+      return;
+    }
+    const int rep = u.repeat & 3;
+    glUseProgram(program);
+    glUniform2f(uResolutionLoc, vw, vh);
+    glUniform1i(uTextureLoc, 0);
+    glUniformMatrix3fv(uInvXfLoc, 1, GL_FALSE, u.invXf.ptr);
+    glUniform4f(uTintLoc, u.tint.r, u.tint.g, u.tint.b, u.tint.a);
+    glUniform1i(uRepeatLoc, rep);
+    glUniform1i(uModeLoc, cast(GLint)u.mode);
+    glUniform1i(uBottomUpLoc, u.bottomUp ? 1 : 0);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, u.textureId);
+    glBindSampler(0, samplers[rep]);
+    uploadAndDrawDynamic(
+      GL_TRIANGLES,
+      vao,
+      vbo,
+      vertices,
+      cast(GLsizei)(vertices.length / 2)
+    );
+    glBindSampler(0, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+  }
+}

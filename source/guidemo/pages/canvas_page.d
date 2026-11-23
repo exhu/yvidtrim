@@ -8,11 +8,13 @@
  *
  * Slot 7 cycles ([I]) through the Renderer interop section, the image
  * section (`Renderer.drawImage`/`drawImageRegion` and `Canvas.drawImage`
- * with a transform, a clip, a shadow and a tint) and the offscreen section
- * (a cached `RenderTarget` drawing blitted several times). The sample PNG
- * is decoded once; its `Texture` and the `RenderTarget` are created lazily
- * on the first draw and released by `releaseGpuResources()` (main thread).
- * A [P] request in the model is saved as a PNG by the offscreen draw.
+ * with a transform, a clip, a shadow and a tint), the offscreen section
+ * (a cached `RenderTarget` drawing blitted several times) and the patterns
+ * section (`Pattern` fills/strokes with repeat modes, transforms, tints and
+ * a `RenderTarget` texture). The sample PNG is decoded once; its `Texture`
+ * and the `RenderTarget` are created lazily on the first draw and released
+ * by `releaseGpuResources()` (main thread). A [P] request in the model is
+ * saved as a PNG by the offscreen draw.
  */
 module guidemo.pages.canvas_page;
 
@@ -22,8 +24,8 @@ import guidemo.model : CanvasPageModel, CanvasSlot7;
 import yguilib.model : ModelTracker;
 import yguilib.render : Renderer;
 import yguilib.render.canvas : Canvas, FillRule, FillStyle, LineCap,
-  LineDash, LineJoin, LinearGradient, Path2d, RadialGradient, Shadow,
-  Transform2d;
+  LineDash, LineJoin, LinearGradient, Path2d, Pattern, PatternRepeat,
+  RadialGradient, Shadow, Transform2d;
 import yguilib.render.image : Image;
 import yguilib.render.render_target : RenderTarget;
 import yguilib.render.texture : Texture;
@@ -76,6 +78,7 @@ final class CanvasPage {
     transformsWidget.update(WidgetUpdateScope.visuals);
     // the blits rotate and a [P] request is consumed by the draw
     offscreenWidget.update(WidgetUpdateScope.visuals);
+    patternsWidget.update(WidgetUpdateScope.visuals);
     return true;
   }
 
@@ -87,7 +90,8 @@ final class CanvasPage {
     static immutable string[CanvasSlot7.max + 1] next = [
       CanvasSlot7.interop: " | [I] Show images",
       CanvasSlot7.images: " | [I] Show offscreen",
-      CanvasSlot7.offscreen: " | [I] Show interop",
+      CanvasSlot7.offscreen: " | [I] Show patterns",
+      CanvasSlot7.patterns: " | [I] Show interop",
     ];
     return anim ~ next[tracker.model.slot7] ~ " | [P] Save offscreen PNG";
   }
@@ -154,6 +158,9 @@ private:
       2, 1, "10. Offscreen (RenderTarget)", "canvasOffscreen",
       &drawOffscreen
     );
+    patternsWidget = addSection(
+      2, 1, "11. Patterns", "canvasPatterns", &drawPatterns
+    );
   }
 
   /// Shows the slot 7 card selected by the model, hides the others.
@@ -162,6 +169,7 @@ private:
     interopWidget.parent.setVisible(s == CanvasSlot7.interop);
     imagesWidget.parent.setVisible(s == CanvasSlot7.images);
     offscreenWidget.parent.setVisible(s == CanvasSlot7.offscreen);
+    patternsWidget.parent.setVisible(s == CanvasSlot7.patterns);
   }
 
   Widget addSection(
@@ -233,6 +241,7 @@ private:
     buildStrokePaths();
     buildMiscPaths();
     buildImagePaths();
+    buildPatternPaths();
   }
 
   void buildImagePaths() {
@@ -240,6 +249,34 @@ private:
 
     imageClip = new Path2d();
     imageClip.arc(PointF(236, 128), 26, 0, 2 * PI, false);
+  }
+
+  void buildPatternPaths() {
+    import std.math : PI;
+
+    patternTileRect = new Path2d();
+    patternTileRect.roundRect(RectF(8, 16, 120, 74), 10);
+
+    patternStripX = new Path2d();
+    patternStripX.rect(RectF(142, 16, 116, 36));
+
+    patternOnceRect = new Path2d();
+    patternOnceRect.rect(RectF(142, 72, 116, 36));
+
+    patternRotCircle = new Path2d();
+    patternRotCircle.arc(PointF(46, 152), 36, 0, 2 * PI, false);
+
+    patternStrokeWave = new Path2d();
+    patternStrokeWave.moveTo(PointF(10, 218));
+    patternStrokeWave.bezierCurveTo(
+      PointF(34, 198), PointF(58, 236), PointF(83, 218)
+    );
+    patternStrokeWave.bezierCurveTo(
+      PointF(108, 198), PointF(132, 236), PointF(156, 218)
+    );
+
+    patternRtRect = new Path2d();
+    patternRtRect.roundRect(RectF(168, 134, 90, 90), 8);
   }
 
   void buildStrokePaths() {
@@ -689,6 +726,105 @@ private:
     saveOffscreenIfRequested();
   }
 
+  // Section 11: Pattern fills/strokes (repeat modes, transform, tint, RT).
+  void drawPatterns(Renderer r, in Widget w) {
+    if (sampleImage is null) {
+      labelAt(r, "sample.png failed to decode", PointF(8, 0));
+      return;
+    }
+    if (sampleTexture is null) {
+      sampleTexture = r.createTexture(sampleImage);
+    }
+    auto c = r.canvas();
+    drawPatternRepeats(r, c);
+    drawPatternAnimAndStroke(r, c);
+    if (syncOffscreen(r)) {
+      drawRtPattern(r, c);
+    }
+  }
+
+  void drawPatternRepeats(Renderer r, Canvas c) {
+    // 1. repeat (0.4x) in a rounded rect with a soft drop shadow
+    labelAt(r, "repeat", PointF(8, 0));
+    c.save();
+    Shadow soft;
+    soft.offset = PointF(3, 4);
+    soft.blur = 8;
+    soft.color = ColorF(0, 0, 0, 0.7f);
+    c.shadow(soft);
+    auto repPat = Pattern.fromTexture(sampleTexture, PatternRepeat.repeat)
+      .withTransform(
+        Transform2d.translation(PointF(8, 16))
+          * Transform2d.scaling(PointF(0.4f, 0.4f))
+      );
+    c.fillStyle(FillStyle.fromPattern(repPat));
+    c.fill(patternTileRect);
+    c.restore();
+
+    // 2. repeatX strip and noRepeat single tile (0.5x)
+    labelAt(r, "repeatX", PointF(142, 0));
+    auto stripPat = Pattern.fromTexture(sampleTexture, PatternRepeat.repeatX)
+      .withTransform(
+        Transform2d.translation(PointF(142, 16))
+          * Transform2d.scaling(PointF(0.5f, 0.5f))
+      );
+    c.fillStyle(FillStyle.fromPattern(stripPat));
+    c.fill(patternStripX);
+
+    labelAt(r, "noRepeat", PointF(142, 56));
+    auto oncePat = Pattern.fromTexture(sampleTexture, PatternRepeat.noRepeat)
+      .withTransform(
+        Transform2d.translation(PointF(142, 72))
+          * Transform2d.scaling(PointF(0.5f, 0.5f))
+      );
+    c.fillStyle(FillStyle.fromPattern(oncePat));
+    c.fill(patternOnceRect);
+    c.strokeStyle(FillStyle.solid(ColorF(0.45f, 0.50f, 0.58f, 0.6f)));
+    c.lineWidth(1);
+    c.stroke(patternOnceRect);
+  }
+
+  void drawPatternAnimAndStroke(Renderer r, Canvas c) {
+    // 3. animated rotated pattern with a blue-ish tint
+    labelAt(r, "rot+tint", PointF(8, 98));
+    const Transform2d rotXf = Transform2d.translation(PointF(46, 152))
+      * Transform2d.rotation(tracker.model.rotation)
+      * Transform2d.scaling(PointF(0.45f, 0.45f));
+    auto rotPat = Pattern.fromTexture(sampleTexture, PatternRepeat.repeat)
+      .withTransform(rotXf)
+      .withTint(ColorF(0.60f, 0.85f, 1.0f, 1.0f));
+    c.fillStyle(FillStyle.fromPattern(rotPat));
+    c.fill(patternRotCircle);
+
+    // 4. pattern stroke along a wave
+    labelAt(r, "stroke", PointF(8, 194));
+    c.save();
+    auto strokePat = Pattern.fromTexture(sampleTexture, PatternRepeat.repeat)
+      .withTransform(Transform2d.scaling(PointF(0.35f, 0.35f)));
+    c.strokeStyle(FillStyle.fromPattern(strokePat));
+    c.lineWidth(10);
+    c.lineCap(LineCap.round);
+    c.stroke(patternStrokeWave);
+    c.restore();
+  }
+
+  void drawRtPattern(Renderer r, Canvas c) {
+    Texture rtTex = offscreen.texture();
+    if (rtTex is null || rtTex.width() <= 0 || rtTex.height() <= 0) {
+      return;
+    }
+    labelAt(r, "RT pattern", PointF(168, 118));
+    const float sx = 32.0f / rtTex.width();
+    const float sy = 32.0f / rtTex.height();
+    auto rtPat = Pattern.fromTexture(rtTex, PatternRepeat.repeat)
+      .withTransform(
+        Transform2d.translation(PointF(168, 134))
+          * Transform2d.scaling(PointF(sx, sy))
+      );
+    c.fillStyle(FillStyle.fromPattern(rtPat));
+    c.fill(patternRtRect);
+  }
+
   /**
    * Creates the render target or keeps it in sync with the display scale,
    * redrawing it when it is new or was reallocated.
@@ -798,6 +934,7 @@ private:
   Widget interopWidget;
   Widget imagesWidget;
   Widget offscreenWidget;
+  Widget patternsWidget;
   Widget[] sectionWidgets;
   Image sampleImage;
   Texture sampleTexture;
@@ -829,6 +966,12 @@ private:
   Path2d shadowBadge;
   Path2d shadowLine;
   Path2d imageClip;
+  Path2d patternTileRect;
+  Path2d patternStripX;
+  Path2d patternOnceRect;
+  Path2d patternRotCircle;
+  Path2d patternStrokeWave;
+  Path2d patternRtRect;
   FillStyle linearFill;
   FillStyle radialFill;
   FillStyle gradientStroke;
@@ -843,7 +986,7 @@ unittest {
   auto tracker = ModelTracker!CanvasPageModel(new CanvasPageModel());
   auto page = new CanvasPage(ui, root, tracker);
   assert(page.rootWidget().parent is root);
-  assert(page.drawWidgets().length == 10);
+  assert(page.drawWidgets().length == 11);
   foreach (w; page.drawWidgets()) {
     assert(w.components.customDraw !is null);
     assert(w.components.customDraw.drawFunc !is null);
@@ -854,16 +997,18 @@ unittest {
       ~ " | [P] Save offscreen PNG"
   );
 
-  // the sample PNG decodes once; slot 7 shows images, interop is hidden
+  // the sample PNG decodes once; slot 7 shows images, others are hidden
   assert(page.image() !is null);
   assert(page.image().width() == 64 && page.image().height() == 64);
   const Widget imagesCard = page.imagesWidget.parent;
   const Widget interopCard = page.interopWidget.parent;
   const Widget offscreenCard = page.offscreenWidget.parent;
+  const Widget patternsCard = page.patternsWidget.parent;
   assert(imagesCard.visible && !interopCard.visible);
-  assert(!offscreenCard.visible);
+  assert(!offscreenCard.visible && !patternsCard.visible);
   assert(imagesCard.rect == interopCard.rect);
   assert(offscreenCard.rect == interopCard.rect);
+  assert(patternsCard.rect == interopCard.rect);
   // the top-left corner is red (orientation marker)
   const ubyte[] px = page.image().pixels;
   assert(px[0] > 200 && px[1] < 80 && px[2] < 80 && px[3] == 255);
@@ -884,7 +1029,7 @@ unittest {
   tracker.commit(m);
   assert(page.update());
   assert(!imagesCard.visible && interopCard.visible);
-  assert(!offscreenCard.visible);
+  assert(!offscreenCard.visible && !patternsCard.visible);
   assert(
     page.formatStatus() == "[Space] Pause animation | [I] Show images"
       ~ " | [P] Save offscreen PNG"
@@ -894,5 +1039,19 @@ unittest {
   tracker.commit(m);
   assert(page.update());
   assert(!imagesCard.visible && !interopCard.visible);
-  assert(offscreenCard.visible);
+  assert(offscreenCard.visible && !patternsCard.visible);
+  assert(
+    page.formatStatus() == "[Space] Pause animation | [I] Show patterns"
+      ~ " | [P] Save offscreen PNG"
+  );
+  m = tracker.edit();
+  m.slot7 = CanvasSlot7.patterns;
+  tracker.commit(m);
+  assert(page.update());
+  assert(!imagesCard.visible && !interopCard.visible);
+  assert(!offscreenCard.visible && patternsCard.visible);
+  assert(
+    page.formatStatus() == "[Space] Pause animation | [I] Show interop"
+      ~ " | [P] Save offscreen PNG"
+  );
 }

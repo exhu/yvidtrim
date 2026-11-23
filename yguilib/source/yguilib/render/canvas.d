@@ -13,7 +13,8 @@ import std.array : Appender;
 import yguilib.render : Renderer;
 import yguilib.render.internal.path_flatten : Contours;
 import yguilib.render.internal.offscreen : SavedTargetState;
-import yguilib.render.internal.pipelines : GradientUniforms;
+import yguilib.render.internal.pipelines : GradientUniforms, PatternUniforms,
+  TextureMode;
 import yguilib.render.render_types;
 import yguilib.render.texture : Texture;
 
@@ -837,23 +838,79 @@ unittest {
   assert(r.stops.items()[$ - 1].offset == 1);
 }
 
-struct Pattern {
-  // TODO image pattern fill: images exist now (`Texture`, drawn with
-  // `Canvas.drawImage`), but repeating them as a paint is not done yet
+/// How a `Pattern` repeats outside its `[0, width) x [0, height)` tile.
+enum PatternRepeat {
+  /// Draw the tile once; transparent outside.
+  noRepeat = 0,
+  /// Tile horizontally; transparent outside `[0, height)`.
+  repeatX = 1,
+  /// Tile vertically; transparent outside `[0, width)`.
+  repeatY = 2,
+  /// Tile in both directions.
+  repeat = 3,
 }
 
-/// Paint for fills and strokes: solid color or gradient.
+/// Repeating image paint (`Texture` or `RenderTarget.texture()`).
+struct Pattern {
+  import std.typecons : Rebindable;
+
+  PatternRepeat repeat = PatternRepeat.repeat;
+  /// Pattern pixel space to user space transform.
+  Transform2d transform = Transform2d.identity();
+  /// Straight-alpha tint color.
+  ColorF tint = ColorF(1, 1, 1, 1);
+
+  /// Creates a pattern from `tex` with the given repeat mode.
+  static Pattern fromTexture(
+    const(Texture) tex,
+    PatternRepeat rep
+  ) nothrow @safe @nogc {
+    Pattern p;
+    p.fTexture = tex;
+    p.repeat = rep;
+    return p;
+  }
+
+  /// Pattern texture; null or destroyed texture draws nothing.
+  const(Texture) texture() const nothrow @safe @nogc {
+    return fTexture.get;
+  }
+
+  /// Sets the pattern texture.
+  void texture(const(Texture) tex) nothrow @safe @nogc {
+    fTexture = tex;
+  }
+
+  /// Sets the pattern-to-user transform.
+  ref Pattern withTransform(Transform2d xf) return nothrow @safe @nogc {
+    transform = xf;
+    return this;
+  }
+
+  /// Sets the straight-alpha tint color.
+  ref Pattern withTint(ColorF c) return nothrow @safe @nogc {
+    tint = c;
+    return this;
+  }
+
+private:
+  Rebindable!(const Texture) fTexture;
+}
+
+/// Paint for fills and strokes: solid color, gradient, or image pattern.
 struct FillStyle {
   enum Kind {
     color,
     linearGradient,
     radialGradient,
+    pattern,
   }
 
   Kind kind;
   ColorF color = ColorF(0, 0, 0, 1);
   LinearGradient linear;
   RadialGradient radial;
+  Pattern pattern;
 
   /// Solid color paint.
   static FillStyle solid(ColorF c) nothrow @safe @nogc {
@@ -878,6 +935,14 @@ struct FillStyle {
     s.radial = g;
     return s;
   }
+
+  /// Image pattern paint.
+  static FillStyle fromPattern(in Pattern p) nothrow @safe @nogc {
+    FillStyle s;
+    s.kind = Kind.pattern;
+    s.pattern = p;
+    return s;
+  }
 }
 
 // Strokes use the same paint kinds as fills; no separate type is needed.
@@ -896,6 +961,25 @@ unittest {
   rg.r1 = 5;
   const fr = FillStyle.fromRadial(rg);
   assert(fr.kind == FillStyle.Kind.radialGradient && fr.radial.r1 == 5);
+
+  assert(Pattern.init.texture is null);
+  assert(Pattern.init.repeat == PatternRepeat.repeat);
+  assert(Pattern.init.transform.isIdentity());
+  assert(Pattern.init.tint == ColorF(1, 1, 1, 1));
+  const xf = Transform2d.translation(PointF(4, 8));
+  const tint = ColorF(1, 0.5f, 0.25f, 0.75f);
+  Pattern pat = Pattern.fromTexture(null, PatternRepeat.noRepeat);
+  pat.withTransform(xf).withTint(tint);
+  assert(pat.texture is null);
+  assert(pat.repeat == PatternRepeat.noRepeat);
+  assert(pat.transform == xf);
+  assert(pat.tint == tint);
+  const fp = FillStyle.fromPattern(pat);
+  assert(fp.kind == FillStyle.Kind.pattern);
+  assert(fp.pattern.texture is null);
+  assert(fp.pattern.repeat == PatternRepeat.noRepeat);
+  assert(fp.pattern.transform == xf);
+  assert(fp.pattern.tint == tint);
 }
 
 /**
@@ -1093,7 +1177,8 @@ final class Canvas {
       beginStrokeOnce, endStencil;
 
     assert(path !is null);
-    if (!canDraw(path) || !paintVisible(st.stroke)) {
+    if (!canDraw(path) || !paintVisible(st.stroke)
+      || !patternDrawable(st.stroke)) {
       return;
     }
     const float tol = tolerance(st.xf);
@@ -1393,9 +1478,18 @@ private:
       && isFinite(r.height) && r.width > 0 && r.height > 0;
   }
 
+  /// True when `m` has a finite non-zero determinant.
+  static bool isInvertible(in Transform2d m) nothrow @safe @nogc {
+    import std.math : abs, isFinite;
+
+    const float det = m.a * m.d - m.b * m.c;
+    return isFinite(det) && abs(det) >= 1e-12f;
+  }
+
   /**
    * False when `s` cannot paint anything: transparent color, gradient
-   * without visible stops, or a radial gradient with a negative radius.
+   * without visible stops, radial gradient with a negative radius, or an
+   * invalid/transparent pattern.
    */
   static bool paintVisible(in FillStyle s) {
     final switch (s.kind) {
@@ -1406,7 +1500,19 @@ private:
     case FillStyle.Kind.radialGradient:
       return s.radial.r0 >= 0 && s.radial.r1 >= 0
         && stopsVisible(s.radial.stops);
+    case FillStyle.Kind.pattern:
+      return s.pattern.texture !is null && s.pattern.texture.isValid()
+        && s.pattern.texture.width() > 0 && s.pattern.texture.height() > 0
+        && s.pattern.tint.a > 0 && isInvertible(s.pattern.transform);
     }
+  }
+
+  /// False when `s` is a pattern whose combined transform is singular.
+  bool patternDrawable(in FillStyle s) const {
+    if (s.kind != FillStyle.Kind.pattern) {
+      return true;
+    }
+    return isInvertible(st.xf * s.pattern.transform);
   }
 
   static bool stopsVisible(in GradientStops stops) {
@@ -1455,22 +1561,64 @@ private:
   }
 
   /**
+   * Pattern shader uniforms of `p`; `logicToPattern` maps logic coordinates
+   * to pattern pixel space.
+   */
+  static PatternUniforms patternUniforms(
+    in Pattern p,
+    in Transform2d logicToPattern,
+    TextureMode mode
+  ) {
+    const float tw = p.texture.width();
+    const float th = p.texture.height();
+    const Transform2d uvXf =
+      Transform2d.scaling(PointF(1.0f / tw, 1.0f / th)) * logicToPattern;
+    PatternUniforms u;
+    u.textureId = p.texture.id();
+    u.invXf = [uvXf.a, uvXf.b, 0, uvXf.c, uvXf.d, 0, uvXf.e, uvXf.f, 1];
+    u.tint = p.tint;
+    u.repeat = cast(int)p.repeat;
+    u.mode = mode;
+    u.bottomUp = p.texture.bottomUp();
+    return u;
+  }
+
+  /**
    * Colored pass of a fill (cover) or stroke: solid styles use the color
-   * pipeline, gradients the gradient pipeline with the inverse of the
-   * current transform. The stencil state must already be set.
+   * pipeline, gradients the gradient pipeline, and patterns the pattern
+   * pipeline with the inverse of the combined transform. The stencil state
+   * must already be set.
    */
   void drawPaint(const(float)[] verts, in FillStyle style) {
     if (verts.length == 0) {
       return;
     }
-    if (style.kind == FillStyle.Kind.color) {
+    final switch (style.kind) {
+    case FillStyle.Kind.color:
       drawVerts(verts, style.color);
       return;
+    case FillStyle.Kind.linearGradient:
+    case FillStyle.Kind.radialGradient:
+      const GradientUniforms u = gradientUniforms(style, st.xf.inverse());
+      fRenderer.gradientPipelineRef().drawTriangles(
+        verts, u, fRenderer.getLogicWidth(), fRenderer.getLogicHeight()
+      );
+      return;
+    case FillStyle.Kind.pattern:
+      assert(!fRenderer.isActiveTargetTexture(style.pattern.texture),
+        "drawing the texture of an active render target (feedback loop)");
+      const Transform2d logicToPat =
+        (st.xf * style.pattern.transform).inverse();
+      const TextureMode mode = style.pattern.texture.premultiplied()
+        ? TextureMode.premultiplied : TextureMode.straight;
+      const PatternUniforms u = patternUniforms(
+        style.pattern, logicToPat, mode
+      );
+      fRenderer.patternPipelineRef().drawTriangles(
+        verts, u, fRenderer.getLogicWidth(), fRenderer.getLogicHeight()
+      );
+      return;
     }
-    const GradientUniforms u = gradientUniforms(style, st.xf.inverse());
-    fRenderer.gradientPipelineRef().drawTriangles(
-      verts, u, fRenderer.getLogicWidth(), fRenderer.getLogicHeight()
-    );
   }
 
   /**
@@ -1490,7 +1638,8 @@ private:
       endStencil;
 
     assert(path !is null);
-    if (!canDraw(path) || (blend && !paintVisible(style))) {
+    if (!canDraw(path) || (blend && (!paintVisible(style)
+      || !patternDrawable(style)))) {
       return;
     }
     flattenPath(path, tolerance(st.xf), fContours);
@@ -1675,7 +1824,8 @@ private:
   /**
    * Writes the alpha of `style` (white RGB for solid colors) over `verts`
    * with blending disabled. `origin` is the logic position of the mask
-   * region origin, so gradients map mask coordinates back to user space.
+   * region origin, so gradients and patterns map mask coordinates back to
+   * user or pattern space.
    */
   void drawMaskPaint(
     const(float)[] verts,
@@ -1688,22 +1838,39 @@ private:
 
     glDisable(GL_BLEND);
     // the next draw re-enables blending via setupAlphaBlendState
-    if (style.kind == FillStyle.Kind.color) {
+    final switch (style.kind) {
+    case FillStyle.Kind.color:
       fRenderer.colorPipelineRef().drawArraysWithCurrentState(
         GL_TRIANGLES, verts, ColorF(1, 1, 1, style.color.a), vw, vh
       );
       return;
+    case FillStyle.Kind.linearGradient:
+    case FillStyle.Kind.radialGradient:
+      const Transform2d inv =
+        st.xf.inverse() * Transform2d.translation(origin);
+      GradientUniforms u = gradientUniforms(style, inv);
+      // the composite tints the mask RGB too: keep only the stop alphas
+      foreach (i; 0 .. u.stopCount) {
+        u.stopColors[i * 4 .. i * 4 + 3] = 1.0f;
+      }
+      fRenderer.gradientPipelineRef().drawTrianglesWithCurrentState(
+        verts, u, vw, vh
+      );
+      return;
+    case FillStyle.Kind.pattern:
+      assert(!fRenderer.isActiveTargetTexture(style.pattern.texture),
+        "drawing the texture of an active render target (feedback loop)");
+      const Transform2d logicToPat =
+        (st.xf * style.pattern.transform).inverse()
+        * Transform2d.translation(origin);
+      const PatternUniforms u = patternUniforms(
+        style.pattern, logicToPat, TextureMode.alphaMask
+      );
+      fRenderer.patternPipelineRef().drawTrianglesWithCurrentState(
+        verts, u, vw, vh
+      );
+      return;
     }
-    const Transform2d inv =
-      st.xf.inverse() * Transform2d.translation(origin);
-    GradientUniforms u = gradientUniforms(style, inv);
-    // the composite tints the mask RGB too: keep only the stop alphas
-    foreach (i; 0 .. u.stopCount) {
-      u.stopColors[i * 4 .. i * 4 + 3] = 1.0f;
-    }
-    fRenderer.gradientPipelineRef().drawTrianglesWithCurrentState(
-      verts, u, vw, vh
-    );
   }
 
   /**
@@ -2655,6 +2822,354 @@ unittest {
   cv.restore();
   assert(near(240, 160, 128, 0, 0, 2));
   assert(near(240, 180, 0, 0, 64, 2));
+
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// Canvas patterns (repeat modes, transforms, tints, strokes, clips, shadows)
+unittest {
+  import glad2.gles2;
+  import std.math : PI;
+  import yguilib.clibs.sdl3;
+  import yguilib.render.image : Image;
+  import yguilib.render.render_target : RenderTarget;
+  import yguilib.window : Window;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(320, 240, "test_canvas_patterns");
+  win.create();
+  scope(exit) win.destroy();
+  win.setDisplayScaling(1.0f);
+  auto r = win.renderer;
+  r.setViewport(320, 240);
+  auto cv = r.canvas();
+  const ColorF black = ColorF(0, 0, 0, 1);
+
+  // logic (x, y) with y down; GL y = 240 - y
+  ubyte[4] px(int x, int y) {
+    ubyte[4] p;
+    glReadPixels(x, 240 - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, p.ptr);
+    return p;
+  }
+
+  bool near(int x, int y, int cr, int cg, int cb, int tol) {
+    const p = px(x, y);
+    bool ok(int v, int e) {
+      return v >= e - tol && v <= e + tol;
+    }
+
+    return ok(p[0], cr) && ok(p[1], cg) && ok(p[2], cb);
+  }
+
+  bool isRgb(int x, int y, int cr, int cg, int cb) {
+    return near(x, y, cr, cg, cb, 0);
+  }
+
+  Path2d rectPath(RectF rc) {
+    auto p = new Path2d();
+    p.rect(rc);
+    return p;
+  }
+
+  // 20x20 4-quadrant texture: TL red, TR green, BL blue, BR white
+  auto quadImg = new Image(20, 20);
+  foreach (y; 0 .. 20) {
+    foreach (x; 0 .. 20) {
+      const size_t i = (y * 20 + x) * 4;
+      ubyte[4] c;
+      if (y < 10) {
+        c = x < 10 ? [255, 0, 0, 255] : [0, 255, 0, 255];
+      } else {
+        c = x < 10 ? [0, 0, 255, 255] : [255, 255, 255, 255];
+      }
+      quadImg.pixels[i .. i + 4] = c;
+    }
+  }
+  Texture tex = r.createTexture(quadImg);
+  assert(tex !is null);
+  scope(exit) tex.destroy();
+
+  auto box = rectPath(RectF(0, 0, 100, 60));
+
+  // 1. repeat: tiles across 100x60 rect
+  r.clearFrame(black);
+  cv.fillStyle(FillStyle.fromPattern(
+    Pattern.fromTexture(tex, PatternRepeat.repeat)
+  ));
+  cv.fill(box);
+  // tile (0, 0)
+  assert(isRgb(5, 5, 255, 0, 0) && isRgb(15, 5, 0, 255, 0));
+  assert(isRgb(5, 15, 0, 0, 255) && isRgb(15, 15, 255, 255, 255));
+  // tile (1, 0)
+  assert(isRgb(25, 5, 255, 0, 0) && isRgb(35, 5, 0, 255, 0));
+  assert(isRgb(25, 15, 0, 0, 255) && isRgb(35, 15, 255, 255, 255));
+  // tile (0, 1)
+  assert(isRgb(5, 25, 255, 0, 0) && isRgb(15, 35, 255, 255, 255));
+  // tile (3, 2)
+  assert(isRgb(65, 45, 255, 0, 0) && isRgb(75, 45, 0, 255, 0));
+  assert(isRgb(65, 55, 0, 0, 255) && isRgb(75, 55, 255, 255, 255));
+  // outside rect
+  assert(isRgb(120, 30, 0, 0, 0) && isRgb(50, 80, 0, 0, 0));
+
+  // 2. repeatX: tiles horizontally for y in [0, 20), background for y >= 20
+  r.clearFrame(black);
+  cv.fillStyle(FillStyle.fromPattern(
+    Pattern.fromTexture(tex, PatternRepeat.repeatX)
+  ));
+  cv.fill(box);
+  assert(isRgb(5, 5, 255, 0, 0) && isRgb(25, 5, 255, 0, 0));
+  assert(isRgb(75, 15, 255, 255, 255));
+  assert(isRgb(5, 25, 0, 0, 0) && isRgb(65, 45, 0, 0, 0));
+
+  // 3. repeatY: tiles vertically for x in [0, 20), background for x >= 20
+  r.clearFrame(black);
+  cv.fillStyle(FillStyle.fromPattern(
+    Pattern.fromTexture(tex, PatternRepeat.repeatY)
+  ));
+  cv.fill(box);
+  assert(isRgb(5, 5, 255, 0, 0) && isRgb(5, 25, 255, 0, 0));
+  assert(isRgb(15, 55, 255, 255, 255));
+  assert(isRgb(25, 5, 0, 0, 0) && isRgb(65, 45, 0, 0, 0));
+
+  // 4. noRepeat: draws once in [0, 20) x [0, 20); stencil bits stay clean
+  r.clearFrame(black);
+  cv.fillStyle(FillStyle.fromPattern(
+    Pattern.fromTexture(tex, PatternRepeat.noRepeat)
+  ));
+  cv.fill(box);
+  assert(isRgb(5, 5, 255, 0, 0) && isRgb(15, 5, 0, 255, 0));
+  assert(isRgb(5, 15, 0, 0, 255) && isRgb(15, 15, 255, 255, 255));
+  assert(isRgb(25, 5, 0, 0, 0) && isRgb(5, 25, 0, 0, 0));
+  assert(isRgb(65, 45, 0, 0, 0));
+  // subsequent fill over the whole area works (stencil low bits zeroed)
+  cv.fillStyle(FillStyle.solid(ColorF(0, 1, 0, 1)));
+  cv.fill(box);
+  assert(isRgb(5, 5, 0, 255, 0) && isRgb(25, 5, 0, 255, 0));
+  assert(isRgb(65, 45, 0, 255, 0));
+
+  // 5. Pattern.transform: translation, 90-deg rotation, 2x scaling, combined
+  r.clearFrame(black);
+  Pattern trPat = Pattern.fromTexture(tex, PatternRepeat.repeat);
+  trPat.withTransform(Transform2d.translation(PointF(10, 5)));
+  cv.fillStyle(FillStyle.fromPattern(trPat));
+  cv.fill(box);
+  assert(isRgb(15, 10, 255, 0, 0) && isRgb(25, 10, 0, 255, 0));
+  assert(isRgb(15, 20, 0, 0, 255) && isRgb(25, 20, 255, 255, 255));
+
+  r.clearFrame(black);
+  Pattern rotPat = Pattern.fromTexture(tex, PatternRepeat.repeat);
+  rotPat.withTransform(Transform2d.rotation(cast(float)(PI / 2)));
+  cv.fillStyle(FillStyle.fromPattern(rotPat));
+  cv.fill(box);
+  // (u, v) -> pattern (v, -u mod 20)
+  assert(isRgb(5, 5, 0, 0, 255) && isRgb(15, 5, 255, 0, 0));
+  assert(isRgb(5, 15, 255, 255, 255) && isRgb(15, 15, 0, 255, 0));
+
+  r.clearFrame(black);
+  Pattern scPat = Pattern.fromTexture(tex, PatternRepeat.repeat);
+  scPat.withTransform(Transform2d.scaling(PointF(2, 2)));
+  cv.fillStyle(FillStyle.fromPattern(scPat));
+  cv.fill(box);
+  assert(isRgb(10, 10, 255, 0, 0) && isRgb(30, 10, 0, 255, 0));
+  assert(isRgb(10, 30, 0, 0, 255) && isRgb(30, 30, 255, 255, 255));
+
+  r.clearFrame(black);
+  cv.save();
+  cv.translate(PointF(40, 20));
+  Pattern combPat = Pattern.fromTexture(tex, PatternRepeat.repeat);
+  combPat.withTransform(Transform2d.translation(PointF(10, 0)));
+  cv.fillStyle(FillStyle.fromPattern(combPat));
+  cv.fill(rectPath(RectF(0, 0, 60, 40)));
+  cv.restore();
+  assert(isRgb(55, 25, 255, 0, 0) && isRgb(65, 25, 0, 255, 0));
+  assert(isRgb(45, 25, 0, 255, 0) && isRgb(30, 25, 0, 0, 0));
+
+  // 6. Pattern.tint: half alpha and color tinting
+  r.clearFrame(black);
+  Pattern halfPat = Pattern.fromTexture(tex, PatternRepeat.repeat);
+  halfPat.withTint(ColorF(1, 1, 1, 0.5f));
+  cv.fillStyle(FillStyle.fromPattern(halfPat));
+  cv.fill(box);
+  assert(near(5, 5, 128, 0, 0, 3) && near(15, 15, 128, 128, 128, 3));
+
+  r.clearFrame(black);
+  Pattern tintPat = Pattern.fromTexture(tex, PatternRepeat.repeat);
+  tintPat.withTint(ColorF(1, 0, 0.5f, 1));
+  cv.fillStyle(FillStyle.fromPattern(tintPat));
+  cv.fill(box);
+  assert(near(15, 15, 255, 0, 128, 3) && near(15, 5, 0, 0, 0, 2));
+
+  // 7. Pattern stroke: thick line, self-overlapping cross, dashed stroke
+  r.clearFrame(black);
+  cv.strokeStyle(FillStyle.fromPattern(
+    Pattern.fromTexture(tex, PatternRepeat.repeat)
+  ));
+  cv.lineWidth(10);
+  auto hline = new Path2d();
+  hline.moveTo(PointF(0, 5));
+  hline.lineTo(PointF(60, 5));
+  cv.stroke(hline);
+  assert(isRgb(5, 5, 255, 0, 0) && isRgb(15, 5, 0, 255, 0));
+  assert(isRgb(25, 5, 255, 0, 0) && isRgb(35, 5, 0, 255, 0));
+  assert(isRgb(5, 20, 0, 0, 0));
+
+  r.clearFrame(black);
+  auto cross = new Path2d();
+  cross.moveTo(PointF(50, 50));
+  cross.lineTo(PointF(200, 200));
+  cross.lineTo(PointF(200, 50));
+  cross.lineTo(PointF(50, 200));
+  cv.strokeStyle(FillStyle.fromPattern(halfPat));
+  cv.lineWidth(10);
+  cv.stroke(cross);
+  // (125, 125) and (85, 85) both fall in TL red (5, 5) mod 20
+  assert(near(125, 125, 128, 0, 0, 3));
+  assert(near(85, 85, 128, 0, 0, 3));
+
+  r.clearFrame(black);
+  cv.strokeStyle(FillStyle.fromPattern(
+    Pattern.fromTexture(tex, PatternRepeat.repeat)
+  ));
+  cv.lineWidth(8);
+  cv.lineDash(LineDash([20.0f, 20]));
+  auto dline = new Path2d();
+  dline.moveTo(PointF(0, 5));
+  dline.lineTo(PointF(80, 5));
+  cv.stroke(dline);
+  assert(isRgb(5, 5, 255, 0, 0) && isRgb(15, 5, 0, 255, 0));
+  assert(isRgb(25, 5, 0, 0, 0) && isRgb(35, 5, 0, 0, 0));
+  assert(isRgb(45, 5, 255, 0, 0) && isRgb(55, 5, 0, 255, 0));
+  cv.lineDash(LineDash.init);
+  cv.lineWidth(1);
+
+  // 8. clip() limits pattern fill; save()/restore() preserves styles
+  r.clearFrame(black);
+  const FillStyle patStyle = FillStyle.fromPattern(
+    Pattern.fromTexture(tex, PatternRepeat.repeat)
+  );
+  cv.save();
+  cv.fillStyle(patStyle);
+  cv.strokeStyle(patStyle);
+  cv.clip(rectPath(RectF(0, 0, 30, 30)));
+  cv.fill(box);
+  assert(isRgb(5, 5, 255, 0, 0) && isRgb(25, 5, 255, 0, 0));
+  assert(isRgb(45, 5, 0, 0, 0) && isRgb(5, 45, 0, 0, 0));
+  cv.save();
+  cv.fillStyle(FillStyle.solid(ColorF(0, 0, 1, 1)));
+  cv.strokeStyle(FillStyle.solid(ColorF(0, 1, 0, 1)));
+  cv.restore();
+  assert(cv.fillStyle().kind == FillStyle.Kind.pattern);
+  assert(cv.fillStyle().pattern.texture is tex);
+  assert(cv.strokeStyle().kind == FillStyle.Kind.pattern);
+  assert(cv.strokeStyle().pattern.texture is tex);
+  cv.restore();
+  assert(cv.fillStyle().kind == FillStyle.Kind.color);
+
+  // 9. Pattern shadow: half-transparent texture, noRepeat, tint.a scaling
+  auto halfImg = new Image(20, 20);
+  foreach (y; 0 .. 20) {
+    foreach (x; 0 .. 20) {
+      const size_t i = (y * 20 + x) * 4;
+      halfImg.pixels[i .. i + 4] =
+        x < 10 ? [0, 255, 0, 255] : [0, 0, 0, 0];
+    }
+  }
+  Texture halfTex = r.createTexture(halfImg);
+  assert(halfTex !is null);
+  scope(exit) halfTex.destroy();
+
+  Shadow hard;
+  hard.offset = PointF(10, 10);
+  hard.color = ColorF(1, 0, 0, 1);
+
+  r.clearFrame(black);
+  cv.shadow(hard);
+  cv.fillStyle(FillStyle.fromPattern(
+    Pattern.fromTexture(halfTex, PatternRepeat.repeat)
+  ));
+  cv.fill(rectPath(RectF(20, 20, 40, 20)));
+  assert(isRgb(25, 25, 0, 255, 0));
+  assert(isRgb(35, 35, 255, 0, 0) && isRgb(35, 45, 255, 0, 0));
+  assert(isRgb(45, 45, 0, 0, 0) && isRgb(55, 45, 255, 0, 0));
+
+  r.clearFrame(black);
+  cv.shadow(hard);
+  cv.fillStyle(FillStyle.fromPattern(
+    Pattern.fromTexture(halfTex, PatternRepeat.noRepeat)
+  ));
+  cv.fill(rectPath(RectF(0, 0, 60, 40)));
+  assert(isRgb(5, 5, 0, 255, 0));
+  assert(isRgb(15, 15, 255, 0, 0) && isRgb(15, 25, 255, 0, 0));
+  assert(isRgb(35, 25, 0, 0, 0));
+
+  r.clearFrame(black);
+  cv.shadow(hard);
+  Pattern halfAlphaPat = Pattern.fromTexture(halfTex, PatternRepeat.noRepeat);
+  halfAlphaPat.withTint(ColorF(1, 1, 1, 0.5f));
+  cv.fillStyle(FillStyle.fromPattern(halfAlphaPat));
+  cv.fill(rectPath(RectF(0, 0, 60, 40)));
+  assert(near(15, 25, 128, 0, 0, 3));
+  cv.shadow(Shadow.init);
+
+  // 10. RenderTarget.texture() as a Pattern: upright and tiled cleanly
+  RenderTarget rt = r.createRenderTarget(20, 20, false);
+  assert(rt !is null);
+  scope(exit) rt.destroy();
+  scope(exit) {
+    while (r.inTarget()) {
+      r.endTarget();
+    }
+  }
+  r.beginTarget(rt, true);
+  r.drawFillRect(RectF(0, 0, 20, 10), ColorF(1, 0, 0, 1));
+  r.drawFillRect(RectF(0, 10, 20, 10), ColorF(0, 0, 1, 0.5f));
+  r.endTarget();
+
+  r.clearFrame(black);
+  cv.fillStyle(FillStyle.fromPattern(
+    Pattern.fromTexture(rt.texture(), PatternRepeat.repeat)
+  ));
+  cv.fill(rectPath(RectF(0, 0, 60, 40)));
+  assert(isRgb(10, 5, 255, 0, 0) && near(10, 15, 0, 0, 128, 2));
+  assert(isRgb(50, 25, 255, 0, 0) && near(50, 35, 0, 0, 128, 2));
+
+  // 11. Invalid patterns draw nothing
+  r.clearFrame(black);
+  cv.fillStyle(
+    FillStyle.fromPattern(Pattern.fromTexture(null, PatternRepeat.repeat))
+  );
+  cv.fill(box);
+
+  Texture dead = r.createTexture(quadImg);
+  assert(dead !is null);
+  dead.destroy();
+  cv.fillStyle(
+    FillStyle.fromPattern(Pattern.fromTexture(dead, PatternRepeat.repeat))
+  );
+  cv.fill(box);
+
+  Pattern zeroA = Pattern.fromTexture(tex, PatternRepeat.repeat);
+  zeroA.withTint(ColorF(1, 1, 1, 0));
+  cv.fillStyle(FillStyle.fromPattern(zeroA));
+  cv.fill(box);
+
+  Pattern singular = Pattern.fromTexture(tex, PatternRepeat.repeat);
+  singular.withTransform(Transform2d.scaling(PointF(0, 1)));
+  cv.fillStyle(FillStyle.fromPattern(singular));
+  cv.fill(box);
+
+  cv.save();
+  cv.scale(PointF(0, 1));
+  cv.fillStyle(
+    FillStyle.fromPattern(Pattern.fromTexture(tex, PatternRepeat.repeat))
+  );
+  cv.fill(box);
+  cv.restore();
+
+  assert(isRgb(5, 5, 0, 0, 0) && isRgb(15, 15, 0, 0, 0));
+  assert(isRgb(50, 30, 0, 0, 0));
 
   assert(glGetError() == GL_NO_ERROR);
 }

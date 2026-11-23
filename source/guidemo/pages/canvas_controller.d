@@ -4,10 +4,11 @@
  * Runs a ~30 fps controller timer only while the page is active and the
  * model is `animating`; [Space] toggles `animating`. Each tick advances
  * `dashOffset` and `rotation`; the page marks its animated widgets dirty.
- * [I] cycles slot 7 through the interop, image and offscreen sections;
- * [P] shows the offscreen section and requests an `offscreen-<time>.png`
- * save (performed by the page draw on the main thread). `onPop` releases
- * the page GPU resources while the GL context is still alive.
+ * [I] cycles slot 7 through the interop, image, offscreen and patterns
+ * sections; [P] shows the offscreen section and requests an
+ * `offscreen-<time>.png` save (performed by the page draw on the main
+ * thread). `onPop` releases the page GPU resources while the GL context
+ * is still alive.
  */
 module guidemo.pages.canvas_controller;
 
@@ -237,13 +238,15 @@ unittest {
   assert(pageTracker.model.animating);
   assert(ui.isTimerActive(ctrl.animTimerId));
 
-  // [I] cycles images -> offscreen -> interop -> images
+  // [I] cycles images -> offscreen -> patterns -> interop -> images
   assert(pageTracker.model.slot7 == CanvasSlot7.images);
   auto hrI = ctrl.handleEvent(makeKeyDown(Keycode.i, Scancode.i));
   assert(hrI.consume);
   assert(pageTracker.model.slot7 == CanvasSlot7.offscreen);
   assert(ctrl.update());
   assert(demoTracker.model.statusText.length > 0);
+  ctrl.handleEvent(makeKeyDown(Keycode.i, Scancode.i));
+  assert(pageTracker.model.slot7 == CanvasSlot7.patterns);
   ctrl.handleEvent(makeKeyDown(Keycode.i, Scancode.i));
   assert(pageTracker.model.slot7 == CanvasSlot7.interop);
   ctrl.handleEvent(makeKeyDown(Keycode.i, Scancode.i));

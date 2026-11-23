@@ -33,7 +33,7 @@ yvidtrim/
 │       ├── hover_button.d # Controller-based hover button demo
 │       └── pages/         # Showcase views and per-page controllers
 │                          # (incl. knob_page.d: CursorCapture.lock demo;
-│                          # canvas_page.d: Canvas, images, RenderTarget [P];
+│                          # canvas_page.d: Canvas, images, patterns, RT [P];
 │                          # virtlist_items.d, virtlist_providers.d)
 ├── yguilib/               # Independent GUI library (no yvidtrim dependency)
 │   ├── source/yguilib/
@@ -187,8 +187,8 @@ Phase 3 (if dirty): UiSystemImpl ──► WidgetSystemPipeline.updateAndRender(
 
 **Canvas** (`Renderer.canvas()`): HTML-canvas-like API over `Path2d`.
 `path_flatten` (curves, CPU transform), `path_stroker` (caps/joins/dashes),
-`stencil_ops` (stencil-then-cover, exact `nonZero`/`evenOdd`) feed the shared
-color/gradient pipelines. Stencil bit 7 = `clip()` (rebuilt on `restore()`),
+`stencil_ops` (stencil-then-cover, exact `nonZero`/`evenOdd`) feed shared
+color/gradient/`Pattern` pipelines. Stencil bit 7 = `clip()` (restored on pop),
 bits 0..6 = per-call work; Window asks MSAA 4x + 8-bit stencil. Stencil test
 is on only inside Canvas calls: Renderer `draw*` ignore Canvas clip/transform,
 `pushClipRect` limits both, `clearFrame` resets Canvas state. Shadows: mask

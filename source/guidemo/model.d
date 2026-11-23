@@ -163,4 +163,5 @@ enum CanvasSlot7 {
   interop,
   images,
   offscreen,
+  patterns,
 }

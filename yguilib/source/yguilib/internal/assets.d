@@ -32,3 +32,6 @@ enum string paintFragmentShaderSource =
 
 enum string blurFragmentShaderSource =
   import("yguilib/shaders/blur.frag.glsl");
+
+enum string patternFragmentShaderSource =
+  import("yguilib/shaders/pattern.frag.glsl");

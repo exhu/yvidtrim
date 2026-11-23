@@ -1,5 +1,3 @@
-- Canvas Pattern (image fill/stroke paint, `canvas.d` `Pattern` stub)
-
 - build widget library
 -- checkbox
 -- combobox

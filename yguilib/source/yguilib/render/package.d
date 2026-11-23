@@ -9,8 +9,8 @@ import yguilib.render.image : Image;
 import yguilib.render.internal.offscreen : OffscreenTarget,
   SavedTargetState;
 import yguilib.render.internal.pipelines : BlurPipeline, ColorPipeline,
-  GradientPipeline, RoundRectPipeline, TextureMode, TexturePipeline,
-  TexturedQuad;
+  GradientPipeline, PatternPipeline, RoundRectPipeline, TextureMode,
+  TexturePipeline, TexturedQuad;
 import yguilib.render.internal.text_cache : TextCache, TextTexture;
 import yguilib.render.render_types;
 import yguilib.render.render_target : RenderTarget;
@@ -59,6 +59,7 @@ final class Renderer {
     }
     targetFrames = null;
     blurPipeline.destroy();
+    patternPipeline.destroy();
     gradientPipeline.destroy();
     rrPipeline.destroy();
     texPipeline.destroy();
@@ -952,6 +953,11 @@ package(yguilib.render):
     return gradientPipeline;
   }
 
+  /// Shared image pattern paint pipeline (used by `Canvas`).
+  ref PatternPipeline patternPipelineRef() return {
+    return patternPipeline;
+  }
+
   /// Shared textured quad pipeline (Canvas shadow composite).
   ref TexturePipeline texturePipelineRef() return {
     return texPipeline;
@@ -1021,6 +1027,7 @@ private:
     texPipeline.initialize();
     rrPipeline.initialize();
     gradientPipeline.initialize();
+    patternPipeline.initialize();
     blurPipeline.initialize();
     textCache = new TextCache(TextCache.maxCacheEntries);
     fontManager = new FontManager();
@@ -1123,6 +1130,7 @@ private:
   TexturePipeline texPipeline;
   RoundRectPipeline rrPipeline;
   GradientPipeline gradientPipeline;
+  PatternPipeline patternPipeline;
   BlurPipeline blurPipeline;
   OffscreenTarget[2] offscreenTargets;
   ClipStack clipStack;
