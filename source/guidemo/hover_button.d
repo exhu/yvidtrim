@@ -686,6 +686,7 @@ unittest {
       return null;
     }
     override @property Window mainWindow() { return null; }
+    override void requestScreenshot(string path) {}
     override void mainEventLoop() {}
     override uint nextWidgetId() {
       return fNextWidgetId++;

@@ -33,6 +33,9 @@
  *    - Path2d curves, arcs, ellipses, round rects; nonZero/evenOdd fills;
  *      caps, joins, miter limit, animated dashes; transforms; clips;
  *      linear/radial gradients; Canvas + Renderer interop.
+ * 5. render/image.d & render/texture.d:
+ *    - Embedded PNG decoded to Image; Texture drawn 1:1, 2x, as a src
+ *      sub-rect and tinted (Canvas page slot 7, [I]); F12 screenshots.
  *
  * MAINTENANCE NOTE:
  * When adding new layout modes, drawing primitives, widgets, or components
@@ -46,6 +49,7 @@
  *                 Page 8: Knob / cursor lock, Page 9: Button,
  *                 Page 10 ([0]): Canvas)
  *   [Space]       Toggle Canvas page animation (Page 10)
+ *   [I]           Swap Canvas interop / image section (Page 10)
  *   [M]           Toggle multiline on interactive TextLabel
  *   [E]           Toggle overflow ellipsis on interactive TextLabel
  *   [L]           Cycle horizontal alignment (left -> center -> right)
@@ -55,6 +59,8 @@
  *   [G]           Cycle flex gap (0, 8, 16, 24 px)
  *   [V]           Toggle child widget visibility (demonstrates flex re-flow)
  *   [T]           Cycle text sample (auto-sizing / playground caption)
+ *   [F11]         Cycle debug draw mode
+ *   [F12]         Save screenshot-YYYYMMDD-HHMMSS.png to current directory
  *   [Q]/[Esc]     Quit demo
  */
 module guidemo.guidemoapp;

@@ -25,7 +25,7 @@ yvidtrim/
 │   │   └── clibs/sdl3.d   # extern(C) D bindings for yvidtrim-clibs
 │   └── guidemo/           # Interactive GUI showcase and verification app
 │       ├── guidemoapp.d   # guidemo entry point and system registration
-│       ├── controller.d   # Shared demo controller, quit, F12, page switch
+│       ├── controller.d   # Quit, F11 debug draw, F12 screenshot, pages
 │       ├── common.d       # PageControllerParams, section cards, page sync
 │       ├── model.d        # DemoModel and per-page VersionedModels
 │       ├── view.d         # DemoView shell (header tabs, status bar)
@@ -33,7 +33,7 @@ yvidtrim/
 │       ├── hover_button.d # Controller-based hover button demo
 │       └── pages/         # Showcase views and per-page controllers
 │                          # (incl. knob_page.d: CursorCapture.lock demo;
-│                          # canvas_page.d: Canvas API via onDraw;
+│                          # canvas_page.d: Canvas API + images via onDraw;
 │                          # virtlist_items.d, virtlist_providers.d)
 ├── yguilib/               # Independent GUI library (no yvidtrim dependency)
 │   ├── source/yguilib/
@@ -60,12 +60,13 @@ yvidtrim/
 │   │   ├── events/        # AppEvent, builder, and thread-safe MessageBus
 │   │   ├── render/        # Hardware Renderer, FontManager, shader pipelines
 │   │   │   ├── canvas.d   # Canvas 2D context, Path2d, Transform2d, paints
+│   │   │   ├── image.d, texture.d # CPU Image (SDL3_image), GPU Texture
 │   │   │   └── internal/  # pipelines, path_*, stencil_ops, offscreen
 │   │   ├── widget/        # Widget entity, components, builder, WidgetSystem
 │   │   │   ├── virtlist_components.d # VirtListProvider & VirtListComponent
 │   │   │   └── internal/virtlist_system.d # Recycling, layout & wheel scroll
 │   │   └── internal/      # UiSystemImpl, TimerService, UiSystemController
-│   ├── yguilib-clibs/     # Private C wrappers around SDL3 and SDL3_ttf
+│   ├── yguilib-clibs/     # Private C wrappers: SDL3, SDL3_ttf, SDL3_image
 │   ├── examples/helloworld/ # Standalone Hello World example executable
 │   └── assets/            # Embedded resources (fonts, shaders) via import("")
 ├── yvidtrim-clibs/        # Private C wrappers for editor (SDL3, FFmpeg future)
@@ -91,8 +92,8 @@ yvidtrim/
   - Hot paths use `yguilib.allochelpers` (`SmallBuffer`, `RingBuffer`,
     `ReusableArray`) to minimize GC churn in event, timer, and layout loops.
   - GC is permitted for widget graph construction, models, and UI event strings.
-  - C handles (SDL windows, GL contexts, TTF fonts) follow strict RAII cleanup
-    in explicit `destroy()` and destructors (`~this()`).
+  - C handles (SDL windows, GL contexts, TTF fonts) are freed in `destroy()`
+    and `~this()`; GL objects (`Texture`) only in main-thread `destroy()`.
 - Encapsulation & Scoping:
   - No `public import` re-exports; multi-module packages like
     `yguilib.controls` import modules explicitly without `package.d`.
@@ -184,7 +185,9 @@ Phase 3 (if dirty): UiSystemImpl ──► WidgetSystemPipeline.updateAndRender(
   │     ├─► WidgetPainterSystem draws backgrounds, borders, text, customDraw
   │     └─► DebugDrawSystem (debug only) draws unclipped outlines & labels
   │
-  └─► 4. Buffer Swap: Window.swapBuffers() (at most once per frame tick)
+  ├─► 4. Screenshot (UiSystem.requestScreenshot(path) pending, root dirty):
+  │     Renderer.captureFrame() (readPixels, flip) ──► Image.savePng(path)
+  └─► 5. Buffer Swap: Window.swapBuffers() (at most once per frame tick)
 ```
 
 **Canvas** (`Renderer.canvas()`): HTML-canvas-like API over `Path2d`.
@@ -199,6 +202,9 @@ of paint alpha (shadow a = color a * paint a) into non-MSAA `OffscreenTarget`s,
 **CustomDraw** (`onDraw(dg(Renderer, in Widget))`) runs after the text label
 in `clipContents`, in canvas `save`/`translate(content origin)`/`restore`:
 Canvas draws content-local, Renderer stays absolute (`transform()` e/f).
+**Images**: `Image` (CPU RGBA8, straight alpha, top-down, no GL) ──►
+`Renderer.createTexture` ──► `Texture` ──► `drawImage`/`drawImageRegion`
+(`TexturePipeline`, tint); screenshots are saved on the main thread.
 
 ## Idiomatic Patterns
 - Null Safety: Non-null references by default. Missing checks are flagged by
@@ -221,21 +227,15 @@ Canvas draws content-local, Renderer stays absolute (`transform()` e/f).
   models directly; view-only models stay inside the views.
 - Invalidation Scopes: Fine-grained `WidgetUpdateScope` flags (`visuals`,
   `content`, `layout`, `parentView`, `all`) prevent redundant layout passes.
-- Embedded Assets: Fonts and shaders live under `assets/<package_name>/` and
-  are imported at compile time using `import("...")` in `internal/assets.d`.
+- Embedded Assets: files under `assets/<package_name>/` (yguilib fonts and
+  shaders, guidemo images) are `import("...")`-ed in `[internal/]assets.d`.
 
 ## Extension Recipes
 
 ### Adding a Private C Wrapper Library
-1. Create C header & source: `<proj>-clibs/<proj>_<libname>.[h|c]`. Use opaque
-   handles and prefix symbols with `<proj>_<libname>_`. Document NULL rules.
-2. Add standalone C test: `<proj>-clibs/<proj>_<libname>_test.c`.
-3. Configure build: Declare static library, test, and dependency in
-   `<proj>-clibs/meson.build`.
-4. Add D binding: Create matching `extern(C)` module in
-   `source/<proj>/clibs/<libname>.d` (or `yguilib/source/yguilib/clibs/`).
-5. Link dependency in top-level `meson.build` and run:
-   `ninja -C _build && meson test -C _build`.
+`<proj>-clibs/<proj>_<libname>.[h|c]` (opaque handles, `<proj>_<libname>_`
+prefix, NULL rules) + `_test.c`, both in `<proj>-clibs/meson.build`; matching
+`extern(C)` in `<pkg>/clibs/<libname>.d`, linked in `meson.build`.
 
 ### Adding a Custom GUI Widget System & Component
 Create `MyComponent : WidgetComponent` and `MySystem : WidgetSystem` (set

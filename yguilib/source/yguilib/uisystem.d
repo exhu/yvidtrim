@@ -51,6 +51,14 @@ interface UiSystem : ControllerStack, WidgetSystemHost, FocusControl,
   void setEventStatsEnabled(bool enabled);
   @property bool eventStatsEnabled();
 
+  /**
+   * Requests a PNG screenshot of the main window saved to `path` after the
+   * next render (before the buffer swap), and ensures that render happens
+   * even when the UI is idle. Main-thread only; a no-op without a main
+   * window.
+   */
+  void requestScreenshot(string path);
+
   /// Returns a JSON string with debugging info (controller stack, registered
   /// views and view controllers, main window and root widget name/uId) in the
   /// `{type, fields}` schema. Main-thread only; reads UI state without

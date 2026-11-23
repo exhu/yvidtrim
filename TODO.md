@@ -1,7 +1,5 @@
-- add image support
--- integrate SDL_image to load, save, draw in Renderer
--- support screenshots in Renderer and saving to file
-
+- F11 is not working for debug draw toggle (used by window manager?) change to F1
+- help text about F12 etc is not visible, covered by tabcontrol?
 - support offscreen rendering to image, and image blitting
 - Canvas Pattern (image fill/stroke paint, `canvas.d` `Pattern` stub)
 

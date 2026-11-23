@@ -4,6 +4,8 @@
  * Runs a ~30 fps controller timer only while the page is active and the
  * model is `animating`; [Space] toggles `animating`. Each tick advances
  * `dashOffset` and `rotation`; the page marks its animated widgets dirty.
+ * [I] toggles slot 7 between the image and the interop section. `onPop`
+ * releases the page textures while the GL context is still alive.
  */
 module guidemo.pages.canvas_controller;
 
@@ -30,7 +32,8 @@ enum float canvasRotationSpeed = 1.2f;
 alias CanvasPageControllerParams =
   PageControllerParams!(CanvasPage, ModelTracker!CanvasPageModel);
 
-/// Controller animating the Canvas page and toggling it with [Space].
+/// Controller animating the Canvas page and toggling it with [Space];
+/// [I] swaps the image and interop sections.
 final class CanvasPageController : DefaultController {
   @disable this();
 
@@ -57,6 +60,7 @@ final class CanvasPageController : DefaultController {
 
   override void onPop() {
     stopTimer(animTimerId);
+    page.releaseTextures();
   }
 
   override bool update() {
@@ -109,6 +113,14 @@ final class CanvasPageController : DefaultController {
       m.animating = !m.animating;
       tracker.commit(m);
       syncAnimTimer();
+      return HandleResult(HandleResult.Result.update, true);
+    }
+    if (ev.kind == AppEvent.Kind.keyDown
+        && isPageActive(demoTracker.model, DemoPage.canvas)
+        && isKey(ev, Keycode.i, Scancode.i)) {
+      auto m = tracker.edit();
+      m.showImages = !m.showImages;
+      tracker.commit(m);
       return HandleResult(HandleResult.Result.update, true);
     }
     return super.handleEvent(ev);
@@ -197,6 +209,16 @@ unittest {
   ctrl.handleEvent(makeKeyDown(Keycode.space, Scancode.space));
   assert(pageTracker.model.animating);
   assert(ui.isTimerActive(ctrl.animTimerId));
+
+  // [I] swaps the slot 7 sections and updates the status text
+  assert(pageTracker.model.showImages);
+  auto hrI = ctrl.handleEvent(makeKeyDown(Keycode.i, Scancode.i));
+  assert(hrI.consume);
+  assert(!pageTracker.model.showImages);
+  assert(ctrl.update());
+  assert(demoTracker.model.statusText.length > 0);
+  ctrl.handleEvent(makeKeyDown(Keycode.i, Scancode.i));
+  assert(pageTracker.model.showImages);
 
   // Switching away stops the timer
   dm = demoTracker.edit();

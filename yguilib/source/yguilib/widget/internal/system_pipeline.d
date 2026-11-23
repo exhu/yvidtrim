@@ -145,7 +145,8 @@ final class WidgetSystemPipeline {
 
   /// Runs preLayout, layout (if tree layout is dirty), postLayout, and render
   /// (if tree is dirty) for `window`, followed by `window.swapBuffers()` when
-  /// a frame was rendered.
+  /// a frame was rendered. A pending `Window.requestScreenshot` is saved
+  /// after the render and before the swap.
   void updateAndRender(Window window) {
     if (window is null) {
       return;
@@ -154,11 +155,28 @@ final class WidgetSystemPipeline {
       if (!updateAndRenderTree(window)) {
         return;
       }
+      if (window.hasPendingScreenshot()) {
+        saveScreenshot(window.renderer, window.takePendingScreenshotPath());
+      }
     }
     window.swapBuffers();
   }
 
 private:
+  /// Captures the frame just rendered by `renderer` and saves it as PNG.
+  static void saveScreenshot(Renderer renderer, string path) {
+    import std.logger : errorf, infof;
+    import yguilib.render.image : Image;
+
+    const Image frame = renderer.captureFrame();
+    if (frame !is null && frame.savePng(path)) {
+      infof("Screenshot saved: %s (%dx%d)", path, frame.width(),
+        frame.height());
+    } else {
+      errorf("Screenshot failed: %s", path);
+    }
+  }
+
   WidgetSystemContext makeContext(Window window) {
     WidgetSystemContext ctx;
     ctx.host = host;

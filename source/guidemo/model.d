@@ -8,7 +8,7 @@ import yguilib.widget.drawing_components : TextLabel;
 import yguilib.widget.layout_components : AlignItems, FlexDirection,
   JustifyContent;
 
-/// Debug draw visualization mode cycled via F12.
+/// Debug draw visualization mode cycled via F11.
 enum DebugDrawMode {
   off,
   allVisible,
@@ -150,4 +150,6 @@ final class CanvasPageModel : VersionedModel {
   float rotation = 0.0f;
   /// Whether the dash/rotation animation timer runs.
   bool animating = true;
+  /// Whether section slot 7 shows the image demo instead of the interop one.
+  bool showImages = true;
 }

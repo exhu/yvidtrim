@@ -192,3 +192,53 @@ void destroyProgramAndBuffers(ref GLuint program, ref GLuint vao,
     program = 0;
   }
 }
+
+/**
+ * Creates a GL_RGBA texture from RGBA8 `pixels` (`w` x `h`, rows `pitch`
+ * bytes apart, first row at the top) with linear filtering and
+ * clamp-to-edge wrapping. Resets `GL_UNPACK_ROW_LENGTH` to 0 and leaves no
+ * texture bound. Returns the texture id.
+ */
+GLuint uploadRgbaTexture(const(void)* pixels, int w, int h, int pitch) {
+  GLuint texId;
+  glGenTextures(1, &texId);
+  glBindTexture(GL_TEXTURE_2D, texId);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glBindTexture(GL_TEXTURE_2D, 0);
+  replaceRgbaTextureImage(texId, pixels, w, h, pitch);
+  return texId;
+}
+
+/**
+ * Replaces the level-0 image of texture `texId` with RGBA8 `pixels`
+ * (`w` x `h`, rows `pitch` bytes apart, first row at the top); the size
+ * may change. Resets `GL_UNPACK_ROW_LENGTH` to 0 and leaves no texture
+ * bound.
+ */
+void replaceRgbaTextureImage(
+  GLuint texId,
+  const(void)* pixels,
+  int w,
+  int h,
+  int pitch
+) {
+  glBindTexture(GL_TEXTURE_2D, texId);
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+  glPixelStorei(GL_UNPACK_ROW_LENGTH, pitch != w * 4 ? pitch / 4 : 0);
+  glTexImage2D(
+    GL_TEXTURE_2D,
+    0,
+    GL_RGBA,
+    w,
+    h,
+    0,
+    GL_RGBA,
+    GL_UNSIGNED_BYTE,
+    pixels
+  );
+  glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+  glBindTexture(GL_TEXTURE_2D, 0);
+}

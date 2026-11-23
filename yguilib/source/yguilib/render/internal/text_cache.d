@@ -5,6 +5,7 @@ package(yguilib):
 import glad2.gles2;
 import std.container.dlist : DList;
 import yguilib.clibs.sdl3_ttf;
+import yguilib.render.internal.gl_util : uploadRgbaTexture;
 import yguilib.render.font : Font, invalidFontId;
 
 struct TextTexture {
@@ -129,47 +130,11 @@ final class TextCache {
       return TextTexture();
     }
 
-    GLuint texId = uploadTextPixels(pixels, w, h, pitch);
+    GLuint texId = uploadRgbaTexture(pixels, w, h, pitch);
     return TextTexture(texId, w, h);
   }
 
   private:
-  static GLuint uploadTextPixels(
-    const(void)* pixels,
-    int w,
-    int h,
-    int pitch
-  ) {
-    GLuint texId;
-    glGenTextures(1, &texId);
-    glBindTexture(GL_TEXTURE_2D, texId);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    if (pitch != w * 4) {
-      glPixelStorei(GL_UNPACK_ROW_LENGTH, pitch / 4);
-    }
-    glTexImage2D(
-      GL_TEXTURE_2D,
-      0,
-      GL_RGBA,
-      w,
-      h,
-      0,
-      GL_RGBA,
-      GL_UNSIGNED_BYTE,
-      pixels
-    );
-    if (pitch != w * 4) {
-      glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-    }
-    glBindTexture(GL_TEXTURE_2D, 0);
-    return texId;
-  }
-
   void evictOldest() {
     import std.algorithm.comparison : max;
 

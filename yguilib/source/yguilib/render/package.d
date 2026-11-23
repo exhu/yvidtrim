@@ -5,11 +5,13 @@ import yguilib.events : AppEvent;
 import yguilib.render.internal.clip_stack : ClipStack;
 import yguilib.render.font : Font, defaultFontPtSize;
 import yguilib.render.font_manager : FontManager;
+import yguilib.render.image : Image;
 import yguilib.render.internal.offscreen : OffscreenTarget;
 import yguilib.render.internal.pipelines : BlurPipeline, ColorPipeline,
-  GradientPipeline, RoundRectPipeline, TexturePipeline;
+  GradientPipeline, RoundRectPipeline, TexturePipeline, TexturedQuad;
 import yguilib.render.internal.text_cache : TextCache, TextTexture;
 import yguilib.render.render_types;
+import yguilib.render.texture : Texture;
 import yguilib.assets : defaultTtfFontData;
 import yguilib.render.canvas;
 
@@ -622,6 +624,100 @@ final class Renderer {
       getLogicWidth(),
       getLogicHeight()
     );
+  }
+
+  /**
+   * Uploads `img` into a new GPU texture. The caller owns the result and
+   * must call `Texture.destroy()` on the main thread.
+   *
+   * Returns: the texture, or null if the renderer is not initialized or
+   * `img` is null (allowed) or empty.
+   */
+  Texture createTexture(in Image img) {
+    if (!initialized || img is null || img.isEmpty()) {
+      return null;
+    }
+    return new Texture(img);
+  }
+
+  /**
+   * Draws the whole texture `t` stretched to `dest` (logic coordinates),
+   * multiplied by `tint` (straight alpha). A null `t` is a no-op.
+   */
+  void drawImage(Texture t, RectF dest, ColorF tint) {
+    if (t is null) {
+      return;
+    }
+    drawImageRegion(
+      t, dest, RectF(0, 0, t.width(), t.height()), tint
+    );
+  }
+
+  /**
+   * Draws the `srcPx` region (texture pixels, top-left origin) of texture
+   * `t` stretched to `dest` (logic coordinates), multiplied by `tint`.
+   * A null or destroyed `t` is a no-op.
+   */
+  void drawImageRegion(Texture t, RectF dest, RectF srcPx, ColorF tint) {
+    if (!initialized || t is null || !t.isValid()) {
+      return;
+    }
+    const float tw = cast(float)t.width();
+    const float th = cast(float)t.height();
+    const RectF uv = RectF(
+      srcPx.x / tw, srcPx.y / th, srcPx.width / tw, srcPx.height / th
+    );
+    texPipeline.drawTexturedQuad(
+      t.id(),
+      TexturedQuad(dest, uv, tint),
+      getLogicWidth(),
+      getLogicHeight()
+    );
+  }
+
+  /**
+   * Reads back the `w` x `h` pixel rect at `x`, `y` (pixels, top-left
+   * origin) from the currently bound framebuffer. The rect is clamped to
+   * the viewport. Call it after rendering and before the buffer swap.
+   *
+   * Returns: an RGBA8 top-down image, or null if the renderer is not
+   * initialized or the clamped rect is empty.
+   */
+  Image readPixels(int x, int y, int w, int h) {
+    import std.algorithm.comparison : max, min;
+
+    if (!initialized) {
+      return null;
+    }
+    const int pw = viewportPixelWidth;
+    const int ph = viewportPixelHeight;
+    const int x0 = max(x, 0);
+    const int y0 = max(y, 0);
+    const int x1 = min(x + w, pw);
+    const int y1 = min(y + h, ph);
+    if (x1 <= x0 || y1 <= y0) {
+      return null;
+    }
+    const int cw = x1 - x0;
+    const int ch = y1 - y0;
+    auto img = new Image(cw, ch);
+    glPixelStorei(GL_PACK_ALIGNMENT, 4);
+    glReadPixels(
+      x0, ph - y0 - ch, cw, ch, GL_RGBA, GL_UNSIGNED_BYTE, img.pixels.ptr
+    );
+    img.flipVertical();
+    return img;
+  }
+
+  /**
+   * Reads back the whole viewport from the currently bound framebuffer
+   * (see `readPixels`). Call it after rendering and before the swap.
+   *
+   * Returns: the frame image, or null if the renderer is not initialized
+   * or the viewport is empty.
+   */
+  Image captureFrame() {
+    return readPixels(0, 0, viewportPixelWidth, viewportPixelHeight);
   }
 
   /**
@@ -1474,6 +1570,147 @@ unittest {
   renderer.drawLineWithPoints(
     PointF(10, 10), PointF(50, 50), -2.0f, ColorF(1, 1, 1, 1)
   );
+
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// Verifies createTexture, drawImage, drawImageRegion, tint and update.
+unittest {
+  import yguilib.clibs.sdl3;
+  import yguilib.window : Window;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(320, 240, "test_renderer_image");
+  win.create();
+  scope(exit) win.destroy();
+  win.setDisplayScaling(1.0f);
+
+  auto renderer = win.renderer;
+  renderer.setViewport(320, 240);
+
+  // 2x2: red, green / blue, white (top-down rows).
+  auto img = new Image(2, 2);
+  img.pixels[] = [
+    255, 0, 0, 255,  0, 255, 0, 255,
+    0, 0, 255, 255,  255, 255, 255, 255,
+  ];
+
+  assert(renderer.createTexture(null) is null);
+  assert(renderer.createTexture(new Image(0, 0)) is null);
+  Texture tex = renderer.createTexture(img);
+  assert(tex !is null && tex.isValid());
+  scope(exit) tex.destroy();
+  assert(tex.width() == 2 && tex.height() == 2);
+
+  ubyte[4] readAt(int x, int y) {
+    ubyte[4] px;
+    glReadPixels(x, 240 - 1 - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px.ptr);
+    return px;
+  }
+
+  bool near(ubyte[4] px, int r, int g, int b) {
+    import std.math : abs;
+
+    // Linear filtering bleeds a few levels from neighboring texels.
+    return abs(px[0] - r) <= 8 && abs(px[1] - g) <= 8 &&
+      abs(px[2] - b) <= 8;
+  }
+
+  const ColorF opaque = ColorF(1, 1, 1, 1);
+
+  // 1. Whole image: colors and orientation at quadrant centers.
+  renderer.clearFrame(ColorF(0, 0, 0, 1));
+  renderer.drawImage(tex, RectF(0, 0, 100, 100), opaque);
+  assert(near(readAt(25, 25), 255, 0, 0));
+  assert(near(readAt(75, 25), 0, 255, 0));
+  assert(near(readAt(25, 75), 0, 0, 255));
+  assert(near(readAt(75, 75), 255, 255, 255));
+  // Outside dest stays black.
+  assert(near(readAt(150, 150), 0, 0, 0));
+
+  // 2. Source sub-rect: only the blue texel.
+  renderer.clearFrame(ColorF(0, 0, 0, 1));
+  renderer.drawImageRegion(
+    tex, RectF(0, 0, 100, 100), RectF(0, 1, 1, 1), opaque
+  );
+  assert(near(readAt(50, 50), 0, 0, 255));
+  assert(near(readAt(10, 90), 0, 0, 255));
+
+  // 3. 50% alpha tint over black.
+  renderer.clearFrame(ColorF(0, 0, 0, 1));
+  renderer.drawImage(tex, RectF(0, 0, 100, 100), ColorF(1, 1, 1, 0.5f));
+  assert(near(readAt(25, 25), 128, 0, 0));
+  assert(near(readAt(75, 75), 128, 128, 128));
+
+  // 4. update() re-uploads and resizes.
+  auto green = new Image(1, 1);
+  green.pixels[] = [0, 255, 0, 255];
+  tex.update(green);
+  assert(tex.width() == 1 && tex.height() == 1);
+  renderer.clearFrame(ColorF(0, 0, 0, 1));
+  renderer.drawImage(tex, RectF(0, 0, 100, 100), opaque);
+  assert(near(readAt(25, 25), 0, 255, 0));
+  assert(near(readAt(75, 75), 0, 255, 0));
+
+  // 5. Null and destroyed textures are no-ops; destroy is idempotent.
+  renderer.clearFrame(ColorF(0, 0, 0, 1));
+  renderer.drawImage(null, RectF(0, 0, 100, 100), opaque);
+  tex.destroy();
+  tex.destroy();
+  assert(!tex.isValid() && tex.width() == 0);
+  renderer.drawImage(tex, RectF(0, 0, 100, 100), opaque);
+  assert(near(readAt(50, 50), 0, 0, 0));
+
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// Verifies readPixels/captureFrame orientation, clamping and empty rects.
+unittest {
+  import yguilib.clibs.sdl3;
+  import yguilib.window : Window;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(320, 240, "test_renderer_read_pixels");
+  win.create();
+  scope(exit) win.destroy();
+  win.setDisplayScaling(1.0f);
+
+  auto renderer = win.renderer;
+  renderer.setViewport(320, 240);
+
+  renderer.clearFrame(ColorF(0, 0, 0, 1));
+  renderer.drawFillRect(RectF(0, 0, 10, 10), ColorF(1, 0, 0, 1));
+
+  Image frame = renderer.captureFrame();
+  assert(frame !is null);
+  assert(frame.width() == 320 && frame.height() == 240);
+  // Top-left pixel is red: rows are top-down.
+  assert(frame.pixels[0 .. 4] == [255, 0, 0, 255]);
+  // Bottom-right pixel is black.
+  const size_t last = frame.pixels.length - 4;
+  assert(frame.pixels[last .. last + 4] == [0, 0, 0, 255]);
+
+  // Sub-rect straddling the red square's corner, clamped at the origin.
+  Image part = renderer.readPixels(-5, -5, 20, 20);
+  assert(part !is null);
+  assert(part.width() == 15 && part.height() == 15);
+  assert(part.pixels[0 .. 4] == [255, 0, 0, 255]);
+  const size_t offs = cast(size_t)(12 * part.width() + 12) * 4;
+  assert(part.pixels[offs .. offs + 4] == [0, 0, 0, 255]);
+
+  // Rect at the bottom-right edge is clamped to the viewport.
+  Image edge = renderer.readPixels(310, 230, 50, 50);
+  assert(edge !is null);
+  assert(edge.width() == 10 && edge.height() == 10);
+
+  // Empty or fully outside rects give null.
+  assert(renderer.readPixels(0, 0, 0, 10) is null);
+  assert(renderer.readPixels(400, 0, 10, 10) is null);
+  assert(renderer.readPixels(0, -20, 10, 10) is null);
 
   assert(glGetError() == GL_NO_ERROR);
 }

@@ -97,6 +97,18 @@ class UiSystemImpl : UiSystem {
     return fMainWindow;
   }
 
+  override void requestScreenshot(string path) {
+    if (fMainWindow is null) {
+      warningf("requestScreenshot(%s): no main window", path);
+      return;
+    }
+    fMainWindow.requestScreenshot(path);
+    if (fMainWindow.rootWidget !is null) {
+      // A dirty tree makes Phase 3 render (and capture) this iteration.
+      fMainWindow.rootWidget.update(WidgetUpdateScope.visuals);
+    }
+  }
+
   override void registerWidgetSystem(WidgetSystem system) {
     assert(system !is null);
     pipeline.registerSystem(system);
@@ -1757,4 +1769,55 @@ unittest {
   assert(popLog == ["c2:onPop", "c1:onPop"]);
   assert(!ui.isTimerActive(c1.timerId));
   assert(!ui.isTimerActive(c2.timerId));
+}
+
+// Verifies requestScreenshot saves the next rendered frame and clears the
+// pending request.
+unittest {
+  import std.file : exists, remove, tempDir;
+  import std.path : buildPath;
+  import yguilib.render.image : Image;
+  import yguilib.render.render_types : ColorF, RectF;
+  import yguilib.widget.drawing_components : Background;
+
+  yguilib_sdl3_init();
+  scope (exit) yguilib_sdl3_quit();
+
+  auto win = new Window(320, 240, "test_request_screenshot");
+  win.create();
+  scope (exit) win.destroy();
+
+  auto ui = new UiSystemImpl(win);
+  auto root = new Widget(ui.nextWidgetId());
+  root.rect = RectF(0, 0, 320, 240);
+  root.components.background = Background.rect(ColorF(1, 0, 0, 1));
+  win.rootWidget = root;
+
+  // Render once so the tree is clean before the request.
+  ui.systemPipeline.updateAndRender(win);
+  assert(!root.isTreeDirty());
+
+  const string path = buildPath(tempDir(), "yguilib_test_screenshot.png");
+  if (exists(path)) {
+    remove(path);
+  }
+  scope (exit) {
+    if (exists(path)) {
+      remove(path);
+    }
+  }
+
+  ui.requestScreenshot(path);
+  assert(win.hasPendingScreenshot());
+  assert(root.isTreeDirty());
+
+  ui.systemPipeline.updateAndRender(win);
+  assert(!win.hasPendingScreenshot());
+  assert(exists(path));
+
+  Image img = Image.loadFromFile(path);
+  assert(img !is null);
+  assert(img.width() == win.renderer.getPixelWidth());
+  assert(img.height() == win.renderer.getPixelHeight());
+  assert(img.pixels[0 .. 4] == [255, 0, 0, 255]);
 }

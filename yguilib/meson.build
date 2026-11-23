@@ -10,6 +10,7 @@ yguilib_src = files(
   'source/yguilib/app.d',
   'source/yguilib/assets.d',
   'source/yguilib/clibs/sdl3.d',
+  'source/yguilib/clibs/sdl3_image.d',
   'source/yguilib/clibs/sdl3_ttf.d',
   'source/yguilib/controller/internal/controller_stack.d',
   'source/yguilib/controller/package.d',
@@ -39,6 +40,7 @@ yguilib_src = files(
   'source/yguilib/render/canvas.d',
   'source/yguilib/render/font.d',
   'source/yguilib/render/font_manager.d',
+  'source/yguilib/render/image.d',
   'source/yguilib/render/internal/clip_stack.d',
   'source/yguilib/render/internal/gl_util.d',
   'source/yguilib/render/internal/offscreen.d',
@@ -49,6 +51,7 @@ yguilib_src = files(
   'source/yguilib/render/internal/text_cache.d',
   'source/yguilib/render/package.d',
   'source/yguilib/render/render_types.d',
+  'source/yguilib/render/texture.d',
   'source/yguilib/serhelpers.d',
   'source/yguilib/timercontrol.d',
   'source/yguilib/timers.d',
@@ -86,7 +89,12 @@ yguilib_src = files(
   'source/yguilib/window.d',
 )
 
-yguilib_deps = [yguilib_sdl3_dep, yguilib_sdl3_ttf_dep, glad2gles31d_dep]
+yguilib_deps = [
+  yguilib_sdl3_dep,
+  yguilib_sdl3_ttf_dep,
+  yguilib_sdl3_image_dep,
+  glad2gles31d_dep,
+]
 
 yguilib_lib = static_library(
   'yguilib',

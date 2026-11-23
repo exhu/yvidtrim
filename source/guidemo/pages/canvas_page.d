@@ -5,9 +5,15 @@
  * Each section card hosts one widget whose delegate draws in content-local
  * coordinates via `r.canvas()`; `Renderer` calls inside a delegate use
  * absolute coordinates (the origin is the canvas transform `e/f`).
+ *
+ * Slot 7 alternates ([I]) between the Renderer interop section and the
+ * image section (`Renderer.drawImage`/`drawImageRegion`). The sample PNG is
+ * decoded once; its `Texture` is created lazily on the first draw and
+ * released by `releaseTextures()` (main thread).
  */
 module guidemo.pages.canvas_page;
 
+import guidemo.assets : sampleImagePng;
 import guidemo.common : makeSectionCard;
 import guidemo.model : CanvasPageModel;
 import yguilib.model : ModelTracker;
@@ -15,6 +21,8 @@ import yguilib.render : Renderer;
 import yguilib.render.canvas : Canvas, FillRule, FillStyle, LineCap,
   LineDash, LineJoin, LinearGradient, Path2d, RadialGradient, Shadow,
   Transform2d;
+import yguilib.render.image : Image;
+import yguilib.render.texture : Texture;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
@@ -39,9 +47,12 @@ final class CanvasPage {
     root.rect = RectF(0, 0, 1280, 720);
     parent.addChild(root);
 
+    // logs an error and returns null on failure; drawImages handles it
+    sampleImage = Image.loadFromMemory(sampleImagePng);
     buildPaths();
     buildPaints();
     buildSections();
+    syncSlot7();
   }
 
   invariant {
@@ -56,6 +67,7 @@ final class CanvasPage {
     if (!tracker.update()) {
       return false;
     }
+    syncSlot7();
     strokesWidget.update(WidgetUpdateScope.visuals);
     transformsWidget.update(WidgetUpdateScope.visuals);
     return true;
@@ -63,9 +75,26 @@ final class CanvasPage {
 
   /// Returns the status bar text (key hints) for this page.
   string formatStatus() {
-    return tracker.model.animating
+    const string anim = tracker.model.animating
       ? "[Space] Pause animation"
       : "[Space] Resume animation";
+    const string slot = tracker.model.showImages
+      ? " | [I] Show interop"
+      : " | [I] Show images";
+    return anim ~ slot;
+  }
+
+  /// Destroys GPU textures; call on the main thread with a live GL context.
+  void releaseTextures() {
+    if (sampleTexture !is null) {
+      sampleTexture.destroy();
+      sampleTexture = null;
+    }
+  }
+
+  /// Returns the decoded sample image, or null if decoding failed.
+  inout(Image) image() inout {
+    return sampleImage;
   }
 
   /// Returns the page root widget.
@@ -98,10 +127,21 @@ private:
     );
     addSection(0, 1, "5. Clip", "canvasClip", &drawClip);
     addSection(1, 1, "6. Gradients", "canvasGradients", &drawGradients);
-    addSection(
+    interopWidget = addSection(
       2, 1, "7. Canvas + Renderer interop", "canvasInterop", &drawInterop
     );
     addSection(3, 1, "8. Shadows", "canvasShadows", &drawShadows);
+    // shares slot 7 with the interop section, toggled with [I]
+    imagesWidget = addSection(
+      2, 1, "9. Images (drawImage)", "canvasImages", &drawImages
+    );
+  }
+
+  /// Shows either the image or the interop card in slot 7.
+  void syncSlot7() {
+    const bool images = tracker.model.showImages;
+    imagesWidget.parent.setVisible(images);
+    interopWidget.parent.setVisible(!images);
   }
 
   Widget addSection(
@@ -517,6 +557,42 @@ private:
     labelAt(r, "stroke", PointF(110, 205));
   }
 
+  // Section 9: the sample texture 1:1, tinted, src quadrant and 2x.
+  void drawImages(Renderer r, in Widget w) {
+    if (sampleImage is null) {
+      labelAt(r, "sample.png failed to decode", PointF(8, 0));
+      return;
+    }
+    if (sampleTexture is null) {
+      sampleTexture = r.createTexture(sampleImage);
+    }
+    const ColorF opaque = ColorF(1, 1, 1, 1);
+    const float w1 = sampleImage.width();
+    const float h1 = sampleImage.height();
+    labelAt(r, "1:1", PointF(8, 0));
+    r.drawImage(sampleTexture, destAt(r, PointF(8, 16), w1, h1), opaque);
+    labelAt(r, "tint 50%", PointF(88, 0));
+    r.drawImage(
+      sampleTexture, destAt(r, PointF(88, 16), w1, h1),
+      ColorF(1, 1, 1, 0.5f)
+    );
+    labelAt(r, "src quadrant", PointF(168, 0));
+    r.drawImageRegion(
+      sampleTexture, destAt(r, PointF(168, 16), w1, h1),
+      RectF(0, 0, w1 / 2, h1 / 2), opaque
+    );
+    labelAt(r, "2x", PointF(8, 88));
+    r.drawImage(
+      sampleTexture, destAt(r, PointF(8, 104), w1 * 2, h1 * 2), opaque
+    );
+  }
+
+  /// Absolute logic rect of size `w` x `h` at canvas-local `pos`.
+  static RectF destAt(Renderer r, PointF pos, float w, float h) {
+    const PointF p = r.canvas().transform().apply(pos);
+    return RectF(p.x, p.y, w, h);
+  }
+
   /// Absolute logic position of the current canvas origin.
   static PointF origin(Canvas c) {
     return c.transform().apply(PointF(0, 0));
@@ -542,7 +618,11 @@ private:
   Widget root;
   Widget strokesWidget;
   Widget transformsWidget;
+  Widget interopWidget;
+  Widget imagesWidget;
   Widget[] sectionWidgets;
+  Image sampleImage;
+  Texture sampleTexture;
   Path2d curves;
   Path2d arcs;
   Path2d arcToPath;
@@ -579,12 +659,26 @@ unittest {
   auto tracker = ModelTracker!CanvasPageModel(new CanvasPageModel());
   auto page = new CanvasPage(ui, root, tracker);
   assert(page.rootWidget().parent is root);
-  assert(page.drawWidgets().length == 8);
+  assert(page.drawWidgets().length == 9);
   foreach (w; page.drawWidgets()) {
     assert(w.components.customDraw !is null);
     assert(w.components.customDraw.drawFunc !is null);
   }
-  assert(page.formatStatus() == "[Space] Pause animation");
+  assert(
+    page.formatStatus() == "[Space] Pause animation | [I] Show interop"
+  );
+
+  // the sample PNG decodes once; slot 7 shows images, interop is hidden
+  assert(page.image() !is null);
+  assert(page.image().width() == 64 && page.image().height() == 64);
+  const Widget imagesCard = page.imagesWidget.parent;
+  const Widget interopCard = page.interopWidget.parent;
+  assert(imagesCard.visible && !interopCard.visible);
+  assert(imagesCard.rect == interopCard.rect);
+  // the top-left corner is red (orientation marker)
+  const ubyte[] px = page.image().pixels;
+  assert(px[0] > 200 && px[1] < 80 && px[2] < 80 && px[3] == 255);
+  page.releaseTextures();
 
   // a model change marks the animated widgets dirty
   page.update();
@@ -594,4 +688,14 @@ unittest {
   tracker.commit(m);
   assert(page.update());
   assert(!page.update());
+
+  // toggling showImages swaps the slot 7 cards
+  m = tracker.edit();
+  m.showImages = false;
+  tracker.commit(m);
+  assert(page.update());
+  assert(!imagesCard.visible && interopCard.visible);
+  assert(
+    page.formatStatus() == "[Space] Pause animation | [I] Show images"
+  );
 }

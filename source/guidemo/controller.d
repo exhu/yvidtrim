@@ -3,6 +3,8 @@
  */
 module guidemo.controller;
 
+import std.datetime.systime : Clock, SysTime;
+
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.events.keyboard : Keycode, Scancode;
@@ -51,8 +53,8 @@ struct DemoControllerParams {
   }
 }
 
-/// Shared controller handling quit, F12 debug draw cycling, and page
-/// switching across guidemo.
+/// Shared controller handling quit, F11 debug draw cycling, F12
+/// screenshots, and page switching across guidemo.
 final class DemoController : DefaultController {
   @disable this();
 
@@ -99,6 +101,12 @@ final class DemoController : DefaultController {
         sendQuit();
         return HandleResult(HandleResult.Result.quit, true);
       }
+      if (isKey(ev, Keycode.f12, Scancode.f12)) {
+        uiSystem.requestScreenshot(
+          screenshotPathFromTime(Clock.currTime())
+        );
+        return HandleResult(HandleResult.Result.nothing, true);
+      }
       if (handleGlobalKeyDown(ev)) {
         return HandleResult(HandleResult.Result.update, true);
       }
@@ -131,7 +139,7 @@ private:
     auto model = tracker.edit();
     const size_t prevPage = model.activePage;
 
-    if (isKey(ev, Keycode.f12, Scancode.f12)) {
+    if (isKey(ev, Keycode.f11, Scancode.f11)) {
       toggleDebugDraw(model);
       tracker.commit(model);
       return true;
@@ -192,12 +200,43 @@ private:
   ModelTracker!TabsModel tabsTracker;
 }
 
+/// Returns the screenshot file name `screenshot-YYYYMMDD-HHMMSS.png` (in the
+/// current directory) for the time `t`.
+string screenshotPathFromTime(SysTime t) {
+  import std.format : format;
+
+  return format(
+    "screenshot-%04d%02d%02d-%02d%02d%02d.png",
+    t.year, cast(int) t.month, t.day, t.hour, t.minute, t.second
+  );
+}
+
+unittest {
+  import std.datetime.date : DateTime;
+
+  const SysTime t = SysTime(DateTime(2026, 3, 7, 9, 5, 4));
+  assert(screenshotPathFromTime(t) == "screenshot-20260307-090504.png");
+}
+
 unittest {
   import guidemo.view : createHeaderTabsModel;
   import yguilib.events.builder : ViewAppEventBuilder;
   import yguilib.internal.uisystem_impl : UiSystemImpl;
 
-  auto ui = new UiSystemImpl(null);
+  // Records screenshot requests instead of forwarding them to a window.
+  static final class RecordingUiSystem : UiSystemImpl {
+    this() {
+      super(null);
+    }
+
+    override void requestScreenshot(string path) {
+      paths ~= path;
+    }
+
+    string[] paths;
+  }
+
+  auto ui = new RecordingUiSystem();
   auto demoTracker = ModelTracker!DemoModel(new DemoModel());
   auto tabsTracker = ModelTracker!TabsModel(createHeaderTabsModel());
   auto demoView = new DemoView(ui, demoTracker, tabsTracker);
@@ -237,7 +276,7 @@ unittest {
   assert(demoCtrl.update());
   assert(!demoCtrl.update());
 
-  // F12 cycles DebugDrawMode through all 5 states
+  // F11 cycles DebugDrawMode through all 5 states
   assert(demoCtrl.tracker.model.debugDrawMode == DebugDrawMode.off);
   DebugDrawMode[5] expectedModes = [
     DebugDrawMode.allVisible,
@@ -247,13 +286,31 @@ unittest {
     DebugDrawMode.off,
   ];
   foreach (expected; expectedModes) {
-    const evF12 = makeKeyDown(Keycode.f12, Scancode.f12);
-    const hrF12 = demoCtrl.handleEvent(evF12);
-    assert(hrF12.result == HandleResult.Result.update);
-    assert(hrF12.consume);
+    const evF11 = makeKeyDown(Keycode.f11, Scancode.f11);
+    const hrF11 = demoCtrl.handleEvent(evF11);
+    assert(hrF11.result == HandleResult.Result.update);
+    assert(hrF11.consume);
     assert(demoCtrl.tracker.model.debugDrawMode == expected);
     assert(demoCtrl.update());
     assert(demoCtrl.updateView());
+  }
+
+  // F12 requests a screenshot-YYYYMMDD-HHMMSS.png in the current directory
+  const hrF12 = demoCtrl.handleEvent(makeKeyDown(Keycode.f12, Scancode.f12));
+  assert(hrF12.consume);
+  assert(demoCtrl.tracker.model.debugDrawMode == DebugDrawMode.off);
+  assert(ui.paths.length == 1);
+  {
+    import std.ascii : isDigit;
+    import std.algorithm.searching : all, endsWith, startsWith;
+
+    const string p = ui.paths[0];
+    assert(p.length == "screenshot-YYYYMMDD-HHMMSS.png".length);
+    assert(p.startsWith("screenshot-"));
+    assert(p.endsWith(".png"));
+    assert(p[11 .. 19].all!isDigit);
+    assert(p[19] == '-');
+    assert(p[20 .. 26].all!isDigit);
   }
 
   // Page 6 key switch

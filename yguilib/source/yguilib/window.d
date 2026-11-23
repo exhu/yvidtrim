@@ -80,7 +80,30 @@ class Window {
   @property string title() const {
     return fTitle;
   }
+
+  /**
+   * Requests a PNG screenshot of the next rendered frame, saved to `path`
+   * on the main thread after rendering and before the buffer swap. A newer
+   * request replaces a pending one; an empty `path` cancels it. This does
+   * not trigger a render by itself (see `UiSystem.requestScreenshot`).
+   */
+  void requestScreenshot(string path) {
+    fPendingScreenshotPath = path;
+  }
+
 package(yguilib):
+  /// True when a screenshot request is waiting for the next frame.
+  bool hasPendingScreenshot() const {
+    return fPendingScreenshotPath.length > 0;
+  }
+
+  /// Returns the pending screenshot path (empty if none) and clears it.
+  string takePendingScreenshotPath() {
+    const string path = fPendingScreenshotPath;
+    fPendingScreenshotPath = null;
+    return path;
+  }
+
   void swapBuffers() {
     if (handle !is null) {
       yguilib_sdl3_gl_swap_window(handle);
@@ -272,6 +295,7 @@ private:
   int pixelHeight;
   float customUnitsScaling = 1.0f;
   string fTitle;
+  string fPendingScreenshotPath;
 
   yguilib_sdl3_Window* handle;
   yguilib_sdl3_GLContext* glContext;

@@ -42,6 +42,7 @@ yvidtrim_test_exe = executable(
 test('yvidtrim_test', yvidtrim_test_exe)
 
 guidemo_lib_src = files(
+  'source/guidemo/assets.d',
   'source/guidemo/common.d',
   'source/guidemo/controller.d',
   'source/guidemo/demo_model_helpers.d',
@@ -72,6 +73,8 @@ guidemo_lib_src = files(
   'source/guidemo/view.d',
 )
 
+guidemo_assets_inc = include_directories('assets')
+
 guidemo_src = guidemo_lib_src + files(
   'source/guidemo/guidemoapp.d',
 )
@@ -80,7 +83,7 @@ executable(
   'guidemo',
   guidemo_src,
   include_directories : yvidtrim_inc,
-  d_import_dirs : yvidtrim_inc,
+  d_import_dirs : [yvidtrim_inc, guidemo_assets_inc],
   dependencies : [yguilib_dep],
 )
 
@@ -89,7 +92,7 @@ guidemo_test_exe = executable(
   guidemo_lib_src + files('source/guidemo/test_main.d'),
   d_unittest : true,
   include_directories : yvidtrim_inc,
-  d_import_dirs : yvidtrim_inc,
+  d_import_dirs : [yvidtrim_inc, guidemo_assets_inc],
   dependencies : [yguilib_dep],
 )
 test('guidemo_test', guidemo_test_exe)

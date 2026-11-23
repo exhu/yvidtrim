@@ -57,3 +57,28 @@ yguilib_sdl3_ttf_dep = declare_dependency(
   dependencies : ttf_dependencies,
 )
 
+
+dep_sdl3_image = dependency('sdl3-image')
+image_dependencies = [dependencies, dep_sdl3_image]
+
+yguilib_sdl3_image_lib = static_library(
+  'yguilib_sdl3_image',
+  ['yguilib_sdl3_image.c'],
+  install : false,
+  gnu_symbol_visibility : 'hidden',
+  dependencies : image_dependencies,
+)
+
+yguilib_sdl3_image_test_exe = executable(
+  'yguilib_sdl3_image_test',
+  'yguilib_sdl3_image_test.c',
+  dependencies : image_dependencies,
+  link_with : yguilib_sdl3_image_lib,
+)
+test('yguilib_sdl3_image', yguilib_sdl3_image_test_exe)
+
+yguilib_sdl3_image_dep = declare_dependency(
+  link_with : yguilib_sdl3_image_lib,
+  include_directories : include_directories('.'),
+  dependencies : image_dependencies,
+)
