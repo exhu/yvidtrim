@@ -10,8 +10,10 @@ import yguilib.render.internal.pipelines : ColorPipeline, RoundRectPipeline,
 import yguilib.render.internal.text_cache : TextCache, TextTexture;
 import yguilib.render.render_types;
 import yguilib.assets : defaultTtfFontData;
+import yguilib.render.canvas;
 
-/// Managed by Window class.
+/// Managed by Window class. Lower level 2d api.
+// TODO rename get/set methods according to naming in codestyle.md, e.g. setClipRect -> clipRect(...)
 final class Renderer {
   this(int width, int height, float displayScaling) {
     viewportPixelWidth = width;
@@ -22,6 +24,10 @@ final class Renderer {
       glViewport(0, 0, width, height);
     }
     initialize();
+  }
+
+  Canvas canvas() {
+    return fCanvas;
   }
 
   void destroy() {
@@ -703,6 +709,7 @@ private:
     rrPipeline.initialize();
     textCache = new TextCache(TextCache.maxCacheEntries);
     fontManager = new FontManager();
+    fCanvas = new Canvas();
 
     initialized = true;
   }
@@ -773,6 +780,7 @@ private:
   Font defaultFont_;
   bool ownsDefaultFont_;
   bool initialized;
+  Canvas fCanvas;
 }
 
 // Verifies isOnScreen viewport culling helper.
