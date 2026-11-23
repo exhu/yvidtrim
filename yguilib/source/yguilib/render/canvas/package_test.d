@@ -2036,3 +2036,130 @@ unittest {
   r.endTarget();
   assert(glGetError() == GL_NO_ERROR);
 }
+
+// glyph atlas: a rotated glyph shows no neighbouring atlas content; a
+// multi-glyph gradient fill with a shadow shadows every glyph; direction
+// and maxWidth anchor through the glyph path
+unittest {
+  import std.math : PI, abs, cos, sin;
+
+  auto w = GlTestWindow("test_canvas_text_atlas");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+  auto r = w.renderer();
+  auto cv = w.canvas();
+
+  const black = ColorF(0, 0, 0, 1);
+  const white = FillStyle.solid(ColorF(1, 1, 1, 1));
+  void clear() {
+    r.clearFrame(black);
+    cv.fontSpec = FontSpec(48, null);
+    cv.textBaseline = TextBaseline.top;
+  }
+
+  // 1. "W" cached first, then a rotated "I": lit pixels stay near the
+  // rotated I box (checked in the glyph's unrotated frame)
+  clear();
+  cv.fillStyle(white);
+  cv.fillText("W", PointF(40, 50));
+  clear();
+  cv.fillStyle(white);
+  cv.fillText("I", PointF(150, 80));
+  const ib = frameBounds(0);
+  assert(!ib.empty);
+  const float cx = 0.5f * (ib.x0 + ib.x1 + 1);
+  const float cy = 0.5f * (ib.y0 + ib.y1 + 1);
+  const float ang = cast(float)(PI / 6);
+  clear();
+  cv.fillStyle(white);
+  cv.save();
+  cv.translate(PointF(cx, cy));
+  cv.rotate(ang);
+  cv.translate(PointF(-cx, -cy));
+  cv.fillText("I", PointF(150, 80));
+  cv.restore();
+  const buf = grabFrame();
+  int lit;
+  foreach (y; 0 .. testHeight) {
+    foreach (x; 0 .. testWidth) {
+      if (channelAt(buf, x, y, 0) <= 20) {
+        continue;
+      }
+      lit++;
+      const float dx = x + 0.5f - cx;
+      const float dy = y + 0.5f - cy;
+      const float ux = dx * cos(ang) + dy * sin(ang);
+      const float uy = -dx * sin(ang) + dy * cos(ang);
+      assert(abs(ux) <= 0.5f * (ib.x1 - ib.x0 + 1) + 3);
+      assert(abs(uy) <= 0.5f * (ib.y1 - ib.y0 + 1) + 3);
+    }
+  }
+  assert(lit > 20);
+
+  // 2. several glyphs, gradient fill and shadow in one call
+  int runs(int ch) {
+    const b = grabFrame();
+    int n;
+    bool inRun;
+    foreach (x; 0 .. testWidth) {
+      bool any;
+      foreach (y; 0 .. testHeight) {
+        any = any || channelAt(b, x, y, ch) > 60;
+      }
+      n += (any && !inRun) ? 1 : 0;
+      inRun = any;
+    }
+    return n;
+  }
+
+  clear();
+  LinearGradient lg;
+  lg.p0 = PointF(20, 0);
+  lg.p1 = PointF(140, 0);
+  lg.stops.add(0, ColorF(1, 0, 0, 1));
+  lg.stops.add(1, ColorF(0, 0, 1, 1));
+  cv.fillStyle(FillStyle.fromLinear(lg));
+  Shadow sh;
+  sh.offset = PointF(0, 100);
+  sh.color = ColorF(0, 1, 0, 1);
+  cv.shadow(sh);
+  cv.fillText("I I I", PointF(20, 20));
+  cv.shadow(Shadow.init);
+  assert(runs(1) == 3);
+  const gs = frameBounds(1);
+  const fill = frameBounds(0);
+  const fillB = frameBounds(2);
+  assert(!gs.empty && !fill.empty && !fillB.empty);
+  assert(gs.y0 >= fill.y0 + 95);
+  assert(abs(gs.x0 - fill.x0) <= 2 && abs(gs.x1 - fillB.x1) <= 2);
+
+  // 3. direction: rtl start aligns to the right edge, like end in ltr
+  clear();
+  cv.fillStyle(white);
+  cv.textAlign(TextAlign.start);
+  cv.direction = TextDirection.rtl;
+  cv.fillText("Hello", PointF(200, 50));
+  const rtl = frameBounds(0);
+  clear();
+  cv.fillStyle(white);
+  cv.textAlign(TextAlign.end);
+  cv.direction = TextDirection.ltr;
+  cv.fillText("Hello", PointF(200, 50));
+  const ltrEnd = frameBounds(0);
+  assert(!rtl.empty && rtl == ltrEnd && rtl.x1 <= 202);
+  cv.direction = TextDirection.ltr;
+  cv.textAlign(TextAlign.start);
+
+  // 4. maxWidth squeezes all glyph quads about the anchor
+  clear();
+  cv.fillStyle(white);
+  cv.fillText("Hello", PointF(40, 50));
+  const full = frameBounds(0);
+  clear();
+  cv.fillStyle(white);
+  cv.fillTextWithMaxWidth("Hello", PointF(40, 50), 40);
+  const sq = frameBounds(0);
+  assert(abs(sq.y0 - full.y0) <= 1 && abs(sq.y1 - full.y1) <= 1);
+  assert(sq.y0 == full.y0 && sq.y1 == full.y1);
+  assert(glGetError() == GL_NO_ERROR);
+}

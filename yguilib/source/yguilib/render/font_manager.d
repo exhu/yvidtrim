@@ -4,8 +4,8 @@
  * Two caches: fonts at the renderer's total scaling (rescaled in place by
  * `scaling(float)`), and fonts at an explicit raster scale used by Canvas
  * text (`fontAtScale`, quantized to 1/8 steps). Destroyed fonts are
- * reported through `onFontDestroyed` so `TextCache` can drop their
- * textures.
+ * reported through `onFontDestroyed` so the text run cache can drop their
+ * glyph runs.
  */
 module yguilib.render.font_manager;
 
@@ -70,8 +70,8 @@ final class FontManager {
   /**
    * Sets the callback run with the id of every cached font right before
    * the manager destroys it (scaled-cache flush, re-registration of its
-   * face, `destroy()`). `Renderer` uses it to drop the font's textures
-   * from its `TextCache`. Pass null to detach.
+   * face, `destroy()`). `Renderer` uses it to drop the font's runs
+   * from its text run cache. Pass null to detach.
    */
   void onFontDestroyed(void delegate(ulong fontId) callback) {
     fOnFontDestroyed = callback;

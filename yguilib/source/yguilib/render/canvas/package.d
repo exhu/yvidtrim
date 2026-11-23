@@ -8,8 +8,9 @@
     Square caps on zero-length segments: they stay axis-aligned instead of
     rotating with the path, which shows on diagonal lines.
 
-    Text (`fillText`, `strokeText`, `measureText`) draws glyph bitmaps from
-    the `TextRunCache` as transformed quads, rasterized at the effective scale.
+    Text (`fillText`, `strokeText`, `measureText`) draws per-glyph quads from
+    the shared glyph atlas (`TextRunCache` runs), rasterized at the effective
+    scale.
     `strokeText` is an SDL_ttf outline ring: caps, joins and dash are
     ignored. `direction` affects only `start`/`end` alignment.
 */
@@ -462,9 +463,9 @@ final class Canvas {
   /**
    * Fills `text` at `pos` (HTML `fillText`) with the current font, align,
    * baseline and direction, mapped by the current transform, honoring the
-   * Canvas clip and shadow. The glyph bitmap is rasterized at the
+   * Canvas clip and shadow. The glyphs are rasterized at the
    * effective scale (display scaling * transform scale, quantized) and
-   * drawn as a transformed textured quad painted with the fill style
+   * drawn as transformed atlas quads painted with the fill style
    * (solid color, gradient or pattern, using the glyph alpha as a mask).
    * No-op for an uninitialized renderer, empty text, non-finite `pos` or
    * an invisible fill.
@@ -491,7 +492,7 @@ final class Canvas {
    * Strokes the outline of `text` at `pos` (HTML `strokeText`) painted
    * with `strokeStyle` (solid, gradient or pattern), honoring transform,
    * clip and shadow like `fillText`. The outline is an SDL_ttf outline
-   * ring bitmap `max(1, round(lineWidth * scale))` px wide (capped at 64),
+   * ring `max(1, round(lineWidth * scale))` px wide (capped at 64),
    * so it extends that far outside the glyph edge. Line cap, join and
    * dash are ignored. Same no-ops as `fillText`.
    */
@@ -1313,7 +1314,7 @@ private:
   }
 
   /**
-   * Implementation of `fillText` / `strokeText`: draws the bitmap of
+   * Implementation of `fillText` / `strokeText`: draws the glyph quads of
    * `text` (glyph fill for `outlinePx` 0, otherwise the outline ring of
    * that width, painted with the stroke style); `maxWidth` infinity means
    * unlimited.

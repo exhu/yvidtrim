@@ -4,7 +4,7 @@
  *
  * `Font` objects are created and cached by `FontManager`; a font is freed
  * only by an explicit main-thread `destroy()`. Every live font has a unique
- * monotonic `id`, used as the `TextCache` key.
+ * monotonic `id`, used as the text run cache key.
  */
 module yguilib.render.font;
 
