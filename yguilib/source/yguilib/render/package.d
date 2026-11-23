@@ -1190,20 +1190,15 @@ unittest {
 }
 
 unittest {
-  import yguilib.clibs.sdl3;
-  import yguilib.window : Window;
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
 
-  yguilib_sdl3_init();
-  scope(exit) yguilib_sdl3_quit();
+  auto w = GlTestWindow("test_renderer");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+  auto win = w.window();
 
-  auto win = new Window(320, 240, "test_renderer");
-  win.create();
-  scope(exit) win.destroy();
-  win.setDisplayScaling(1.0f);
-
-  auto renderer = win.renderer;
+  auto renderer = w.renderer();
   assert(renderer !is null);
-  renderer.viewport(320, 240);
 
   assert(renderer.viewportWidth() == 320);
   assert(renderer.viewportHeight() == 240);
@@ -1806,19 +1801,14 @@ unittest {
 
 // Verifies createTexture, drawImage, drawImageRegion, tint and update.
 unittest {
-  import yguilib.clibs.sdl3;
-  import yguilib.window : Window;
+  import yguilib.render.internal.gl_test_util : GlTestWindow, nearPixel,
+    readAt;
 
-  yguilib_sdl3_init();
-  scope(exit) yguilib_sdl3_quit();
+  auto w = GlTestWindow("test_renderer_image");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
 
-  auto win = new Window(320, 240, "test_renderer_image");
-  win.create();
-  scope(exit) win.destroy();
-  win.setDisplayScaling(1.0f);
-
-  auto renderer = win.renderer;
-  renderer.viewport(320, 240);
+  auto renderer = w.renderer();
 
   // 2x2: red, green / blue, white (top-down rows).
   auto img = new Image(2, 2);
@@ -1834,18 +1824,9 @@ unittest {
   scope(exit) tex.destroy();
   assert(tex.width() == 2 && tex.height() == 2);
 
-  ubyte[4] readAt(int x, int y) {
-    ubyte[4] px;
-    glReadPixels(x, 240 - 1 - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px.ptr);
-    return px;
-  }
-
   bool near(ubyte[4] px, int r, int g, int b) {
-    import std.math : abs;
-
     // Linear filtering bleeds a few levels from neighboring texels.
-    return abs(px[0] - r) <= 8 && abs(px[1] - g) <= 8 &&
-      abs(px[2] - b) <= 8;
+    return nearPixel(px, r, g, b, 8);
   }
 
   const ColorF opaque = ColorF(1, 1, 1, 1);
@@ -1899,34 +1880,20 @@ unittest {
 // Verifies the blend on a transparent target (alpha a, not a * a) and
 // that premultiplied + bottom-up textures draw like straight ones.
 unittest {
-  import yguilib.clibs.sdl3;
+  import yguilib.render.internal.gl_test_util : GlTestWindow,
+    nearPixelRgba, readAt;
   import yguilib.render.internal.gl_util : uploadRgbaTexture;
   import yguilib.render.internal.offscreen : SavedTargetState;
   import yguilib.render.texture : BorrowedTextureInfo;
-  import yguilib.window : Window;
 
-  yguilib_sdl3_init();
-  scope(exit) yguilib_sdl3_quit();
+  auto w = GlTestWindow("test_renderer_blend_premultiplied");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
 
-  auto win = new Window(320, 240, "test_renderer_blend_premultiplied");
-  win.create();
-  scope(exit) win.destroy();
-  win.setDisplayScaling(1.0f);
-
-  auto renderer = win.renderer;
-  renderer.viewport(320, 240);
-
-  ubyte[4] readAt(int x, int y) {
-    ubyte[4] px;
-    glReadPixels(x, 240 - 1 - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px.ptr);
-    return px;
-  }
+  auto renderer = w.renderer();
 
   bool near4(ubyte[4] px, int r, int g, int b, int a) {
-    import std.math : abs;
-
-    return abs(px[0] - r) <= 3 && abs(px[1] - g) <= 3 &&
-      abs(px[2] - b) <= 3 && abs(px[3] - a) <= 3;
+    return nearPixelRgba(px, r, g, b, a, 3);
   }
 
   // Offscreen RGBA target cleared to transparent.
@@ -2014,19 +1981,13 @@ unittest {
 
 // Verifies readPixels/captureFrame orientation, clamping and empty rects.
 unittest {
-  import yguilib.clibs.sdl3;
-  import yguilib.window : Window;
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
 
-  yguilib_sdl3_init();
-  scope(exit) yguilib_sdl3_quit();
+  auto w = GlTestWindow("test_renderer_read_pixels");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
 
-  auto win = new Window(320, 240, "test_renderer_read_pixels");
-  win.create();
-  scope(exit) win.destroy();
-  win.setDisplayScaling(1.0f);
-
-  auto renderer = win.renderer;
-  renderer.viewport(320, 240);
+  auto renderer = w.renderer();
 
   renderer.clearFrame(ColorF(0, 0, 0, 1));
   renderer.drawFillRect(RectF(0, 0, 10, 10), ColorF(1, 0, 0, 1));
