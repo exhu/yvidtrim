@@ -169,25 +169,23 @@ package(yguilib.render):
 
   /**
    * Blits the MSAA color into the color texture (scissor off), then
-   * restores the read/draw bindings and the scissor. No-op without MSAA.
+   * binds `currentFbo` (read and draw) again and re-enables the scissor
+   * when `scissorEnabled`. Both describe the current GL state, as tracked
+   * by `Renderer` (no GL queries). No-op without MSAA.
    */
-  void resolve() {
+  void resolve(GLuint currentFbo, bool scissorEnabled) {
     if (!isMsaa() || !isValid()) {
       return;
     }
-    GLint prevRead = 0;
-    GLint prevDraw = 0;
-    glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prevRead);
-    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &prevDraw);
-    const bool scissor = glIsEnabled(GL_SCISSOR_TEST) == GL_TRUE;
-    glDisable(GL_SCISSOR_TEST);
+    if (scissorEnabled) {
+      glDisable(GL_SCISSOR_TEST);
+    }
     glBindFramebuffer(GL_READ_FRAMEBUFFER, msaaFbo);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, resolveFbo);
     glBlitFramebuffer(0, 0, pixelWidth_, pixelHeight_, 0, 0, pixelWidth_,
       pixelHeight_, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, cast(GLuint)prevRead);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, cast(GLuint)prevDraw);
-    if (scissor) {
+    glBindFramebuffer(GL_FRAMEBUFFER, currentFbo);
+    if (scissorEnabled) {
       glEnable(GL_SCISSOR_TEST);
     }
   }

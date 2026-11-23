@@ -285,8 +285,10 @@ final class Canvas {
       || !rectDrawable(srcPx) || !rectDrawable(dest) || !(tint.a > 0)) {
       return;
     }
-    assert(!fRenderer.isActiveTargetTexture(t),
-      "drawing the texture of an active render target (feedback loop)");
+    version (assert) {
+      assert(!fRenderer.isActiveTargetTexture(t),
+        "drawing the texture of an active render target (feedback loop)");
+    }
     buildImageVerts(t, srcPx, dest);
     if (st.shadow.isVisible()) {
       drawImageShadow(t.id(), tint.a);
@@ -809,8 +811,10 @@ private:
       );
       return;
     case FillStyle.Kind.pattern:
-      assert(!fRenderer.isActiveTargetTexture(style.pattern.texture),
-        "drawing the texture of an active render target (feedback loop)");
+      version (assert) {
+        assert(!fRenderer.isActiveTargetTexture(style.pattern.texture),
+          "drawing the texture of an active render target (feedback loop)");
+      }
       const Transform2d logicToPat =
         (st.xf * style.pattern.transform).inverse();
       const TextureMode mode = style.pattern.texture.premultiplied()
@@ -948,7 +952,7 @@ private:
       || (blur.sigma > 0 && !t.ensureSize(b.width, b.height))) {
       return res;
     }
-    res = ShadowPass(b, scale, blur.sigma, SavedTargetState.capture());
+    res = ShadowPass(b, scale, blur.sigma, fRenderer.targetState());
     a.bindRegion(b.width, b.height, true);
     return res;
   }
@@ -965,27 +969,34 @@ private:
   /**
    * Box of the shadow pass in mask pixels (`scale` per logic unit):
    * `fVerts` bounds padded by 3 sigma (+1), `sigma` being the clamped
-   * mask-pixel sigma, limited to what can reach the viewport after the
-   * offset. Null when empty.
+   * mask-pixel sigma, limited to what can reach the visible area (the
+   * viewport and the Renderer scissor clip, `scissorLogicRect`) after
+   * the offset. The limit is padded too, so the blur near the visible
+   * edges still reads every mask pixel it needs. Null when empty or when
+   * nothing is visible.
    */
   auto shadowBox(float sigma, float scale) {
     import std.algorithm : max, min;
     import std.math : ceil, floor;
     import std.typecons : Nullable;
 
+    Nullable!PixelBox res;
+    const RectF vis = fRenderer.scissorLogicRect();
+    if (!(vis.width > 0) || !(vis.height > 0)) {
+      return res;
+    }
     const RectF r = boundsOfVerts(fVerts[]);
     const float pad = ceil(3 * sigma) + 1;
     const float offX = st.shadow.offset.x * scale;
     const float offY = st.shadow.offset.y * scale;
-    const float pw = fRenderer.logicWidth() * scale;
-    const float ph = fRenderer.logicHeight() * scale;
-    const float x0 = max(floor(r.x * scale), floor(-offX)) - pad;
-    const float y0 = max(floor(r.y * scale), floor(-offY)) - pad;
-    const float x1 = min(ceil((r.x + r.width) * scale), ceil(pw - offX))
-      + pad;
-    const float y1 = min(ceil((r.y + r.height) * scale), ceil(ph - offY))
-      + pad;
-    Nullable!PixelBox res;
+    const float vx0 = vis.x * scale - offX;
+    const float vy0 = vis.y * scale - offY;
+    const float vx1 = (vis.x + vis.width) * scale - offX;
+    const float vy1 = (vis.y + vis.height) * scale - offY;
+    const float x0 = max(floor(r.x * scale), floor(vx0)) - pad;
+    const float y0 = max(floor(r.y * scale), floor(vy0)) - pad;
+    const float x1 = min(ceil((r.x + r.width) * scale), ceil(vx1)) + pad;
+    const float y1 = min(ceil((r.y + r.height) * scale), ceil(vy1)) + pad;
     if (x1 > x0 && y1 > y0) {
       res = PixelBox(cast(int)x0, cast(int)y0, cast(int)(x1 - x0),
         cast(int)(y1 - y0));
@@ -1076,8 +1087,10 @@ private:
       );
       return;
     case FillStyle.Kind.pattern:
-      assert(!fRenderer.isActiveTargetTexture(style.pattern.texture),
-        "drawing the texture of an active render target (feedback loop)");
+      version (assert) {
+        assert(!fRenderer.isActiveTargetTexture(style.pattern.texture),
+          "drawing the texture of an active render target (feedback loop)");
+      }
       const Transform2d logicToPat =
         (st.xf * style.pattern.transform).inverse()
         * Transform2d.translation(origin);
@@ -1164,8 +1177,10 @@ private:
       );
       return;
     case FillStyle.Kind.pattern:
-      assert(!fRenderer.isActiveTargetTexture(style.pattern.texture),
-        "drawing the texture of an active render target (feedback loop)");
+      version (assert) {
+        assert(!fRenderer.isActiveTargetTexture(style.pattern.texture),
+          "drawing the texture of an active render target (feedback loop)");
+      }
       const Transform2d logicToPat =
         (st.xf * style.pattern.transform).inverse();
       const TextureMode mode = style.pattern.texture.premultiplied()
@@ -1376,11 +1391,14 @@ private:
    * Disables the scissor so the clip bit is valid in the whole viewport
    * (also outside a later, larger scissor). Returns the previous state.
    */
-  static bool disableScissor() {
-    import glad2.gles2 : GL_SCISSOR_TEST, GL_TRUE, glDisable, glIsEnabled;
+  bool disableScissor() {
+    import glad2.gles2 : GL_SCISSOR_TEST, glDisable;
 
-    const bool was = glIsEnabled(GL_SCISSOR_TEST) == GL_TRUE;
-    glDisable(GL_SCISSOR_TEST);
+    // tracked by the Renderer (no glIsEnabled query)
+    const bool was = fRenderer.scissorEnabled();
+    if (was) {
+      glDisable(GL_SCISSOR_TEST);
+    }
     return was;
   }
 

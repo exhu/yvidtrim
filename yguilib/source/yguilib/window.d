@@ -4,7 +4,7 @@ import glad2.gles2;
 import yguilib.clibs.sdl3;
 import yguilib.events : AppEvent;
 import yguilib.render : Renderer;
-import yguilib.render.render_types : RectF;
+import yguilib.render.render_types : ColorF, RectF;
 import yguilib.widget : Widget, WidgetUpdateScope;
 
 // TODO support minimum width and height based on view's Size component.
@@ -244,7 +244,12 @@ private:
 
   void clearWithColor(float r, float g, float b, float a) {
     if (handle !is null && glContext !is null) {
-      glClearColor(r, g, b, a);
+      if (renderer !is null) {
+        // the renderer tracks the clear color (see Renderer.clearColor)
+        renderer.clearColor(ColorF(r, g, b, a));
+      } else {
+        glClearColor(r, g, b, a);
+      }
       glClear(GL_COLOR_BUFFER_BIT);
     }
   }

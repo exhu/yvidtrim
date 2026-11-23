@@ -45,8 +45,8 @@ Phases run one after another, because they touch the same files.
   ph03   done         committed b5b2f74; see notes below
   ph04   done         committed 7572814; see notes below
   ph05   done         committed 507922a; see notes below
-  ph06   done         see notes below
-  ph07   not started
+  ph06   done         committed fb3ece8; see notes below
+  ph07   done         see notes below
   ph08   not started
   ph09   not started
 ```
@@ -154,6 +154,33 @@ ph06 notes (2026-11-23):
 - Follow-ups: `measureText` ignores the transform (drawn advance at
   1.5x differs by ~3.5 px); `fOwnsDefaultFont` is never set (dead).
 - Still 65 modules; meson test 10/10 OK.
+
+ph07 notes (2026-11-23):
+- 3.1: `VertexArrayHandles.capacity` (bytes);
+  `uploadAndDrawDynamic(mode, va, vertices, count)` uses
+  `glBufferSubData`, grows to the next power of two (min 256). No
+  VAO/VBO unbind after draws. Pipeline fields renamed `vao`/`vbo` ->
+  `va` (and `maskVa`).
+- 3.2: `ProgramTracker` (`use`, `invalidate`, `epoch`) owned by
+  `Renderer.fPrograms`; pipelines get a pointer in `initialize`.
+  `Vec2UniformCache` for `uResolution`; `GradientLocs.set` skips
+  unchanged stops. Invalidation bumps the epoch (viewport, targets,
+  scaling).
+- 3.4: Renderer tracks FBO, viewport, clear color; scissor comes from
+  `ClipStack` (`appliedBox()`, `top()`). `targetState()` builds
+  `SavedTargetState` without GL queries (debug assert vs
+  `capture()`). New `package(yguilib)` `Renderer.clearColor(ColorF)`,
+  used by `Window.clearWithColor`. `RenderTarget.resolve` takes the
+  state as parameters.
+- 3.5: `shadowBox` limits by `scissorLogicRect()` padded by the blur
+  pad; empty area skips the pass. The Canvas stencil clip is not used.
+- 3.9: `isActiveTargetTexture` and its asserts are in `version
+  (assert)`.
+- Rule for new GL code: use `fPrograms.use()`, the tracked
+  FBO/viewport/clear-color setters and `ClipStack`; never touch a
+  pipeline VBO directly. Otherwise the `targetState()` assert fires.
+- Module count is now 66 (new unittest in `gl_util.d`); meson test
+  10/10 OK.
 
 ## Rules for every phase
 

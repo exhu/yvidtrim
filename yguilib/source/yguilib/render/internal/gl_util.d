@@ -102,26 +102,117 @@ GLuint linkProgram(GLuint vertShader, GLuint fragShader) {
 }
 
 /**
- * Uploads dynamic vertex data to VBO and issues a draw call.
+ * Uploads dynamic vertex data to the VBO of `va` and issues a draw call.
+ * The data goes in with `glBufferSubData` when it fits `va.capacity`;
+ * otherwise the buffer is first reallocated (`GL_DYNAMIC_DRAW`) to the
+ * next power of two bytes. The VAO and VBO of `va` stay bound afterwards
+ * (every draw binds its own VAO; nothing relies on VAO 0).
  */
 void uploadAndDrawDynamic(
   GLenum mode,
-  GLuint vao,
-  GLuint vbo,
+  ref VertexArrayHandles va,
   const(float)[] vertices,
   GLsizei count
 ) {
-  glBindVertexArray(vao);
-  glBindBuffer(GL_ARRAY_BUFFER, vbo);
-  glBufferData(
-    GL_ARRAY_BUFFER,
-    cast(GLsizeiptr)(vertices.length * float.sizeof),
-    vertices.ptr,
-    GL_DYNAMIC_DRAW
-  );
+  const size_t bytes = vertices.length * float.sizeof;
+  if (bytes == 0) {
+    return;
+  }
+  glBindVertexArray(va.vao);
+  glBindBuffer(GL_ARRAY_BUFFER, va.vbo);
+  if (bytes > va.capacity) {
+    const size_t cap = vboCapacityFor(bytes);
+    glBufferData(GL_ARRAY_BUFFER, cast(GLsizeiptr)cap, null,
+      GL_DYNAMIC_DRAW);
+    va.capacity = cap;
+  }
+  glBufferSubData(GL_ARRAY_BUFFER, 0, cast(GLsizeiptr)bytes, vertices.ptr);
   glDrawArrays(mode, 0, count);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindVertexArray(0);
+}
+
+/**
+ * VBO size for `bytes` of data: the next power of two, at least
+ * `minVboCapacity`.
+ */
+size_t vboCapacityFor(size_t bytes) nothrow @safe @nogc pure {
+  size_t cap = minVboCapacity;
+  while (cap < bytes) {
+    cap *= 2;
+  }
+  return cap;
+}
+
+/// Smallest VBO allocation of `uploadAndDrawDynamic` in bytes.
+enum size_t minVboCapacity = 256;
+
+unittest {
+  assert(vboCapacityFor(1) == 256);
+  assert(vboCapacityFor(256) == 256);
+  assert(vboCapacityFor(257) == 512);
+  assert(vboCapacityFor(5000) == 8192);
+}
+
+/**
+ * Current GL program of one context, so redundant `glUseProgram` calls
+ * are skipped. `epoch()` changes on every `invalidate()`; the uniform
+ * caches (`Vec2UniformCache`, `GradientLocs`) re-upload after a change.
+ * Owned by `Renderer`; the pipelines keep a pointer to it.
+ */
+struct ProgramTracker {
+  /// Binds `program` unless it is already current.
+  void use(GLuint program) {
+    if (program != fCurrent) {
+      glUseProgram(program);
+      fCurrent = program;
+    }
+  }
+
+  /**
+   * Forgets the current program and starts a new epoch, so the next
+   * `use` binds again and the cached uniforms are uploaded again (on
+   * viewport, target and scaling changes, and after any direct
+   * `glUseProgram`).
+   */
+  void invalidate() {
+    fCurrent = 0;
+    ++fEpoch;
+  }
+
+  /// Uniform cache epoch (never 0, so `.init` caches are stale).
+  uint epoch() const {
+    return fEpoch;
+  }
+
+  /// The program bound by the last `use` (0 when unknown).
+  GLuint current() const {
+    return fCurrent;
+  }
+
+private:
+  GLuint fCurrent;
+  uint fEpoch = 1;
+}
+
+/**
+ * Last value uploaded to one vec2 uniform of one program (e.g.
+ * `uResolution`); `upload` skips the GL call when the value and the
+ * `ProgramTracker` epoch are unchanged. The program must be current.
+ */
+struct Vec2UniformCache {
+  void upload(GLint loc, float x, float y, uint epoch) {
+    if (epoch == fEpoch && x == fX && y == fY) {
+      return;
+    }
+    glUniform2f(loc, x, y);
+    fX = x;
+    fY = y;
+    fEpoch = epoch;
+  }
+
+private:
+  float fX = float.nan;
+  float fY = float.nan;
+  uint fEpoch;
 }
 
 /**
@@ -142,6 +233,8 @@ GLuint buildProgram(string vertSource, string fragSource) {
 struct VertexArrayHandles {
   GLuint vao;
   GLuint vbo;
+  /// Allocated VBO size in bytes (0 before the first upload).
+  size_t capacity;
 }
 
 /**
@@ -196,16 +289,15 @@ VertexArrayHandles createVec4VertexArray() {
 }
 
 /// Deletes the non-zero objects and zeroes the handles in place.
-void destroyProgramAndBuffers(ref GLuint program, ref GLuint vao,
-  ref GLuint vbo) {
-  if (vbo != 0) {
-    glDeleteBuffers(1, &vbo);
-    vbo = 0;
+void destroyProgramAndBuffers(ref GLuint program,
+  ref VertexArrayHandles va) {
+  if (va.vbo != 0) {
+    glDeleteBuffers(1, &va.vbo);
   }
-  if (vao != 0) {
-    glDeleteVertexArrays(1, &vao);
-    vao = 0;
+  if (va.vao != 0) {
+    glDeleteVertexArrays(1, &va.vao);
   }
+  va = VertexArrayHandles.init;
   if (program != 0) {
     glDeleteProgram(program);
     program = 0;

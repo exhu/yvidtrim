@@ -129,6 +129,8 @@ private:
 /**
  * Framebuffer binding, viewport, scissor (enabled and box) and clear
  * color captured before an offscreen pass and restored after it.
+ * `Renderer.targetState()` builds it from the state the renderer tracks
+ * (no GL queries); `capture()` reads it back from GL.
  */
 struct SavedTargetState {
   GLint framebuffer;
@@ -137,7 +139,10 @@ struct SavedTargetState {
   bool scissorEnabled;
   GLfloat[4] clearColor;
 
-  /// Reads the current state.
+  /**
+   * Reads the current state with `glGet*` (may stall the GL pipeline:
+   * only for debug checks of the tracked state and tests).
+   */
   static SavedTargetState capture() {
     SavedTargetState s;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &s.framebuffer);
@@ -160,6 +165,17 @@ struct SavedTargetState {
     }
     glClearColor(clearColor[0], clearColor[1], clearColor[2],
       clearColor[3]);
+  }
+
+  /**
+   * True when `o` describes the same GL state; the scissor box only
+   * counts while the scissor is enabled.
+   */
+  bool sameStateAs(in SavedTargetState o) const {
+    return framebuffer == o.framebuffer && viewport == o.viewport
+      && scissorEnabled == o.scissorEnabled
+      && (!scissorEnabled || scissorBox == o.scissorBox)
+      && clearColor == o.clearColor;
   }
 }
 

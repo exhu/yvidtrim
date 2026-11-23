@@ -8,6 +8,7 @@ import yguilib.render.font_manager : FontManager;
 import yguilib.render.image : Image;
 import yguilib.render.internal.offscreen : OffscreenTarget,
   SavedTargetState;
+import yguilib.render.internal.gl_util : ProgramTracker;
 import yguilib.render.internal.pipelines : BlurPipeline, ColorPipeline,
   GradientPipeline, PatternPipeline, RoundRectPipeline, TextureMode,
   TexturePipeline, TexturedQuad;
@@ -27,6 +28,14 @@ final class Renderer {
     fUnitsScaling = 1.0f;
     if (width > 0 && height > 0) {
       glViewport(0, 0, width, height);
+    }
+    // the only read of the target state: from here on it is tracked
+    const SavedTargetState s = SavedTargetState.capture();
+    fFramebuffer = cast(GLuint)s.framebuffer;
+    fViewport = s.viewport;
+    fClearColor = s.clearColor;
+    if (s.scissorEnabled) {
+      glDisable(GL_SCISSOR_TEST);
     }
     initialize();
   }
@@ -83,6 +92,8 @@ final class Renderer {
     viewportPixelWidth = pixelWidth;
     viewportPixelHeight = pixelHeight;
     glViewport(0, 0, pixelWidth, pixelHeight);
+    fViewport = [0, 0, pixelWidth, pixelHeight];
+    fPrograms.invalidate();
   }
 
   /**
@@ -232,7 +243,7 @@ final class Renderer {
    * (`TextCache.beginFrame`), protecting this frame's strings.
    */
   void clearFrame(ColorF color) {
-    glClearColor(color.r, color.g, color.b, color.a);
+    clearColor(color);
     glStencilMask(0xFF);
     glClearStencil(0);
     glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -695,8 +706,10 @@ final class Renderer {
     if (!initialized || t is null || !t.isValid()) {
       return;
     }
-    assert(!isActiveTargetTexture(t),
-      "drawing the texture of an active render target (feedback loop)");
+    version (assert) {
+      assert(!isActiveTargetTexture(t),
+        "drawing the texture of an active render target (feedback loop)");
+    }
     const TextureMode mode = t.premultiplied()
       ? TextureMode.premultiplied : TextureMode.straight;
     texPipeline.drawTexturedQuad(
@@ -821,7 +834,7 @@ final class Renderer {
     }
     TargetFrame* f = &targetFrames[fTargetDepth];
     f.target = rt;
-    f.saved = SavedTargetState.capture();
+    f.saved = targetState();
     f.pixelWidth = viewportPixelWidth;
     f.pixelHeight = viewportPixelHeight;
     debug assert(!clipStack.sharesStorage(f.clips),
@@ -837,11 +850,14 @@ final class Renderer {
 
     viewportPixelWidth = rt.pixelWidth();
     viewportPixelHeight = rt.pixelHeight();
-    glBindFramebuffer(GL_FRAMEBUFFER, rt.drawFbo());
+    fFramebuffer = rt.drawFbo();
+    fViewport = [0, 0, viewportPixelWidth, viewportPixelHeight];
+    fPrograms.invalidate();
+    glBindFramebuffer(GL_FRAMEBUFFER, fFramebuffer);
     glViewport(0, 0, viewportPixelWidth, viewportPixelHeight);
     glDisable(GL_SCISSOR_TEST);
     if (clear) {
-      glClearColor(0, 0, 0, 0);
+      clearColor(ColorF(0, 0, 0, 0));
       glStencilMask(0xFF);
       glClearStencil(0);
       glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -859,11 +875,15 @@ final class Renderer {
     assert(fTargetDepth > 0, "endTarget() without beginTarget()");
     --fTargetDepth;
     TargetFrame* f = &targetFrames[fTargetDepth];
-    f.target.resolve();
+    f.target.resolve(fFramebuffer, !clipStack.isEmpty());
     f.target.active--;
     f.target = null;
 
     f.saved.restore();
+    fFramebuffer = cast(GLuint)f.saved.framebuffer;
+    fViewport = f.saved.viewport;
+    fClearColor = f.saved.clearColor;
+    fPrograms.invalidate();
     viewportPixelWidth = f.pixelWidth;
     viewportPixelHeight = f.pixelHeight;
     debug assert(!clipStack.sharesStorage(f.clips),
@@ -973,7 +993,62 @@ final class Renderer {
     return measureTextWithFont(text, f);
   }
 
+package(yguilib):
+  /**
+   * Sets the GL clear color and tracks it (saved and restored around
+   * render target and shadow passes without GL queries). All clear color
+   * changes on this renderer's context must go through it. Values are
+   * clamped to [0, 1] as GL does.
+   */
+  void clearColor(ColorF color) {
+    import std.algorithm.comparison : clamp;
+
+    fClearColor = [clamp(color.r, 0.0f, 1.0f), clamp(color.g, 0.0f, 1.0f),
+      clamp(color.b, 0.0f, 1.0f), clamp(color.a, 0.0f, 1.0f)];
+    glClearColor(fClearColor[0], fClearColor[1], fClearColor[2],
+      fClearColor[3]);
+  }
+
 package(yguilib.render):
+  /**
+   * The current framebuffer, viewport, scissor and clear color from the
+   * tracked state (no GL queries; debug builds check it against GL). The
+   * scissor is enabled exactly while the clip stack is not empty.
+   */
+  SavedTargetState targetState() const {
+    SavedTargetState s;
+    s.framebuffer = cast(GLint)fFramebuffer;
+    s.viewport = fViewport;
+    s.scissorEnabled = !clipStack.isEmpty();
+    s.scissorBox = clipStack.appliedBox();
+    s.clearColor = fClearColor;
+    debug assert(s.sameStateAs(SavedTargetState.capture()),
+      "tracked GL target state differs from GL");
+    return s;
+  }
+
+  /// True while a clip rect is pushed (the GL scissor test is on).
+  bool scissorEnabled() const {
+    return !clipStack.isEmpty();
+  }
+
+  /**
+   * Visible area in logic units: the innermost clip rect intersected with
+   * the viewport, or the whole viewport without a clip rect.
+   */
+  RectF scissorLogicRect() const {
+    const RectF vp = RectF(0, 0, logicWidth(), logicHeight());
+    if (clipStack.isEmpty()) {
+      return vp;
+    }
+    return intersectRects(vp, clipStack.top());
+  }
+
+  /// Renderer program tracker (tests of the uniform caches).
+  ref ProgramTracker programTrackerRef() return {
+    return fPrograms;
+  }
+
   /**
    * Font resolved by size and name rasterized at `rasterScale` (quantized
    * to 1/8 steps, see `FontManager.getFontAtScale`); null when not
@@ -1052,20 +1127,23 @@ package(yguilib.render):
     return initialized;
   }
 
-  /**
-   * True if `t` is the texture of a target on the `beginTarget` stack
-   * (drawing it would be a feedback loop).
-   */
-  bool isActiveTargetTexture(in Texture t) const {
-    if (t is null || !t.isValid()) {
+  version (assert) {
+    /**
+     * True if `t` is the texture of a target on the `beginTarget` stack
+     * (drawing it would be a feedback loop). Only for asserts: callers
+     * wrap it in `version (assert)`, so release builds skip the walk.
+     */
+    bool isActiveTargetTexture(in Texture t) const {
+      if (t is null || !t.isValid()) {
+        return false;
+      }
+      foreach (ref f; targetFrames[0 .. fTargetDepth]) {
+        if (f.target.textureId() == t.id()) {
+          return true;
+        }
+      }
       return false;
     }
-    foreach (ref f; targetFrames[0 .. fTargetDepth]) {
-      if (f.target.textureId() == t.id()) {
-        return true;
-      }
-    }
-    return false;
   }
 
 private:
@@ -1074,12 +1152,12 @@ private:
       return;
     }
 
-    colorPipeline.initialize();
-    texPipeline.initialize();
-    rrPipeline.initialize();
-    gradientPipeline.initialize();
-    patternPipeline.initialize();
-    blurPipeline.initialize();
+    colorPipeline.initialize(&fPrograms);
+    texPipeline.initialize(&fPrograms);
+    rrPipeline.initialize(&fPrograms);
+    gradientPipeline.initialize(&fPrograms);
+    patternPipeline.initialize(&fPrograms);
+    blurPipeline.initialize(&fPrograms);
     textCache = new TextCache(TextCache.maxCacheEntries);
     fontManager = new FontManager();
     fontManager.onFontDestroyed(&onFontDestroyed);
@@ -1185,6 +1263,7 @@ private:
       fDefaultFont.setScale(totalScale);
     }
     clearTextCache();
+    fPrograms.invalidate();
     if (initialized && !clipStack.isEmpty()) {
       clipStack.reapply(
         viewportPixelWidth, viewportPixelHeight, totalScale
@@ -1203,6 +1282,16 @@ private:
   GradientPipeline gradientPipeline;
   PatternPipeline patternPipeline;
   BlurPipeline blurPipeline;
+  /// Current program; the pipelines hold a pointer to it.
+  ProgramTracker fPrograms;
+  /**
+   * Tracked target state (set by the renderer, never read back from GL):
+   * bound framebuffer, viewport and clear color. The scissor state is
+   * owned by `clipStack` (see `targetState`).
+   */
+  GLuint fFramebuffer;
+  GLint[4] fViewport;
+  GLfloat[4] fClearColor;
   OffscreenTarget[2] offscreenTargets;
   ClipStack clipStack;
   /**

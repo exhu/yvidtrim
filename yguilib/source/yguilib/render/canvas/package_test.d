@@ -1647,3 +1647,157 @@ unittest {
   checkCenter(1.5f);
   assert(glGetError() == GL_NO_ERROR);
 }
+
+// GL state caches: VBO growth then sub-data uploads, the program and
+// gradient stop caches, and the shadow box limited by the scissor clip
+unittest {
+  import std.math : PI, abs, cos, sin;
+  import yguilib.render.render_target : RenderTarget;
+
+  auto w = GlTestWindow("test_canvas_gl_state_cache");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+  auto r = w.renderer();
+  auto cv = w.canvas();
+
+  const black = ColorF(0, 0, 0, 1);
+  const red = ColorF(1, 0, 0, 1);
+  const blue = ColorF(0, 0, 1, 1);
+  const green = FillStyle.solid(ColorF(0, 1, 0, 1));
+
+  // 1. a large path grows the VBO, a small one then fits (sub-data)
+  auto circle = new Path2d();
+  enum int segs = 3000;
+  foreach (k; 0 .. segs) {
+    const float a = cast(float)(2 * PI * k / segs);
+    const PointF pt = PointF(160 + 80 * cos(a), 120 + 80 * sin(a));
+    if (k == 0) {
+      circle.moveTo(pt);
+    } else {
+      circle.lineTo(pt);
+    }
+  }
+  circle.closePath();
+  r.clearFrame(black);
+  cv.fillStyle(green);
+  cv.fill(circle);
+  const size_t grown = r.colorPipelineRef().va.capacity;
+  assert(grown >= segs * 3 * 2 * float.sizeof);
+  assert(isRgb(160, 120, 0, 255, 0));
+  assert(isRgb(160, 50, 0, 255, 0));
+  assert(isRgb(160, 30, 0, 0, 0));
+  assert(isRgb(10, 10, 0, 0, 0));
+  r.clearFrame(black); // resets the fill style too
+  cv.fillStyle(green);
+  cv.fill(rectPath(RectF(20, 20, 30, 30)));
+  assert(r.colorPipelineRef().va.capacity == grown);
+  assert(isRgb(35, 35, 0, 255, 0));
+  assert(isRgb(160, 120, 0, 0, 0));
+  assert(isRgb(60, 35, 0, 0, 0));
+
+  // the tracked program is the GL program
+  GLint prog = -1;
+  glGetIntegerv(GL_CURRENT_PROGRAM, &prog);
+  assert(cast(GLuint)prog == r.programTrackerRef().current());
+
+  // 2. gradient, solid, the same gradient, another one, the first again
+  LinearGradient rb;
+  rb.p0 = PointF(0, 0);
+  rb.p1 = PointF(200, 0);
+  rb.addColorStop(0, red).addColorStop(1, blue);
+  LinearGradient gr;
+  gr.p0 = PointF(0, 0);
+  gr.p1 = PointF(200, 0);
+  gr.addColorStop(0, ColorF(0, 1, 0, 1)).addColorStop(1, red);
+  void fillRb() {
+    r.clearFrame(black);
+    cv.fillStyle(FillStyle.fromLinear(rb));
+    cv.fill(rectPath(RectF(0, 0, 200, 50)));
+    assert(near(10, 25, 242, 0, 13, 6));
+    assert(near(190, 25, 13, 0, 242, 6));
+  }
+  fillRb();
+  r.clearFrame(black);
+  cv.fillStyle(green);
+  cv.fill(rectPath(RectF(0, 0, 200, 50)));
+  assert(isRgb(100, 25, 0, 255, 0));
+  fillRb();
+  r.clearFrame(black);
+  cv.fillStyle(FillStyle.fromLinear(gr));
+  cv.fill(rectPath(RectF(0, 0, 200, 50)));
+  assert(near(10, 25, 13, 242, 0, 6));
+  assert(near(190, 25, 242, 13, 0, 6));
+  fillRb();
+  // a target pass starts a new epoch: the stops are uploaded again
+  const uint epoch = r.programTrackerRef().epoch();
+  RenderTarget rt = r.createRenderTarget(40, 30, false);
+  assert(rt !is null);
+  scope(exit) rt.destroy();
+  scope(exit) w.endTargets();
+  r.beginTarget(rt, true);
+  cv.fillStyle(FillStyle.fromLinear(gr));
+  cv.fill(rectPath(RectF(0, 0, 40, 30)));
+  r.endTarget();
+  assert(r.programTrackerRef().epoch() != epoch);
+  fillRb();
+  assert(r.gradientPipelineRef().locs.stopsEpoch()
+    == r.programTrackerRef().epoch());
+
+  // 3. a blurred shadow inside a scissor clip: same pixels as unclipped
+  // in the visible area, nothing outside, a smaller mask box
+  Shadow soft;
+  soft.blur = 8;
+  soft.offset = PointF(5, 5);
+  soft.color = red;
+  const RectF shape = RectF(40, 60, 200, 100);
+  const RectF clip = RectF(150, 0, 60, 240);
+  r.offscreenTargetRef(0).destroy();
+  r.offscreenTargetRef(1).destroy();
+  r.clearFrame(black);
+  r.pushClipRect(clip);
+  cv.shadow(soft);
+  cv.fillStyle(green);
+  cv.fill(rectPath(shape));
+  cv.shadow(Shadow.init);
+  r.popClipRect();
+  const int clippedWidth = r.offscreenTargetRef(0).width;
+  const ubyte[] clipped = grabFrame();
+  r.offscreenTargetRef(0).destroy();
+  r.offscreenTargetRef(1).destroy();
+  r.clearFrame(black);
+  cv.shadow(soft);
+  cv.fillStyle(green);
+  cv.fill(rectPath(shape));
+  cv.shadow(Shadow.init);
+  const int fullWidth = r.offscreenTargetRef(0).width;
+  const ubyte[] full = grabFrame();
+  // box: shape 200 wide + 2 * pad (13) vs visible 60 + 2 * pad
+  assert(fullWidth >= 226 && clippedWidth < 100);
+  // the blurred edge below the shape is lit in the visible area
+  assert(channelAt(full, 180, 165, 0) > 60);
+  foreach (y; 0 .. testHeight) {
+    foreach (x; 0 .. testWidth) {
+      const bool inside = x >= 150 && x < 210;
+      foreach (c; 0 .. 3) {
+        const int a = channelAt(clipped, x, y, c);
+        if (inside) {
+          assert(abs(a - channelAt(full, x, y, c)) <= 1);
+        } else {
+          assert(a == 0);
+        }
+      }
+    }
+  }
+  // an empty visible area skips the shadow pass (no target allocated)
+  r.offscreenTargetRef(0).destroy();
+  r.clearFrame(black);
+  r.pushClipRect(RectF(400, 0, 10, 10));
+  cv.shadow(soft);
+  cv.fillStyle(green);
+  cv.fill(rectPath(shape));
+  cv.shadow(Shadow.init);
+  r.popClipRect();
+  assert(r.offscreenTargetRef(0).fbo == 0);
+
+  assert(glGetError() == GL_NO_ERROR);
+}

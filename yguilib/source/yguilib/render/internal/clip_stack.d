@@ -61,6 +61,21 @@ struct ClipStack {
     return stack[].length == 0;
   }
 
+  /// Innermost clip rect in logic units; the stack must not be empty.
+  RectF top() const {
+    assert(!isEmpty());
+    return stack[][$ - 1];
+  }
+
+  /**
+   * GL scissor box (`[x, y, w, h]`, see `scissorBox`) last set by this
+   * stack; the GL scissor test is enabled exactly while the stack is not
+   * empty (as long as the stack owns the scissor, see `Renderer`).
+   */
+  int[4] appliedBox() const {
+    return fAppliedBox;
+  }
+
   /// True when both stacks use the same (allocated) buffer.
   bool sharesStorage(ref ClipStack o) {
     return stack[].ptr !is null && stack[].ptr is o.stack[].ptr;
@@ -79,7 +94,7 @@ struct ClipStack {
     }
   }
 
-  static void applyScissor(
+  void applyScissor(
     in RectF rect,
     int pixelW,
     int pixelH,
@@ -88,6 +103,7 @@ struct ClipStack {
     const int[4] box = scissorBox(rect, pixelW, pixelH, scale);
     glEnable(GL_SCISSOR_TEST);
     glScissor(box[0], box[1], box[2], box[3]);
+    fAppliedBox = box;
   }
 
   /// Converts a logical clip rect into a GL scissor box
@@ -129,6 +145,7 @@ struct ClipStack {
   }
 
   private Appender!(RectF[]) stack;
+  private int[4] fAppliedBox;
 }
 
 unittest {
