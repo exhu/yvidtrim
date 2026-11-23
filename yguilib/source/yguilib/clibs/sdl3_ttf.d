@@ -9,6 +9,7 @@ struct yguilib_sdl3_ttf_Surface;
 extern(C) {
   int yguilib_sdl3_ttf_init();
   void yguilib_sdl3_ttf_quit();
+  const(char)* yguilib_sdl3_ttf_get_error();
 
   yguilib_sdl3_ttf_Font* yguilib_sdl3_ttf_open_font(
     const(char)* file,

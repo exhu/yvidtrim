@@ -151,26 +151,41 @@ package(yguilib):
    * Kept as an internal renderer detail so the font rasterizer matches
    * display and units zoom changes without reallocating font resources.
    *
+   * On failure an error is logged and the font keeps its previous size and
+   * scale.
+   *
    * Params:
    *   newScale = New scaling multiplier (displayScaling * unitsScaling).
-   * Returns: true if resized successfully, false otherwise.
    */
-  bool scale(float newScale) {
+  void scale(float newScale) {
+    import std.logger : errorf;
+
     if (!handle) {
-      return false;
+      errorf("Font.scale: font already destroyed");
+      return;
     }
     const float effectiveScale = newScale > 0.0f ? newScale : 1.0f;
     const float targetSize = logicalPtSize * effectiveScale;
-    if (yguilib_sdl3_ttf_set_font_size(handle, targetSize) == 0) {
-      currentScale = effectiveScale;
-      return true;
+    if (yguilib_sdl3_ttf_set_font_size(handle, targetSize) != 0) {
+      errorf(
+        "Font.scale(%s) failed: %s",
+        targetSize,
+        lastError()
+      );
+      return;
     }
-    return false;
+    currentScale = effectiveScale;
   }
 
   yguilib_sdl3_ttf_Font* handle;
 
 private:
+  static string lastError() {
+    import std.string : fromStringz;
+
+    return yguilib_sdl3_ttf_get_error().fromStringz().idup;
+  }
+
   this(
     yguilib_sdl3_ttf_Font* handle,
     float ptSize,
@@ -215,7 +230,6 @@ unittest {
   assert(f2.id != invalidFontId);
   assert(f1.id != f2.id);
 
-  const ulong id2 = f2.id;
   f2.destroy();
   assert(f2.id == invalidFontId);
 }

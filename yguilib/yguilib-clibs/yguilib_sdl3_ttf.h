@@ -23,6 +23,14 @@ int yguilib_sdl3_ttf_init(void);
 void yguilib_sdl3_ttf_quit(void);
 
 /**
+ * Gets the message of the last SDL error on the calling thread.
+ *
+ * @return Null-terminated error message (may be empty). Valid until the
+ *         next SDL call on this thread.
+ */
+const char *yguilib_sdl3_ttf_get_error(void);
+
+/**
  * Opens a font from a file path.
  *
  * @param file Null-terminated UTF-8 file path.

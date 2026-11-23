@@ -958,7 +958,6 @@ package(yguilib):
       fClearColor[3]);
   }
 
-package(yguilib.render):
   /**
    * The current framebuffer, viewport, scissor and clear color from the
    * tracked state (no GL queries; debug builds check it against GL). The
@@ -1646,7 +1645,7 @@ unittest {
   assert(factoryFont.height > 0);
 
   // In-place scale() updates raster size while preserving unscaled size
-  assert(factoryFont.scale(1.0f));
+  factoryFont.scale(1.0f);
   assert(factoryFont.size == 14.0f);
   assert(factoryFont.scaledSize == 14.0f);
 
@@ -2125,8 +2124,7 @@ unittest {
   // Top-left pixel is red: rows are top-down.
   assert(frame.pixels[0 .. 4] == [255, 0, 0, 255]);
   // Bottom-right pixel is black.
-  const size_t last = frame.pixels.length - 4;
-  assert(frame.pixels[last .. last + 4] == [0, 0, 0, 255]);
+  assert(frame.pixels[$ - 4 .. $] == [0, 0, 0, 255]);
 
   // Sub-rect straddling the red square's corner, clamped at the origin.
   Image part = renderer.readPixels(-5, -5, 20, 20);

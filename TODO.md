@@ -2,8 +2,6 @@
 - Canvas.measureText ignores the transform: at 1.5x scale drawn text is
   ~3.5 px wider than measured (use fontAtScale with the transform scale)
 - remove dead Renderer.fOwnsDefaultFont (never set to true)
-- Font.scale(float) setter returns bool; make it void and report
-  failure another way
 - build widget library
 -- checkbox
 -- combobox

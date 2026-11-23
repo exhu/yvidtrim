@@ -16,6 +16,10 @@ int yguilib_sdl3_ttf_init(void) {
   return 0;
 }
 
+const char *yguilib_sdl3_ttf_get_error(void) {
+  return SDL_GetError();
+}
+
 void yguilib_sdl3_ttf_quit(void) {
   if (s_ttf_initialized) {
     TTF_Quit();

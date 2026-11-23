@@ -11,6 +11,7 @@
 int main(void) {
   int init_res = yguilib_sdl3_ttf_init();
   assert(init_res == 0);
+  assert(yguilib_sdl3_ttf_get_error() != NULL);
 
   // Invalid parameters
   assert(yguilib_sdl3_ttf_open_font(NULL, 16.0f) == NULL);
