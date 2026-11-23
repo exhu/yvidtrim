@@ -13,6 +13,11 @@ uniform int uMode;
 uniform int uBottomUp;
 
 in vec2 vPos;
+#ifdef MASK
+// alpha mask variant: output is scaled by the mask alpha
+uniform sampler2D uMask;
+in vec2 vMaskUv;
+#endif
 out vec4 fragColor;
 
 void main() {
@@ -34,4 +39,12 @@ void main() {
   } else {
     fragColor = texColor * uTint;
   }
+#ifdef MASK
+  float m = texture(uMask, vMaskUv).a;
+  if (uMode == 1) {
+    fragColor *= m;
+  } else {
+    fragColor.a *= m;
+  }
+#endif
 }

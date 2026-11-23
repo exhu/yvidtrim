@@ -942,6 +942,26 @@ final class Renderer {
   }
 
 package(yguilib.render):
+  /**
+   * Font resolved by size and name rasterized at `rasterScale` (quantized
+   * to 1/8 steps, see `FontManager.getFontAtScale`); null when not
+   * initialized. Used by `Canvas` text.
+   */
+  Font fontAtScale(float ptSize, string fontName, float rasterScale) {
+    if (fontManager is null) {
+      return null;
+    }
+    return fontManager.getFontAtScale(ptSize, fontName, rasterScale);
+  }
+
+  /// Cached white-on-transparent bitmap of `text` (invalid when none).
+  TextTexture textTextureFor(Font f, string text, int outlinePx = 0) {
+    if (textCache is null) {
+      return TextTexture();
+    }
+    return textCache.getOrCreate(f, text, outlinePx);
+  }
+
   /// Shared flat color pipeline (used by `Canvas`).
   ref ColorPipeline colorPipelineRef() return {
     return colorPipeline;

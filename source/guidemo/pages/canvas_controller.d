@@ -238,7 +238,7 @@ unittest {
   assert(pageTracker.model.animating);
   assert(ui.isTimerActive(ctrl.animTimerId));
 
-  // [I] cycles images -> offscreen -> patterns -> interop -> images
+  // [I] cycles images -> offscreen -> patterns -> text -> interop -> images
   assert(pageTracker.model.slot7 == CanvasSlot7.images);
   auto hrI = ctrl.handleEvent(makeKeyDown(Keycode.i, Scancode.i));
   assert(hrI.consume);
@@ -247,6 +247,8 @@ unittest {
   assert(demoTracker.model.statusText.length > 0);
   ctrl.handleEvent(makeKeyDown(Keycode.i, Scancode.i));
   assert(pageTracker.model.slot7 == CanvasSlot7.patterns);
+  ctrl.handleEvent(makeKeyDown(Keycode.i, Scancode.i));
+  assert(pageTracker.model.slot7 == CanvasSlot7.text);
   ctrl.handleEvent(makeKeyDown(Keycode.i, Scancode.i));
   assert(pageTracker.model.slot7 == CanvasSlot7.interop);
   ctrl.handleEvent(makeKeyDown(Keycode.i, Scancode.i));

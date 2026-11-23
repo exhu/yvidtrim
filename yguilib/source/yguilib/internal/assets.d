@@ -35,3 +35,15 @@ enum string blurFragmentShaderSource =
 
 enum string patternFragmentShaderSource =
   import("yguilib/shaders/pattern.frag.glsl");
+
+/// Vertex shader of the alpha-masked gradient/pattern program variants.
+enum string paintMaskVertexShaderSource =
+  vertPrelude ~ import("yguilib/shaders/paint_mask.vert.glsl");
+
+/**
+ * `fragSource` with `#define MASK 1` after its `#version` line, selecting
+ * the alpha-mask variant of `paint.frag.glsl` and `pattern.frag.glsl`.
+ */
+enum string withMaskDefine(string fragSource) =
+  "#version 300 es\n#define MASK 1\n"
+  ~ fragSource["#version 300 es\n".length .. $];

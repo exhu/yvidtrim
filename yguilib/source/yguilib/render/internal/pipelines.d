@@ -680,46 +680,85 @@ struct GradientUniforms {
   int stopCount;
 }
 
+/// Uniform locations of one `GradientPipeline` program.
+struct GradientLocs {
+  GLint uResolution = -1;
+  GLint uKind = -1;
+  GLint uInvXf = -1;
+  GLint uP0 = -1;
+  GLint uP1 = -1;
+  GLint uR0 = -1;
+  GLint uR1 = -1;
+  GLint uStopColors = -1;
+  GLint uStopOffsets = -1;
+  GLint uStopCount = -1;
+  GLint uMask = -1;
+
+  static GradientLocs query(GLuint program) {
+    GradientLocs l;
+    l.uResolution = glGetUniformLocation(program, "uResolution\0".ptr);
+    l.uKind = glGetUniformLocation(program, "uKind\0".ptr);
+    l.uInvXf = glGetUniformLocation(program, "uInvXf\0".ptr);
+    l.uP0 = glGetUniformLocation(program, "uP0\0".ptr);
+    l.uP1 = glGetUniformLocation(program, "uP1\0".ptr);
+    l.uR0 = glGetUniformLocation(program, "uR0\0".ptr);
+    l.uR1 = glGetUniformLocation(program, "uR1\0".ptr);
+    l.uStopColors = glGetUniformLocation(program, "uStopColors\0".ptr);
+    l.uStopOffsets = glGetUniformLocation(program, "uStopOffsets\0".ptr);
+    l.uStopCount = glGetUniformLocation(program, "uStopCount\0".ptr);
+    l.uMask = glGetUniformLocation(program, "uMask\0".ptr);
+    return l;
+  }
+
+  void set(in GradientUniforms u, float vw, float vh) const {
+    glUniform2f(uResolution, vw, vh);
+    glUniform1i(uKind, u.kind);
+    glUniformMatrix3fv(uInvXf, 1, GL_FALSE, u.invXf.ptr);
+    glUniform2f(uP0, u.p0.x, u.p0.y);
+    glUniform2f(uP1, u.p1.x, u.p1.y);
+    glUniform1f(uR0, u.r0);
+    glUniform1f(uR1, u.r1);
+    glUniform4fv(uStopColors, GradientUniforms.maxStops, u.stopColors.ptr);
+    glUniform1fv(uStopOffsets, GradientUniforms.maxStops,
+      u.stopOffsets.ptr);
+    glUniform1i(uStopCount, u.stopCount);
+  }
+}
+
 /**
  * Shader pipeline for linear and radial gradient paint over vec2
- * triangles in logic coordinates.
+ * triangles in logic coordinates. A second program variant modulates the
+ * alpha by a mask texture over (x, y, u, v) vertices (`drawMasked`).
  */
 struct GradientPipeline {
   GLuint program;
   GLuint vao;
   GLuint vbo;
-  GLint uResolutionLoc = -1;
-  GLint uKindLoc = -1;
-  GLint uInvXfLoc = -1;
-  GLint uP0Loc = -1;
-  GLint uP1Loc = -1;
-  GLint uR0Loc = -1;
-  GLint uR1Loc = -1;
-  GLint uStopColorsLoc = -1;
-  GLint uStopOffsetsLoc = -1;
-  GLint uStopCountLoc = -1;
+  GradientLocs locs;
+  GLuint maskProgram;
+  GLuint maskVao;
+  GLuint maskVbo;
+  GradientLocs maskLocs;
 
   void initialize() {
     program = buildProgram(paintVertexShaderSource,
       paintFragmentShaderSource);
-    uResolutionLoc = glGetUniformLocation(program, "uResolution\0".ptr);
-    uKindLoc = glGetUniformLocation(program, "uKind\0".ptr);
-    uInvXfLoc = glGetUniformLocation(program, "uInvXf\0".ptr);
-    uP0Loc = glGetUniformLocation(program, "uP0\0".ptr);
-    uP1Loc = glGetUniformLocation(program, "uP1\0".ptr);
-    uR0Loc = glGetUniformLocation(program, "uR0\0".ptr);
-    uR1Loc = glGetUniformLocation(program, "uR1\0".ptr);
-    uStopColorsLoc = glGetUniformLocation(program, "uStopColors\0".ptr);
-    uStopOffsetsLoc = glGetUniformLocation(program, "uStopOffsets\0".ptr);
-    uStopCountLoc = glGetUniformLocation(program, "uStopCount\0".ptr);
-
+    locs = GradientLocs.query(program);
     const VertexArrayHandles h = createVec2VertexArray();
     vao = h.vao;
     vbo = h.vbo;
+
+    maskProgram = buildProgram(paintMaskVertexShaderSource,
+      withMaskDefine!paintFragmentShaderSource);
+    maskLocs = GradientLocs.query(maskProgram);
+    const VertexArrayHandles m = createVec4VertexArray();
+    maskVao = m.vao;
+    maskVbo = m.vbo;
   }
 
   void destroy() {
     destroyProgramAndBuffers(program, vao, vbo);
+    destroyProgramAndBuffers(maskProgram, maskVao, maskVbo);
   }
 
   /// Draws triangles with alpha blending (see `setupAlphaBlendState`);
@@ -745,18 +784,7 @@ struct GradientPipeline {
     float vh
   ) {
     glUseProgram(program);
-    glUniform2f(uResolutionLoc, vw, vh);
-    glUniform1i(uKindLoc, u.kind);
-    glUniformMatrix3fv(uInvXfLoc, 1, GL_FALSE, u.invXf.ptr);
-    glUniform2f(uP0Loc, u.p0.x, u.p0.y);
-    glUniform2f(uP1Loc, u.p1.x, u.p1.y);
-    glUniform1f(uR0Loc, u.r0);
-    glUniform1f(uR1Loc, u.r1);
-    glUniform4fv(uStopColorsLoc, GradientUniforms.maxStops,
-      u.stopColors.ptr);
-    glUniform1fv(uStopOffsetsLoc, GradientUniforms.maxStops,
-      u.stopOffsets.ptr);
-    glUniform1i(uStopCountLoc, u.stopCount);
+    locs.set(u, vw, vh);
     uploadAndDrawDynamic(
       GL_TRIANGLES,
       vao,
@@ -764,6 +792,33 @@ struct GradientPipeline {
       vertices,
       cast(GLsizei)(vertices.length / 2)
     );
+  }
+
+  /**
+   * Draws (x, y, u, v) triangles with alpha blending; the paint alpha is
+   * multiplied by the alpha of `maskTexId` at (u, v). Stencil state is
+   * left unchanged. `maskTexId` 0 or fewer than 3 vertices draw nothing.
+   */
+  void drawMasked(
+    const(float)[] xyuv,
+    GLuint maskTexId,
+    in GradientUniforms u,
+    float vw,
+    float vh
+  ) {
+    if (maskTexId == 0 || xyuv.length < 12) {
+      return;
+    }
+    setupAlphaBlendState();
+    glUseProgram(maskProgram);
+    maskLocs.set(u, vw, vh);
+    glUniform1i(maskLocs.uMask, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, maskTexId);
+    uploadAndDrawDynamic(
+      GL_TRIANGLES, maskVao, maskVbo, xyuv, cast(GLsizei)(xyuv.length / 4)
+    );
+    glBindTexture(GL_TEXTURE_2D, 0);
   }
 }
 
@@ -797,11 +852,38 @@ struct PatternPipeline {
   GLint uRepeatLoc = -1;
   GLint uModeLoc = -1;
   GLint uBottomUpLoc = -1;
+  GLuint maskProgram;
+  GLuint maskVao;
+  GLuint maskVbo;
+  GLint maskUResolutionLoc = -1;
+  GLint maskUTextureLoc = -1;
+  GLint maskUInvXfLoc = -1;
+  GLint maskUTintLoc = -1;
+  GLint maskURepeatLoc = -1;
+  GLint maskUModeLoc = -1;
+  GLint maskUBottomUpLoc = -1;
+  GLint maskUMaskLoc = -1;
 
   void initialize() {
     program = buildProgram(
       paintVertexShaderSource, patternFragmentShaderSource
     );
+    maskProgram = buildProgram(
+      paintMaskVertexShaderSource,
+      withMaskDefine!patternFragmentShaderSource
+    );
+    maskUResolutionLoc = glGetUniformLocation(maskProgram,
+      "uResolution\0".ptr);
+    maskUTextureLoc = glGetUniformLocation(maskProgram, "uTexture\0".ptr);
+    maskUInvXfLoc = glGetUniformLocation(maskProgram, "uInvXf\0".ptr);
+    maskUTintLoc = glGetUniformLocation(maskProgram, "uTint\0".ptr);
+    maskURepeatLoc = glGetUniformLocation(maskProgram, "uRepeat\0".ptr);
+    maskUModeLoc = glGetUniformLocation(maskProgram, "uMode\0".ptr);
+    maskUBottomUpLoc = glGetUniformLocation(maskProgram, "uBottomUp\0".ptr);
+    maskUMaskLoc = glGetUniformLocation(maskProgram, "uMask\0".ptr);
+    const VertexArrayHandles m = createVec4VertexArray();
+    maskVao = m.vao;
+    maskVbo = m.vbo;
     uResolutionLoc = glGetUniformLocation(program, "uResolution\0".ptr);
     uTextureLoc = glGetUniformLocation(program, "uTexture\0".ptr);
     uInvXfLoc = glGetUniformLocation(program, "uInvXf\0".ptr);
@@ -831,6 +913,50 @@ struct PatternPipeline {
       samplers = 0;
     }
     destroyProgramAndBuffers(program, vao, vbo);
+    destroyProgramAndBuffers(maskProgram, maskVao, maskVbo);
+  }
+
+  /**
+   * Draws (x, y, u, v) triangles with the blending for `u.mode`; the paint
+   * is multiplied by the alpha of `maskTexId` at (u, v) (texture unit 1).
+   * Stencil state is left unchanged. `u.textureId` or `maskTexId` 0 or
+   * fewer than 3 vertices draw nothing.
+   */
+  void drawMasked(
+    const(float)[] xyuv,
+    GLuint maskTexId,
+    in PatternUniforms u,
+    float vw,
+    float vh
+  ) {
+    if (u.textureId == 0 || maskTexId == 0 || xyuv.length < 12) {
+      return;
+    }
+    TexturePipeline.setupBlendForMode(u.mode);
+    const int rep = u.repeat & 3;
+    glUseProgram(maskProgram);
+    glUniform2f(maskUResolutionLoc, vw, vh);
+    glUniform1i(maskUTextureLoc, 0);
+    glUniform1i(maskUMaskLoc, 1);
+    glUniformMatrix3fv(maskUInvXfLoc, 1, GL_FALSE, u.invXf.ptr);
+    glUniform4f(maskUTintLoc, u.tint.r, u.tint.g, u.tint.b, u.tint.a);
+    glUniform1i(maskURepeatLoc, rep);
+    glUniform1i(maskUModeLoc, cast(GLint)u.mode);
+    glUniform1i(maskUBottomUpLoc, u.bottomUp ? 1 : 0);
+
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, maskTexId);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, u.textureId);
+    glBindSampler(0, samplers[rep]);
+    uploadAndDrawDynamic(
+      GL_TRIANGLES, maskVao, maskVbo, xyuv, cast(GLsizei)(xyuv.length / 4)
+    );
+    glBindSampler(0, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE0);
   }
 
   /// Draws triangles with the blending for `u.mode`; stencil state is left

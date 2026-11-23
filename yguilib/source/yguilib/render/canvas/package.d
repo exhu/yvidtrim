@@ -7,13 +7,20 @@
 
     Square caps on zero-length segments: they stay axis-aligned instead of
     rotating with the path, which shows on diagonal lines.
+
+    Text (`fillText`, `strokeText`, `measureText`) draws glyph bitmaps from
+    the `TextCache` as transformed quads, rasterized at the effective scale.
+    `strokeText` is an SDL_ttf outline ring: caps, joins and dash are
+    ignored. `direction` affects only `start`/`end` alignment.
 */
 module yguilib.render.canvas;
 
+import glad2.gles2 : GLuint;
 import std.array : Appender;
 import yguilib.render : Renderer;
 import yguilib.render.canvas.path2d : Path2d;
 import yguilib.render.font : Font, defaultFontPtSize;
+import yguilib.render.internal.text_cache : TextTexture;
 import yguilib.render.canvas.types;
 import yguilib.render.internal.offscreen : SavedTargetState;
 import yguilib.render.internal.path_flatten : Contours;
@@ -276,7 +283,7 @@ final class Canvas {
       "drawing the texture of an active render target (feedback loop)");
     buildImageVerts(t, srcPx, dest);
     if (st.shadow.isVisible()) {
-      drawImageShadow(t, tint.a);
+      drawImageShadow(t.id(), tint.a);
     }
     const TextureMode mode = t.premultiplied()
       ? TextureMode.premultiplied : TextureMode.straight;
@@ -427,6 +434,56 @@ final class Canvas {
       res.fontDescent = fRenderer.logicFromPixelsFloat(abs(f.descent));
     }
     return res;
+  }
+
+  /**
+   * Fills `text` at `pos` (HTML `fillText`) with the current font, align,
+   * baseline and direction, mapped by the current transform, honoring the
+   * Canvas clip and shadow. The glyph bitmap is rasterized at the
+   * effective scale (display scaling * transform scale, quantized) and
+   * drawn as a transformed textured quad painted with the fill style
+   * (solid color, gradient or pattern, using the glyph alpha as a mask).
+   * No-op for an uninitialized renderer, empty text, non-finite `pos` or
+   * an invisible fill.
+   */
+  void fillText(string text, PointF pos) {
+    drawFilledText(text, pos, float.infinity);
+  }
+
+  /**
+   * Like `fillText`, but text wider than `maxWidth` (user units) is
+   * squeezed horizontally about `pos` to fit. No-op when `maxWidth` is
+   * not finite or <= 0.
+   */
+  void fillTextWithMaxWidth(string text, PointF pos, float maxWidth) {
+    import std.math : isFinite;
+
+    if (!isFinite(maxWidth) || !(maxWidth > 0)) {
+      return;
+    }
+    drawFilledText(text, pos, maxWidth);
+  }
+
+  /**
+   * Strokes the outline of `text` at `pos` (HTML `strokeText`) painted
+   * with `strokeStyle` (solid, gradient or pattern), honoring transform,
+   * clip and shadow like `fillText`. The outline is an SDL_ttf outline
+   * ring bitmap `max(1, round(lineWidth * scale))` px wide (capped at 64),
+   * so it extends that far outside the glyph edge. Line cap, join and
+   * dash are ignored. Same no-ops as `fillText`.
+   */
+  void strokeText(string text, PointF pos) {
+    drawFilledText(text, pos, float.infinity, true);
+  }
+
+  /// Like `strokeText` with the `fillTextWithMaxWidth` squeeze.
+  void strokeTextWithMaxWidth(string text, PointF pos, float maxWidth) {
+    import std.math : isFinite;
+
+    if (!isFinite(maxWidth) || !(maxWidth > 0)) {
+      return;
+    }
+    drawFilledText(text, pos, maxWidth, true);
   }
 
 package(yguilib.render):
@@ -761,7 +818,7 @@ private:
    * for `shadowBox`): the mask is the alpha of texture `t` * `alpha`, so
    * shadow alpha = shadow color alpha * image alpha * tint alpha.
    */
-  void drawImageShadow(Texture t, float alpha) {
+  void drawImageShadow(GLuint texId, float alpha) {
     const(float)[] xyuv = fImageVerts[];
     fVerts.clear();
     for (size_t i = 0; i + 3 < xyuv.length; i += 4) {
@@ -772,7 +829,7 @@ private:
     if (pass.isNull) {
       return;
     }
-    drawImageShadowMask(t, alpha, pass.get.box, pass.get.scale);
+    drawImageShadowMask(texId, alpha, pass.get.box, pass.get.scale);
     endShadowPass(pass.get);
   }
 
@@ -951,7 +1008,7 @@ private:
    * texture alpha * `alpha` (`TextureMode.alphaMask`).
    */
   void drawImageShadowMask(
-    Texture t,
+    GLuint texId,
     float alpha,
     in PixelBox b,
     float scale
@@ -971,7 +1028,7 @@ private:
     glDisable(GL_BLEND);
     // the next draw re-enables blending via setupAlphaBlendState
     fRenderer.texturePipelineRef().drawTexturedTrianglesWithCurrentState(
-      t.id(), fShadowVerts[], ColorF(1, 1, 1, alpha), TextureMode.alphaMask,
+      texId, fShadowVerts[], ColorF(1, 1, 1, alpha), TextureMode.alphaMask,
       b.width / scale, b.height / scale
     );
   }
@@ -981,15 +1038,133 @@ private:
    * the current transform, sampling `srcPx` of `t`.
    */
   void buildImageVerts(Texture t, in RectF srcPx, in RectF dest) {
+    buildImageVertsUv(Renderer.textureUv(t, srcPx), dest);
+  }
+
+  /// Like `buildImageVerts` with an explicit normalized `uv` rect.
+  void buildImageVertsUv(in RectF uv, in RectF dest) {
     import yguilib.render.internal.pipelines : quadVertices;
 
-    const float[24] local = quadVertices(dest, Renderer.textureUv(t, srcPx));
+    const float[24] local = quadVertices(dest, uv);
     fImageVerts.clear();
     for (size_t i = 0; i < local.length; i += 4) {
       const PointF p = st.xf.apply(PointF(local[i], local[i + 1]));
       const float[4] v = [p.x, p.y, local[i + 2], local[i + 3]];
       fImageVerts.put(v[]);
     }
+  }
+
+  /**
+   * Draws (x, y, u, v) logic-space triangles painted with gradient or
+   * pattern `style`, its alpha multiplied by the alpha of texture `maskTex`
+   * (same uniforms as `drawPaint`). The stencil state must already be set.
+   */
+  void drawMaskedPaint(
+    const(float)[] xyuv,
+    GLuint maskTex,
+    in FillStyle style
+  ) {
+    final switch (style.kind) {
+    case FillStyle.Kind.color:
+      return;
+    case FillStyle.Kind.linearGradient:
+    case FillStyle.Kind.radialGradient:
+      const GradientUniforms u = gradientUniforms(style, st.xf.inverse());
+      fRenderer.gradientPipelineRef().drawMasked(
+        xyuv, maskTex, u, fRenderer.logicWidth(), fRenderer.logicHeight()
+      );
+      return;
+    case FillStyle.Kind.pattern:
+      assert(!fRenderer.isActiveTargetTexture(style.pattern.texture),
+        "drawing the texture of an active render target (feedback loop)");
+      const Transform2d logicToPat =
+        (st.xf * style.pattern.transform).inverse();
+      const TextureMode mode = style.pattern.texture.premultiplied()
+        ? TextureMode.premultiplied : TextureMode.straight;
+      const PatternUniforms u = patternUniforms(
+        style.pattern, logicToPat, mode
+      );
+      fRenderer.patternPipelineRef().drawMasked(
+        xyuv, maskTex, u, fRenderer.logicWidth(), fRenderer.logicHeight()
+      );
+      return;
+    }
+  }
+
+  /// Largest outline ring width (bitmap px) used by `strokeText`.
+  enum int maxTextOutlinePx = 64;
+
+  /**
+   * Implementation of `fillText` / `strokeText`; `maxWidth` infinity means
+   * unlimited.
+   */
+  void drawFilledText(
+    string text, PointF pos, float maxWidth, bool stroke = false
+  ) {
+    import std.math : abs, isFinite, lrint, sqrt;
+    import yguilib.render.internal.pipelines : TextureMode;
+    import yguilib.render.internal.stencil_ops : beginClipTest, endStencil;
+
+    const FillStyle paint = stroke ? st.stroke : st.fill;
+    if (!fRenderer.isInitialized() || text.length == 0
+      || !finitePoint(pos) || !paintVisible(paint)
+      || !patternDrawable(paint)) {
+      return;
+    }
+    const float det = abs(st.xf.a * st.xf.d - st.xf.b * st.xf.c);
+    if (!isFinite(det) || det < 1e-12f) {
+      return;
+    }
+    const spec = st.fontSpec;
+    const float effScale = fRenderer.totalScaling() * sqrt(det);
+    Font f = fRenderer.fontAtScale(spec.ptSize, spec.name, effScale);
+    if (f is null) {
+      return;
+    }
+    // outline ring width in bitmap pixels (0 for fill)
+    int op = 0;
+    if (stroke) {
+      const float px = st.lineWidth * effScale;
+      op = isFinite(px) ? cast(int)lrint(px) : 1;
+      op = op < 1 ? 1 : (op > maxTextOutlinePx ? maxTextOutlinePx : op);
+    }
+    const TextTexture tex = fRenderer.textTextureFor(f, text, op);
+    if (!tex.isValid()) {
+      return;
+    }
+    // bitmap pixels per user unit (the quantized font scale)
+    const float q = f.scaledSize / f.size;
+    // glyph box without the outline margin, and the margin, in user units
+    const float gw = (tex.width - 2 * op) / q;
+    const float margin = op / q;
+    const TextMetrics m = TextMetrics(gw, f.ascent / q, abs(f.descent) / q);
+    const PointF off = textAnchorOffset(
+      m, st.textAlign, st.textBaseline, st.direction
+    );
+    // maxWidth squeezes x about the anchor
+    const float s = gw > maxWidth ? maxWidth / gw : 1.0f;
+    const float x0 = pos.x + off.x * s;
+    buildImageVertsUv(
+      RectF(0, 0, 1, 1),
+      RectF(
+        x0 - margin * s, pos.y + off.y - margin,
+        tex.width / q * s, tex.height / q
+      )
+    );
+    const bool solid = paint.kind == FillStyle.Kind.color;
+    if (st.shadow.isVisible()) {
+      drawImageShadow(tex.textureId, solid ? paint.color.a : 1.0f);
+    }
+    beginClipTest(clipActive());
+    if (solid) {
+      fRenderer.texturePipelineRef().drawTexturedTriangles(
+        tex.textureId, fImageVerts[], paint.color, TextureMode.straight,
+        fRenderer.logicWidth(), fRenderer.logicHeight()
+      );
+    } else {
+      drawMaskedPaint(fImageVerts[], tex.textureId, paint);
+    }
+    endStencil();
   }
 
   /// Blurs region `b` of target 0 horizontally into 1, vertically back.
@@ -2298,4 +2473,466 @@ unittest {
   cv.fontSpec = FontSpec(40, null);
   const m2 = cv.measureText("Hello");
   assert(m2.width > m.width && m2.fontAscent > m.fontAscent);
+}
+
+// Canvas.fillText (position, transform, clip, shadow, maxWidth, no-ops)
+unittest {
+  import glad2.gles2;
+  import std.math : PI;
+  import yguilib.clibs.sdl3;
+  import yguilib.window : Window;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(320, 240, "test_canvas_fill_text");
+  win.create();
+  scope(exit) win.destroy();
+  win.setDisplayScaling(1.0f);
+  auto r = win.renderer;
+  r.viewport(320, 240);
+  auto cv = r.canvas();
+  scope(exit) while (r.inTarget()) r.endTarget();
+
+  struct Box {
+    int x0 = int.max;
+    int y0 = int.max;
+    int x1 = -1;
+    int y1 = -1;
+    bool empty() const { return x1 < 0; }
+  }
+
+  // bounding box of pixels whose channel `ch` exceeds 60, in a region
+  Box bounds(int rx, int ry, int rw, int rh, int ch = 0) {
+    auto buf = new ubyte[rw * rh * 4];
+    glReadPixels(rx, 240 - ry - rh, rw, rh, GL_RGBA, GL_UNSIGNED_BYTE,
+      buf.ptr);
+    Box b;
+    foreach (y; 0 .. rh) {
+      foreach (x; 0 .. rw) {
+        if (buf[((rh - 1 - y) * rw + x) * 4 + ch] > 60) {
+          b.x0 = x + rx < b.x0 ? x + rx : b.x0;
+          b.y0 = y + ry < b.y0 ? y + ry : b.y0;
+          b.x1 = x + rx > b.x1 ? x + rx : b.x1;
+          b.y1 = y + ry > b.y1 ? y + ry : b.y1;
+        }
+      }
+    }
+    return b;
+  }
+
+  const black = ColorF(0, 0, 0, 1);
+  const white = FillStyle.solid(ColorF(1, 1, 1, 1));
+  // clearFrame resets the canvas state, so set the font after it
+  void clear() {
+    r.clearFrame(black);
+    cv.fontSpec = FontSpec(24, null);
+    cv.textBaseline = TextBaseline.top;
+  }
+  cv.textBaseline = TextBaseline.top;
+
+  // 1. plain text: box starts at the anchor, width follows measureText
+  clear();
+  cv.fillStyle(white);
+  cv.fillText("Hello", PointF(40, 50));
+  const base = bounds(0, 0, 320, 240);
+  const mw = cv.measureText("Hello").width; // state set by clear()
+  assert(!base.empty);
+  assert(base.x0 >= 38 && base.x0 <= 46);
+  assert(base.y0 >= 50 && base.y0 <= 60);
+  assert(base.x1 - base.x0 + 1 <= cast(int)mw + 2);
+  assert(base.x1 - base.x0 + 1 >= cast(int)mw - 10);
+  const baseW = base.x1 - base.x0 + 1;
+  const baseH = base.y1 - base.y0 + 1;
+
+  // 2. translation moves the box rigidly
+  clear();
+  cv.fillStyle(white);
+  cv.save();
+  cv.translate(PointF(100, 60));
+  cv.fillText("Hello", PointF(40, 50));
+  cv.restore();
+  const tr = bounds(0, 0, 320, 240);
+  assert(tr.x0 == base.x0 + 100 && tr.y0 == base.y0 + 60);
+  assert(tr.x1 - tr.x0 == base.x1 - base.x0);
+
+  // 3. rotation by 90 degrees swaps width and height
+  clear();
+  cv.fillStyle(white);
+  cv.save();
+  cv.translate(PointF(160, 40));
+  cv.rotate(cast(float)(PI / 2));
+  cv.fillText("Hello", PointF(0, 0));
+  cv.restore();
+  const rot = bounds(0, 0, 320, 240);
+  assert(!rot.empty);
+  const rotW = rot.x1 - rot.x0 + 1;
+  const rotH = rot.y1 - rot.y0 + 1;
+  assert(rotW >= baseH - 3 && rotW <= baseH + 3);
+  assert(rotH >= baseW - 3 && rotH <= baseW + 3);
+  // clockwise rotation: text extends to the left of x = 160 and down
+  assert(rot.x1 <= 162 && rot.y0 >= 38);
+
+  // 4. a scale transform enlarges the bitmap crisply
+  clear();
+  cv.fillStyle(white);
+  cv.save();
+  cv.scale(PointF(2, 2));
+  cv.fillText("Hello", PointF(20, 20));
+  cv.restore();
+  const sc = bounds(0, 0, 320, 240);
+  const scW = sc.x1 - sc.x0 + 1;
+  assert(scW >= 2 * baseW - 6 && scW <= 2 * baseW + 6);
+
+  // 5. clip limits the text
+  clear();
+  cv.fillStyle(white);
+  cv.save();
+  auto clipRc = new Path2d();
+  clipRc.rect(RectF(0, 0, 60, 240));
+  cv.clip(clipRc);
+  cv.fillText("Hello", PointF(40, 50));
+  cv.restore();
+  const cl = bounds(0, 0, 320, 240);
+  assert(!cl.empty && cl.x1 < 60);
+
+  // 6. solid color tint
+  clear();
+  cv.fillStyle(FillStyle.solid(ColorF(0, 0, 1, 1)));
+  cv.fillText("Hello", PointF(40, 50));
+  assert(bounds(0, 0, 320, 240, 0).empty);
+  assert(bounds(0, 0, 320, 240, 2).x0 == base.x0);
+
+  // 7. hard shadow: a copy offset by (60, 50) in the shadow color
+  clear();
+  Shadow sh;
+  sh.offset = PointF(60, 50);
+  sh.color = ColorF(1, 0, 0, 1);
+  cv.shadow(sh);
+  cv.fillStyle(FillStyle.solid(ColorF(0, 1, 0, 1)));
+  cv.fillText("Hello", PointF(40, 50));
+  cv.shadow(Shadow.init);
+  const sg = bounds(0, 0, 320, 240, 1);
+  const sr = bounds(0, 0, 320, 240, 0);
+  assert(!sg.empty && !sr.empty);
+  assert(sr.x1 == sg.x1 + 60 && sr.y1 == sg.y1 + 50);
+
+  // 8. maxWidth squeezes about the anchor; narrower text is untouched
+  clear();
+  cv.fillStyle(white);
+  cv.fillTextWithMaxWidth("Hello", PointF(40, 50), mw * 0.5f);
+  const mx = bounds(0, 0, 320, 240);
+  const mxW = mx.x1 - mx.x0 + 1;
+  assert(mx.x0 >= 38 && mx.x0 <= 46);
+  assert(mxW >= baseW / 2 - 4 && mxW <= baseW / 2 + 4);
+  clear();
+  cv.fillStyle(white);
+  cv.fillTextWithMaxWidth("Hello", PointF(40, 50), 1000);
+  const wide = bounds(0, 0, 320, 240);
+  assert(wide == base);
+
+  // 9. no-ops
+  clear();
+  cv.fillStyle(white);
+  cv.fillText("", PointF(40, 50));
+  cv.fillText("Hello", PointF(float.nan, 50));
+  cv.fillText("Hello", PointF(40, float.infinity));
+  cv.fillTextWithMaxWidth("Hello", PointF(40, 50), 0);
+  cv.fillTextWithMaxWidth("Hello", PointF(40, 50), -5);
+  cv.fillTextWithMaxWidth("Hello", PointF(40, 50), float.nan);
+  cv.fillTextWithMaxWidth("Hello", PointF(40, 50), float.infinity);
+  cv.fillStyle(FillStyle.solid(ColorF(1, 1, 1, 0)));
+  cv.fillText("Hello", PointF(40, 50));
+  LinearGradient lg;
+  lg.p1 = PointF(100, 0);
+  lg.stops.add(0, ColorF(1, 1, 1, 0));
+  lg.stops.add(1, ColorF(1, 1, 1, 0));
+  cv.fillStyle(FillStyle.fromLinear(lg));
+  cv.fillText("Hello", PointF(40, 50));
+  cv.fillStyle(FillStyle.fromPattern(
+    Pattern.fromTexture(null, PatternRepeat.repeat)
+  ));
+  cv.fillText("Hello", PointF(40, 50));
+  cv.fillStyle(white);
+  cv.save();
+  cv.scale(PointF(0, 1));
+  cv.fillText("Hello", PointF(40, 50));
+  cv.restore();
+  assert(bounds(0, 0, 320, 240).empty);
+}
+
+// Canvas.fillText with gradient and pattern fills (alpha mask variants)
+unittest {
+  import glad2.gles2;
+  import yguilib.clibs.sdl3;
+  import yguilib.render.image : Image;
+  import yguilib.window : Window;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(320, 240, "test_canvas_fill_text_paint");
+  win.create();
+  scope(exit) win.destroy();
+  win.setDisplayScaling(1.0f);
+  auto r = win.renderer;
+  r.viewport(320, 240);
+  auto cv = r.canvas();
+  scope(exit) while (r.inTarget()) r.endTarget();
+
+  struct Box {
+    int x0 = int.max;
+    int x1 = -1;
+    bool empty() const { return x1 < 0; }
+  }
+
+  // horizontal extent of pixels whose channel `ch` exceeds 60
+  Box bounds(int ch) {
+    enum w = 320;
+    enum h = 240;
+    auto buf = new ubyte[w * h * 4];
+    glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, buf.ptr);
+    Box b;
+    foreach (y; 0 .. h) {
+      foreach (x; 0 .. w) {
+        if (buf[(y * w + x) * 4 + ch] > 60) {
+          b.x0 = x < b.x0 ? x : b.x0;
+          b.x1 = x > b.x1 ? x : b.x1;
+        }
+      }
+    }
+    return b;
+  }
+
+  const black = ColorF(0, 0, 0, 1);
+  void clear() {
+    r.clearFrame(black);
+    cv.fontSpec = FontSpec(40, null);
+    cv.textBaseline = TextBaseline.top;
+  }
+
+  clear();
+  cv.fillStyle(FillStyle.solid(ColorF(1, 1, 1, 1)));
+  cv.fillText("Hello", PointF(40, 50));
+  const base = bounds(0);
+  assert(!base.empty);
+
+  // 1. linear gradient red (left) to blue (right) across the text
+  clear();
+  LinearGradient lg;
+  lg.p0 = PointF(40, 0);
+  lg.p1 = PointF(40 + (base.x1 - base.x0), 0);
+  lg.stops.add(0, ColorF(1, 0, 0, 1));
+  lg.stops.add(1, ColorF(0, 0, 1, 1));
+  cv.fillStyle(FillStyle.fromLinear(lg));
+  cv.fillText("Hello", PointF(40, 50));
+  const red = bounds(0);
+  const blue = bounds(2);
+  assert(!red.empty && !blue.empty);
+  assert(bounds(1).empty);
+  assert(red.x0 < blue.x0 - 10 && red.x1 < blue.x1);
+  assert(red.x0 <= base.x0 + 2 && blue.x1 >= base.x1 - 2);
+
+  // 2. radial gradient also paints through the glyph mask
+  clear();
+  RadialGradient rg;
+  rg.c0 = PointF(40, 70);
+  rg.c1 = PointF(40, 70);
+  rg.r0 = 0;
+  rg.r1 = 200;
+  rg.stops.add(0, ColorF(0, 1, 0, 1));
+  rg.stops.add(1, ColorF(0, 1, 0, 1));
+  cv.fillStyle(FillStyle.fromRadial(rg));
+  cv.fillText("Hello", PointF(40, 50));
+  const gr = bounds(1);
+  assert(!gr.empty && gr.x0 >= base.x0 - 1 && gr.x1 <= base.x1 + 1);
+  assert(bounds(0).empty && bounds(2).empty);
+
+  // 3. pattern: red left of x = 80, green right of it
+  auto img = new Image(320, 1);
+  foreach (x; 0 .. 320) {
+    const ubyte[4] c = x < 80 ? [255, 0, 0, 255] : [0, 255, 0, 255];
+    img.pixels[x * 4 .. x * 4 + 4] = c;
+  }
+  Texture tex = r.createTexture(img);
+  assert(tex !is null);
+  scope(exit) tex.destroy();
+  clear();
+  cv.fillStyle(FillStyle.fromPattern(
+    Pattern.fromTexture(tex, PatternRepeat.repeatY)
+  ));
+  cv.fillText("Hello", PointF(40, 50));
+  const pr = bounds(0);
+  const pg = bounds(1);
+  assert(!pr.empty && !pg.empty && bounds(2).empty);
+  assert(pr.x1 < 80 && pg.x0 >= 78 && pr.x0 <= base.x0 + 2);
+  assert(pg.x1 >= base.x1 - 2);
+
+  // 4. pattern under a translate transform moves with it
+  clear();
+  cv.fillStyle(FillStyle.fromPattern(
+    Pattern.fromTexture(tex, PatternRepeat.repeatY)
+  ));
+  cv.save();
+  cv.translate(PointF(100, 0));
+  cv.fillText("Hello", PointF(40, 50));
+  cv.restore();
+  const tr = bounds(0);
+  assert(!tr.empty && tr.x0 >= base.x0 + 98 && tr.x1 < 180);
+
+  // 5. gradient shadow follows the glyph alpha
+  clear();
+  Shadow sh;
+  sh.offset = PointF(0, 80);
+  sh.color = ColorF(1, 0, 0, 1);
+  cv.shadow(sh);
+  cv.fillStyle(FillStyle.fromRadial(rg));
+  cv.fillText("Hello", PointF(40, 50));
+  cv.shadow(Shadow.init);
+  assert(!bounds(0).empty && !bounds(1).empty);
+
+  // 6. invisible styles draw nothing
+  clear();
+  LinearGradient clear0;
+  clear0.p1 = PointF(100, 0);
+  clear0.stops.add(0, ColorF(1, 1, 1, 0));
+  clear0.stops.add(1, ColorF(1, 1, 1, 0));
+  cv.fillStyle(FillStyle.fromLinear(clear0));
+  cv.fillText("Hello", PointF(40, 50));
+  Pattern ghost = Pattern.fromTexture(tex, PatternRepeat.repeat);
+  ghost.tint = ColorF(1, 1, 1, 0);
+  cv.fillStyle(FillStyle.fromPattern(ghost));
+  cv.fillText("Hello", PointF(40, 50));
+  cv.fillStyle(FillStyle.fromPattern(
+    Pattern.fromTexture(null, PatternRepeat.repeat)
+  ));
+  cv.fillText("Hello", PointF(40, 50));
+  assert(bounds(0).empty && bounds(1).empty && bounds(2).empty);
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// Canvas.strokeText (outline ring, paint kinds, no-ops)
+unittest {
+  import glad2.gles2;
+  import yguilib.clibs.sdl3;
+  import yguilib.window : Window;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(320, 240, "test_canvas_stroke_text");
+  win.create();
+  scope(exit) win.destroy();
+  win.setDisplayScaling(1.0f);
+  auto r = win.renderer;
+  r.viewport(320, 240);
+  auto cv = r.canvas();
+  scope(exit) while (r.inTarget()) r.endTarget();
+
+  enum W = 320;
+  enum H = 240;
+  ubyte[] buf;
+  void grab() {
+    buf = new ubyte[W * H * 4];
+    glReadPixels(0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, buf.ptr);
+  }
+  int ch(int x, int y, int c) {
+    return buf[((H - 1 - y) * W + x) * 4 + c];
+  }
+  // lit pixel count (channel `c` > 60) and horizontal extent
+  int lit(int c, out int x0, out int x1) {
+    int n = 0;
+    x0 = int.max;
+    x1 = -1;
+    foreach (y; 0 .. H) {
+      foreach (x; 0 .. W) {
+        if (ch(x, y, c) > 60) {
+          n++;
+          x0 = x < x0 ? x : x0;
+          x1 = x > x1 ? x : x1;
+        }
+      }
+    }
+    return n;
+  }
+
+  const black = ColorF(0, 0, 0, 1);
+  void clear() {
+    r.clearFrame(black);
+    cv.fontSpec = FontSpec(100, null);
+    cv.textBaseline = TextBaseline.top;
+    cv.lineWidth(4);
+  }
+
+  // 1. ring: glyph "O" has a hole at its center; stroke wider than fill
+  clear();
+  cv.fillStyle(FillStyle.solid(ColorF(1, 1, 1, 1)));
+  cv.fillText("O", PointF(100, 40));
+  grab();
+  int fx0, fx1;
+  const fillN = lit(0, fx0, fx1);
+  assert(fillN > 0);
+
+  clear();
+  cv.strokeStyle(FillStyle.solid(ColorF(1, 0, 0, 1)));
+  cv.strokeText("O", PointF(100, 40));
+  grab();
+  int sx0, sx1;
+  const strokeN = lit(0, sx0, sx1);
+  assert(strokeN > 0);
+  assert(sx1 - sx0 > fx1 - fx0);
+  assert(sx0 < fx0 && sx1 > fx1);
+  const cx = (sx0 + sx1) / 2;
+  bool centerLit = false;
+  foreach (y; 40 .. 160) {
+    if (ch(cx, y, 0) > 60) {
+      centerLit = true;
+    }
+  }
+  // the vertical line through the center crosses ring top and bottom
+  // but its middle (glyph center) is empty
+  assert(centerLit);
+  assert(ch(cx, 40 + 50, 0) < 30);
+  assert(ch(cx, 40 + 50, 1) < 30);
+
+  // 2. wider lineWidth draws more pixels
+  cv.lineWidth(8);
+  cv.strokeText("O", PointF(100, 40));
+  grab();
+  int wx0, wx1;
+  assert(lit(0, wx0, wx1) > strokeN);
+
+  // 3. gradient stroke paints through the ring mask
+  clear();
+  auto lg = LinearGradient(PointF(0, 0), PointF(320, 0));
+  lg.addColorStop(0, ColorF(0, 1, 0, 1));
+  lg.addColorStop(1, ColorF(0, 1, 0, 1));
+  cv.strokeStyle(FillStyle.fromLinear(lg));
+  cv.strokeText("O", PointF(100, 40));
+  grab();
+  int gx0, gx1;
+  assert(lit(1, gx0, gx1) > 0);
+  assert(ch(cx, 40 + 50, 1) < 30);
+
+  // 4. maxWidth squeezes
+  clear();
+  cv.strokeStyle(FillStyle.solid(ColorF(1, 0, 0, 1)));
+  cv.strokeTextWithMaxWidth("OOOO", PointF(20, 40), 60);
+  grab();
+  int mx0, mx1;
+  assert(lit(0, mx0, mx1) > 0);
+  assert(mx1 - mx0 <= 60 + 2 * 8);
+
+  // 5. no-ops
+  clear();
+  cv.strokeStyle(FillStyle.solid(ColorF(1, 0, 0, 1)));
+  cv.strokeText("", PointF(100, 40));
+  cv.strokeText("O", PointF(float.nan, 40));
+  cv.strokeTextWithMaxWidth("O", PointF(100, 40), 0);
+  cv.strokeTextWithMaxWidth("O", PointF(100, 40), float.nan);
+  cv.strokeStyle(FillStyle.solid(ColorF(1, 0, 0, 0)));
+  cv.strokeText("O", PointF(100, 40));
+  grab();
+  int nx0, nx1;
+  assert(lit(0, nx0, nx1) == 0);
 }

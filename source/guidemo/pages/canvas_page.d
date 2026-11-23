@@ -11,9 +11,11 @@
  * with a transform, a clip, a shadow and a tint), the offscreen section
  * (a cached `RenderTarget` drawing blitted several times) and the patterns
  * section (`Pattern` fills/strokes with repeat modes, transforms, tints and
- * a `RenderTarget` texture). The sample PNG is decoded once; its `Texture`
- * and the `RenderTarget` are created lazily on the first draw and released
- * by `releaseGpuResources()` (main thread). A [P] request in the model is
+ * a `RenderTarget` texture) and the text section (`fillText` alignment and
+ * baselines, rotation, gradient fill, `strokeText`, shadow, maxWidth).
+ * The sample PNG is decoded once; its `Texture` and the `RenderTarget`
+ * are created lazily on the first draw and released by
+ * `releaseGpuResources()` (main thread). A [P] request in the model is
  * saved as a PNG by the offscreen draw.
  */
 module guidemo.pages.canvas_page;
@@ -25,9 +27,9 @@ import yguilib.model : ModelTracker;
 import yguilib.render : Renderer;
 import yguilib.render.canvas : Canvas;
 import yguilib.render.canvas.path2d : Path2d;
-import yguilib.render.canvas.types : FillRule, FillStyle, LineCap, LineDash,
-  LineJoin, LinearGradient, Pattern, PatternRepeat, RadialGradient, Shadow,
-  Transform2d;
+import yguilib.render.canvas.types : FillRule, FillStyle, FontSpec, LineCap,
+  LineDash, LineJoin, LinearGradient, Pattern, PatternRepeat, RadialGradient,
+  Shadow, TextAlign, TextBaseline, TextDirection, Transform2d;
 import yguilib.render.image : Image;
 import yguilib.render.render_target : RenderTarget;
 import yguilib.render.texture : Texture;
@@ -81,6 +83,7 @@ final class CanvasPage {
     // the blits rotate and a [P] request is consumed by the draw
     offscreenWidget.update(WidgetUpdateScope.visuals);
     patternsWidget.update(WidgetUpdateScope.visuals);
+    textWidget.update(WidgetUpdateScope.visuals);
     return true;
   }
 
@@ -93,7 +96,8 @@ final class CanvasPage {
       CanvasSlot7.interop: " | [I] Show images",
       CanvasSlot7.images: " | [I] Show offscreen",
       CanvasSlot7.offscreen: " | [I] Show patterns",
-      CanvasSlot7.patterns: " | [I] Show interop",
+      CanvasSlot7.patterns: " | [I] Show text",
+      CanvasSlot7.text: " | [I] Show interop",
     ];
     return anim ~ next[tracker.model.slot7] ~ " | [P] Save offscreen PNG";
   }
@@ -163,6 +167,9 @@ private:
     patternsWidget = addSection(
       2, 1, "11. Patterns", "canvasPatterns", &drawPatterns
     );
+    textWidget = addSection(
+      2, 1, "12. Text (fillText)", "canvasText", &drawText
+    );
   }
 
   /// Shows the slot 7 card selected by the model, hides the others.
@@ -172,6 +179,7 @@ private:
     imagesWidget.parent.setVisible(s == CanvasSlot7.images);
     offscreenWidget.parent.setVisible(s == CanvasSlot7.offscreen);
     patternsWidget.parent.setVisible(s == CanvasSlot7.patterns);
+    textWidget.parent.setVisible(s == CanvasSlot7.text);
   }
 
   Widget addSection(
@@ -244,6 +252,7 @@ private:
     buildMiscPaths();
     buildImagePaths();
     buildPatternPaths();
+    buildTextPaths();
   }
 
   void buildImagePaths() {
@@ -251,6 +260,15 @@ private:
 
     imageClip = new Path2d();
     imageClip.arc(PointF(236, 128), 26, 0, 2 * PI, false);
+  }
+
+  void buildTextPaths() {
+    textGuideV = new Path2d();
+    textGuideV.moveTo(PointF(133, 0));
+    textGuideV.lineTo(PointF(133, 56));
+    textGuideH = new Path2d();
+    textGuideH.moveTo(PointF(0, 80));
+    textGuideH.lineTo(PointF(130, 80));
   }
 
   void buildPatternPaths() {
@@ -392,6 +410,14 @@ private:
       .addColorStop(0.5f, ColorF(0.95f, 0.40f, 0.45f, 1))
       .addColorStop(1, ColorF(0.45f, 0.35f, 0.95f, 1));
     offscreenFill = FillStyle.fromLinear(og);
+
+    LinearGradient tg;
+    tg.p0 = PointF(130, 0);
+    tg.p1 = PointF(250, 0);
+    tg.addColorStop(0, ColorF(0.95f, 0.35f, 0.35f, 1))
+      .addColorStop(0.5f, ColorF(0.95f, 0.90f, 0.30f, 1))
+      .addColorStop(1, ColorF(0.35f, 0.65f, 0.95f, 1));
+    textGradient = FillStyle.fromLinear(tg);
   }
 
   // Section 1: quadratic/cubic curves, arc, arcTo, ellipse, roundRect.
@@ -827,6 +853,89 @@ private:
     c.fill(patternRtRect);
   }
 
+  // Section 12: alignment/baseline guides, rotation, gradient fill, outline
+  // stroke, shadow and maxWidth squeezing.
+  void drawText(Renderer r, in Widget w) {
+    auto c = r.canvas();
+    drawTextAlignments(c);
+    drawTextEffects(c);
+  }
+
+  void drawTextAlignments(Canvas c) {
+    c.save();
+    c.fontSpec(FontSpec(13.0f, null));
+    // guide lines at the anchor
+    c.lineWidth(1);
+    c.strokeStyle(FillStyle.solid(ColorF(0.95f, 0.45f, 0.45f, 0.7f)));
+    c.stroke(textGuideV);
+    c.stroke(textGuideH);
+    c.fillStyle(FillStyle.solid(ColorF(0.90f, 0.92f, 0.98f, 1)));
+    static immutable TextAlign[3] aligns = [
+      TextAlign.left, TextAlign.center, TextAlign.right,
+    ];
+    foreach (i, a; aligns) {
+      c.textAlign(a);
+      c.textBaseline(TextBaseline.alphabetic);
+      c.fillText(textAlignNames[i], PointF(133, 18 + i * 16));
+    }
+    c.textAlign(TextAlign.left);
+    static immutable TextBaseline[3] bases = [
+      TextBaseline.top, TextBaseline.middle, TextBaseline.alphabetic,
+    ];
+    foreach (i, b; bases) {
+      c.textBaseline(b);
+      c.fillText(textBaseNames[i], PointF(8 + i * 40, 80));
+    }
+    c.textBaseline(TextBaseline.alphabetic);
+    c.direction(TextDirection.rtl);
+    c.textAlign(TextAlign.start);
+    c.fillText("rtl start", PointF(258, 100));
+    c.restore();
+  }
+
+  void drawTextEffects(Canvas c) {
+    c.save();
+    c.fontSpec(FontSpec(22.0f, null));
+    c.textBaseline(TextBaseline.middle);
+    c.textAlign(TextAlign.center);
+
+    // rotated text around its anchor
+    c.save();
+    c.translate(PointF(60, 160));
+    c.rotate(tracker.model.rotation);
+    c.fillStyle(FillStyle.solid(ColorF(0.95f, 0.80f, 0.30f, 1)));
+    c.fillText("Rotate", PointF(0, 0));
+    c.restore();
+
+    // gradient fill
+    c.fillStyle(textGradient);
+    c.fontSpec(FontSpec(26.0f, null));
+    c.fillText("Gradient", PointF(190, 130));
+
+    // stroked text plus a fill with a drop shadow
+    c.save();
+    c.fontSpec(FontSpec(26.0f, null));
+    c.lineWidth(1.5f);
+    c.strokeStyle(FillStyle.solid(ColorF(0.55f, 0.90f, 1.0f, 1)));
+    c.fillStyle(FillStyle.solid(ColorF(0.10f, 0.20f, 0.35f, 1)));
+    c.fillText("Stroke", PointF(60, 205));
+    c.strokeText("Stroke", PointF(60, 205));
+    Shadow sh;
+    sh.offset = PointF(3, 4);
+    sh.blur = 5;
+    sh.color = ColorF(0, 0, 0, 0.85f);
+    c.shadow(sh);
+    c.fillStyle(FillStyle.solid(ColorF(0.95f, 0.55f, 0.35f, 1)));
+    c.fillText("Shadow", PointF(190, 170));
+    c.restore();
+
+    // maxWidth squeezes the text horizontally
+    c.fontSpec(FontSpec(16.0f, null));
+    c.fillStyle(FillStyle.solid(ColorF(0.60f, 0.95f, 0.60f, 1)));
+    c.fillTextWithMaxWidth("maxWidth 60 squeezed", PointF(190, 210), 60);
+    c.restore();
+  }
+
   /**
    * Creates the render target or keeps it in sync with the display scale,
    * redrawing it when it is new or was reallocated.
@@ -937,6 +1046,7 @@ private:
   Widget imagesWidget;
   Widget offscreenWidget;
   Widget patternsWidget;
+  Widget textWidget;
   Widget[] sectionWidgets;
   Image sampleImage;
   Texture sampleTexture;
@@ -974,10 +1084,19 @@ private:
   Path2d patternRotCircle;
   Path2d patternStrokeWave;
   Path2d patternRtRect;
+  Path2d textGuideV;
+  Path2d textGuideH;
+  static immutable string[3] textAlignNames = [
+    "left", "center", "right",
+  ];
+  static immutable string[3] textBaseNames = [
+    "top", "mid", "alpha",
+  ];
   FillStyle linearFill;
   FillStyle radialFill;
   FillStyle gradientStroke;
   FillStyle offscreenFill;
+  FillStyle textGradient;
 }
 
 unittest {
@@ -988,7 +1107,7 @@ unittest {
   auto tracker = ModelTracker!CanvasPageModel(new CanvasPageModel());
   auto page = new CanvasPage(ui, root, tracker);
   assert(page.rootWidget().parent is root);
-  assert(page.drawWidgets().length == 11);
+  assert(page.drawWidgets().length == 12);
   foreach (w; page.drawWidgets()) {
     assert(w.components.customDraw !is null);
     assert(w.components.customDraw.drawFunc !is null);
@@ -1006,11 +1125,13 @@ unittest {
   const Widget interopCard = page.interopWidget.parent;
   const Widget offscreenCard = page.offscreenWidget.parent;
   const Widget patternsCard = page.patternsWidget.parent;
+  const Widget textCard = page.textWidget.parent;
   assert(imagesCard.visible && !interopCard.visible);
   assert(!offscreenCard.visible && !patternsCard.visible);
   assert(imagesCard.rect == interopCard.rect);
   assert(offscreenCard.rect == interopCard.rect);
   assert(patternsCard.rect == interopCard.rect);
+  assert(textCard.rect == interopCard.rect && !textCard.visible);
   // the top-left corner is red (orientation marker)
   const ubyte[] px = page.image().pixels;
   assert(px[0] > 200 && px[1] < 80 && px[2] < 80 && px[3] == 255);
@@ -1052,6 +1173,15 @@ unittest {
   assert(page.update());
   assert(!imagesCard.visible && !interopCard.visible);
   assert(!offscreenCard.visible && patternsCard.visible);
+  assert(
+    page.formatStatus() == "[Space] Pause animation | [I] Show text"
+      ~ " | [P] Save offscreen PNG"
+  );
+  m = tracker.edit();
+  m.slot7 = CanvasSlot7.text;
+  tracker.commit(m);
+  assert(page.update());
+  assert(textCard.visible && !patternsCard.visible);
   assert(
     page.formatStatus() == "[Space] Pause animation | [I] Show interop"
       ~ " | [P] Save offscreen PNG"

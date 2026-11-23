@@ -33,7 +33,7 @@ yvidtrim/
 │       ├── hover_button.d # Controller-based hover button demo
 │       └── pages/         # Showcase views and per-page controllers
 │                          # (incl. knob_page.d: CursorCapture.lock demo;
-│                          # canvas_page.d: Canvas, images, patterns, RT [P];
+│                          # canvas_page.d: Canvas, images, patterns, text;
 │                          # virtlist_items.d, virtlist_providers.d)
 ├── yguilib/               # Independent GUI library (no yvidtrim dependency)
 │   ├── source/yguilib/
@@ -206,6 +206,8 @@ pixel change. Nested `beginTarget`/`endTarget` save+restore FBO, viewport,
 scissor, clip stack, Canvas state; end resolves MSAA. Separate alpha blend
 (ONE, 1-SRC_ALPHA) keeps targets premultiplied: `rt.texture()` (bottom-up) is
 drawn with (ONE, 1-SRC_ALPHA); main-thread `rt.toImage()` un-premultiplies.
+**Text**: `TextCache` bitmaps at the effective scale (`getFontAtScale`) drawn
+as quads; glyph alpha masks solid/gradient/pattern paint; stroke = outline.
 
 ## Idiomatic Patterns
 - Null Safety: Non-null references by default (tooling flags missing checks);
@@ -236,13 +238,11 @@ drawn with (ONE, 1-SRC_ALPHA); main-thread `rt.toImage()` un-premultiplies.
 `<proj>-clibs/<proj>_<libname>.[h|c]` (opaque handles, `<proj>_<libname>_`
 prefix, NULL rules) + `_test.c`, both in `<proj>-clibs/meson.build`; matching
 `extern(C)` in `<pkg>/clibs/<libname>.d`, linked in `meson.build`.
-
 ### Adding a Custom GUI Widget System & Component
 Create `MyComponent : WidgetComponent` and `MySystem : WidgetSystem` (set
 `phases`: `event`/`preLayout`/`layout`/`postLayout`/`render`, a priority, and
 override phase methods); register via `app.ui.registerWidgetSystem()` and
 attach with `widget.components.set(new MyComponent())`.
-
 ### Adding a Subsystem with Package Facade
 Create `<root_pkg>/<subsystem>/` with the public API in `package.d` and
 helpers in `internal/*.d` (`package(<root_pkg>):`, never `public:`); verify

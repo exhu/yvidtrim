@@ -32,6 +32,7 @@ private:
 struct TextCacheKey {
   ulong fontId;
   float ptSize;
+  int outlinePx;
   string text;
 }
 
@@ -58,12 +59,14 @@ final class TextCache {
     return cache.length;
   }
 
-  bool contains(const Font font, string text) const {
+  bool contains(const Font font, string text, int outlinePx = 0) const {
     if (font is null || font.handle is null ||
         font.id == invalidFontId || text.length == 0) {
       return false;
     }
-    const TextCacheKey key = TextCacheKey(font.id, font.scaledSize, text);
+    const TextCacheKey key = TextCacheKey(
+      font.id, font.scaledSize, outlinePx, text
+    );
     return (key in cache) !is null;
   }
 
@@ -75,13 +78,15 @@ final class TextCache {
     accessOrder.clear();
   }
 
-  TextTexture getOrCreate(Font font, string text) {
+  TextTexture getOrCreate(Font font, string text, int outlinePx = 0) {
     if (font is null || font.handle is null ||
         font.id == invalidFontId || text.length == 0) {
       return TextTexture();
     }
 
-    const TextCacheKey key = TextCacheKey(font.id, font.scaledSize, text);
+    const TextCacheKey key = TextCacheKey(
+      font.id, font.scaledSize, outlinePx, text
+    );
     auto p = key in cache;
     if (p !is null) {
       accessOrder.popFirstOf(p.orderRef);
@@ -94,7 +99,7 @@ final class TextCache {
       evictOldest();
     }
 
-    TextTexture tex = createTextTexture(font, text);
+    TextTexture tex = createTextTexture(font, text, outlinePx);
     if (tex.isValid()) {
       accessOrder.insertFront(key);
       cache[key] = TextCacheEntry(tex, accessOrder[]);
@@ -102,9 +107,26 @@ final class TextCache {
     return tex;
   }
 
-  static TextTexture createTextTexture(Font font, string text) {
-    if (font is null || font.handle is null || text.length == 0) {
+  /**
+   * White-on-transparent bitmap of `text`. With `outlinePx` > 0 the bitmap
+   * is the glyph outline ring (hole inside), `outlinePx` larger per side;
+   * the shared font's outline is reset to 0 afterwards.
+   */
+  static TextTexture createTextTexture(
+    Font font, string text, int outlinePx = 0
+  ) {
+    if (font is null || font.handle is null || text.length == 0
+      || outlinePx < 0) {
       return TextTexture();
+    }
+    if (outlinePx > 0 &&
+        yguilib_sdl3_ttf_set_font_outline(font.handle, outlinePx) != 0) {
+      return TextTexture();
+    }
+    scope(exit) {
+      if (outlinePx > 0) {
+        yguilib_sdl3_ttf_set_font_outline(font.handle, 0);
+      }
     }
 
     auto surf = yguilib_sdl3_ttf_render_text_blended(
@@ -208,4 +230,40 @@ unittest {
   scope(exit) fontB.destroy();
   assert(fontB.id != fontA.id);
   assert(!tc.contains(fontB, "item0"));
+}
+
+unittest {
+  import yguilib.assets : defaultTtfFontData;
+  import yguilib.clibs.sdl3;
+  import yguilib.window : Window;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(160, 120, "test_text_cache_outline");
+  win.create();
+  scope(exit) win.destroy();
+
+  Font font = Font.fromMemory(
+    cast(const(void)[])defaultTtfFontData, 24.0f, 1.0f
+  );
+  scope(exit) font.destroy();
+
+  auto tc = new TextCache(8);
+  scope(exit) tc.clear();
+
+  const fill = tc.getOrCreate(font, "Hi");
+  const ring = tc.getOrCreate(font, "Hi", 3);
+  assert(fill.isValid() && ring.isValid());
+  assert(fill.textureId != ring.textureId);
+  assert(tc.length == 2);
+  assert(tc.contains(font, "Hi") && tc.contains(font, "Hi", 3));
+  assert(!tc.contains(font, "Hi", 2));
+  assert(ring.width == fill.width + 6);
+  assert(ring.height == fill.height + 6);
+  // the shared font is back to its normal outline
+  assert(yguilib_sdl3_ttf_get_font_outline(font.handle) == 0);
+  const again = tc.getOrCreate(font, "Hi");
+  assert(again.textureId == fill.textureId);
+  assert(!TextCache.createTextTexture(font, "Hi", -1).isValid());
 }

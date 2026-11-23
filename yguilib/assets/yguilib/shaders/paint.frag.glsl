@@ -24,6 +24,11 @@ uniform float uStopOffsets[maxStops];
 uniform int uStopCount;
 
 in vec2 vPos;
+#ifdef MASK
+// alpha mask variant: output alpha is multiplied by the mask alpha
+uniform sampler2D uMask;
+in vec2 vMaskUv;
+#endif
 out vec4 fragColor;
 
 /**
@@ -123,4 +128,7 @@ void main() {
     discard;
   }
   fragColor = vec4(c.rgb / c.a, c.a);
+#ifdef MASK
+  fragColor.a *= texture(uMask, vMaskUv).a;
+#endif
 }
