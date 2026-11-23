@@ -34,32 +34,10 @@ struct OffscreenTarget {
       glGenTextures(1, &texture);
       glGenRenderbuffers(1, &depthStencil);
     }
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, nw, nh, 0, GL_RGBA,
-      GL_UNSIGNED_BYTE, null);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    glBindRenderbuffer(GL_RENDERBUFFER, depthStencil);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, nw, nh);
-    glBindRenderbuffer(GL_RENDERBUFFER, 0);
-
-    GLint prevFbo = 0;
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-      GL_TEXTURE_2D, texture, 0);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
-      GL_RENDERBUFFER, depthStencil);
-    const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    glBindFramebuffer(GL_FRAMEBUFFER, cast(GLuint)prevFbo);
-    if (status != GL_FRAMEBUFFER_COMPLETE) {
-      import std.logger : errorf;
-      errorf("Offscreen framebuffer incomplete: 0x%x", status);
-    }
+    allocateTargetTexture(texture, nw, nh);
+    allocateRenderbuffer(depthStencil, GL_DEPTH24_STENCIL8, 0, nw, nh);
+    attachAndCheck(AttachmentIds(fbo, texture, 0, depthStencil),
+      "Offscreen");
     width = nw;
     height = nh;
   }
@@ -133,4 +111,78 @@ struct SavedTargetState {
     glClearColor(clearColor[0], clearColor[1], clearColor[2],
       clearColor[3]);
   }
+}
+
+/**
+ * (Re)allocates the storage of texture `tex` as `w` x `h` RGBA8 with
+ * linear filtering and clamp-to-edge wrapping, content undefined.
+ */
+void allocateTargetTexture(GLuint tex, int w, int h) {
+  glBindTexture(GL_TEXTURE_2D, tex);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA,
+    GL_UNSIGNED_BYTE, null);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+/**
+ * (Re)allocates renderbuffer `rb` as `w` x `h` of `format`; multisampled
+ * with `samples` samples when `samples` >= 2.
+ */
+void allocateRenderbuffer(GLuint rb, GLenum format, int samples, int w,
+  int h) {
+  glBindRenderbuffer(GL_RENDERBUFFER, rb);
+  if (samples >= 2) {
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, samples, format, w,
+      h);
+  } else {
+    glRenderbufferStorage(GL_RENDERBUFFER, format, w, h);
+  }
+  glBindRenderbuffer(GL_RENDERBUFFER, 0);
+}
+
+/**
+ * Framebuffer attachments for `attachAndCheck`: the color attachment is
+ * `colorTexture` when non-zero, else `colorRenderbuffer`; a zero
+ * `depthStencil` attaches no depth-stencil buffer.
+ */
+struct AttachmentIds {
+  GLuint fbo;
+  GLuint colorTexture;
+  GLuint colorRenderbuffer;
+  GLuint depthStencil;
+}
+
+/**
+ * Attaches `ids` to `ids.fbo` and checks completeness, keeping the
+ * current framebuffer binding. Logs an error prefixed with `what` when
+ * incomplete. Returns: true if the framebuffer is complete.
+ */
+bool attachAndCheck(in AttachmentIds ids, string what) {
+  GLint prevFbo = 0;
+  glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFbo);
+  glBindFramebuffer(GL_FRAMEBUFFER, ids.fbo);
+  if (ids.colorTexture != 0) {
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+      GL_TEXTURE_2D, ids.colorTexture, 0);
+  } else {
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+      GL_RENDERBUFFER, ids.colorRenderbuffer);
+  }
+  if (ids.depthStencil != 0) {
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
+      GL_RENDERBUFFER, ids.depthStencil);
+  }
+  const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+  glBindFramebuffer(GL_FRAMEBUFFER, cast(GLuint)prevFbo);
+  if (status != GL_FRAMEBUFFER_COMPLETE) {
+    import std.logger : errorf;
+
+    errorf("%s framebuffer incomplete: 0x%x", what, status);
+    return false;
+  }
+  return true;
 }

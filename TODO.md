@@ -1,4 +1,3 @@
-- support offscreen rendering to image, and image blitting
 - Canvas Pattern (image fill/stroke paint, `canvas.d` `Pattern` stub)
 
 - build widget library

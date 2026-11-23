@@ -4,15 +4,17 @@
  * Runs a ~30 fps controller timer only while the page is active and the
  * model is `animating`; [Space] toggles `animating`. Each tick advances
  * `dashOffset` and `rotation`; the page marks its animated widgets dirty.
- * [I] toggles slot 7 between the image and the interop section. `onPop`
- * releases the page textures while the GL context is still alive.
+ * [I] cycles slot 7 through the interop, image and offscreen sections;
+ * [P] shows the offscreen section and requests an `offscreen-<time>.png`
+ * save (performed by the page draw on the main thread). `onPop` releases
+ * the page GPU resources while the GL context is still alive.
  */
 module guidemo.pages.canvas_controller;
 
-import guidemo.common : PageControllerParams, isKey, syncPageShellView,
-  syncPageStatus;
+import guidemo.common : PageControllerParams, isKey, pngPathFromPrefixTime,
+  syncPageShellView, syncPageStatus;
 import guidemo.demo_model_helpers : isPageActive;
-import guidemo.model : CanvasPageModel, DemoModel, DemoPage;
+import guidemo.model : CanvasPageModel, CanvasSlot7, DemoModel, DemoPage;
 import guidemo.pages.canvas_page : CanvasPage;
 import yguilib.controller : DefaultController, HandleResult;
 import yguilib.events : AppEvent;
@@ -33,7 +35,7 @@ alias CanvasPageControllerParams =
   PageControllerParams!(CanvasPage, ModelTracker!CanvasPageModel);
 
 /// Controller animating the Canvas page and toggling it with [Space];
-/// [I] swaps the image and interop sections.
+/// [I] cycles the slot 7 sections, [P] saves the offscreen image.
 final class CanvasPageController : DefaultController {
   @disable this();
 
@@ -60,7 +62,7 @@ final class CanvasPageController : DefaultController {
 
   override void onPop() {
     stopTimer(animTimerId);
-    page.releaseTextures();
+    page.releaseGpuResources();
   }
 
   override bool update() {
@@ -119,14 +121,39 @@ final class CanvasPageController : DefaultController {
         && isPageActive(demoTracker.model, DemoPage.canvas)
         && isKey(ev, Keycode.i, Scancode.i)) {
       auto m = tracker.edit();
-      m.showImages = !m.showImages;
+      m.slot7 = nextSlot7(m.slot7);
       tracker.commit(m);
+      return HandleResult(HandleResult.Result.update, true);
+    }
+    if (ev.kind == AppEvent.Kind.keyDown
+        && isPageActive(demoTracker.model, DemoPage.canvas)
+        && isKey(ev, Keycode.p, Scancode.p)) {
+      requestOffscreenSave();
       return HandleResult(HandleResult.Result.update, true);
     }
     return super.handleEvent(ev);
   }
 
 private:
+  /// Returns the slot 7 section after `s` in the [I] cycle.
+  static CanvasSlot7 nextSlot7(CanvasSlot7 s) {
+    return s == CanvasSlot7.max ? CanvasSlot7.min : cast(CanvasSlot7)(s + 1);
+  }
+
+  /// Shows the offscreen section and asks its draw to save a PNG.
+  void requestOffscreenSave() {
+    import std.datetime.systime : Clock;
+    import std.logger : tracef;
+
+    const string path = pngPathFromPrefixTime("offscreen", Clock.currTime());
+    tracef("[P]: requesting offscreen save %s", path);
+    auto m = tracker.edit();
+    m.slot7 = CanvasSlot7.offscreen;
+    m.offscreenSavePath = path;
+    m.offscreenSaveSerial++;
+    tracker.commit(m);
+  }
+
   bool wantsAnimation() {
     return tracker.model.animating
       && isPageActive(demoTracker.model, DemoPage.canvas);
@@ -210,15 +237,32 @@ unittest {
   assert(pageTracker.model.animating);
   assert(ui.isTimerActive(ctrl.animTimerId));
 
-  // [I] swaps the slot 7 sections and updates the status text
-  assert(pageTracker.model.showImages);
+  // [I] cycles images -> offscreen -> interop -> images
+  assert(pageTracker.model.slot7 == CanvasSlot7.images);
   auto hrI = ctrl.handleEvent(makeKeyDown(Keycode.i, Scancode.i));
   assert(hrI.consume);
-  assert(!pageTracker.model.showImages);
+  assert(pageTracker.model.slot7 == CanvasSlot7.offscreen);
   assert(ctrl.update());
   assert(demoTracker.model.statusText.length > 0);
   ctrl.handleEvent(makeKeyDown(Keycode.i, Scancode.i));
-  assert(pageTracker.model.showImages);
+  assert(pageTracker.model.slot7 == CanvasSlot7.interop);
+  ctrl.handleEvent(makeKeyDown(Keycode.i, Scancode.i));
+  assert(pageTracker.model.slot7 == CanvasSlot7.images);
+
+  // [P] shows the offscreen section and requests a timestamped PNG save
+  {
+    import std.algorithm.searching : endsWith, startsWith;
+
+    auto hrP = ctrl.handleEvent(makeKeyDown(Keycode.p, Scancode.p));
+    assert(hrP.consume);
+    assert(pageTracker.model.slot7 == CanvasSlot7.offscreen);
+    assert(pageTracker.model.offscreenSaveSerial == 1);
+    const string p = pageTracker.model.offscreenSavePath;
+    assert(p.length == "offscreen-YYYYMMDD-HHMMSS.png".length);
+    assert(p.startsWith("offscreen-") && p.endsWith(".png"));
+    ctrl.handleEvent(makeKeyDown(Keycode.p, Scancode.p));
+    assert(pageTracker.model.offscreenSaveSerial == 2);
+  }
 
   // Switching away stops the timer
   dm = demoTracker.edit();

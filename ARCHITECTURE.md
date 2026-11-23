@@ -33,7 +33,7 @@ yvidtrim/
 │       ├── hover_button.d # Controller-based hover button demo
 │       └── pages/         # Showcase views and per-page controllers
 │                          # (incl. knob_page.d: CursorCapture.lock demo;
-│                          # canvas_page.d: Canvas API + images via onDraw;
+│                          # canvas_page.d: Canvas, images, RenderTarget [P];
 │                          # virtlist_items.d, virtlist_providers.d)
 ├── yguilib/               # Independent GUI library (no yvidtrim dependency)
 │   ├── source/yguilib/
@@ -60,7 +60,7 @@ yvidtrim/
 │   │   ├── events/        # AppEvent, builder, and thread-safe MessageBus
 │   │   ├── render/        # Hardware Renderer, FontManager, shader pipelines
 │   │   │   ├── canvas.d   # Canvas 2D context, Path2d, Transform2d, paints
-│   │   │   ├── image.d, texture.d # CPU Image (SDL3_image), GPU Texture
+│   │   │   ├── image.d, texture.d, render_target.d # Image/Texture/RenderTarget
 │   │   │   └── internal/  # pipelines, path_*, stencil_ops, offscreen
 │   │   ├── widget/        # Widget entity, components, builder, WidgetSystem
 │   │   │   ├── virtlist_components.d # VirtListProvider & VirtListComponent
@@ -84,16 +84,15 @@ yvidtrim/
     strictly restricted to the main thread.
   - Background threads (playback decode, export) communicate exclusively via
     message passing by calling `UiSystem.sendAppEvent(AppEvent)`.
-  - `MessageBus.send()` is a thread-safe ring buffer (`synchronized`) that
-    signals `yguilib_sdl3_send_wake_event()` from background threads when the
-    main thread is waiting, and preserves raw `mouseMotion` samples without
-    merging.
+  - `MessageBus.send()` is a thread-safe `synchronized` ring buffer that
+    wakes a waiting main thread (`yguilib_sdl3_send_wake_event()`) and keeps
+    raw `mouseMotion` samples unmerged.
 - Memory & Safety Enforcements:
   - Hot paths use `yguilib.allochelpers` (`SmallBuffer`, `RingBuffer`,
     `ReusableArray`) to minimize GC churn in event, timer, and layout loops.
   - GC is permitted for widget graph construction, models, and UI event strings.
-  - C handles (SDL windows, GL contexts, TTF fonts) are freed in `destroy()`
-    and `~this()`; GL objects (`Texture`) only in main-thread `destroy()`.
+  - C handles (SDL windows, GL contexts, TTF fonts): `destroy()`/`~this()`;
+    GL objects (`Texture`, `RenderTarget`) only in main-thread `destroy()`.
 - Encapsulation & Scoping:
   - No `public import` re-exports; multi-module packages like
     `yguilib.controls` import modules explicitly without `package.d`.
@@ -123,34 +122,30 @@ Phase 1: UiSystemImpl.drainMessageBus()
 ```
 
 **Buttons**: `ButtonSystem` is a built-in pipeline system (registered by
-`UiSystemImpl`) driving every `ButtonComponent` widget made by
-`ButtonBuilder`: plain buttons, TabControl tabs/arrows and Scrollbar
-arrows. `ButtonTrigger.release` (default) or `.press` picks when
-`actionEvent` fires; `postLayout` applies normal/disabled colours from
-`inputEnabled`, so controls only call `Widget.setInputEnabled`.
-Optional `ButtonRepeat` auto-repeat (press trigger only) re-sends
-`actionEvent` while held: a oneShot delay timer, then an interval timer,
-stopped on release/disable/hide; used by TabControl and Scrollbar arrows.
+`UiSystemImpl`) driving every `ButtonComponent` widget made by `ButtonBuilder`:
+plain buttons, TabControl tabs/arrows and Scrollbar arrows.
+`ButtonTrigger.release` (default) or `.press` picks when `actionEvent` fires;
+`postLayout` sets normal/disabled colours from `inputEnabled` (controls only
+call `Widget.setInputEnabled`). `ButtonRepeat` (press trigger) re-sends it
+while held: oneShot delay, then interval timer, stopped on release/disable/hide.
 
 **Input flags**: `Widget.handleInput` (default false) makes a widget
 hittable: it takes part in pointer hit-tests and blocks click/hover-through
 to widgets behind it (`WidgetBuilder.onMouse*`/`cursorCapture` set it).
 `Widget.inputEnabled` (default true) is the enabled state: disabled visuals,
-no mouse view events, drag or capture. A disabled hittable widget swallows
-clicks silently. Keyboard (planned, `FocusSystem`): keys go to the focused
-widget with a `KeyboardEvent` only if `inputEnabled`; disabled widgets can't
-take focus; `handleInput` is pointer-only.
+no mouse view events, drag or capture; a disabled hittable widget swallows
+clicks. Keyboard (planned, `FocusSystem`): keys go to the focused widget with a
+`KeyboardEvent` only if `inputEnabled`; disabled widgets can't take focus;
+`handleInput` is pointer-only.
 
 **Cursor capture modes** (`MouseEvent.cursorCapture`, `CursorCapture` enum,
 set via `WidgetBuilder.onMouseDrag(name, mode)`), applied by
 `InputSystem.syncCursorCapture` while a button pressed on the widget is held:
 - `none`: no capture; drag/release outside the window are lost.
-- `capture`: `SDL_CaptureMouse` keeps drag/release tracked outside the
-  window (scrollbar thumbs).
+- `capture`: `SDL_CaptureMouse` tracks drag/release outside the window.
 - `lock`: relative mouse mode, cursor hidden; `mouseDrag` carries unbounded
-  `relX/relY` deltas with local/window coords pinned to the press point; on
-  release (or widget removal/disable) the cursor is warped back to the press
-  point. Used by knob / drag-value controls (guidemo `knob_page.d`).
+  `relX/relY` deltas, coords pinned to the press point, where the cursor is
+  warped back on release/removal/disable (knob controls, `knob_page.d`).
 
 ### 2. Phase 2 Sync, Timers & Model-View-Controller Loop
 ```
@@ -203,13 +198,18 @@ of paint alpha (shadow a = color a * paint a) into non-MSAA `OffscreenTarget`s,
 in `clipContents`, in canvas `save`/`translate(content origin)`/`restore`:
 Canvas draws content-local, Renderer stays absolute (`transform()` e/f).
 **Images**: `Image` (CPU RGBA8, straight alpha, top-down, no GL) ──►
-`Renderer.createTexture` ──► `Texture` ──► `drawImage`/`drawImageRegion`
-(`TexturePipeline`, tint); screenshots are saved on the main thread.
+`Renderer.createTexture` ──► `Texture` ──► Renderer `drawImage[Region]`
+(`TexturePipeline`, tint) or `Canvas.drawImage*` (CPU-transformed triangles:
+st.xf, clip bit, tint, shadow masked by texture alpha). **Offscreen**:
+`createRenderTarget(logicW, logicH, msaa)`; `resizeRenderTarget` reallocs on a
+pixel change. Nested `beginTarget`/`endTarget` save+restore FBO, viewport,
+scissor, clip stack, Canvas state; end resolves MSAA. Separate alpha blend
+(ONE, 1-SRC_ALPHA) keeps targets premultiplied: `rt.texture()` (bottom-up) is
+drawn with (ONE, 1-SRC_ALPHA); main-thread `rt.toImage()` un-premultiplies.
 
 ## Idiomatic Patterns
-- Null Safety: Non-null references by default. Missing checks are flagged by
-  tooling. Constructor arguments enforce `assert(arg !is null)` and structs/
-  classes assert invariants `invariant { assert(field !is null); }`.
+- Null Safety: Non-null references by default (tooling flags missing checks);
+  constructors `assert(arg !is null)`, non-null fields via `invariant` asserts.
 - Zero-CPU Idle Sleep: Controllers and `WidgetSystem`s register owner-bound
   wall-clock timers via `TimerControl` (`startTimer` / `stopTimer`) during
   active animations and stop them when settled (`TimerService` returns `-1`

@@ -14,6 +14,12 @@ meson setup _build .        # Setup (or --reconfigure)
   covered by a Meson test target using a shared `test_main.d`, and do not add
   per-module `version (unittest) void main()` stubs that block unified test
   executables.
+- Run tests with a timeout (`timeout 300 meson test -C _build`) and do not
+  tee full test output into log files: an assert thrown in a `scope(exit)`
+  while unwinding a failed assert can make the D test runner print the
+  same error forever (100% CPU, fills `/tmp`). In GL tests, end open render
+  targets (`while (r.inTarget()) r.endTarget();`) in a `scope(exit)`
+  declared after the `destroy()` ones.
 
 ## Architecture & Wrapper Rules
 - **No Direct C/C++ in D**: Never import external C headers or auto-bind.

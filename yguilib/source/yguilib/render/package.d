@@ -6,11 +6,14 @@ import yguilib.render.internal.clip_stack : ClipStack;
 import yguilib.render.font : Font, defaultFontPtSize;
 import yguilib.render.font_manager : FontManager;
 import yguilib.render.image : Image;
-import yguilib.render.internal.offscreen : OffscreenTarget;
+import yguilib.render.internal.offscreen : OffscreenTarget,
+  SavedTargetState;
 import yguilib.render.internal.pipelines : BlurPipeline, ColorPipeline,
-  GradientPipeline, RoundRectPipeline, TexturePipeline, TexturedQuad;
+  GradientPipeline, RoundRectPipeline, TextureMode, TexturePipeline,
+  TexturedQuad;
 import yguilib.render.internal.text_cache : TextCache, TextTexture;
 import yguilib.render.render_types;
+import yguilib.render.render_target : RenderTarget;
 import yguilib.render.texture : Texture;
 import yguilib.assets : defaultTtfFontData;
 import yguilib.render.canvas;
@@ -50,6 +53,11 @@ final class Renderer {
     foreach (ref t; offscreenTargets) {
       t.destroy();
     }
+    // User render targets are caller owned: only forget the stack.
+    foreach (ref f; targetFrames) {
+      f.target.active--;
+    }
+    targetFrames = null;
     blurPipeline.destroy();
     gradientPipeline.destroy();
     rrPipeline.destroy();
@@ -210,6 +218,8 @@ final class Renderer {
   /**
    * Starts a frame: clears color to `color` and the stencil to 0 (both
    * honor the active scissor clip) and resets the Canvas state.
+   * Inside `beginTarget` it clears the target; `color` is stored as-is,
+   * so it should be premultiplied (target textures are premultiplied).
    */
   void clearFrame(ColorF color) {
     glClearColor(color.r, color.g, color.b, color.a);
@@ -637,12 +647,15 @@ final class Renderer {
     if (!initialized || img is null || img.isEmpty()) {
       return null;
     }
-    return new Texture(img);
+    auto t = new Texture();
+    t.update(img);
+    return t;
   }
 
   /**
    * Draws the whole texture `t` stretched to `dest` (logic coordinates),
    * multiplied by `tint` (straight alpha). A null `t` is a no-op.
+   * Premultiplied and bottom-up textures (render targets) are handled.
    */
   void drawImage(Texture t, RectF dest, ColorF tint) {
     if (t is null) {
@@ -655,23 +668,25 @@ final class Renderer {
 
   /**
    * Draws the `srcPx` region (texture pixels, top-left origin) of texture
-   * `t` stretched to `dest` (logic coordinates), multiplied by `tint`.
+   * `t` stretched to `dest` (logic coordinates), multiplied by `tint`
+   * (straight alpha, also for premultiplied textures). Bottom-up textures
+   * are flipped so the region shows upright.
    * A null or destroyed `t` is a no-op.
    */
   void drawImageRegion(Texture t, RectF dest, RectF srcPx, ColorF tint) {
     if (!initialized || t is null || !t.isValid()) {
       return;
     }
-    const float tw = cast(float)t.width();
-    const float th = cast(float)t.height();
-    const RectF uv = RectF(
-      srcPx.x / tw, srcPx.y / th, srcPx.width / tw, srcPx.height / th
-    );
+    assert(!isActiveTargetTexture(t),
+      "drawing the texture of an active render target (feedback loop)");
+    const TextureMode mode = t.premultiplied()
+      ? TextureMode.premultiplied : TextureMode.straight;
     texPipeline.drawTexturedQuad(
       t.id(),
-      TexturedQuad(dest, uv, tint),
+      TexturedQuad(dest, textureUv(t, srcPx), tint),
       getLogicWidth(),
-      getLogicHeight()
+      getLogicHeight(),
+      mode
     );
   }
 
@@ -718,6 +733,123 @@ final class Renderer {
    */
   Image captureFrame() {
     return readPixels(0, 0, viewportPixelWidth, viewportPixelHeight);
+  }
+
+  /**
+   * Creates an offscreen render target of `logicW` x `logicH` logic
+   * units: `max(1, ceil(logic * getTotalScaling()))` pixels. With `msaa`
+   * it uses min(4, GL_MAX_SAMPLES) samples, falling back to no MSAA when
+   * fewer than 2 are supported or the MSAA framebuffer is incomplete.
+   * The caller owns the result and must call `RenderTarget.destroy()` on
+   * the main thread.
+   *
+   * Returns: the target, or null if the renderer is not initialized, the
+   * size is not finite and positive, or the framebuffer is incomplete.
+   */
+  RenderTarget createRenderTarget(float logicW, float logicH, bool msaa) {
+    if (!initialized || !isValidTargetSize(logicW, logicH)) {
+      return null;
+    }
+    const int pw = targetPixelsFromLogic(logicW);
+    const int ph = targetPixelsFromLogic(logicH);
+    const int samples = msaa ? targetSampleCount() : 0;
+    auto rt = new RenderTarget(samples);
+    if (rt.allocate(pw, ph)) {
+      return rt;
+    }
+    if (samples == 0) {
+      return null;
+    }
+    rt = new RenderTarget(0);
+    return rt.allocate(pw, ph) ? rt : null;
+  }
+
+  /**
+   * Resizes `rt` to `logicW` x `logicH` logic units (pixels as in
+   * `createRenderTarget`). Reallocates only if the pixel size changes or
+   * `rt` is invalid (e.g. destroyed); the content is undefined after a
+   * reallocation and `rt.texture()` returns a new texture. A size that
+   * is not finite and positive is ignored. `rt` must not be active.
+   */
+  void resizeRenderTarget(RenderTarget rt, float logicW, float logicH) {
+    assert(rt !is null);
+    assert(rt.active == 0, "resizeRenderTarget() on an active target");
+    if (!initialized || !isValidTargetSize(logicW, logicH)) {
+      return;
+    }
+    const int pw = targetPixelsFromLogic(logicW);
+    const int ph = targetPixelsFromLogic(logicH);
+    if (rt.isValid() && rt.pixelWidth() == pw && rt.pixelHeight() == ph) {
+      return;
+    }
+    rt.allocate(pw, ph);
+  }
+
+  /**
+   * Redirects all Renderer and Canvas drawing into `rt` (valid, not
+   * already active) until the matching `endTarget()`. Targets nest. The
+   * viewport becomes the target size, the clip stack and Canvas state
+   * start empty (both restored by `endTarget`), the scissor is off.
+   * With `clear` the color is cleared to transparent and stencil to 0.
+   */
+  void beginTarget(RenderTarget rt, bool clear) {
+    assert(rt !is null && rt.isValid());
+    assert(rt.active == 0, "render target is already active");
+    TargetFrame f;
+    f.target = rt;
+    f.saved = SavedTargetState.capture();
+    f.pixelWidth = viewportPixelWidth;
+    f.pixelHeight = viewportPixelHeight;
+    f.clips = clipStack;
+    clipStack = ClipStack.init;
+    if (fCanvas !is null) {
+      f.canvasState = fCanvas.saveFrameState();
+      fCanvas.resetFrame();
+    }
+    targetFrames ~= f;
+    rt.active++;
+
+    viewportPixelWidth = rt.pixelWidth();
+    viewportPixelHeight = rt.pixelHeight();
+    glBindFramebuffer(GL_FRAMEBUFFER, rt.drawFbo());
+    glViewport(0, 0, viewportPixelWidth, viewportPixelHeight);
+    glDisable(GL_SCISSOR_TEST);
+    if (clear) {
+      glClearColor(0, 0, 0, 0);
+      glStencilMask(0xFF);
+      glClearStencil(0);
+      glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    }
+  }
+
+  /**
+   * Finishes the innermost `beginTarget`: resolves MSAA into the target
+   * texture and restores the framebuffer, viewport, scissor, clear
+   * color, clip stack and Canvas state. A `beginTarget` must be open.
+   */
+  void endTarget() {
+    assert(targetFrames.length > 0, "endTarget() without beginTarget()");
+    TargetFrame f = targetFrames[$ - 1];
+    targetFrames = targetFrames[0 .. $ - 1];
+    targetFrames.assumeSafeAppend();
+    f.target.resolve();
+    f.target.active--;
+
+    f.saved.restore();
+    viewportPixelWidth = f.pixelWidth;
+    viewportPixelHeight = f.pixelHeight;
+    clipStack = f.clips;
+    clipStack.reapply(
+      viewportPixelWidth, viewportPixelHeight, getTotalScaling()
+    );
+    if (fCanvas !is null) {
+      fCanvas.restoreFrameState(f.canvasState);
+    }
+  }
+
+  /// True between `beginTarget` and its matching `endTarget`.
+  bool inTarget() const {
+    return targetFrames.length > 0;
   }
 
   /**
@@ -825,6 +957,26 @@ package(yguilib.render):
     return texPipeline;
   }
 
+  /**
+   * Normalized uv rect of the `srcPx` region (texture pixels, top-left
+   * origin as displayed) of `t` (valid, non-empty), such that the
+   * top-left of a quad gets `uv.x, uv.y`. For bottom-up textures (GL
+   * rows grow upward) v is flipped: `uv.y` is the top edge measured from
+   * the bottom and `uv.height` is negative.
+   */
+  static RectF textureUv(in Texture t, in RectF srcPx) {
+    assert(t !is null && t.width() > 0 && t.height() > 0);
+    const float tw = cast(float)t.width();
+    const float th = cast(float)t.height();
+    const RectF uv = RectF(
+      srcPx.x / tw, srcPx.y / th, srcPx.width / tw, srcPx.height / th
+    );
+    if (!t.bottomUp()) {
+      return uv;
+    }
+    return RectF(uv.x, 1.0f - uv.y, uv.width, -uv.height);
+  }
+
   /// Shared separable blur pipeline (Canvas shadows).
   ref BlurPipeline blurPipelineRef() return {
     return blurPipeline;
@@ -841,6 +993,22 @@ package(yguilib.render):
   /// True between successful initialization and `destroy()`.
   bool isInitialized() const {
     return initialized;
+  }
+
+  /**
+   * True if `t` is the texture of a target on the `beginTarget` stack
+   * (drawing it would be a feedback loop).
+   */
+  bool isActiveTargetTexture(in Texture t) const {
+    if (t is null || !t.isValid()) {
+      return false;
+    }
+    foreach (ref f; targetFrames) {
+      if (f.target.textureId() == t.id()) {
+        return true;
+      }
+    }
+    return false;
   }
 
 private:
@@ -900,6 +1068,39 @@ private:
     );
   }
 
+  /// State saved by `beginTarget` and restored by `endTarget`.
+  struct TargetFrame {
+    RenderTarget target;
+    SavedTargetState saved;
+    int pixelWidth;
+    int pixelHeight;
+    ClipStack clips;
+    Canvas.FrameState canvasState;
+  }
+
+  static bool isValidTargetSize(float logicW, float logicH) {
+    import std.math : isFinite;
+
+    return isFinite(logicW) && isFinite(logicH)
+      && logicW > 0.0f && logicH > 0.0f;
+  }
+
+  /// Target pixels for `logic` units: max(1, ceil(logic * scaling)).
+  int targetPixelsFromLogic(float logic) const {
+    import std.math : ceil;
+
+    const float px = ceil(logic * getTotalScaling());
+    return px < 1.0f ? 1 : cast(int)px;
+  }
+
+  /// min(4, GL_MAX_SAMPLES), or 0 when fewer than 2 are supported.
+  static int targetSampleCount() {
+    GLint maxSamples = 0;
+    glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
+    const int n = maxSamples < 4 ? maxSamples : 4;
+    return n >= 2 ? n : 0;
+  }
+
   void onScalingChanged() {
     float totalScale = getTotalScaling();
     if (fontManager !is null) {
@@ -925,6 +1126,8 @@ private:
   BlurPipeline blurPipeline;
   OffscreenTarget[2] offscreenTargets;
   ClipStack clipStack;
+  /// `beginTarget` stack (innermost last).
+  TargetFrame[] targetFrames;
   TextCache textCache;
   FontManager fontManager;
   Font defaultFont_;
@@ -1663,6 +1866,122 @@ unittest {
   renderer.drawImage(tex, RectF(0, 0, 100, 100), opaque);
   assert(near(readAt(50, 50), 0, 0, 0));
 
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// Verifies the blend on a transparent target (alpha a, not a * a) and
+// that premultiplied + bottom-up textures draw like straight ones.
+unittest {
+  import yguilib.clibs.sdl3;
+  import yguilib.render.internal.gl_util : uploadRgbaTexture;
+  import yguilib.render.internal.offscreen : SavedTargetState;
+  import yguilib.render.texture : BorrowedTextureInfo;
+  import yguilib.window : Window;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(320, 240, "test_renderer_blend_premultiplied");
+  win.create();
+  scope(exit) win.destroy();
+  win.setDisplayScaling(1.0f);
+
+  auto renderer = win.renderer;
+  renderer.setViewport(320, 240);
+
+  ubyte[4] readAt(int x, int y) {
+    ubyte[4] px;
+    glReadPixels(x, 240 - 1 - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px.ptr);
+    return px;
+  }
+
+  bool near4(ubyte[4] px, int r, int g, int b, int a) {
+    import std.math : abs;
+
+    return abs(px[0] - r) <= 3 && abs(px[1] - g) <= 3 &&
+      abs(px[2] - b) <= 3 && abs(px[3] - a) <= 3;
+  }
+
+  // Offscreen RGBA target cleared to transparent.
+  OffscreenTarget fb;
+  fb.ensureSize(320, 240);
+  scope(exit) fb.destroy();
+  const SavedTargetState saved = SavedTargetState.capture();
+  fb.bindRegion(320, 240, true);
+
+  // 1. Semi-transparent over transparent: premultiplied (128, 0, 0, 128).
+  renderer.drawFillRect(RectF(0, 0, 50, 50), ColorF(1, 0, 0, 0.5f));
+  assert(near4(readAt(25, 25), 128, 0, 0, 128));
+  // Opaque results are unchanged.
+  renderer.drawFillRect(RectF(60, 0, 50, 50), ColorF(0, 1, 0, 1));
+  assert(near4(readAt(85, 25), 0, 255, 0, 255));
+  renderer.drawFillRect(RectF(60, 0, 50, 50), ColorF(1, 0, 0, 0.5f));
+  assert(near4(readAt(85, 25), 128, 128, 0, 255));
+  assert(near4(readAt(200, 200), 0, 0, 0, 0));
+
+  // 2. Straight top-down image and its premultiplied bottom-up twin.
+  // 2x2: red a=128, green / blue, white a=64 (top-down rows).
+  auto img = new Image(2, 2);
+  img.pixels[] = [
+    255, 0, 0, 128,  0, 255, 0, 255,
+    0, 0, 255, 255,  255, 255, 255, 64,
+  ];
+  Texture straight = renderer.createTexture(img);
+  scope(exit) straight.destroy();
+  assert(!straight.premultiplied() && !straight.bottomUp());
+  assert(!straight.borrowed());
+
+  // Bottom row first, rgb multiplied by alpha.
+  ubyte[16] pre = [
+    0, 0, 255, 255,  64, 64, 64, 64,
+    128, 0, 0, 128,  0, 255, 0, 255,
+  ];
+  BorrowedTextureInfo info;
+  info.id = uploadRgbaTexture(pre.ptr, 2, 2, 8);
+  info.width = 2;
+  info.height = 2;
+  info.premultiplied = true;
+  info.bottomUp = true;
+  scope(exit) glDeleteTextures(1, &info.id);
+  Texture borrowed = Texture.borrowedFromInfo(info);
+  scope(exit) borrowed.releaseBorrowed();
+
+  // uv of a bottom-up texture is flipped.
+  const RectF uvAll = Renderer.textureUv(borrowed, RectF(0, 0, 2, 2));
+  assert(uvAll == RectF(0, 1, 1, -1));
+  const RectF uvPlain = Renderer.textureUv(straight, RectF(0, 1, 1, 1));
+  assert(uvPlain == RectF(0, 0.5f, 0.5f, 0.5f));
+
+  const int[2][4] centers = [[25, 25], [75, 25], [25, 75], [75, 75]];
+  void compareAt(ColorF tint, ColorF clear) {
+    renderer.clearFrame(clear);
+    renderer.drawImage(straight, RectF(0, 0, 100, 100), tint);
+    renderer.drawImage(borrowed, RectF(100, 0, 100, 100), tint);
+    foreach (c; centers) {
+      const ubyte[4] a = readAt(c[0], c[1]);
+      const ubyte[4] b = readAt(c[0] + 100, c[1]);
+      assert(near4(b, a[0], a[1], a[2], a[3]));
+    }
+  }
+
+  const ColorF opaque = ColorF(1, 1, 1, 1);
+  const ColorF halfTint = ColorF(1, 0.5f, 1, 0.5f);
+  compareAt(opaque, ColorF(0, 0, 0, 0));
+  compareAt(halfTint, ColorF(0, 0, 0, 0));
+  // Over transparent the straight red texel gives premultiplied alpha.
+  compareAt(opaque, ColorF(0, 0, 0, 0));
+  assert(near4(readAt(25, 25), 128, 0, 0, 128));
+  compareAt(opaque, ColorF(0.2f, 0.4f, 0.6f, 1));
+  compareAt(halfTint, ColorF(0.2f, 0.4f, 0.6f, 1));
+
+  // 3. Region of a bottom-up texture uses top-left source pixels: blue.
+  renderer.clearFrame(ColorF(0, 0, 0, 1));
+  renderer.drawImageRegion(
+    borrowed, RectF(0, 0, 100, 100), RectF(0, 1, 1, 1), opaque
+  );
+  assert(near4(readAt(50, 50), 0, 0, 255, 255));
+
+  saved.restore();
   assert(glGetError() == GL_NO_ERROR);
 }
 

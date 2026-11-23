@@ -281,7 +281,23 @@ private:
 }
 
 /**
- * Shader pipeline for textured 2D quads.
+ * How `TexturePipeline` combines the texture with the tint color (matches
+ * `uMode` in `texture.frag.glsl`).
+ */
+enum TextureMode {
+  /// Straight-alpha texture: `tex * color`, straight-alpha blending.
+  straight = 0,
+  /**
+   * Premultiplied texture (e.g. a render target): `tex * (color.rgb *
+   * color.a, color.a)`, blended with `ONE, ONE_MINUS_SRC_ALPHA`.
+   */
+  premultiplied = 1,
+  /// White with alpha `tex.a * color.a` (shadow masks), straight blending.
+  alphaMask = 2,
+}
+
+/**
+ * Shader pipeline for textured 2D quads and triangles.
  */
 struct TexturePipeline {
   GLuint program;
@@ -290,6 +306,7 @@ struct TexturePipeline {
   GLint uResolutionLoc = -1;
   GLint uColorLoc = -1;
   GLint uTextureLoc = -1;
+  GLint uModeLoc = -1;
 
   void initialize() {
     GLuint texVert = compileShader(GL_VERTEX_SHADER, texVertexShaderSource);
@@ -302,6 +319,7 @@ struct TexturePipeline {
     uResolutionLoc = glGetUniformLocation(program, "uResolution\0".ptr);
     uColorLoc = glGetUniformLocation(program, "uColor\0".ptr);
     uTextureLoc = glGetUniformLocation(program, "uTexture\0".ptr);
+    uModeLoc = glGetUniformLocation(program, "uMode\0".ptr);
 
     const VertexArrayHandles h = createVec4VertexArray();
     vao = h.vao;
@@ -312,6 +330,7 @@ struct TexturePipeline {
     destroyProgramAndBuffers(program, vao, vbo);
   }
 
+  /// Draws a whole straight-alpha texture stretched to `destRect`.
   void drawTexture(
     GLuint texId,
     in RectF destRect,
@@ -320,27 +339,106 @@ struct TexturePipeline {
     float vh
   ) {
     drawTexturedQuad(
-      texId, TexturedQuad(destRect, RectF(0, 0, 1, 1), color), vw, vh
+      texId, TexturedQuad(destRect, RectF(0, 0, 1, 1), color), vw, vh,
+      TextureMode.straight
     );
   }
 
-  /// Draws `q` with alpha blending; `texId` 0 draws nothing.
-  void drawTexturedQuad(GLuint texId, in TexturedQuad q, float vw, float vh) {
+  /**
+   * Draws `q` with the blending for `mode` (see `setupBlendForMode`);
+   * stencil state is left unchanged. `texId` 0 draws nothing.
+   */
+  void drawTexturedQuad(
+    GLuint texId,
+    in TexturedQuad q,
+    float vw,
+    float vh,
+    TextureMode mode
+  ) {
     if (texId == 0) {
       return;
     }
+    setupBlendForMode(mode);
+    drawTexturedQuadWithCurrentState(texId, q, vw, vh, mode);
+  }
 
-    setupAlphaBlendState();
+  /**
+   * Like `drawTexturedQuad` but keeps the current blend, cull and depth
+   * state.
+   */
+  void drawTexturedQuadWithCurrentState(
+    GLuint texId,
+    in TexturedQuad q,
+    float vw,
+    float vh,
+    TextureMode mode
+  ) {
+    const float[24] vertices = quadVertices(q.dest, q.uv);
+    drawTexturedTrianglesWithCurrentState(
+      texId, vertices[], q.color, mode, vw, vh
+    );
+  }
+
+  /**
+   * Draws triangles of interleaved (x, y, u, v) vertices (x, y in logic
+   * coordinates) sampling `texId`, combined with `color` per `mode`, with
+   * the blending for `mode`; stencil state is left unchanged. `texId` 0
+   * or fewer than 3 vertices draw nothing.
+   */
+  void drawTexturedTriangles(
+    GLuint texId,
+    const(float)[] xyuv,
+    in ColorF color,
+    TextureMode mode,
+    float vw,
+    float vh
+  ) {
+    if (texId == 0 || xyuv.length < 12) {
+      return;
+    }
+    setupBlendForMode(mode);
+    drawTexturedTrianglesWithCurrentState(texId, xyuv, color, mode, vw, vh);
+  }
+
+  /**
+   * Like `drawTexturedTriangles` but keeps the current blend, cull and
+   * depth state (e.g. blending disabled to write a shadow mask).
+   */
+  void drawTexturedTrianglesWithCurrentState(
+    GLuint texId,
+    const(float)[] xyuv,
+    in ColorF color,
+    TextureMode mode,
+    float vw,
+    float vh
+  ) {
+    if (texId == 0 || xyuv.length < 12) {
+      return;
+    }
     glUseProgram(program);
     glUniform2f(uResolutionLoc, vw, vh);
-    glUniform4f(uColorLoc, q.color.r, q.color.g, q.color.b, q.color.a);
+    glUniform4f(uColorLoc, color.r, color.g, color.b, color.a);
     glUniform1i(uTextureLoc, 0);
+    glUniform1i(uModeLoc, cast(GLint)mode);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texId);
-    const float[24] vertices = quadVertices(q.dest, q.uv);
-    uploadAndDrawDynamic(GL_TRIANGLES, vao, vbo, vertices, 6);
+    uploadAndDrawDynamic(
+      GL_TRIANGLES, vao, vbo, xyuv, cast(GLsizei)(xyuv.length / 4)
+    );
     glBindTexture(GL_TEXTURE_2D, 0);
+  }
+
+  /**
+   * Premultiplied mode uses `setupPremultipliedBlendState`, the others
+   * `setupAlphaBlendState`.
+   */
+  static void setupBlendForMode(TextureMode mode) {
+    if (mode == TextureMode.premultiplied) {
+      setupPremultipliedBlendState();
+    } else {
+      setupAlphaBlendState();
+    }
   }
 }
 

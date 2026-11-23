@@ -12,8 +12,10 @@ module yguilib.render.canvas;
 import std.array : Appender;
 import yguilib.render : Renderer;
 import yguilib.render.internal.path_flatten : Contours;
+import yguilib.render.internal.offscreen : SavedTargetState;
 import yguilib.render.internal.pipelines : GradientUniforms;
 import yguilib.render.render_types;
+import yguilib.render.texture : Texture;
 
 // Types that are only used with Canvas are declared here.
 
@@ -836,7 +838,8 @@ unittest {
 }
 
 struct Pattern {
-  // TODO image, postpone for now until we support loading images
+  // TODO image pattern fill: images exist now (`Texture`, drawn with
+  // `Canvas.drawImage`), but repeating them as a paint is not done yet
 }
 
 /// Paint for fills and strokes: solid color or gradient.
@@ -937,6 +940,10 @@ enum FillRule {
  * `draw*` calls ignore the Canvas clip and transform. The Renderer
  * scissor clip (`pushClipRect`) limits both. `Renderer.clearFrame`
  * resets the Canvas state.
+ *
+ * `drawImage*` blits textures (images and `RenderTarget.texture()`) as
+ * textured triangles honoring the transform, clip and shadow, unlike
+ * `Renderer.drawImage`, which ignores all three.
  */
 final class Canvas {
 // do not replicate standalone path functions, like ctx.arc or ctx.beginPath,
@@ -1115,6 +1122,78 @@ final class Canvas {
     endStencil();
   }
 
+  /**
+   * Draws the whole texture `t` stretched to `dest` (user space, mapped
+   * by the current transform), honoring the Canvas clip and shadow
+   * (HTML `drawImage(img, dx, dy, dw, dh)`). A null `t` (allowed) is a
+   * no-op. See `drawImageRegionTinted`.
+   */
+  void drawImage(Texture t, RectF dest) {
+    drawImageTinted(t, dest, ColorF(1, 1, 1, 1));
+  }
+
+  /**
+   * Like `drawImage`, multiplied by `tint` (straight alpha; `tint.a`
+   * acts as a global alpha). A null `t` (allowed) is a no-op.
+   */
+  void drawImageTinted(Texture t, RectF dest, ColorF tint) {
+    if (t is null) {
+      return;
+    }
+    drawImageRegionTinted(
+      t, RectF(0, 0, t.width(), t.height()), dest, tint
+    );
+  }
+
+  /**
+   * Draws the `srcPx` region (texture pixels, top-left origin) of `t`
+   * stretched to `dest` (HTML `drawImage(img, sx, sy, sw, sh, dx, dy,
+   * dw, dh)`). A null `t` (allowed) is a no-op.
+   */
+  void drawImageRegion(Texture t, RectF srcPx, RectF dest) {
+    drawImageRegionTinted(t, srcPx, dest, ColorF(1, 1, 1, 1));
+  }
+
+  /**
+   * Draws the `srcPx` region (texture pixels, top-left origin, not
+   * clamped: sampling clamps to the edge) of `t` stretched to `dest`
+   * (user space, mapped by the current transform), multiplied by `tint`
+   * (straight alpha). Honors the Canvas clip and shadow (the shadow mask
+   * is the texture alpha * `tint.a`). Premultiplied and bottom-up
+   * textures (render targets) are handled. Draws nothing when `t` is null
+   * (allowed) or destroyed, `srcPx` or `dest` is empty or non-finite, or
+   * `tint.a <= 0`. `t` must not be the texture of an active render
+   * target.
+   */
+  void drawImageRegionTinted(
+    Texture t,
+    RectF srcPx,
+    RectF dest,
+    ColorF tint
+  ) {
+    import yguilib.render.internal.pipelines : TextureMode;
+    import yguilib.render.internal.stencil_ops : beginClipTest, endStencil;
+
+    if (!fRenderer.isInitialized() || t is null || !t.isValid()
+      || !rectDrawable(srcPx) || !rectDrawable(dest) || !(tint.a > 0)) {
+      return;
+    }
+    assert(!fRenderer.isActiveTargetTexture(t),
+      "drawing the texture of an active render target (feedback loop)");
+    buildImageVerts(t, srcPx, dest);
+    if (st.shadow.isVisible()) {
+      drawImageShadow(t, tint.a);
+    }
+    const TextureMode mode = t.premultiplied()
+      ? TextureMode.premultiplied : TextureMode.straight;
+    beginClipTest(clipActive());
+    fRenderer.texturePipelineRef().drawTexturedTriangles(
+      t.id(), fImageVerts[], tint, mode, fRenderer.getLogicWidth(),
+      fRenderer.getLogicHeight()
+    );
+    endStencil();
+  }
+
   // push state
   void save() {
     State copy = st;
@@ -1204,6 +1283,35 @@ package(yguilib.render):
     fStack.clear();
   }
 
+  /// Drawing state and save stack kept across a render target pass.
+  struct FrameState {
+    private State st;
+    private State[] stack;
+  }
+
+  /**
+   * Copies the current state and save stack (`Renderer.beginTarget`
+   * calls `resetFrame()` afterwards).
+   */
+  FrameState saveFrameState() {
+    FrameState s;
+    s.st = st;
+    s.stack = fStack[].dup;
+    return s;
+  }
+
+  /**
+   * Restores a state saved by `saveFrameState`. The clip bit is not
+   * rebuilt: it still lives in the stencil of the restored framebuffer.
+   */
+  void restoreFrameState(FrameState s) {
+    st = s.st;
+    fStack.clear();
+    foreach (ref e; s.stack) {
+      fStack.put(e);
+    }
+  }
+
 private:
   /// One `clip()` call, replayed to rebuild the clip bit on `restore()`.
   struct ClipEntry {
@@ -1253,6 +1361,8 @@ private:
   Appender!(float[]) fLocalTris;
   Appender!(float[]) fVerts;
   Appender!(float[]) fShadowVerts;
+  /// (x, y, u, v) triangles of the last `drawImageRegionTinted`.
+  Appender!(float[]) fImageVerts;
   Path2d fRectPath;
 
   bool clipActive() const {
@@ -1273,6 +1383,14 @@ private:
     import std.math : isFinite;
 
     return isFinite(p.x) && isFinite(p.y);
+  }
+
+  /// True when `r` is finite with a positive width and height.
+  static bool rectDrawable(in RectF r) {
+    import std.math : isFinite;
+
+    return isFinite(r.x) && isFinite(r.y) && isFinite(r.width)
+      && isFinite(r.height) && r.width > 0 && r.height > 0;
   }
 
   /**
@@ -1409,26 +1527,73 @@ private:
    * clear color are saved before and restored after the offscreen passes.
    */
   void drawShadow(ShadowShape shape, FillRule rule, in FillStyle style) {
-    import yguilib.render.internal.offscreen : OffscreenTarget,
-      SavedTargetState;
+    const pass = beginShadowPass();
+    if (pass.isNull) {
+      return;
+    }
+    drawShadowMask(shape, rule, style, pass.get.box, pass.get.scale);
+    endShadowPass(pass.get);
+  }
+
+  /**
+   * Shadow of the `fImageVerts` image triangles (`fVerts` gets their xy
+   * for `shadowBox`): the mask is the alpha of texture `t` * `alpha`, so
+   * shadow alpha = shadow color alpha * image alpha * tint alpha.
+   */
+  void drawImageShadow(Texture t, float alpha) {
+    const(float)[] xyuv = fImageVerts[];
+    fVerts.clear();
+    for (size_t i = 0; i + 3 < xyuv.length; i += 4) {
+      fVerts.put(xyuv[i]);
+      fVerts.put(xyuv[i + 1]);
+    }
+    const pass = beginShadowPass();
+    if (pass.isNull) {
+      return;
+    }
+    drawImageShadowMask(t, alpha, pass.get.box, pass.get.scale);
+    endShadowPass(pass.get);
+  }
+
+  /// Offscreen shadow pass in progress (see `beginShadowPass`).
+  struct ShadowPass {
+    PixelBox box;
+    float scale;
+    float sigma;
+    SavedTargetState saved;
+  }
+
+  /**
+   * Saves the target state and binds the cleared region of offscreen
+   * target 0 for the shadow box of `fVerts`. Null (nothing bound) when
+   * the box is empty.
+   */
+  auto beginShadowPass() {
+    import std.typecons : Nullable;
+    import yguilib.render.internal.offscreen : OffscreenTarget;
 
     const float scale = fRenderer.getTotalScaling();
     const float sigma = st.shadow.blur * 0.5f * scale;
     const box = shadowBox(sigma, scale);
+    Nullable!ShadowPass res;
     if (box.isNull) {
-      return;
+      return res;
     }
     const PixelBox b = box.get;
     OffscreenTarget* a = &fRenderer.offscreenTargetRef(0);
-    const SavedTargetState saved = SavedTargetState.capture();
+    res = ShadowPass(b, scale, sigma, SavedTargetState.capture());
     a.ensureSize(b.width, b.height);
     a.bindRegion(b.width, b.height, true);
-    drawShadowMask(shape, rule, style, b, scale);
-    if (sigma > 0) {
-      blurShadow(b, sigma);
+    return res;
+  }
+
+  /// Blurs the drawn mask, restores the target state and composites.
+  void endShadowPass(in ShadowPass p) {
+    if (p.sigma > 0) {
+      blurShadow(p.box, p.sigma);
     }
-    saved.restore();
-    compositeShadow(b, scale);
+    p.saved.restore();
+    compositeShadow(p.box, p.scale);
   }
 
   /**
@@ -1541,6 +1706,53 @@ private:
     );
   }
 
+  /**
+   * Draws the `fImageVerts` triangles shifted to the origin of box `b`
+   * into the bound offscreen region with blending disabled, writing the
+   * texture alpha * `alpha` (`TextureMode.alphaMask`).
+   */
+  void drawImageShadowMask(
+    Texture t,
+    float alpha,
+    in PixelBox b,
+    float scale
+  ) {
+    import glad2.gles2 : GL_BLEND, glDisable;
+    import yguilib.render.internal.pipelines : TextureMode;
+
+    const float ox = b.x / scale;
+    const float oy = b.y / scale;
+    const(float)[] xyuv = fImageVerts[];
+    fShadowVerts.clear();
+    for (size_t i = 0; i + 3 < xyuv.length; i += 4) {
+      const float[4] v = [xyuv[i] - ox, xyuv[i + 1] - oy, xyuv[i + 2],
+        xyuv[i + 3]];
+      fShadowVerts.put(v[]);
+    }
+    glDisable(GL_BLEND);
+    // the next draw re-enables blending via setupAlphaBlendState
+    fRenderer.texturePipelineRef().drawTexturedTrianglesWithCurrentState(
+      t.id(), fShadowVerts[], ColorF(1, 1, 1, alpha), TextureMode.alphaMask,
+      b.width / scale, b.height / scale
+    );
+  }
+
+  /**
+   * `fImageVerts` = two (x, y, u, v) triangles of `dest` transformed by
+   * the current transform, sampling `srcPx` of `t`.
+   */
+  void buildImageVerts(Texture t, in RectF srcPx, in RectF dest) {
+    import yguilib.render.internal.pipelines : quadVertices;
+
+    const float[24] local = quadVertices(dest, Renderer.textureUv(t, srcPx));
+    fImageVerts.clear();
+    for (size_t i = 0; i < local.length; i += 4) {
+      const PointF p = st.xf.apply(PointF(local[i], local[i + 1]));
+      const float[4] v = [p.x, p.y, local[i + 2], local[i + 3]];
+      fImageVerts.put(v[]);
+    }
+  }
+
   /// Blurs region `b` of target 0 horizontally into 1, vertically back.
   void blurShadow(in PixelBox b, float sigma) {
     import yguilib.render.internal.offscreen : OffscreenTarget;
@@ -1570,7 +1782,7 @@ private:
   /// Draws region `b` of target 0 tinted at `b` + offset (logic units).
   void compositeShadow(in PixelBox b, float scale) {
     import yguilib.render.internal.offscreen : OffscreenTarget;
-    import yguilib.render.internal.pipelines : TexturedQuad;
+    import yguilib.render.internal.pipelines : TextureMode, TexturedQuad;
     import yguilib.render.internal.stencil_ops : beginClipTest, endStencil;
 
     const OffscreenTarget* a = &fRenderer.offscreenTargetRef(0);
@@ -1586,7 +1798,8 @@ private:
     q.color = st.shadow.color;
     beginClipTest(clipActive());
     fRenderer.texturePipelineRef().drawTexturedQuad(
-      a.texture, q, fRenderer.getLogicWidth(), fRenderer.getLogicHeight()
+      a.texture, q, fRenderer.getLogicWidth(), fRenderer.getLogicHeight(),
+      TextureMode.straight
     );
     endStencil();
   }
@@ -2263,6 +2476,185 @@ unittest {
   r.popClipRect();
   assert(isRgb(95, 95, 255, 0, 0));
   assert(isRgb(105, 95, 0, 0, 0));
+
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// Canvas.drawImage (transform, clip, src region, tint, shadow, targets)
+unittest {
+  import glad2.gles2;
+  import std.math : PI;
+  import yguilib.clibs.sdl3;
+  import yguilib.render.image : Image;
+  import yguilib.render.render_target : RenderTarget;
+  import yguilib.window : Window;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(320, 240, "test_canvas_draw_image");
+  win.create();
+  scope(exit) win.destroy();
+  win.setDisplayScaling(1.0f);
+  auto r = win.renderer;
+  r.setViewport(320, 240);
+  auto cv = r.canvas();
+  const ColorF black = ColorF(0, 0, 0, 1);
+  const ColorF white = ColorF(1, 1, 1, 1);
+
+  // logic (x, y) with y down; GL y = 240 - y
+  ubyte[4] px(int x, int y) {
+    ubyte[4] p;
+    glReadPixels(x, 240 - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, p.ptr);
+    return p;
+  }
+
+  bool near(int x, int y, int cr, int cg, int cb, int tol) {
+    const p = px(x, y);
+    bool ok(int v, int e) {
+      return v >= e - tol && v <= e + tol;
+    }
+
+    return ok(p[0], cr) && ok(p[1], cg) && ok(p[2], cb);
+  }
+
+  bool isRgb(int x, int y, int cr, int cg, int cb) {
+    return near(x, y, cr, cg, cb, 0);
+  }
+
+  // 80x40 image, left half `left`, right half `right` (RGBA8)
+  Image twoColor(ubyte[4] left, ubyte[4] right) {
+    auto img = new Image(80, 40);
+    foreach (y; 0 .. 40) {
+      foreach (x; 0 .. 80) {
+        const size_t i = (y * 80 + x) * 4;
+        img.pixels[i .. i + 4] = x < 40 ? left : right;
+      }
+    }
+    return img;
+  }
+
+  Texture tex = r.createTexture(twoColor([255, 0, 0, 255],
+    [0, 0, 255, 255]));
+  scope(exit) tex.destroy();
+  assert(tex !is null && !tex.premultiplied() && !tex.bottomUp());
+  const RectF dest = RectF(20, 20, 80, 40);
+
+  // 1. untransformed: same pixels as Renderer.drawImage
+  r.clearFrame(black);
+  r.drawImage(tex, dest, white);
+  Image expected = r.captureFrame();
+  r.clearFrame(black);
+  cv.drawImage(tex, dest);
+  Image actual = r.captureFrame();
+  assert(expected !is null && actual !is null);
+  assert(expected.pixels == actual.pixels);
+  assert(isRgb(30, 40, 255, 0, 0) && isRgb(90, 40, 0, 0, 255));
+  assert(isRgb(10, 40, 0, 0, 0) && isRgb(30, 65, 0, 0, 0));
+
+  // 2. rotate 90 degrees: local (x, y) -> (200 - y, 20 + x)
+  r.clearFrame(black);
+  cv.save();
+  cv.translate(PointF(200, 20));
+  cv.rotate(PI / 2);
+  cv.drawImage(tex, RectF(0, 0, 80, 40));
+  cv.restore();
+  assert(isRgb(180, 30, 255, 0, 0) && isRgb(180, 55, 255, 0, 0));
+  assert(isRgb(180, 65, 0, 0, 255) && isRgb(165, 95, 0, 0, 255));
+  assert(isRgb(205, 40, 0, 0, 0) && isRgb(155, 40, 0, 0, 0));
+  assert(isRgb(180, 105, 0, 0, 0));
+
+  // 3. the Canvas clip limits the image
+  r.clearFrame(black);
+  cv.save();
+  auto clipPath = new Path2d();
+  clipPath.rect(RectF(0, 0, 40, 240));
+  cv.clip(clipPath);
+  cv.drawImage(tex, dest);
+  cv.restore();
+  assert(isRgb(30, 40, 255, 0, 0));
+  assert(isRgb(50, 40, 0, 0, 0) && isRgb(90, 40, 0, 0, 0));
+  // ... a circle clip too
+  r.clearFrame(black);
+  cv.save();
+  auto circle = new Path2d();
+  circle.arc(PointF(60, 40), 15, 0, 2 * PI, false);
+  cv.clip(circle);
+  cv.drawImage(tex, dest);
+  cv.restore();
+  assert(isRgb(50, 40, 255, 0, 0) && isRgb(70, 40, 0, 0, 255));
+  assert(isRgb(60, 22, 0, 0, 0) && isRgb(30, 40, 0, 0, 0));
+  assert(isRgb(90, 40, 0, 0, 0));
+
+  // 4. a src region picks the right half, stretched to dest
+  r.clearFrame(black);
+  cv.drawImageRegion(tex, RectF(40, 0, 40, 40), dest);
+  assert(isRgb(22, 40, 0, 0, 255) && isRgb(98, 40, 0, 0, 255));
+  assert(isRgb(60, 40, 0, 0, 255));
+
+  // 5. tint alpha halves the result
+  r.clearFrame(black);
+  cv.drawImageTinted(tex, dest, ColorF(1, 1, 1, 0.5f));
+  assert(near(30, 40, 128, 0, 0, 2) && near(90, 40, 0, 0, 128, 2));
+  // invalid input draws nothing
+  r.clearFrame(black);
+  cv.drawImage(null, dest);
+  cv.drawImageTinted(tex, dest, ColorF(1, 1, 1, 0));
+  cv.drawImage(tex, RectF(20, 20, 0, 40));
+  cv.drawImage(tex, RectF(20, float.nan, 80, 40));
+  cv.drawImageRegion(tex, RectF(0, 0, -5, 40), dest);
+  assert(isRgb(30, 40, 0, 0, 0) && isRgb(90, 40, 0, 0, 0));
+
+  // 6. hard shadow in the image shape; none under transparent pixels
+  Texture half = r.createTexture(twoColor([0, 255, 0, 255],
+    [0, 0, 0, 0]));
+  scope(exit) half.destroy();
+  Shadow hard;
+  hard.offset = PointF(10, 10);
+  hard.color = ColorF(1, 0, 0, 1);
+  r.clearFrame(black);
+  cv.shadow(hard);
+  cv.drawImage(half, RectF(100, 100, 80, 40));
+  assert(isRgb(105, 105, 0, 255, 0) && isRgb(135, 135, 0, 255, 0));
+  assert(isRgb(145, 120, 255, 0, 0) && isRgb(120, 145, 255, 0, 0));
+  assert(isRgb(160, 130, 0, 0, 0) && isRgb(175, 145, 0, 0, 0));
+  assert(isRgb(105, 145, 0, 0, 0));
+  // shadow alpha = shadow color alpha * image alpha * tint alpha
+  r.clearFrame(black); // also resets the Canvas state
+  cv.shadow(hard);
+  cv.drawImageTinted(half, RectF(100, 100, 80, 40),
+    ColorF(1, 1, 1, 0.5f));
+  assert(near(145, 120, 128, 0, 0, 3));
+  cv.shadow(Shadow.init);
+
+  // 7. a render target texture is upright with the drawn colors
+  RenderTarget rt = r.createRenderTarget(80, 40, false);
+  assert(rt !is null);
+  scope(exit) rt.destroy();
+  // On a failed assert close open targets before destroying them (an
+  // assert in destroy() while unwinding loops the test runner forever).
+  scope(exit) {
+    while (r.inTarget()) {
+      r.endTarget();
+    }
+  }
+  r.beginTarget(rt, true);
+  r.drawFillRect(RectF(0, 0, 80, 20), ColorF(1, 0, 0, 1));
+  r.drawFillRect(RectF(0, 20, 80, 20), ColorF(0, 0, 1, 0.5f));
+  r.endTarget();
+  r.clearFrame(black);
+  cv.drawImage(rt.texture(), RectF(200, 150, 80, 40));
+  assert(isRgb(240, 160, 255, 0, 0));
+  assert(near(240, 180, 0, 0, 128, 2));
+  // ... and through a transform + tint
+  r.clearFrame(black);
+  cv.save();
+  cv.translate(PointF(100, 0));
+  cv.drawImageTinted(rt.texture(), RectF(100, 150, 80, 40),
+    ColorF(1, 1, 1, 0.5f));
+  cv.restore();
+  assert(near(240, 160, 128, 0, 0, 2));
+  assert(near(240, 180, 0, 0, 64, 2));
 
   assert(glGetError() == GL_NO_ERROR);
 }

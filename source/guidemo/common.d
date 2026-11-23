@@ -5,6 +5,7 @@ module guidemo.common;
 
 import guidemo.demo_model_helpers : formatPageStatus, isPageActive;
 import guidemo.model : DebugDrawMode, DemoModel, DemoPage;
+import std.datetime.systime : SysTime;
 import yguilib.events : AppEvent;
 import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.model : ModelTracker;
@@ -214,4 +215,26 @@ unittest {
   syncPageShellView(tracker.model, DemoPage.layoutPainter, pageRoot);
   assert(!pageRoot.visible);
   assert(pageRoot.components.debugDraw is null);
+}
+
+/**
+ * Returns the file name `<prefix>-YYYYMMDD-HHMMSS.png` (in the current
+ * directory) for the time `t`.
+ */
+string pngPathFromPrefixTime(string prefix, SysTime t) {
+  import std.format : format;
+
+  return format(
+    "%s-%04d%02d%02d-%02d%02d%02d.png",
+    prefix, t.year, cast(int) t.month, t.day, t.hour, t.minute, t.second
+  );
+}
+
+unittest {
+  import std.datetime.date : DateTime;
+
+  const SysTime t = SysTime(DateTime(2026, 3, 7, 9, 5, 4));
+  assert(
+    pngPathFromPrefixTime("offscreen", t) == "offscreen-20260307-090504.png"
+  );
 }

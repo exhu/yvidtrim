@@ -7,12 +7,31 @@ import glad2.gles2;
 /**
  * Configures common 2D blending state: alpha blending enabled,
  * depth test and face culling disabled.
+ *
+ * Color uses straight-alpha "over" (`SRC_ALPHA, ONE_MINUS_SRC_ALPHA`)
+ * and alpha uses `ONE, ONE_MINUS_SRC_ALPHA`, so the destination alpha
+ * accumulates correctly: drawing onto a target cleared to transparent
+ * leaves a correct premultiplied result (alpha `a`, not `a * a`).
+ * Opaque destinations are unaffected.
  */
 void setupAlphaBlendState() {
   glDisable(GL_DEPTH_TEST);
   glDisable(GL_CULL_FACE);
   glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE,
+    GL_ONE_MINUS_SRC_ALPHA);
+}
+
+/**
+ * Like `setupAlphaBlendState` but for premultiplied-alpha sources
+ * (`ONE, ONE_MINUS_SRC_ALPHA` for color and alpha), e.g. render target
+ * textures.
+ */
+void setupPremultipliedBlendState() {
+  glDisable(GL_DEPTH_TEST);
+  glDisable(GL_CULL_FACE);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 /**

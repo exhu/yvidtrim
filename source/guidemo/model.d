@@ -150,6 +150,17 @@ final class CanvasPageModel : VersionedModel {
   float rotation = 0.0f;
   /// Whether the dash/rotation animation timer runs.
   bool animating = true;
-  /// Whether section slot 7 shows the image demo instead of the interop one.
-  bool showImages = true;
+  /// Section shown in slot 7, cycled with [I].
+  CanvasSlot7 slot7 = CanvasSlot7.images;
+  /// Incremented by each [P] request to save the offscreen image.
+  uint offscreenSaveSerial = 0;
+  /// PNG path for the latest offscreen save request.
+  string offscreenSavePath;
+}
+
+/// Canvas page sections sharing slot 7, in [I] cycle order.
+enum CanvasSlot7 {
+  interop,
+  images,
+  offscreen,
 }

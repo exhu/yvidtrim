@@ -6,22 +6,26 @@
  * coordinates via `r.canvas()`; `Renderer` calls inside a delegate use
  * absolute coordinates (the origin is the canvas transform `e/f`).
  *
- * Slot 7 alternates ([I]) between the Renderer interop section and the
- * image section (`Renderer.drawImage`/`drawImageRegion`). The sample PNG is
- * decoded once; its `Texture` is created lazily on the first draw and
- * released by `releaseTextures()` (main thread).
+ * Slot 7 cycles ([I]) through the Renderer interop section, the image
+ * section (`Renderer.drawImage`/`drawImageRegion` and `Canvas.drawImage`
+ * with a transform, a clip, a shadow and a tint) and the offscreen section
+ * (a cached `RenderTarget` drawing blitted several times). The sample PNG
+ * is decoded once; its `Texture` and the `RenderTarget` are created lazily
+ * on the first draw and released by `releaseGpuResources()` (main thread).
+ * A [P] request in the model is saved as a PNG by the offscreen draw.
  */
 module guidemo.pages.canvas_page;
 
 import guidemo.assets : sampleImagePng;
 import guidemo.common : makeSectionCard;
-import guidemo.model : CanvasPageModel;
+import guidemo.model : CanvasPageModel, CanvasSlot7;
 import yguilib.model : ModelTracker;
 import yguilib.render : Renderer;
 import yguilib.render.canvas : Canvas, FillRule, FillStyle, LineCap,
   LineDash, LineJoin, LinearGradient, Path2d, RadialGradient, Shadow,
   Transform2d;
 import yguilib.render.image : Image;
+import yguilib.render.render_target : RenderTarget;
 import yguilib.render.texture : Texture;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.uisystem : UiSystem;
@@ -70,6 +74,8 @@ final class CanvasPage {
     syncSlot7();
     strokesWidget.update(WidgetUpdateScope.visuals);
     transformsWidget.update(WidgetUpdateScope.visuals);
+    // the blits rotate and a [P] request is consumed by the draw
+    offscreenWidget.update(WidgetUpdateScope.visuals);
     return true;
   }
 
@@ -78,17 +84,26 @@ final class CanvasPage {
     const string anim = tracker.model.animating
       ? "[Space] Pause animation"
       : "[Space] Resume animation";
-    const string slot = tracker.model.showImages
-      ? " | [I] Show interop"
-      : " | [I] Show images";
-    return anim ~ slot;
+    static immutable string[CanvasSlot7.max + 1] next = [
+      CanvasSlot7.interop: " | [I] Show images",
+      CanvasSlot7.images: " | [I] Show offscreen",
+      CanvasSlot7.offscreen: " | [I] Show interop",
+    ];
+    return anim ~ next[tracker.model.slot7] ~ " | [P] Save offscreen PNG";
   }
 
-  /// Destroys GPU textures; call on the main thread with a live GL context.
-  void releaseTextures() {
+  /**
+   * Destroys the GPU texture and render target; call on the main thread
+   * with a live GL context. They are recreated by the next draw.
+   */
+  void releaseGpuResources() {
     if (sampleTexture !is null) {
       sampleTexture.destroy();
       sampleTexture = null;
+    }
+    if (offscreen !is null) {
+      offscreen.destroy();
+      offscreen = null;
     }
   }
 
@@ -131,17 +146,22 @@ private:
       2, 1, "7. Canvas + Renderer interop", "canvasInterop", &drawInterop
     );
     addSection(3, 1, "8. Shadows", "canvasShadows", &drawShadows);
-    // shares slot 7 with the interop section, toggled with [I]
+    // share slot 7 with the interop section, cycled with [I]
     imagesWidget = addSection(
       2, 1, "9. Images (drawImage)", "canvasImages", &drawImages
     );
+    offscreenWidget = addSection(
+      2, 1, "10. Offscreen (RenderTarget)", "canvasOffscreen",
+      &drawOffscreen
+    );
   }
 
-  /// Shows either the image or the interop card in slot 7.
+  /// Shows the slot 7 card selected by the model, hides the others.
   void syncSlot7() {
-    const bool images = tracker.model.showImages;
-    imagesWidget.parent.setVisible(images);
-    interopWidget.parent.setVisible(!images);
+    const CanvasSlot7 s = tracker.model.slot7;
+    interopWidget.parent.setVisible(s == CanvasSlot7.interop);
+    imagesWidget.parent.setVisible(s == CanvasSlot7.images);
+    offscreenWidget.parent.setVisible(s == CanvasSlot7.offscreen);
   }
 
   Widget addSection(
@@ -212,6 +232,14 @@ private:
 
     buildStrokePaths();
     buildMiscPaths();
+    buildImagePaths();
+  }
+
+  void buildImagePaths() {
+    import std.math : PI;
+
+    imageClip = new Path2d();
+    imageClip.arc(PointF(236, 128), 26, 0, 2 * PI, false);
   }
 
   void buildStrokePaths() {
@@ -316,6 +344,15 @@ private:
     sg.addColorStop(0, ColorF(0.55f, 0.95f, 0.45f, 1))
       .addColorStop(1, ColorF(0.85f, 0.40f, 0.95f, 1));
     gradientStroke = FillStyle.fromLinear(sg);
+
+    // star-local coordinates (radius 55 around the origin)
+    LinearGradient og;
+    og.p0 = PointF(-55, -55);
+    og.p1 = PointF(55, 55);
+    og.addColorStop(0, ColorF(1.0f, 0.85f, 0.30f, 1))
+      .addColorStop(0.5f, ColorF(0.95f, 0.40f, 0.45f, 1))
+      .addColorStop(1, ColorF(0.45f, 0.35f, 0.95f, 1));
+    offscreenFill = FillStyle.fromLinear(og);
   }
 
   // Section 1: quadratic/cubic curves, arc, arcTo, ellipse, roundRect.
@@ -585,6 +622,144 @@ private:
     r.drawImage(
       sampleTexture, destAt(r, PointF(8, 104), w1 * 2, h1 * 2), opaque
     );
+    drawCanvasImages(r.canvas(), w1, h1);
+    labelAt(r, "Canvas", PointF(150, 84));
+    labelAt(r, "shadow+tint", PointF(196, 176));
+  }
+
+  // Section 9, right column: Canvas.drawImage transformed, clipped and
+  // shadowed + tinted.
+  void drawCanvasImages(Canvas c, float w1, float h1) {
+    c.save();
+    c.translate(PointF(176, 130));
+    c.rotate(0.45f);
+    c.scale(PointF(0.6f, 0.6f));
+    c.drawImage(sampleTexture, RectF(-w1 / 2, -h1 / 2, w1, h1));
+    c.restore();
+
+    c.save();
+    c.clip(imageClip);
+    c.drawImage(sampleTexture, RectF(204, 96, w1, h1));
+    c.restore();
+
+    c.save();
+    Shadow soft;
+    soft.offset = PointF(4, 5);
+    soft.blur = 8;
+    soft.color = ColorF(0, 0, 0, 0.8f);
+    c.shadow(soft);
+    c.drawImageTinted(
+      sampleTexture, RectF(150, 170, 40, 40),
+      ColorF(0.55f, 0.85f, 1.0f, 0.9f)
+    );
+    c.restore();
+  }
+
+  // Section 10: a cached offscreen drawing blitted with Canvas.drawImage.
+  void drawOffscreen(Renderer r, in Widget w) {
+    if (!syncOffscreen(r)) {
+      labelAt(r, "render target unavailable", PointF(8, 0));
+      return;
+    }
+    Texture t = offscreen.texture();
+    auto c = r.canvas();
+    labelAt(r, "1:1", PointF(8, 0));
+    c.drawImage(t, RectF(8, 16, offscreenSize, offscreenSize));
+
+    labelAt(r, "rotate", PointF(150, 0));
+    c.save();
+    c.translate(PointF(186, 70));
+    c.rotate(tracker.model.rotation);
+    c.drawImage(t, RectF(-40, -40, offscreenSize, offscreenSize));
+    c.restore();
+
+    labelAt(r, "small", PointF(8, 108));
+    c.drawImage(t, RectF(8, 124, 32, 32));
+    c.drawImageTinted(t, RectF(48, 124, 32, 32), ColorF(1, 1, 1, 0.5f));
+
+    labelAt(r, "shadow 1.2x", PointF(130, 130));
+    c.save();
+    Shadow soft;
+    soft.offset = PointF(5, 6);
+    soft.blur = 10;
+    soft.color = ColorF(0, 0, 0, 0.8f);
+    c.shadow(soft);
+    c.drawImageRegion(t, pixelRect(offscreen), RectF(150, 140, 96, 96));
+    c.restore();
+    saveOffscreenIfRequested();
+  }
+
+  /**
+   * Creates the render target or keeps it in sync with the display scale,
+   * redrawing it when it is new or was reallocated.
+   * Returns: false if no valid target is available.
+   */
+  bool syncOffscreen(Renderer r) {
+    bool dirty = false;
+    if (offscreen is null) {
+      offscreen = r.createRenderTarget(offscreenSize, offscreenSize, true);
+      if (offscreen is null) {
+        return false;
+      }
+      dirty = true;
+    } else {
+      const int pw = offscreen.pixelWidth();
+      const int ph = offscreen.pixelHeight();
+      r.resizeRenderTarget(offscreen, offscreenSize, offscreenSize);
+      dirty = pw != offscreen.pixelWidth() || ph != offscreen.pixelHeight();
+    }
+    if (!offscreen.isValid()) {
+      return false;
+    }
+    if (dirty) {
+      renderOffscreen(r);
+    }
+    return true;
+  }
+
+  /// Draws the gradient star, its stroke and a label into the target.
+  void renderOffscreen(Renderer r) {
+    r.beginTarget(offscreen, true);
+    auto c = r.canvas();
+    c.save();
+    c.translate(PointF(40, 42));
+    c.scale(PointF(0.62f, 0.62f));
+    c.fillStyle(offscreenFill);
+    c.fill(star);
+    c.lineWidth(4);
+    c.lineJoin(LineJoin.round);
+    c.strokeStyle(FillStyle.solid(ColorF(1, 1, 1, 0.9f)));
+    c.stroke(star);
+    c.restore();
+    r.drawTextWithFont(
+      "RT", PointF(31, 34), ColorF(0.10f, 0.10f, 0.20f, 1),
+      r.getFont(14.0f, null)
+    );
+    r.endTarget();
+  }
+
+  /// Saves the target as a PNG once per new [P] request in the model.
+  void saveOffscreenIfRequested() {
+    import std.logger : errorf, infof;
+
+    const uint serial = tracker.model.offscreenSaveSerial;
+    if (serial == savedSerial) {
+      return;
+    }
+    savedSerial = serial;
+    const string path = tracker.model.offscreenSavePath;
+    auto img = offscreen.toImage();
+    if (img is null || !img.savePng(path)) {
+      errorf("offscreen: failed to save %s", path);
+      return;
+    }
+    infof("offscreen: saved %dx%d image to %s", img.width(), img.height(),
+      path);
+  }
+
+  /// Whole texture of `rt` in pixels.
+  static RectF pixelRect(RenderTarget rt) {
+    return RectF(0, 0, rt.pixelWidth(), rt.pixelHeight());
   }
 
   /// Absolute logic rect of size `w` x `h` at canvas-local `pos`.
@@ -612,6 +787,8 @@ private:
   enum float cardGap = 20;
   enum float drawWidth = 266;
   enum float drawHeight = 232;
+  /// Offscreen target size in logic units (square).
+  enum float offscreenSize = 80;
 
   UiSystem ui;
   ModelTracker!CanvasPageModel tracker;
@@ -620,9 +797,14 @@ private:
   Widget transformsWidget;
   Widget interopWidget;
   Widget imagesWidget;
+  Widget offscreenWidget;
   Widget[] sectionWidgets;
   Image sampleImage;
   Texture sampleTexture;
+  /// Cached offscreen drawing (section 10), null until the first draw.
+  RenderTarget offscreen;
+  /// Last `offscreenSaveSerial` handled by the offscreen draw.
+  uint savedSerial;
   Path2d curves;
   Path2d arcs;
   Path2d arcToPath;
@@ -646,9 +828,11 @@ private:
   Path2d shadowCard;
   Path2d shadowBadge;
   Path2d shadowLine;
+  Path2d imageClip;
   FillStyle linearFill;
   FillStyle radialFill;
   FillStyle gradientStroke;
+  FillStyle offscreenFill;
 }
 
 unittest {
@@ -659,13 +843,15 @@ unittest {
   auto tracker = ModelTracker!CanvasPageModel(new CanvasPageModel());
   auto page = new CanvasPage(ui, root, tracker);
   assert(page.rootWidget().parent is root);
-  assert(page.drawWidgets().length == 9);
+  assert(page.drawWidgets().length == 10);
   foreach (w; page.drawWidgets()) {
     assert(w.components.customDraw !is null);
     assert(w.components.customDraw.drawFunc !is null);
   }
   assert(
-    page.formatStatus() == "[Space] Pause animation | [I] Show interop"
+    page.formatStatus()
+      == "[Space] Pause animation | [I] Show offscreen"
+      ~ " | [P] Save offscreen PNG"
   );
 
   // the sample PNG decodes once; slot 7 shows images, interop is hidden
@@ -673,12 +859,15 @@ unittest {
   assert(page.image().width() == 64 && page.image().height() == 64);
   const Widget imagesCard = page.imagesWidget.parent;
   const Widget interopCard = page.interopWidget.parent;
+  const Widget offscreenCard = page.offscreenWidget.parent;
   assert(imagesCard.visible && !interopCard.visible);
+  assert(!offscreenCard.visible);
   assert(imagesCard.rect == interopCard.rect);
+  assert(offscreenCard.rect == interopCard.rect);
   // the top-left corner is red (orientation marker)
   const ubyte[] px = page.image().pixels;
   assert(px[0] > 200 && px[1] < 80 && px[2] < 80 && px[3] == 255);
-  page.releaseTextures();
+  page.releaseGpuResources();
 
   // a model change marks the animated widgets dirty
   page.update();
@@ -689,13 +878,21 @@ unittest {
   assert(page.update());
   assert(!page.update());
 
-  // toggling showImages swaps the slot 7 cards
+  // the slot 7 model value selects exactly one card
   m = tracker.edit();
-  m.showImages = false;
+  m.slot7 = CanvasSlot7.interop;
   tracker.commit(m);
   assert(page.update());
   assert(!imagesCard.visible && interopCard.visible);
+  assert(!offscreenCard.visible);
   assert(
     page.formatStatus() == "[Space] Pause animation | [I] Show images"
+      ~ " | [P] Save offscreen PNG"
   );
+  m = tracker.edit();
+  m.slot7 = CanvasSlot7.offscreen;
+  tracker.commit(m);
+  assert(page.update());
+  assert(!imagesCard.visible && !interopCard.visible);
+  assert(offscreenCard.visible);
 }

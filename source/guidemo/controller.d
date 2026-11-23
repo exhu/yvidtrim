@@ -12,7 +12,7 @@ import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.model : ModelTracker;
 import yguilib.uisystem : UiSystem;
 
-import guidemo.common : isKey;
+import guidemo.common : isKey, pngPathFromPrefixTime;
 import guidemo.demo_model_helpers : pageCount;
 import guidemo.model : DebugDrawMode, DemoModel;
 import yguilib.controls.tabcontrol : TabsModel;
@@ -214,12 +214,7 @@ private:
 /// Returns the screenshot file name `screenshot-YYYYMMDD-HHMMSS.png` (in the
 /// current directory) for the time `t`.
 string screenshotPathFromTime(SysTime t) {
-  import std.format : format;
-
-  return format(
-    "screenshot-%04d%02d%02d-%02d%02d%02d.png",
-    t.year, cast(int) t.month, t.day, t.hour, t.minute, t.second
-  );
+  return pngPathFromPrefixTime("screenshot", t);
 }
 
 unittest {

@@ -56,6 +56,19 @@ struct ClipStack {
     stack.clear();
   }
 
+  /**
+   * Re-sets the GL scissor from the top rect, or disables the scissor
+   * when the stack is empty (after switching render targets).
+   */
+  void reapply(int pixelW, int pixelH, float scale) {
+    const auto stackData = stack[];
+    if (stackData.length == 0) {
+      glDisable(GL_SCISSOR_TEST);
+    } else {
+      applyScissor(stackData[$ - 1], pixelW, pixelH, scale);
+    }
+  }
+
   static void applyScissor(
     in RectF rect,
     int pixelW,
