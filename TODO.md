@@ -1,3 +1,5 @@
+- add max texture memory, max textures count telemetry to be dumped at exit into uisystem_impl via info log.
+- investigate why many labels with glyph atlas consume more memory than pre-atlas (see documentation/text-atlas-benchmark.md)
 - cross-label text batching (queue glyph quads, flush on state change) (canvas-render-review 3.7)
 - build widget library
 -- checkbox
