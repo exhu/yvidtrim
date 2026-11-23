@@ -706,8 +706,8 @@ unittest {
           ev.window.width == 640 && ev.window.height == 480) {
         received ~= ev;
         if (window.renderer !is null) {
-          viewportWidth = window.renderer.getViewportWidth();
-          viewportHeight = window.renderer.getViewportHeight();
+          viewportWidth = window.renderer.viewportWidth();
+          viewportHeight = window.renderer.viewportHeight();
         }
         return HandleResult(HandleResult.Result.updateView);
       }
@@ -1822,7 +1822,7 @@ unittest {
 
   Image img = Image.loadFromFile(path);
   assert(img !is null);
-  assert(img.width() == win.renderer.getPixelWidth());
-  assert(img.height() == win.renderer.getPixelHeight());
+  assert(img.width() == win.renderer.pixelWidth());
+  assert(img.height() == win.renderer.pixelHeight());
   assert(img.pixels[0 .. 4] == [255, 0, 0, 255]);
 }

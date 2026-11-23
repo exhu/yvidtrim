@@ -34,9 +34,9 @@ class Window {
   void setUnitsScaling(float scaling) {
     customUnitsScaling = scaling;
     if (renderer !is null) {
-      renderer.setUnitsScaling(scaling);
-      this.width = renderer.getViewportWidth();
-      this.height = renderer.getViewportHeight();
+      renderer.unitsScaling(scaling);
+      this.width = renderer.viewportWidth();
+      this.height = renderer.viewportHeight();
       updateViewRect();
     }
   }
@@ -46,14 +46,14 @@ class Window {
    */
   float getUnitsScaling() const {
     if (renderer !is null) {
-      return renderer.getUnitsScaling();
+      return renderer.unitsScaling();
     }
     return customUnitsScaling;
   }
 
   float getDisplayScaling() const {
     if (renderer !is null) {
-      return renderer.getDisplayScaling();
+      return renderer.displayScaling();
     }
     return getDefaultScaling();
   }
@@ -151,10 +151,10 @@ package(yguilib):
     float defaultScale = getDefaultScaling();
     renderer = new Renderer(pw, ph, defaultScale);
     if (customUnitsScaling != 1.0f) {
-      renderer.setUnitsScaling(customUnitsScaling);
+      renderer.unitsScaling(customUnitsScaling);
     }
-    this.width = renderer.getViewportWidth();
-    this.height = renderer.getViewportHeight();
+    this.width = renderer.viewportWidth();
+    this.height = renderer.viewportHeight();
     updateViewRect();
   }
 
@@ -254,8 +254,8 @@ private:
       const RectF newRect = RectF(
         0,
         0,
-        renderer.getLogicWidth(),
-        renderer.getLogicHeight()
+        renderer.logicWidth(),
+        renderer.logicHeight()
       );
       if (rootWidget.rect != newRect) {
         rootWidget.rect = newRect;
@@ -268,9 +268,9 @@ private:
     this.pixelWidth = newPixelWidth;
     this.pixelHeight = newPixelHeight;
     if (renderer !is null) {
-      renderer.setViewport(newPixelWidth, newPixelHeight);
-      this.width = renderer.getViewportWidth();
-      this.height = renderer.getViewportHeight();
+      renderer.viewport(newPixelWidth, newPixelHeight);
+      this.width = renderer.viewportWidth();
+      this.height = renderer.viewportHeight();
     } else {
       this.width = newPixelWidth;
       this.height = newPixelHeight;
@@ -286,9 +286,9 @@ private:
 
   void onDisplayScaleChanged(float newScale) {
     if (renderer !is null) {
-      renderer.setDisplayScaling(newScale);
-      this.width = renderer.getViewportWidth();
-      this.height = renderer.getViewportHeight();
+      renderer.displayScaling(newScale);
+      this.width = renderer.viewportWidth();
+      this.height = renderer.viewportHeight();
       updateViewRect();
     }
   }
@@ -321,8 +321,8 @@ unittest {
   assert(window.glContext !is null);
   assert(window.id > 0);
   assert(window.renderer !is null);
-  assert(window.renderer.getViewportWidth() == 320);
-  assert(window.renderer.getViewportHeight() == 240);
+  assert(window.renderer.viewportWidth() == 320);
+  assert(window.renderer.viewportHeight() == 240);
 
   window.startTextInput();
   window.setTextInputArea(10, 10, 100, 20, 2);
@@ -333,8 +333,8 @@ unittest {
   window.onResize(640, 480);
   assert(window.width == cast(int)(640.0f / scale));
   assert(window.height == cast(int)(480.0f / scale));
-  assert(window.renderer.getViewportWidth() == window.width);
-  assert(window.renderer.getViewportHeight() == window.height);
+  assert(window.renderer.viewportWidth() == window.width);
+  assert(window.renderer.viewportHeight() == window.height);
 
   window.makeCurrent();
   window.swapBuffers();

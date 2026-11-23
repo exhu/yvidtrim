@@ -121,7 +121,7 @@ private:
       r.drawRectDashed(absRect, 1.0f, 4.0f, 3.0f, fgColor);
     }
 
-    Font font = r.getDefaultFont();
+    Font font = r.defaultFont();
     if (font is null) {
       return;
     }

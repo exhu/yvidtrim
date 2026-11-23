@@ -583,7 +583,7 @@ private:
     c.restore();
     r.drawTextWithFont(
       "Renderer text over Canvas", PointF(o.x + 20, o.y + 85),
-      ColorF(1, 1, 1, 1), r.getFont(14.0f, null)
+      ColorF(1, 1, 1, 1), r.font(14.0f, null)
     );
     c.fillStyle(FillStyle.solid(ColorF(0.55f, 0.95f, 0.55f, 0.5f)));
     c.save();
@@ -869,7 +869,7 @@ private:
     c.restore();
     r.drawTextWithFont(
       "RT", PointF(31, 34), ColorF(0.10f, 0.10f, 0.20f, 1),
-      r.getFont(14.0f, null)
+      r.font(14.0f, null)
     );
     r.endTarget();
   }
@@ -914,7 +914,7 @@ private:
     const Transform2d xf = r.canvas().transform();
     r.drawTextWithFont(
       text, xf.apply(pos), ColorF(0.80f, 0.85f, 0.92f, 1),
-      r.getFont(13.0f, null)
+      r.font(13.0f, null)
     );
   }
 

@@ -1273,8 +1273,8 @@ final class Canvas {
       ? TextureMode.premultiplied : TextureMode.straight;
     beginClipTest(clipActive());
     fRenderer.texturePipelineRef().drawTexturedTriangles(
-      t.id(), fImageVerts[], tint, mode, fRenderer.getLogicWidth(),
-      fRenderer.getLogicHeight()
+      t.id(), fImageVerts[], tint, mode, fRenderer.logicWidth(),
+      fRenderer.logicHeight()
     );
     endStencil();
   }
@@ -1461,7 +1461,7 @@ private:
   float tolerance(in Transform2d xf) const {
     import yguilib.render.internal.path_flatten : flattenTolerance;
 
-    return flattenTolerance(fRenderer.getTotalScaling(), xf);
+    return flattenTolerance(fRenderer.totalScaling(), xf);
   }
 
   static bool finitePoint(PointF p) {
@@ -1601,7 +1601,7 @@ private:
     case FillStyle.Kind.radialGradient:
       const GradientUniforms u = gradientUniforms(style, st.xf.inverse());
       fRenderer.gradientPipelineRef().drawTriangles(
-        verts, u, fRenderer.getLogicWidth(), fRenderer.getLogicHeight()
+        verts, u, fRenderer.logicWidth(), fRenderer.logicHeight()
       );
       return;
     case FillStyle.Kind.pattern:
@@ -1615,7 +1615,7 @@ private:
         style.pattern, logicToPat, mode
       );
       fRenderer.patternPipelineRef().drawTriangles(
-        verts, u, fRenderer.getLogicWidth(), fRenderer.getLogicHeight()
+        verts, u, fRenderer.logicWidth(), fRenderer.logicHeight()
       );
       return;
     }
@@ -1659,8 +1659,8 @@ private:
     } else {
       glDisable(GL_BLEND);
       fRenderer.colorPipelineRef().drawArraysWithCurrentState(
-        GL_TRIANGLES, cover[], style.color, fRenderer.getLogicWidth(),
-        fRenderer.getLogicHeight()
+        GL_TRIANGLES, cover[], style.color, fRenderer.logicWidth(),
+        fRenderer.logicHeight()
       );
       // the next draw re-enables blending via setupAlphaBlendState
     }
@@ -1721,7 +1721,7 @@ private:
     import std.typecons : Nullable;
     import yguilib.render.internal.offscreen : OffscreenTarget;
 
-    const float scale = fRenderer.getTotalScaling();
+    const float scale = fRenderer.totalScaling();
     const float sigma = st.shadow.blur * 0.5f * scale;
     const box = shadowBox(sigma, scale);
     Nullable!ShadowPass res;
@@ -1759,8 +1759,8 @@ private:
     const float pad = ceil(3 * sigma) + 1;
     const float offX = st.shadow.offset.x * scale;
     const float offY = st.shadow.offset.y * scale;
-    const float pw = fRenderer.getPixelWidth();
-    const float ph = fRenderer.getPixelHeight();
+    const float pw = fRenderer.pixelWidth();
+    const float ph = fRenderer.pixelHeight();
     const float x0 = max(floor(r.x * scale), floor(-offX)) - pad;
     const float y0 = max(floor(r.y * scale), floor(-offY)) - pad;
     const float x1 = min(ceil((r.x + r.width) * scale), ceil(pw - offX))
@@ -1965,7 +1965,7 @@ private:
     q.color = st.shadow.color;
     beginClipTest(clipActive());
     fRenderer.texturePipelineRef().drawTexturedQuad(
-      a.texture, q, fRenderer.getLogicWidth(), fRenderer.getLogicHeight(),
+      a.texture, q, fRenderer.logicWidth(), fRenderer.logicHeight(),
       TextureMode.straight
     );
     endStencil();
@@ -1984,8 +1984,8 @@ private:
     drawVerts(fVerts[], none);
     beginClipIntersect(e.rule);
     const float[12] all = quadFromRect(RectF(
-      -1, -1, fRenderer.getLogicWidth() + 2,
-      fRenderer.getLogicHeight() + 2
+      -1, -1, fRenderer.logicWidth() + 2,
+      fRenderer.logicHeight() + 2
     ));
     drawVerts(all[], none);
     if (fVerts[].length > 0) {
@@ -2049,8 +2049,8 @@ private:
       return;
     }
     fRenderer.colorPipelineRef().drawArrays(
-      GL_TRIANGLES, verts, color, fRenderer.getLogicWidth(),
-      fRenderer.getLogicHeight()
+      GL_TRIANGLES, verts, color, fRenderer.logicWidth(),
+      fRenderer.logicHeight()
     );
   }
 
@@ -2122,7 +2122,7 @@ unittest {
   scope(exit) win.destroy();
   win.setDisplayScaling(1.0f);
   auto r = win.renderer;
-  r.setViewport(320, 240);
+  r.viewport(320, 240);
   auto cv = r.canvas();
   assert(cv !is null);
 
@@ -2344,7 +2344,7 @@ unittest {
   scope(exit) win.destroy();
   win.setDisplayScaling(1.0f);
   auto r = win.renderer;
-  r.setViewport(320, 240);
+  r.viewport(320, 240);
   auto cv = r.canvas();
 
   // logic (x, y) with y down; GL y = 240 - y
@@ -2465,7 +2465,7 @@ unittest {
   scope(exit) win.destroy();
   win.setDisplayScaling(1.0f);
   auto r = win.renderer;
-  r.setViewport(320, 240);
+  r.viewport(320, 240);
   auto cv = r.canvas();
 
   // logic (x, y) with y down; GL y = 240 - y
@@ -2664,7 +2664,7 @@ unittest {
   scope(exit) win.destroy();
   win.setDisplayScaling(1.0f);
   auto r = win.renderer;
-  r.setViewport(320, 240);
+  r.viewport(320, 240);
   auto cv = r.canvas();
   const ColorF black = ColorF(0, 0, 0, 1);
   const ColorF white = ColorF(1, 1, 1, 1);
@@ -2843,7 +2843,7 @@ unittest {
   scope(exit) win.destroy();
   win.setDisplayScaling(1.0f);
   auto r = win.renderer;
-  r.setViewport(320, 240);
+  r.viewport(320, 240);
   auto cv = r.canvas();
   const ColorF black = ColorF(0, 0, 0, 1);
 

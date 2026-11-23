@@ -295,7 +295,7 @@ unittest {
   scope(exit) win.destroy();
   win.setDisplayScaling(1.0f);
   Renderer r = win.renderer;
-  r.setViewport(320, 240);
+  r.viewport(320, 240);
 
   ubyte[4] windowAt(int x, int y) {
     ubyte[4] p;
@@ -341,7 +341,7 @@ unittest {
   assert(!r.inTarget());
   r.beginTarget(rt, true);
   assert(r.inTarget());
-  assert(r.getPixelWidth() == 40 && r.getPixelHeight() == 30);
+  assert(r.pixelWidth() == 40 && r.pixelHeight() == 30);
   r.drawFillRect(RectF(0, 0, 40, 15), ColorF(1, 0, 0, 0.5f));
   r.endTarget();
   assert(!r.inTarget());
@@ -367,7 +367,7 @@ unittest {
   GLint[4] vp;
   glGetIntegerv(GL_VIEWPORT, vp.ptr);
   assert(vp == [0, 0, 320, 240]);
-  assert(r.getPixelWidth() == 320 && r.getPixelHeight() == 240);
+  assert(r.pixelWidth() == 320 && r.pixelHeight() == 240);
   assert(glIsEnabled(GL_SCISSOR_TEST) == GL_TRUE);
   GLint[4] box;
   glGetIntegerv(GL_SCISSOR_BOX, box.ptr);
@@ -407,7 +407,7 @@ unittest {
   // 4. Nested: B's texture drawn into A.
   r.beginTarget(rt, true);
   r.beginTarget(b, true);
-  assert(r.getPixelWidth() == 20);
+  assert(r.pixelWidth() == 20);
   r.drawFillRect(RectF(0, 0, 20, 10), ColorF(1, 0, 0, 1));
   version (assert) {
     import core.exception : AssertError;
@@ -422,7 +422,7 @@ unittest {
     );
   }
   r.endTarget();
-  assert(r.getPixelWidth() == 40 && r.inTarget());
+  assert(r.pixelWidth() == 40 && r.inTarget());
   r.drawImage(b.texture(), RectF(0, 0, 20, 20), ColorF(1, 1, 1, 1));
   r.endTarget();
   img = rt.toImage();

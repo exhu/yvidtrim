@@ -172,7 +172,7 @@ PointF calcTextContentSize(
     return PointF(0.0f, 0.0f);
   }
 
-  Font font = r.getFont(tl.fontSize, tl.font);
+  Font font = r.font(tl.fontSize, tl.font);
   if (font is null) {
     return PointF(0.0f, 0.0f);
   }
@@ -194,7 +194,7 @@ PointF calcConstTextContentSize(
     return PointF(0.0f, 0.0f);
   }
 
-  Font font = r.getFont(tl.fontSize, tl.font);
+  Font font = r.font(tl.fontSize, tl.font);
   if (font is null) {
     return PointF(0.0f, 0.0f);
   }

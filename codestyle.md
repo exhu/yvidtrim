@@ -21,6 +21,9 @@
   - Modules: `lowercase`
   - Types (classes, structs, interfaces, enums): `PascalCase`
   - Functions, methods, variables, fields, enum values: `camelCase`
+  - Backing fields that clash with accessor method names: prepend an `f`
+    prefix (meaning "field"), e.g. `fUnitsScaling` (not `unitsScaling_`).
+  - Do not use leading or trailing underscores in symbol names.
   - No consecutive capital letters: use `Id`, `makeGuid`, `colorRgb` (not `ID`,
     `makeGUID`, `colorRGB`).
 - **No overloaded functions:** Do not add overloaded functions or methods

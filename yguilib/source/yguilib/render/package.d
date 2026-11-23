@@ -19,13 +19,12 @@ import yguilib.assets : defaultTtfFontData;
 import yguilib.render.canvas;
 
 /// Managed by Window class. Lower level 2d api.
-// TODO rename get/set methods according to naming in codestyle.md, e.g. setClipRect -> clipRect(...)
 final class Renderer {
   this(int width, int height, float displayScaling) {
     viewportPixelWidth = width;
     viewportPixelHeight = height;
-    this.displayScaling = displayScaling > 0.0f ? displayScaling : 1.0f;
-    this.unitsScaling = 1.0f;
+    fDisplayScaling = displayScaling > 0.0f ? displayScaling : 1.0f;
+    fUnitsScaling = 1.0f;
     if (width > 0 && height > 0) {
       glViewport(0, 0, width, height);
     }
@@ -46,9 +45,9 @@ final class Renderer {
       fontManager.destroy();
       fontManager = null;
     }
-    if (ownsDefaultFont_ && defaultFont_ !is null) {
-      defaultFont_.destroy();
-      defaultFont_ = null;
+    if (fOwnsDefaultFont && fDefaultFont !is null) {
+      fDefaultFont.destroy();
+      fDefaultFont = null;
     }
     foreach (ref t; offscreenTargets) {
       t.destroy();
@@ -72,7 +71,7 @@ final class Renderer {
     destroy();
   }
 
-  void setViewport(int pixelWidth, int pixelHeight) {
+  void viewport(int pixelWidth, int pixelHeight) {
     viewportPixelWidth = pixelWidth;
     viewportPixelHeight = pixelHeight;
     glViewport(0, 0, pixelWidth, pixelHeight);
@@ -82,10 +81,10 @@ final class Renderer {
    * Sets the additional scaling factor above displayScaling (e.g. to support
    * zooming in/out UI for user preferences). Defaults to 1.0.
    */
-  void setUnitsScaling(float scaling) {
+  void unitsScaling(float scaling) {
     float newScale = scaling > 0.0f ? scaling : 1.0f;
-    if (newScale != unitsScaling) {
-      unitsScaling = newScale;
+    if (newScale != fUnitsScaling) {
+      fUnitsScaling = newScale;
       onScalingChanged();
     }
   }
@@ -93,37 +92,37 @@ final class Renderer {
   /**
    * Gets the additional scaling factor above displayScaling (defaults to 1.0).
    */
-  float getUnitsScaling() const {
-    return unitsScaling;
+  float unitsScaling() const {
+    return fUnitsScaling;
   }
 
-  void setDisplayScaling(float scaling) {
+  void displayScaling(float scaling) {
     float newScale = scaling > 0.0f ? scaling : 1.0f;
-    if (newScale != displayScaling) {
-      displayScaling = newScale;
+    if (newScale != fDisplayScaling) {
+      fDisplayScaling = newScale;
       onScalingChanged();
     }
   }
 
-  float getDisplayScaling() const {
-    return displayScaling;
+  float displayScaling() const {
+    return fDisplayScaling;
   }
 
-  alias getDefaultScaling = getDisplayScaling;
+  alias defaultScaling = displayScaling;
 
   /**
    * Gets the combined scaling factor (displayScaling * unitsScaling).
    */
-  float getTotalScaling() const {
-    return displayScaling * unitsScaling;
+  float totalScaling() const {
+    return fDisplayScaling * fUnitsScaling;
   }
 
   float pixelsFromLogicFloat(float logicUnits) const {
-    return logicUnits * (displayScaling * unitsScaling);
+    return logicUnits * (fDisplayScaling * fUnitsScaling);
   }
 
   float logicFromPixelsFloat(float pixels) const {
-    const float totalScale = displayScaling * unitsScaling;
+    const float totalScale = fDisplayScaling * fUnitsScaling;
     return totalScale > 0.0f ? (pixels / totalScale) : pixels;
   }
 
@@ -159,32 +158,32 @@ final class Renderer {
     );
   }
 
-  int getPixelWidth() const {
+  int pixelWidth() const {
     return viewportPixelWidth;
   }
 
-  int getPixelHeight() const {
+  int pixelHeight() const {
     return viewportPixelHeight;
   }
 
-  float getLogicWidth() const {
+  float logicWidth() const {
     return logicFromPixelsFloat(cast(float)viewportPixelWidth);
   }
 
-  float getLogicHeight() const {
+  float logicHeight() const {
     return logicFromPixelsFloat(cast(float)viewportPixelHeight);
   }
 
-  int getViewportWidth() const {
-    return cast(int)getLogicWidth();
+  int viewportWidth() const {
+    return cast(int)logicWidth();
   }
 
-  int getViewportHeight() const {
-    return cast(int)getLogicHeight();
+  int viewportHeight() const {
+    return cast(int)logicHeight();
   }
 
   bool isOnScreen(in RectF rect) const {
-    return isOnScreenWithViewport(rect, getLogicWidth(), getLogicHeight());
+    return isOnScreenWithViewport(rect, logicWidth(), logicHeight());
   }
 
   /**
@@ -208,7 +207,7 @@ final class Renderer {
   }
 
   PointF coordinatesFromCoords(float x, float y) const {
-    const float factor = unitsScaling > 0.0f ? (1.0f / unitsScaling) : 1.0f;
+    const float factor = fUnitsScaling > 0.0f ? (1.0f / fUnitsScaling) : 1.0f;
     return PointF(x * factor, y * factor);
   }
 
@@ -239,8 +238,8 @@ final class Renderer {
     colorPipeline.drawFillRect(
       rect,
       color,
-      getLogicWidth(),
-      getLogicHeight()
+      logicWidth(),
+      logicHeight()
     );
   }
 
@@ -259,8 +258,8 @@ final class Renderer {
       point1,
       point2,
       color,
-      getLogicWidth(),
-      getLogicHeight()
+      logicWidth(),
+      logicHeight()
     );
   }
 
@@ -309,8 +308,8 @@ final class Renderer {
       dashLen,
       gapLen,
       color,
-      getLogicWidth(),
-      getLogicHeight()
+      logicWidth(),
+      logicHeight()
     );
   }
 
@@ -330,8 +329,8 @@ final class Renderer {
       rect,
       lineWidth,
       color,
-      getLogicWidth(),
-      getLogicHeight()
+      logicWidth(),
+      logicHeight()
     );
   }
 
@@ -373,9 +372,9 @@ final class Renderer {
       dashLen,
       gapLen,
       color,
-      getLogicWidth(),
-      getLogicHeight(),
-      getTotalScaling()
+      logicWidth(),
+      logicHeight(),
+      totalScaling()
     );
   }
 
@@ -397,9 +396,9 @@ final class Renderer {
       0.0f,
       0.0f,
       color,
-      getLogicWidth(),
-      getLogicHeight(),
-      getTotalScaling()
+      logicWidth(),
+      logicHeight(),
+      totalScaling()
     );
   }
 
@@ -429,9 +428,9 @@ final class Renderer {
       0.0f,
       0.0f,
       color,
-      getLogicWidth(),
-      getLogicHeight(),
-      getTotalScaling()
+      logicWidth(),
+      logicHeight(),
+      totalScaling()
     );
   }
 
@@ -464,20 +463,20 @@ final class Renderer {
       dashLen,
       gapLen,
       color,
-      getLogicWidth(),
-      getLogicHeight(),
-      getTotalScaling()
+      logicWidth(),
+      logicHeight(),
+      totalScaling()
     );
   }
 
   void pushClipRect(RectF rect) {
     clipStack.push(
       rect,
-      getLogicWidth(),
-      getLogicHeight(),
+      logicWidth(),
+      logicHeight(),
       viewportPixelWidth,
       viewportPixelHeight,
-      getTotalScaling()
+      totalScaling()
     );
   }
 
@@ -485,16 +484,16 @@ final class Renderer {
     clipStack.pop(
       viewportPixelWidth,
       viewportPixelHeight,
-      getTotalScaling()
+      totalScaling()
     );
   }
 
-  void setClipRect(RectF rect) {
+  void clipRect(RectF rect) {
     clipStack.set(
       rect,
       viewportPixelWidth,
       viewportPixelHeight,
-      getTotalScaling()
+      totalScaling()
     );
   }
 
@@ -508,7 +507,7 @@ final class Renderer {
    * Font instances are managed and cached by FontManager. When fontName is
    * null, empty, or "default", the built-in default font (defaultTtfFontData)
    * is used. The default font is created lazily on demand upon the very first
-   * call to getFont, getDefaultFont, measureText, or drawText for a given size.
+   * call to font, defaultFont, measureText, or drawText for a given size.
    *
    * If ptSize is non-positive, NaN, or infinity, it automatically falls back
    * to defaultFontPtSize.
@@ -517,9 +516,9 @@ final class Renderer {
    * @param fontName Registered font name, or null/empty for default font.
    * @return A cached Font instance, or null if FontManager is not initialized.
    */
-  Font getFont(float ptSize, string fontName) {
+  Font font(float ptSize, string fontName) {
     if (fontManager !is null) {
-      return fontManager.getFont(ptSize, fontName, getTotalScaling());
+      return fontManager.getFont(ptSize, fontName, totalScaling());
     }
     return null;
   }
@@ -527,23 +526,23 @@ final class Renderer {
   /**
    * Gets the default font at defaultFontPtSize (11.0f).
    *
-   * If no custom font was explicitly assigned via setDefaultFont, this
-   * retrieves the managed default font instance via getFont(defaultFontPtSize).
+   * If no custom font was explicitly assigned via defaultFont, this
+   * retrieves the managed default font instance via font(defaultFontPtSize).
    * The default font is created lazily on demand on first request.
    *
    * @return The default Font instance.
    */
-  Font getDefaultFont() {
-    if (defaultFont_ !is null) {
-      return defaultFont_;
+  Font defaultFont() {
+    if (fDefaultFont !is null) {
+      return fDefaultFont;
     }
-    return getFont(defaultFontPtSize, null);
+    return font(defaultFontPtSize, null);
   }
 
   /**
    * Registers a custom font face from in-memory TTF binary data.
    *
-   * Registered fonts can subsequently be resolved by name in getFont,
+   * Registered fonts can subsequently be resolved by name in font,
    * measureText, and drawText.
    *
    * @param fontName Unique name identifying the font face.
@@ -558,7 +557,7 @@ final class Renderer {
   /**
    * Registers a custom font face from a font file path on disk.
    *
-   * Registered fonts can subsequently be resolved by name in getFont,
+   * Registered fonts can subsequently be resolved by name in font,
    * measureText, and drawText.
    *
    * @param fontName Unique name identifying the font face.
@@ -592,7 +591,7 @@ final class Renderer {
    * @return A newly allocated Font instance.
    */
   Font createFontFromMemory(const(void)[] fontData, float ptSize) {
-    return Font.fromMemory(fontData, ptSize, getTotalScaling());
+    return Font.fromMemory(fontData, ptSize, totalScaling());
   }
 
   /**
@@ -607,15 +606,15 @@ final class Renderer {
    * @return A newly allocated Font instance.
    */
   Font createFontFromFile(string filePath, float ptSize) {
-    return Font.fromFile(filePath, ptSize, getTotalScaling());
+    return Font.fromFile(filePath, ptSize, totalScaling());
   }
 
-  void setDefaultFont(Font font) {
-    if (ownsDefaultFont_ && defaultFont_ !is null) {
-      defaultFont_.destroy();
+  void defaultFont(Font font) {
+    if (fOwnsDefaultFont && fDefaultFont !is null) {
+      fDefaultFont.destroy();
     }
-    defaultFont_ = font;
-    ownsDefaultFont_ = false;
+    fDefaultFont = font;
+    fOwnsDefaultFont = false;
   }
 
   void clearTextCache() {
@@ -632,8 +631,8 @@ final class Renderer {
       texId,
       destRect,
       color,
-      getLogicWidth(),
-      getLogicHeight()
+      logicWidth(),
+      logicHeight()
     );
   }
 
@@ -685,8 +684,8 @@ final class Renderer {
     texPipeline.drawTexturedQuad(
       t.id(),
       TexturedQuad(dest, textureUv(t, srcPx), tint),
-      getLogicWidth(),
-      getLogicHeight(),
+      logicWidth(),
+      logicHeight(),
       mode
     );
   }
@@ -738,7 +737,7 @@ final class Renderer {
 
   /**
    * Creates an offscreen render target of `logicW` x `logicH` logic
-   * units: `max(1, ceil(logic * getTotalScaling()))` pixels. With `msaa`
+   * units: `max(1, ceil(logic * totalScaling()))` pixels. With `msaa`
    * it uses min(4, GL_MAX_SAMPLES) samples, falling back to no MSAA when
    * fewer than 2 are supported or the MSAA framebuffer is incomplete.
    * The caller owns the result and must call `RenderTarget.destroy()` on
@@ -841,7 +840,7 @@ final class Renderer {
     viewportPixelHeight = f.pixelHeight;
     clipStack = f.clips;
     clipStack.reapply(
-      viewportPixelWidth, viewportPixelHeight, getTotalScaling()
+      viewportPixelWidth, viewportPixelHeight, totalScaling()
     );
     if (fCanvas !is null) {
       fCanvas.restoreFrameState(f.canvasState);
@@ -871,7 +870,7 @@ final class Renderer {
     ColorF color,
     Font font
   ) {
-    Font f = font !is null ? font : getDefaultFont();
+    Font f = font !is null ? font : defaultFont();
     if (f is null || text.length == 0 || textCache is null) {
       return;
     }
@@ -885,7 +884,7 @@ final class Renderer {
   /**
    * Draws text at a specified position resolving the font by size and name.
    *
-   * The font instance is retrieved or lazily created on demand via getFont.
+   * The font instance is retrieved or lazily created on demand via font.
    *
    * @param text Text string to render.
    * @param pos Top-left position in logical coordinates.
@@ -900,7 +899,7 @@ final class Renderer {
     float ptSize,
     string fontName
   ) {
-    Font f = getFont(ptSize, fontName);
+    Font f = font(ptSize, fontName);
     drawTextWithFont(text, pos, color, f);
   }
 
@@ -915,7 +914,7 @@ final class Renderer {
    * @return Dimensions of the measured text in logical units.
    */
   PointF measureTextWithFont(string text, Font font) {
-    Font f = font !is null ? font : getDefaultFont();
+    Font f = font !is null ? font : defaultFont();
     if (f is null || text.length == 0) {
       return PointF(0.0f, 0.0f);
     }
@@ -925,7 +924,7 @@ final class Renderer {
   /**
    * Measures text bounding dimensions resolving the font by size and name.
    *
-   * The font instance is retrieved or lazily created on demand via getFont.
+   * The font instance is retrieved or lazily created on demand via font.
    * Returned dimensions are scaled to user logical units.
    *
    * @param text Text string to measure.
@@ -938,7 +937,7 @@ final class Renderer {
     float ptSize,
     string fontName
   ) {
-    Font f = getFont(ptSize, fontName);
+    Font f = font(ptSize, fontName);
     return measureTextWithFont(text, f);
   }
 
@@ -1096,7 +1095,7 @@ private:
   int targetPixelsFromLogic(float logic) const {
     import std.math : ceil;
 
-    const float px = ceil(logic * getTotalScaling());
+    const float px = ceil(logic * totalScaling());
     return px < 1.0f ? 1 : cast(int)px;
   }
 
@@ -1109,22 +1108,22 @@ private:
   }
 
   void onScalingChanged() {
-    float totalScale = getTotalScaling();
+    float totalScale = totalScaling();
     if (fontManager !is null) {
       fontManager.setScaling(totalScale);
     }
-    if (ownsDefaultFont_ && defaultFont_ !is null) {
-      defaultFont_.setScale(totalScale);
-    } else if (defaultFont_ !is null) {
-      setDefaultFont(null);
+    if (fOwnsDefaultFont && fDefaultFont !is null) {
+      fDefaultFont.setScale(totalScale);
+    } else if (fDefaultFont !is null) {
+      defaultFont(null);
     }
     clearTextCache();
   }
 
   int viewportPixelWidth;
   int viewportPixelHeight;
-  float displayScaling = 1.0f;
-  float unitsScaling = 1.0f;
+  float fDisplayScaling = 1.0f;
+  float fUnitsScaling = 1.0f;
 
   ColorPipeline colorPipeline;
   TexturePipeline texPipeline;
@@ -1138,8 +1137,8 @@ private:
   TargetFrame[] targetFrames;
   TextCache textCache;
   FontManager fontManager;
-  Font defaultFont_;
-  bool ownsDefaultFont_;
+  Font fDefaultFont;
+  bool fOwnsDefaultFont;
   bool initialized;
   Canvas fCanvas;
 }
@@ -1184,10 +1183,10 @@ unittest {
 
   auto renderer = win.renderer;
   assert(renderer !is null);
-  renderer.setViewport(320, 240);
+  renderer.viewport(320, 240);
 
-  assert(renderer.getViewportWidth() == 320);
-  assert(renderer.getViewportHeight() == 240);
+  assert(renderer.viewportWidth() == 320);
+  assert(renderer.viewportHeight() == 240);
   assert(renderer.isOnScreen(RectF(10, 10, 100, 100)));
   assert(!renderer.isOnScreen(RectF(700, 10, 100, 100)));
 
@@ -1248,14 +1247,14 @@ unittest {
   assert(glGetError() == GL_NO_ERROR);
 
   // 6. Test units scaling and pixel conversions
-  assert(renderer.getDefaultScaling() == 1.0f);
-  assert(renderer.getDisplayScaling() == 1.0f);
-  assert(renderer.getUnitsScaling() == 1.0f);
+  assert(renderer.defaultScaling() == 1.0f);
+  assert(renderer.displayScaling() == 1.0f);
+  assert(renderer.unitsScaling() == 1.0f);
   assert(renderer.pixelsFromLogicFloat(10.0f) == 10.0f);
   assert(renderer.logicFromPixelsFloat(10.0f) == 10.0f);
 
-  renderer.setUnitsScaling(2.0f);
-  assert(renderer.getUnitsScaling() == 2.0f);
+  renderer.unitsScaling(2.0f);
+  assert(renderer.unitsScaling() == 2.0f);
   assert(renderer.pixelsFromLogicFloat(10.0f) == 20.0f);
   assert(renderer.logicFromPixelsFloat(20.0f) == 10.0f);
   assert(renderer.pixelsFromLogicFloat(15.0f) == 30.0f);
@@ -1279,28 +1278,28 @@ unittest {
     backLr.width == 50.0f && backLr.height == 60.0f
   );
 
-  assert(renderer.getPixelWidth() == 320);
-  assert(renderer.getPixelHeight() == 240);
-  assert(renderer.getViewportWidth() == 160);
-  assert(renderer.getViewportHeight() == 120);
+  assert(renderer.pixelWidth() == 320);
+  assert(renderer.pixelHeight() == 240);
+  assert(renderer.viewportWidth() == 160);
+  assert(renderer.viewportHeight() == 120);
 
   // Combined scaling: displayScaling = 2.0f, unitsScaling = 1.5f
   // (effective scale = 3.0f)
-  renderer.setDisplayScaling(2.0f);
-  renderer.setUnitsScaling(1.5f);
-  assert(renderer.getDisplayScaling() == 2.0f);
-  assert(renderer.getUnitsScaling() == 1.5f);
+  renderer.displayScaling(2.0f);
+  renderer.unitsScaling(1.5f);
+  assert(renderer.displayScaling() == 2.0f);
+  assert(renderer.unitsScaling() == 1.5f);
   assert(renderer.pixelsFromLogicFloat(10.0f) == 30.0f);
   assert(renderer.logicFromPixelsFloat(30.0f) == 10.0f);
-  assert(renderer.getViewportWidth() == 106);
-  assert(renderer.getViewportHeight() == 80);
+  assert(renderer.viewportWidth() == 106);
+  assert(renderer.viewportHeight() == 80);
 
   // 7. Test coordinatesFromEvent
   // Case A: 200% display scale, zoom = 1.0 (1:1 window points to logic)
-  renderer.setDisplayScaling(2.0f);
-  renderer.setUnitsScaling(1.0f);
-  assert(renderer.getDefaultScaling() == 2.0f);
-  assert(renderer.getUnitsScaling() == 1.0f);
+  renderer.displayScaling(2.0f);
+  renderer.unitsScaling(1.0f);
+  assert(renderer.defaultScaling() == 2.0f);
+  assert(renderer.unitsScaling() == 1.0f);
 
   AppEvent evMotion = AppEvent.mouseEvent(
     AppEvent.Kind.mouseMotion,
@@ -1315,21 +1314,21 @@ unittest {
   assert(fromFloat.y == 50.0f);
 
   // Case B: 200% display scale, zoom = 2.0 (logic coords halved)
-  renderer.setUnitsScaling(2.0f);
+  renderer.unitsScaling(2.0f);
   converted = renderer.coordinatesFromEvent(evMotion);
   assert(converted.x == 50.0f);
   assert(converted.y == 25.0f);
 
   // Case C: 100% display scale, zoom = 0.5 (logic coords doubled)
-  renderer.setDisplayScaling(1.0f);
-  renderer.setUnitsScaling(0.5f);
+  renderer.displayScaling(1.0f);
+  renderer.unitsScaling(0.5f);
   converted = renderer.coordinatesFromEvent(evMotion);
   assert(converted.x == 200.0f);
   assert(converted.y == 100.0f);
 
   // 8. Scaled drawing test: unitsScaling = 2.0
-  renderer.setDisplayScaling(1.0f);
-  renderer.setUnitsScaling(2.0f);
+  renderer.displayScaling(1.0f);
+  renderer.unitsScaling(2.0f);
   // Drawing rect (0, 0, 160, 120) logic units covers all 320x240 pixels.
   renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawFillRect(
@@ -1344,8 +1343,8 @@ unittest {
   assert(pixel[0] == 0 && pixel[1] == 255 && pixel[2] == 0 && pixel[3] == 255);
 
   // 9. Font loading, metrics, text measurement, and rendering tests
-  renderer.setUnitsScaling(1.0f);
-  renderer.setDisplayScaling(1.0f);
+  renderer.unitsScaling(1.0f);
+  renderer.displayScaling(1.0f);
 
   Font customFont = Font.fromMemory(
     cast(const(void)[])defaultTtfFontData,
@@ -1422,8 +1421,8 @@ unittest {
     ColorF(1.0f, 1.0f, 1.0f, 1.0f),
     null
   );
-  assert(renderer.getDefaultFont() !is null);
-  assert(renderer.getDefaultFont().height > 0);
+  assert(renderer.defaultFont() !is null);
+  assert(renderer.defaultFont().height > 0);
 
   // Text clipped outside clip rect
   renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
@@ -1445,8 +1444,8 @@ unittest {
   }
 
   // Scaled text drawing test: unitsScaling = 2.0
-  renderer.setDisplayScaling(1.0f);
-  renderer.setUnitsScaling(2.0f);
+  renderer.displayScaling(1.0f);
+  renderer.unitsScaling(2.0f);
   renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawTextWithFont(
     "ABC",
@@ -1464,11 +1463,11 @@ unittest {
     }
   }
   assert(litCount > 0);
-  renderer.setUnitsScaling(1.0f);
+  renderer.unitsScaling(1.0f);
 
   // Scaled text drawing test: displayScaling = 1.5
-  renderer.setDisplayScaling(1.5f);
-  renderer.setUnitsScaling(1.0f);
+  renderer.displayScaling(1.5f);
+  renderer.unitsScaling(1.0f);
   renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   renderer.drawTextWithFont(
     "ABC",
@@ -1488,35 +1487,35 @@ unittest {
     }
   }
   assert(litCount > 0);
-  renderer.setDisplayScaling(1.0f);
+  renderer.displayScaling(1.0f);
 
   // In-place dynamic resizing & unscaled user-space size tests
-  Font defaultF = renderer.getDefaultFont();
+  Font defaultF = renderer.defaultFont();
   assert(defaultF !is null);
   assert(defaultF.size == defaultFontPtSize);
   assert(defaultF.scaledSize == defaultFontPtSize);
   int initialH = defaultF.height;
 
   // Scale display: defaultFont instance is preserved and resized in place
-  renderer.setDisplayScaling(2.0f);
-  assert(renderer.getDefaultFont() is defaultF);
+  renderer.displayScaling(2.0f);
+  assert(renderer.defaultFont() is defaultF);
   assert(defaultF.size == defaultFontPtSize);
   assert(defaultF.scaledSize == defaultFontPtSize * 2.0f);
   assert(defaultF.height > initialH);
 
   // Scale units: defaultFont instance is preserved and resized in place
-  renderer.setUnitsScaling(1.5f);
-  assert(renderer.getDefaultFont() is defaultF);
+  renderer.unitsScaling(1.5f);
+  assert(renderer.defaultFont() is defaultF);
   assert(defaultF.size == defaultFontPtSize);
   assert(defaultF.scaledSize == defaultFontPtSize * 3.0f);
 
-  renderer.setDisplayScaling(1.0f);
-  renderer.setUnitsScaling(1.0f);
+  renderer.displayScaling(1.0f);
+  renderer.unitsScaling(1.0f);
   assert(defaultF.size == defaultFontPtSize);
   assert(defaultF.scaledSize == defaultFontPtSize);
 
   // Factory createFont automatically applies renderer's current scaling
-  renderer.setDisplayScaling(2.0f);
+  renderer.displayScaling(2.0f);
   Font factoryFont = renderer.createFontFromMemory(
     cast(const(void)[])defaultTtfFontData,
     14.0f
@@ -1531,19 +1530,19 @@ unittest {
   assert(factoryFont.size == 14.0f);
   assert(factoryFont.scaledSize == 14.0f);
 
-  // Managed fonts via getFont: distinct instances per size, cached on reuse
-  Font f14 = renderer.getFont(14.0f, null);
-  Font f20 = renderer.getFont(20.0f, null);
+  // Managed fonts via font: distinct instances per size, cached on reuse
+  Font f14 = renderer.font(14.0f, null);
+  Font f20 = renderer.font(20.0f, null);
   assert(f14 !is null);
   assert(f20 !is null);
   assert(f14.size == 14.0f);
   assert(f20.size == 20.0f);
-  assert(renderer.getFont(14.0f, null) is f14);
-  assert(renderer.getFont(20.0f, null) is f20);
+  assert(renderer.font(14.0f, null) is f14);
+  assert(renderer.font(20.0f, null) is f20);
   assert(f14 !is f20);
 
-  renderer.setDisplayScaling(1.0f);
-  renderer.setUnitsScaling(1.0f);
+  renderer.displayScaling(1.0f);
+  renderer.unitsScaling(1.0f);
 
   assert(glGetError() == GL_NO_ERROR);
 
@@ -1621,7 +1620,7 @@ unittest {
   assert(pixel[0] == 255 && pixel[1] == 0 && pixel[2] == 0 && pixel[3] == 255);
 
   // Test units scaling with rounded rect
-  renderer.setUnitsScaling(2.0f);
+  renderer.unitsScaling(2.0f);
   renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
   // Logic (10, 10, 50, 50) maps to screen (20, 20, 100, 100)
   renderer.drawFillRoundRect(
@@ -1632,7 +1631,7 @@ unittest {
   // Screen center of rect is (70, 70) -> GL y = 240 - 70 = 170
   glReadPixels(70, 170, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
   assert(pixel[1] == 255 && pixel[2] == 255);
-  renderer.setUnitsScaling(1.0f);
+  renderer.unitsScaling(1.0f);
 
   // 11. drawRect with lineWidth, drawRectDashed, and small drawRoundRectDashed
   // A. drawRectWithWidth with lineWidth = 4 growing inside
@@ -1799,7 +1798,7 @@ unittest {
   win.setDisplayScaling(1.0f);
 
   auto renderer = win.renderer;
-  renderer.setViewport(320, 240);
+  renderer.viewport(320, 240);
 
   // 2x2: red, green / blue, white (top-down rows).
   auto img = new Image(2, 2);
@@ -1895,7 +1894,7 @@ unittest {
   win.setDisplayScaling(1.0f);
 
   auto renderer = win.renderer;
-  renderer.setViewport(320, 240);
+  renderer.viewport(320, 240);
 
   ubyte[4] readAt(int x, int y) {
     ubyte[4] px;
@@ -2007,7 +2006,7 @@ unittest {
   win.setDisplayScaling(1.0f);
 
   auto renderer = win.renderer;
-  renderer.setViewport(320, 240);
+  renderer.viewport(320, 240);
 
   renderer.clearFrame(ColorF(0, 0, 0, 1));
   renderer.drawFillRect(RectF(0, 0, 10, 10), ColorF(1, 0, 0, 1));

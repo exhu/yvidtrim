@@ -171,7 +171,7 @@ private:
     if (comp is null || comp.caption.length == 0 || r is null) {
       return;
     }
-    Font font = r.getFont(comp.fontSize, comp.font);
+    Font font = r.font(comp.fontSize, comp.font);
     if (font is null) {
       return;
     }
@@ -243,36 +243,36 @@ unittest {
   w.dirty = true;
   widgets = collector.collectVisibleWithViewport(w, 320.0f, 240.0f, false);
   painter.drawTree(widgets, renderer);
-  assert(renderer.getDefaultFont().size == defaultFontPtSize);
-  assert(renderer.getFont(24.0f, null).size == 24.0f);
+  assert(renderer.defaultFont().size == defaultFontPtSize);
+  assert(renderer.font(24.0f, null).size == 24.0f);
 
   // Test fallback when fontSize is 0.0f
   w.components.textLabel.fontSize = 0.0f;
   w.dirty = true;
   widgets = collector.collectVisibleWithViewport(w, 320.0f, 240.0f, false);
   painter.drawTree(widgets, renderer);
-  assert(renderer.getDefaultFont().size == defaultFontPtSize);
+  assert(renderer.defaultFont().size == defaultFontPtSize);
 
   // Test fallback when fontSize is negative
   w.components.textLabel.fontSize = -5.0f;
   w.dirty = true;
   widgets = collector.collectVisibleWithViewport(w, 320.0f, 240.0f, false);
   painter.drawTree(widgets, renderer);
-  assert(renderer.getDefaultFont().size == defaultFontPtSize);
+  assert(renderer.defaultFont().size == defaultFontPtSize);
 
   // Test fallback when fontSize is infinity
   w.components.textLabel.fontSize = float.infinity;
   w.dirty = true;
   widgets = collector.collectVisibleWithViewport(w, 320.0f, 240.0f, false);
   painter.drawTree(widgets, renderer);
-  assert(renderer.getDefaultFont().size == defaultFontPtSize);
+  assert(renderer.defaultFont().size == defaultFontPtSize);
 
   // Test fallback when fontSize is NaN
   w.components.textLabel.fontSize = float.nan;
   w.dirty = true;
   widgets = collector.collectVisibleWithViewport(w, 320.0f, 240.0f, false);
   painter.drawTree(widgets, renderer);
-  assert(renderer.getDefaultFont().size == defaultFontPtSize);
+  assert(renderer.defaultFont().size == defaultFontPtSize);
 
   // Test multiple widgets with different font sizes
   auto root = new Widget(2);

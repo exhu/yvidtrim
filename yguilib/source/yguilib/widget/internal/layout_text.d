@@ -381,7 +381,7 @@ unittest {
   auto r = new Renderer(320, 240, 1.0f);
   scope(exit) r.destroy();
 
-  auto font = r.getDefaultFont();
+  auto font = r.defaultFont();
   assert(font !is null);
 
   // Single line without overflow

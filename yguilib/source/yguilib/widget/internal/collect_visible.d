@@ -19,7 +19,7 @@ final class VisibleWidgetsCollector {
     assert(root !is null);
     assert(r !is null);
     return collectVisibleWithViewport(
-      root, r.getLogicWidth(), r.getLogicHeight(), ignoreClipChildren
+      root, r.logicWidth(), r.logicHeight(), ignoreClipChildren
     );
   }
 
