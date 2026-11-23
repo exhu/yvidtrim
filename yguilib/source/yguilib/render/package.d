@@ -622,6 +622,11 @@ final class Renderer {
     return Font.fromFile(filePath, ptSize, totalScaling());
   }
 
+  /**
+   * Assigns the default font (null restores the managed one). The font
+   * stays caller owned; on a display or units scaling change the renderer
+   * resizes it in place (`Font.setScale`) to the new total scaling.
+   */
   void defaultFont(Font font) {
     if (fOwnsDefaultFont && fDefaultFont !is null) {
       fDefaultFont.destroy();
@@ -1162,17 +1167,29 @@ private:
     return n >= 2 ? n : 0;
   }
 
+  /**
+   * Rescales the managed fonts and the default font (owned or user
+   * assigned, resized in place like the managed ones), drops the text
+   * cache and re-applies the clip stack scissor, whose rects are in logic
+   * units. The scissor is only touched while a clip rect is pushed (that
+   * is mid-frame, with this renderer's context current).
+   */
   void onScalingChanged() {
     float totalScale = totalScaling();
     if (fontManager !is null) {
       fontManager.setScaling(totalScale);
     }
-    if (fOwnsDefaultFont && fDefaultFont !is null) {
+    if (fDefaultFont !is null) {
+      // a user font has no known source to re-create it from: resize the
+      // handle in place, as FontManager.setScaling does
       fDefaultFont.setScale(totalScale);
-    } else if (fDefaultFont !is null) {
-      defaultFont(null);
     }
     clearTextCache();
+    if (initialized && !clipStack.isEmpty()) {
+      clipStack.reapply(
+        viewportPixelWidth, viewportPixelHeight, totalScale
+      );
+    }
   }
 
   int viewportPixelWidth;
@@ -1585,6 +1602,29 @@ unittest {
   assert(factoryFont.size == 14.0f);
   assert(factoryFont.scaledSize == 14.0f);
 
+  // A user-assigned default font is kept and resized on scaling changes
+  renderer.defaultFont(factoryFont);
+  renderer.unitsScaling(1.5f);
+  assert(renderer.defaultFont() is factoryFont);
+  assert(factoryFont.scaledSize == 14.0f * 3.0f);
+  renderer.unitsScaling(1.0f);
+  assert(factoryFont.scaledSize == 28.0f);
+  renderer.defaultFont(null);
+  assert(renderer.defaultFont() !is factoryFont);
+
+  // A scaling change re-applies the clip scissor (rects in logic units)
+  {
+    renderer.pushClipRect(RectF(10, 10, 20, 20));
+    scope(exit) renderer.popClipRect();
+    GLint[4] sb;
+    glGetIntegerv(GL_SCISSOR_BOX, sb.ptr);
+    assert(sb[0] == 20 && sb[2] == 40);
+    renderer.unitsScaling(1.5f);
+    glGetIntegerv(GL_SCISSOR_BOX, sb.ptr);
+    assert(sb[0] == 30 && sb[2] == 60);
+    renderer.unitsScaling(1.0f);
+  }
+
   // Managed fonts via font: distinct instances per size, cached on reuse
   Font f14 = renderer.font(14.0f, null);
   Font f20 = renderer.font(20.0f, null);
@@ -1938,8 +1978,12 @@ unittest {
 
   // Offscreen RGBA target cleared to transparent.
   OffscreenTarget fb;
-  fb.ensureSize(320, 240);
   scope(exit) fb.destroy();
+  // over the GL size limit (or not positive): rejected, nothing allocated
+  assert(!fb.ensureSize(fb.maxSize() + 1, 1));
+  assert(!fb.ensureSize(0, 10));
+  assert(fb.fbo == 0 && fb.width == 0);
+  assert(fb.ensureSize(320, 240));
   const SavedTargetState saved = SavedTargetState.capture();
   fb.bindRegion(320, 240, true);
 

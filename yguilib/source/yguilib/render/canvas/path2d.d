@@ -111,12 +111,16 @@ final class Path2d {
   /**
    * Arc of radius `radius` tangent to lines (current, p1) and (p1, p2).
    * Degenerate cases (coincident points, collinear, zero radius) add a line
-   * to `p1`.
+   * to `p1`. With no current point it only moves to `p1` (as in HTML).
    */
   void arcTo(PointF p1, PointF p2, float radius) nothrow @safe {
     import std.math : abs, acos, atan2, isFinite, PI, sqrt, tan, sin;
 
     if (!finite(p1) || !finite(p2) || !isFinite(radius) || radius < 0) {
+      return;
+    }
+    if (!fHasSubpath) {
+      moveTo(p1);
       return;
     }
     ensureSubpath(p1);
@@ -498,6 +502,11 @@ unittest {
   p.moveTo(PointF(0, 0));
   p.arcTo(PointF(5, 0), PointF(10, 0), 3);
   assert(p.verbs == [PathVerb.moveTo, PathVerb.lineTo]);
+  // arcTo without a current point only moves to p1 (HTML)
+  p.clear();
+  p.arcTo(PointF(5, 0), PointF(10, 10), 3);
+  assert(p.verbs == [PathVerb.moveTo]);
+  assert(p.points == [PointF(5, 0)]);
 
   // lineTo without subpath acts as moveTo
   p.clear();

@@ -56,6 +56,11 @@ struct ClipStack {
     stack.clear();
   }
 
+  /// True when no clip rect is pushed.
+  bool isEmpty() const {
+    return stack[].length == 0;
+  }
+
   /// True when both stacks use the same (allocated) buffer.
   bool sharesStorage(ref ClipStack o) {
     return stack[].ptr !is null && stack[].ptr is o.stack[].ptr;

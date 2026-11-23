@@ -22,10 +22,18 @@ struct OffscreenTarget {
   int width;
   int height;
 
-  /// Grows the attachments to hold at least `w` x `h` pixels.
-  void ensureSize(int w, int h) {
+  /**
+   * Grows the attachments to hold at least `w` x `h` pixels. Returns
+   * false, keeping the current allocation, when `w` or `h` is not
+   * positive or over `maxSize()`; returns false and frees the GL objects
+   * (the next call retries) when the framebuffer is incomplete.
+   */
+  bool ensureSize(int w, int h) {
+    if (w <= 0 || h <= 0 || w > maxSize() || h > maxSize()) {
+      return false;
+    }
     if (w <= width && h <= height && fbo != 0) {
-      return;
+      return true;
     }
     const int nw = w > width ? w : width;
     const int nh = h > height ? h : height;
@@ -36,10 +44,40 @@ struct OffscreenTarget {
     }
     allocateTargetTexture(texture, nw, nh);
     allocateRenderbuffer(depthStencil, GL_DEPTH24_STENCIL8, 0, nw, nh);
-    attachAndCheck(AttachmentIds(fbo, texture, 0, depthStencil),
-      "Offscreen");
+    if (!attachAndCheck(AttachmentIds(fbo, texture, 0, depthStencil),
+      "Offscreen")) {
+      destroyObjects();
+      return false;
+    }
     width = nw;
     height = nh;
+    return true;
+  }
+
+  /**
+   * Largest width or height `ensureSize` accepts: the smaller of
+   * `GL_MAX_TEXTURE_SIZE` and `GL_MAX_RENDERBUFFER_SIZE`, queried on
+   * first use (and after `destroy()`), possibly lowered by `limitMaxSize`.
+   */
+  int maxSize() {
+    if (fMaxSize <= 0) {
+      GLint maxTex = 0;
+      GLint maxRb = 0;
+      glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTex);
+      glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, &maxRb);
+      const int m = maxTex < maxRb ? maxTex : maxRb;
+      // a failed query must not reject every size forever
+      fMaxSize = m > 0 ? m : int.max;
+    }
+    return fMaxSize;
+  }
+
+  version (unittest) {
+    /// Lowers `maxSize()` to at most `n` (tests of the size limit).
+    void limitMaxSize(int n) {
+      const int m = maxSize();
+      fMaxSize = n < m ? n : m;
+    }
   }
 
   /**
@@ -61,8 +99,20 @@ struct OffscreenTarget {
     }
   }
 
-  /// Deletes the GL objects; the target can be reused afterwards.
+  /**
+   * Deletes the GL objects and forgets `maxSize()`; the target can be
+   * reused afterwards.
+   */
   void destroy() {
+    destroyObjects();
+    fMaxSize = 0;
+  }
+
+private:
+  /// Cached `maxSize()` (0: not queried yet).
+  int fMaxSize;
+
+  void destroyObjects() {
     if (fbo != 0) {
       glDeleteFramebuffers(1, &fbo);
       glDeleteTextures(1, &texture);

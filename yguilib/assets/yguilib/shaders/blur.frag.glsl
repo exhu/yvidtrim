@@ -9,7 +9,9 @@ precision highp float;
 uniform sampler2D uTexture;
 // texture coordinate step of one pixel along the blur axis
 uniform vec2 uDirection;
-// standard deviation in pixels (> 0)
+// standard deviation in pixels (> 0). The Canvas clamps it (at most 32
+// after downsampling, see Shadow.maxBlurSigmaPx in canvas/types.d), so
+// the loop below runs at most 48 times.
 uniform float uSigma;
 // taps are clamped to these texel centers (the pass region)
 uniform vec2 uUvMin;

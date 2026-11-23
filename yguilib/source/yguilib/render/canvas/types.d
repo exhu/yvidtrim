@@ -528,7 +528,17 @@ unittest {
  * with `color` and drawn at `offset` (not transformed) under the shape.
  */
 struct Shadow {
+  /// Largest Gaussian standard deviation applied, in device pixels.
+  enum float maxBlurSigmaPx = 64;
+
   PointF offset;
+  /**
+   * Blur amount (logic units, >= 0): the Gaussian sigma is `blur / 2`,
+   * i.e. `blur / 2 * scaling` device pixels, clamped to `maxBlurSigmaPx`
+   * so huge values cannot stall the GPU. Sigmas over 32 px are blurred at
+   * 1/2 resolution, and over `maxBlurSigmaPx` at 1/4 resolution, then
+   * upscaled with linear filtering.
+   */
   float blur = 0;
   ColorF color = ColorF(0, 0, 0, 0);
 
@@ -546,6 +556,52 @@ unittest {
   assert(!s.isVisible());
   s.blur = 4;
   assert(s.isVisible());
+}
+
+/**
+ * How a shadow blur runs: the mask is drawn and blurred at 1 /
+ * `downsample` of the device resolution with Gaussian sigma `sigma` in
+ * those (reduced) pixels.
+ */
+package(yguilib) struct ShadowBlur {
+  float sigma = 0;
+  int downsample = 1;
+}
+
+/**
+ * Shadow blur for a requested sigma of `sigmaPx` device pixels (see
+ * `Shadow.blur`): clamped to `Shadow.maxBlurSigmaPx`, at 1/2 resolution
+ * over 32 px and at 1/4 over `maxBlurSigmaPx`.
+ */
+package(yguilib) ShadowBlur shadowBlurFromSigmaPx(float sigmaPx)
+nothrow @safe @nogc {
+  enum float maxPx = Shadow.maxBlurSigmaPx;
+  if (!(sigmaPx > 0)) {
+    return ShadowBlur(0, 1);
+  }
+  if (sigmaPx > maxPx) {
+    return ShadowBlur(maxPx / 4, 4);
+  }
+  if (sigmaPx > maxPx / 2) {
+    return ShadowBlur(sigmaPx / 2, 2);
+  }
+  return ShadowBlur(sigmaPx, 1);
+}
+
+unittest {
+  assert(shadowBlurFromSigmaPx(0) == ShadowBlur(0, 1));
+  assert(shadowBlurFromSigmaPx(float.nan) == ShadowBlur(0, 1));
+  assert(shadowBlurFromSigmaPx(10) == ShadowBlur(10, 1));
+  assert(shadowBlurFromSigmaPx(32) == ShadowBlur(32, 1));
+  assert(shadowBlurFromSigmaPx(48) == ShadowBlur(24, 2));
+  assert(shadowBlurFromSigmaPx(64) == ShadowBlur(32, 2));
+  assert(shadowBlurFromSigmaPx(65) == ShadowBlur(16, 4));
+  assert(shadowBlurFromSigmaPx(float.infinity) == ShadowBlur(16, 4));
+  // the effective sigma never exceeds the clamp in device pixels
+  foreach (s; [1.0f, 33.0f, 64.0f, 500.0f, 1e9f]) {
+    const b = shadowBlurFromSigmaPx(s);
+    assert(b.sigma * b.downsample <= Shadow.maxBlurSigmaPx);
+  }
 }
 
 enum FillRule {

@@ -5,6 +5,12 @@ struct PointF {
   float y = 0.0f;
 }
 
+/**
+ * Axis-aligned rectangle `(x, y, width, height)`.
+ *
+ * Note: `RectF.init` (and `RectF r;`) is the 1 x 1 unit rect at the
+ * origin, not an empty rect. Write `RectF(0, 0, 0, 0)` for an empty one.
+ */
 struct RectF {
   float x = 0.0f;
   float y = 0.0f;

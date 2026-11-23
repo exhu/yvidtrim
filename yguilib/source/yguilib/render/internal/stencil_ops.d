@@ -4,6 +4,11 @@
  * bit 7 is the clip mask (1 = inside the clip, valid while a clip is
  * active); bits 0..6 hold the fill winding, the evenOdd parity (bit 0) or
  * the stroke "drawn once" marker and are always 0 after a Canvas call.
+ *
+ * The nonZero winding uses `INCR_WRAP` / `DECR_WRAP` on these 7 bits, so
+ * it is counted modulo 128: a pixel whose winding number is a non-zero
+ * multiple of 128 (128 overlapping same-direction contours) reads as 0
+ * and counts as outside. UI paths never get close to that.
  */
 module yguilib.render.internal.stencil_ops;
 

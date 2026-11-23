@@ -908,7 +908,11 @@ private:
     endShadowPass(pass.get);
   }
 
-  /// Offscreen shadow pass in progress (see `beginShadowPass`).
+  /**
+   * Offscreen shadow pass in progress (see `beginShadowPass`). `box` is
+   * in mask pixels, `scale` is mask pixels per logic unit (the total
+   * scaling over the downsample factor) and `sigma` is in mask pixels.
+   */
   struct ShadowPass {
     PixelBox box;
     float scale;
@@ -918,24 +922,33 @@ private:
 
   /**
    * Saves the target state and binds the cleared region of offscreen
-   * target 0 for the shadow box of `fVerts`. Null (nothing bound) when
-   * the box is empty.
+   * target 0 for the shadow box of `fVerts`, at the (possibly reduced)
+   * mask resolution of `shadowBlurFromSigmaPx`. Null (nothing bound, the
+   * caller draws the shape without a shadow) when the box is empty or the
+   * offscreen targets cannot hold it.
    */
   auto beginShadowPass() {
     import std.typecons : Nullable;
+    import yguilib.render.canvas.types : ShadowBlur, shadowBlurFromSigmaPx;
     import yguilib.render.internal.offscreen : OffscreenTarget;
 
-    const float scale = fRenderer.totalScaling();
-    const float sigma = st.shadow.blur * 0.5f * scale;
-    const box = shadowBox(sigma, scale);
+    const float total = fRenderer.totalScaling();
+    const ShadowBlur blur =
+      shadowBlurFromSigmaPx(st.shadow.blur * 0.5f * total);
+    const float scale = total / blur.downsample;
+    const box = shadowBox(blur.sigma, scale);
     Nullable!ShadowPass res;
     if (box.isNull) {
       return res;
     }
     const PixelBox b = box.get;
     OffscreenTarget* a = &fRenderer.offscreenTargetRef(0);
-    res = ShadowPass(b, scale, sigma, SavedTargetState.capture());
-    a.ensureSize(b.width, b.height);
+    OffscreenTarget* t = &fRenderer.offscreenTargetRef(1);
+    if (!a.ensureSize(b.width, b.height)
+      || (blur.sigma > 0 && !t.ensureSize(b.width, b.height))) {
+      return res;
+    }
+    res = ShadowPass(b, scale, blur.sigma, SavedTargetState.capture());
     a.bindRegion(b.width, b.height, true);
     return res;
   }
@@ -950,8 +963,9 @@ private:
   }
 
   /**
-   * Device box of the shadow pass: `fVerts` bounds in pixels padded by
-   * 3 sigma (+1), limited to what can reach the viewport after the
+   * Box of the shadow pass in mask pixels (`scale` per logic unit):
+   * `fVerts` bounds padded by 3 sigma (+1), `sigma` being the clamped
+   * mask-pixel sigma, limited to what can reach the viewport after the
    * offset. Null when empty.
    */
   auto shadowBox(float sigma, float scale) {
@@ -963,8 +977,8 @@ private:
     const float pad = ceil(3 * sigma) + 1;
     const float offX = st.shadow.offset.x * scale;
     const float offY = st.shadow.offset.y * scale;
-    const float pw = fRenderer.pixelWidth();
-    const float ph = fRenderer.pixelHeight();
+    const float pw = fRenderer.logicWidth() * scale;
+    const float ph = fRenderer.logicHeight() * scale;
     const float x0 = max(floor(r.x * scale), floor(-offX)) - pad;
     const float y0 = max(floor(r.y * scale), floor(-offY)) - pad;
     const float x1 = min(ceil((r.x + r.width) * scale), ceil(pw - offX))
@@ -1210,8 +1224,9 @@ private:
     }
     // bitmap pixels per user unit (the quantized font scale)
     const float q = f.scaledSize / f.size;
-    // glyph box without the outline margin, and the margin, in user units
-    const float gw = (tex.width - 2 * op) / q;
+    // advance width at the raster scale (what measureText reports, not
+    // the bitmap width) and the outline margin, in user units
+    const float gw = f.measureText(text).x / q;
     const float margin = op / q;
     const TextMetrics m = TextMetrics(gw, f.ascent / q, abs(f.descent) / q);
     const PointF off = textAnchorOffset(
@@ -1243,14 +1258,16 @@ private:
     endStencil();
   }
 
-  /// Blurs region `b` of target 0 horizontally into 1, vertically back.
+  /**
+   * Blurs region `b` of target 0 horizontally into 1, vertically back.
+   * Both targets were sized by `beginShadowPass`.
+   */
   void blurShadow(in PixelBox b, float sigma) {
     import yguilib.render.internal.offscreen : OffscreenTarget;
     import yguilib.render.internal.pipelines : BlurPass;
 
     OffscreenTarget* a = &fRenderer.offscreenTargetRef(0);
     OffscreenTarget* t = &fRenderer.offscreenTargetRef(1);
-    t.ensureSize(b.width, b.height);
     BlurPass p;
     p.width = b.width;
     p.height = b.height;
@@ -1269,7 +1286,12 @@ private:
     fRenderer.blurPipelineRef().draw(p);
   }
 
-  /// Draws region `b` of target 0 tinted at `b` + offset (logic units).
+  /**
+   * Draws region `b` of target 0 tinted at `b` + offset (logic units),
+   * upscaled with linear filtering when the mask is downsampled. The quad
+   * is inset by half a mask pixel (whose alpha is 0: the box is padded)
+   * so filtering never reads texels outside the region.
+   */
   void compositeShadow(in PixelBox b, float scale) {
     import yguilib.render.internal.offscreen : OffscreenTarget;
     import yguilib.render.internal.pipelines : TextureMode, TexturedQuad;
@@ -1278,13 +1300,16 @@ private:
     const OffscreenTarget* a = &fRenderer.offscreenTargetRef(0);
     const float tw = a.width;
     const float th = a.height;
+    const float w = b.width - 1.0f;
+    const float h = b.height - 1.0f;
     TexturedQuad q;
     q.dest = RectF(
-      b.x / scale + st.shadow.offset.x, b.y / scale + st.shadow.offset.y,
-      b.width / scale, b.height / scale
+      (b.x + 0.5f) / scale + st.shadow.offset.x,
+      (b.y + 0.5f) / scale + st.shadow.offset.y,
+      w / scale, h / scale
     );
     // GL rows grow upward while logic y grows downward: flip v
-    q.uv = RectF(0, b.height / th, b.width / tw, -b.height / th);
+    q.uv = RectF(0.5f / tw, (b.height - 0.5f) / th, w / tw, -h / th);
     q.color = st.shadow.color;
     beginClipTest(clipActive());
     fRenderer.texturePipelineRef().drawTexturedQuad(

@@ -44,8 +44,8 @@ Phases run one after another, because they touch the same files.
   ph02   done         committed 6b04e76; see notes below
   ph03   done         committed b5b2f74; see notes below
   ph04   done         committed 7572814; see notes below
-  ph05   done         see notes below
-  ph06   not started
+  ph05   done         committed 507922a; see notes below
+  ph06   done         see notes below
   ph07   not started
   ph08   not started
   ph09   not started
@@ -134,6 +134,25 @@ ph05 notes (2026-11-23):
   the size target); `pattern()`/`fromPattern` are `@trusted` and
   assert the kind. `State` is ~680 bytes (was 1176), checked by a
   `static assert`.
+- Still 65 modules; meson test 10/10 OK.
+
+ph06 notes (2026-11-23):
+- 2.3: `Shadow.maxBlurSigmaPx = 64`; `shadowBlurFromSigmaPx` picks
+  full res (sigma <= 32), 1/2 (<= 64) or clamp + 1/4. Mask is drawn,
+  blurred and composited at `totalScaling / downsample`; composite
+  uses linear filtering with a half-texel inset. `ShadowPass.scale`
+  now means mask pixels per logic unit (use it in 3.5, ph07).
+  Downsampled masks have no AA; thin shapes may shimmer at sigma > 32.
+- 2.9: `OffscreenTarget.ensureSize` returns `bool`, checks cached
+  `maxSize()`, frees objects on FBO failure. `beginShadowPass` sizes
+  both targets first and skips the shadow on failure.
+- 2.6 documented; 2.7 `arcTo` without a current point only moves;
+  2.8 text align uses `measureText` width.
+- 2.10: `RectF.init` doc; `onScalingChanged` rescales a user default
+  font in place (`setScale`; source data is not kept) and re-applies
+  the scissor only when `ClipStack` is not empty (`isEmpty()`).
+- Follow-ups: `measureText` ignores the transform (drawn advance at
+  1.5x differs by ~3.5 px); `fOwnsDefaultFont` is never set (dead).
 - Still 65 modules; meson test 10/10 OK.
 
 ## Rules for every phase

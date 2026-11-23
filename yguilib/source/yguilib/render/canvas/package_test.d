@@ -469,6 +469,50 @@ unittest {
   assert(isRgb(95, 95, 255, 0, 0));
   assert(isRgb(105, 95, 0, 0, 0));
 
+  // 6. a huge blur is clamped to sigma 64 px (blurred at 1/4 resolution):
+  // it finishes, falls off like sigma 64 and stays within the clamped box
+  // (pad 3 * 16 + 1 = 49 quarter pixels: right edge at 4 * (15 + 49))
+  Shadow huge;
+  huge.blur = 1000;
+  huge.color = ColorF(1, 0, 0, 1);
+  r.clearFrame(black);
+  cv.shadow(huge);
+  cv.fillStyle(green);
+  // a half plane (right edge x = 60) far beyond the viewport elsewhere
+  cv.fill(rectPath(RectF(-1000, -1000, 1060, 2240)));
+  cv.shadow(Shadow.init);
+  assert(isRgb(30, 120, 0, 255, 0));
+  // 10 px out: about 0.44 alpha; 64 px (1 sigma) out: about 0.16
+  assert(px(70, 120)[0] > 80 && px(70, 120)[1] == 0);
+  const oneSigma = px(124, 120)[0];
+  assert(oneSigma > 20 && oneSigma < 70);
+  foreach (x; 256 .. 320) {
+    assert(px(x, 120)[0] == 0);
+  }
+
+  // 7. offscreen targets that cannot hold the box: no shadow, the shape
+  // still draws
+  r.offscreenTargetRef(0).destroy();
+  r.offscreenTargetRef(0).limitMaxSize(8);
+  assert(!r.offscreenTargetRef(0).ensureSize(9, 9));
+  r.clearFrame(black);
+  cv.shadow(hard);
+  cv.fillStyle(green);
+  cv.fill(rectPath(RectF(100, 80, 40, 40)));
+  assert(isRgb(120, 100, 0, 255, 0));
+  assert(isRgb(145, 125, 0, 0, 0));
+  GLint fboAfter = -1;
+  glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fboAfter);
+  assert(fboAfter == 0);
+  // destroy() forgets the limit: the shadow is back
+  r.offscreenTargetRef(0).destroy();
+  r.clearFrame(black);
+  cv.shadow(hard);
+  cv.fillStyle(green);
+  cv.fill(rectPath(RectF(100, 80, 40, 40)));
+  assert(isRgb(145, 125, 255, 0, 0));
+  cv.shadow(Shadow.init);
+
   assert(glGetError() == GL_NO_ERROR);
 }
 
@@ -1535,5 +1579,71 @@ unittest {
   assert(
     after.usedSize + after.freeSize <= before.usedSize + before.freeSize
   );
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// arcTo on an empty path draws no cap dot; textAlign center uses the
+// measureText advance (identity and scaled transforms)
+unittest {
+  auto w = GlTestWindow("test_canvas_arcto_text_align");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+  auto r = w.renderer();
+  auto cv = w.canvas();
+  const black = ColorF(0, 0, 0, 1);
+  const white = FillStyle.solid(ColorF(1, 1, 1, 1));
+
+  // arcTo without a current point only moves: nothing to stroke
+  r.clearFrame(black);
+  auto p = new Path2d();
+  p.arcTo(PointF(100, 100), PointF(200, 150), 20);
+  cv.strokeStyle(white);
+  cv.lineWidth(20);
+  cv.lineCap(LineCap.round);
+  cv.stroke(p);
+  assert(frameBounds(0).empty);
+  // a following lineTo strokes from p1
+  p.lineTo(PointF(150, 100));
+  cv.stroke(p);
+  const line = frameBounds(0);
+  assert(!line.empty && line.x0 >= 88 && line.x0 <= 92);
+
+  // the centered text box is the left-aligned one shifted by half the
+  // advance width: the right-aligned shift, which at identity equals the
+  // measureText width. Under a scale the font is rasterized at that scale,
+  // whose hinted advance can differ from measureText (unscaled raster) by
+  // a few percent.
+  void checkCenter(float scale) {
+    auto drawAt(TextAlign a) {
+      r.clearFrame(black);
+      cv.fontSpec = FontSpec(24, null);
+      cv.textBaseline = TextBaseline.top;
+      cv.textAlign(a);
+      cv.fillStyle(white);
+      cv.save();
+      cv.scale(PointF(scale, scale));
+      cv.fillText("Hello", PointF(160 / scale, 60 / scale));
+      cv.restore();
+      return frameBounds(0);
+    }
+
+    import std.math : abs;
+
+    const left = drawAt(TextAlign.left);
+    const center = drawAt(TextAlign.center);
+    const right = drawAt(TextAlign.right);
+    assert(!left.empty && !center.empty && !right.empty);
+    cv.fontSpec = FontSpec(24, null);
+    const float measured = cv.measureText("Hello").width * scale;
+    const float advance = left.x0 - right.x0;
+    const float half = scale == 1.0f ? measured / 2 : advance / 2;
+    assert(abs(advance - measured) <= 1 + 0.05f * measured);
+    const float dx0 = center.x0 - (left.x0 - half);
+    const float dx1 = center.x1 - (left.x1 - half);
+    assert(abs(dx0) <= 1 && abs(dx1) <= 1);
+  }
+
+  checkCenter(1.0f);
+  checkCenter(1.5f);
   assert(glGetError() == GL_NO_ERROR);
 }
