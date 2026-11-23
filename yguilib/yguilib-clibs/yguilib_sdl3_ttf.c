@@ -82,6 +82,26 @@ int yguilib_sdl3_ttf_get_font_height(const yguilib_sdl3_ttf_Font *font) {
   return TTF_GetFontHeight((const TTF_Font *)font);
 }
 
+int yguilib_sdl3_ttf_set_font_outline(
+  yguilib_sdl3_ttf_Font *font,
+  int outline
+) {
+  if (!font || outline < 0) {
+    return -1;
+  }
+  if (!TTF_SetFontOutline((TTF_Font *)font, outline)) {
+    return -1;
+  }
+  return 0;
+}
+
+int yguilib_sdl3_ttf_get_font_outline(const yguilib_sdl3_ttf_Font *font) {
+  if (!font) {
+    return 0;
+  }
+  return TTF_GetFontOutline((const TTF_Font *)font);
+}
+
 int yguilib_sdl3_ttf_get_font_ascent(const yguilib_sdl3_ttf_Font *font) {
   if (!font) {
     return 0;

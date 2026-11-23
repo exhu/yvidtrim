@@ -28,6 +28,12 @@ extern(C) {
     float ptSize
   );
 
+  int yguilib_sdl3_ttf_set_font_outline(
+    yguilib_sdl3_ttf_Font* font,
+    int outline
+  );
+  int yguilib_sdl3_ttf_get_font_outline(const(yguilib_sdl3_ttf_Font)* font);
+
   int yguilib_sdl3_ttf_get_font_height(const(yguilib_sdl3_ttf_Font)* font);
   int yguilib_sdl3_ttf_get_font_ascent(const(yguilib_sdl3_ttf_Font)* font);
   int yguilib_sdl3_ttf_get_font_descent(const(yguilib_sdl3_ttf_Font)* font);

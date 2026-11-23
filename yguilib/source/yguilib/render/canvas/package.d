@@ -13,6 +13,7 @@ module yguilib.render.canvas;
 import std.array : Appender;
 import yguilib.render : Renderer;
 import yguilib.render.canvas.path2d : Path2d;
+import yguilib.render.font : Font, defaultFontPtSize;
 import yguilib.render.canvas.types;
 import yguilib.render.internal.offscreen : SavedTargetState;
 import yguilib.render.internal.path_flatten : Contours;
@@ -367,7 +368,66 @@ final class Canvas {
     return st.clipRule;
   }
 
-  // Text/font-related functions are omitted for now.
+  /// Font used by text calls; invalid sizes (non-finite, <= 0) are ignored.
+  void fontSpec(FontSpec spec) {
+    import std.math : isFinite;
+
+    if (isFinite(spec.ptSize) && spec.ptSize > 0) {
+      st.fontSpec = spec;
+    }
+  }
+
+  FontSpec fontSpec() const {
+    return st.fontSpec;
+  }
+
+  void textAlign(TextAlign a) {
+    st.textAlign = a;
+  }
+
+  TextAlign textAlign() const {
+    return st.textAlign;
+  }
+
+  void textBaseline(TextBaseline b) {
+    st.textBaseline = b;
+  }
+
+  TextBaseline textBaseline() const {
+    return st.textBaseline;
+  }
+
+  void direction(TextDirection d) {
+    st.direction = d;
+  }
+
+  TextDirection direction() const {
+    return st.direction;
+  }
+
+  /**
+   * Measures `text` with the current font in logic units. Returns zeros
+   * when the renderer is uninitialized or `text` is empty.
+   */
+  TextMetrics measureText(string text) {
+    TextMetrics res;
+    if (!fRenderer.isInitialized() || text.length == 0) {
+      return res;
+    }
+    const spec = st.fontSpec;
+    const PointF sz = fRenderer.measureTextWithFontName(
+      text, spec.ptSize, spec.name
+    );
+    res.width = sz.x;
+    Font f = fRenderer.font(spec.ptSize, spec.name);
+    if (f !is null) {
+      import std.math : abs;
+
+      res.fontAscent = fRenderer.logicFromPixelsFloat(f.ascent);
+      res.fontDescent = fRenderer.logicFromPixelsFloat(abs(f.descent));
+    }
+    return res;
+  }
 
 package(yguilib.render):
   /// Resets to the default state with an empty save stack (new frame).
@@ -428,6 +488,10 @@ private:
     Transform2d xf;
     ClipEntry[] clips;
     Shadow shadow;
+    FontSpec fontSpec;
+    TextAlign textAlign = TextAlign.start;
+    TextBaseline textBaseline = TextBaseline.alphabetic;
+    TextDirection direction = TextDirection.ltr;
   }
 
   /// Geometry in `fVerts` for `drawShadow`.
@@ -2180,4 +2244,58 @@ unittest {
   assert(isRgb(50, 30, 0, 0, 0));
 
   assert(glGetError() == GL_NO_ERROR);
+}
+
+// Canvas text state and measureText
+unittest {
+  import std.math : isClose;
+  import yguilib.clibs.sdl3;
+  import yguilib.window : Window;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(320, 240, "test_canvas_text_state");
+  win.create();
+  scope(exit) win.destroy();
+  win.setDisplayScaling(1.0f);
+  auto r = win.renderer;
+  r.viewport(320, 240);
+  auto cv = r.canvas();
+
+  assert(cv.fontSpec.ptSize == defaultFontPtSize);
+  assert(cv.textAlign == TextAlign.start);
+  assert(cv.textBaseline == TextBaseline.alphabetic);
+  assert(cv.direction == TextDirection.ltr);
+
+  cv.fontSpec = FontSpec(20, null);
+  cv.textAlign = TextAlign.center;
+  cv.textBaseline = TextBaseline.middle;
+  cv.direction = TextDirection.rtl;
+  cv.save();
+  cv.fontSpec = FontSpec(30, null);
+  cv.textAlign = TextAlign.end;
+  cv.textBaseline = TextBaseline.top;
+  cv.direction = TextDirection.ltr;
+  assert(cv.fontSpec.ptSize == 30);
+  cv.restore();
+  assert(cv.fontSpec.ptSize == 20);
+  assert(cv.textAlign == TextAlign.center);
+  assert(cv.textBaseline == TextBaseline.middle);
+  assert(cv.direction == TextDirection.rtl);
+
+  // invalid sizes are ignored
+  cv.fontSpec = FontSpec(0, null);
+  cv.fontSpec = FontSpec(-3, null);
+  cv.fontSpec = FontSpec(float.nan, null);
+  cv.fontSpec = FontSpec(float.infinity, null);
+  assert(cv.fontSpec.ptSize == 20);
+
+  const e = cv.measureText("");
+  assert(e.width == 0 && e.fontAscent == 0 && e.fontDescent == 0);
+  const m = cv.measureText("Hello");
+  assert(m.width > 0 && m.fontAscent > 0 && m.fontDescent >= 0);
+  cv.fontSpec = FontSpec(40, null);
+  const m2 = cv.measureText("Hello");
+  assert(m2.width > m.width && m2.fontAscent > m.fontAscent);
 }

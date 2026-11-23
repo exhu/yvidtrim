@@ -34,6 +34,15 @@ int main(void) {
   assert(line_skip > 0);
   (void)descent;
 
+  // Outline
+  assert(yguilib_sdl3_ttf_get_font_outline(font) == 0);
+  assert(yguilib_sdl3_ttf_set_font_outline(font, 2) == 0);
+  assert(yguilib_sdl3_ttf_get_font_outline(font) == 2);
+  assert(yguilib_sdl3_ttf_set_font_outline(font, -1) == -1);
+  assert(yguilib_sdl3_ttf_set_font_outline(NULL, 1) == -1);
+  assert(yguilib_sdl3_ttf_get_font_outline(NULL) == 0);
+  assert(yguilib_sdl3_ttf_set_font_outline(font, 0) == 0);
+
   // Text size
   int w = 0;
   int h = 0;

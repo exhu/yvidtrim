@@ -3,6 +3,7 @@
  */
 module yguilib.render.canvas.types;
 
+import yguilib.render.font : defaultFontPtSize;
 import yguilib.render.render_types : ColorF, PointF;
 import yguilib.render.texture : Texture;
 
@@ -463,4 +464,113 @@ unittest {
 enum FillRule {
   nonZero,
   evenOdd,
+}
+
+/// Font selection of Canvas text: logical point size and registered name.
+struct FontSpec {
+  float ptSize = defaultFontPtSize;
+  /// Registered font name; null or empty selects the default font.
+  string name;
+}
+
+/// Horizontal text anchor (`start`/`end` depend on `TextDirection`).
+enum TextAlign {
+  start,
+  end,
+  left,
+  right,
+  center,
+}
+
+/// Vertical text anchor relative to the font metrics.
+enum TextBaseline {
+  alphabetic,
+  top,
+  hanging,
+  middle,
+  ideographic,
+  bottom,
+}
+
+enum TextDirection {
+  ltr,
+  rtl,
+}
+
+/// Measured text in logic units; descent is a positive distance.
+struct TextMetrics {
+  float width = 0;
+  float fontAscent = 0;
+  float fontDescent = 0;
+}
+
+/**
+ * Offset from the text anchor point to the top-left corner of the text
+ * box (`m.width` by `m.fontAscent + m.fontDescent`), y down.
+ *
+ * Approximations: hanging baseline is `0.2 * ascent` below the top,
+ * ideographic is the box bottom, `middle` is half of the box height.
+ */
+package(yguilib) PointF textAnchorOffset(
+  in TextMetrics m,
+  TextAlign align_,
+  TextBaseline baseline,
+  TextDirection dir
+) nothrow @safe @nogc pure {
+  const float h = m.fontAscent + m.fontDescent;
+  float x = 0;
+  final switch (align_) {
+  case TextAlign.left:
+    break;
+  case TextAlign.right:
+    x = -m.width;
+    break;
+  case TextAlign.center:
+    x = -m.width * 0.5f;
+    break;
+  case TextAlign.start:
+    x = dir == TextDirection.ltr ? 0 : -m.width;
+    break;
+  case TextAlign.end:
+    x = dir == TextDirection.ltr ? -m.width : 0;
+    break;
+  }
+  float y = 0;
+  final switch (baseline) {
+  case TextBaseline.top:
+    break;
+  case TextBaseline.hanging:
+    y = -0.2f * m.fontAscent;
+    break;
+  case TextBaseline.alphabetic:
+    y = -m.fontAscent;
+    break;
+  case TextBaseline.middle:
+    y = -h * 0.5f;
+    break;
+  case TextBaseline.ideographic:
+  case TextBaseline.bottom:
+    y = -h;
+    break;
+  }
+  return PointF(x, y);
+}
+
+unittest {
+  const m = TextMetrics(100, 20, 5);
+  alias A = TextAlign;
+  alias B = TextBaseline;
+  alias D = TextDirection;
+  assert(textAnchorOffset(m, A.left, B.top, D.ltr) == PointF(0, 0));
+  assert(textAnchorOffset(m, A.right, B.alphabetic, D.ltr)
+    == PointF(-100, -20));
+  assert(textAnchorOffset(m, A.center, B.middle, D.ltr)
+    == PointF(-50, -12.5f));
+  assert(textAnchorOffset(m, A.start, B.bottom, D.ltr) == PointF(0, -25));
+  assert(textAnchorOffset(m, A.start, B.ideographic, D.rtl)
+    == PointF(-100, -25));
+  assert(textAnchorOffset(m, A.end, B.hanging, D.ltr) == PointF(-100, -4));
+  assert(textAnchorOffset(m, A.end, B.top, D.rtl) == PointF(0, 0));
+  assert(textAnchorOffset(TextMetrics.init, A.center, B.middle, D.ltr)
+    == PointF(0, 0));
 }

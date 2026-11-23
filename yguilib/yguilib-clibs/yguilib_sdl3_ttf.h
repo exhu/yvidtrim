@@ -68,6 +68,26 @@ int yguilib_sdl3_ttf_set_font_size(
 );
 
 /**
+ * Sets the outline width of a font (0 disables the outline).
+ *
+ * @param font Font handle.
+ * @param outline Outline width in pixels (must be >= 0).
+ * @return 0 on success, or -1 on error.
+ */
+int yguilib_sdl3_ttf_set_font_outline(
+  yguilib_sdl3_ttf_Font *font,
+  int outline
+);
+
+/**
+ * Gets the outline width of a font in pixels.
+ *
+ * @param font Font handle (must not be NULL).
+ * @return Outline width in pixels, or 0 on error.
+ */
+int yguilib_sdl3_ttf_get_font_outline(const yguilib_sdl3_ttf_Font *font);
+
+/**
  * Gets the total font height in pixels.
  *
  * @param font Font handle (must not be NULL).
