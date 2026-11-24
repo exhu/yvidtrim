@@ -26,7 +26,8 @@ import yguilib.render.canvas.types;
 import yguilib.render.internal.offscreen : SavedTargetState;
 import yguilib.render.internal.path_flatten : Contours;
 import yguilib.render.internal.pipelines : GradientUniforms, PatternUniforms,
-  TextVertex, TextureMode, Viewport, rectTriangles, textureModeFor;
+  TextVertex, TextureMode, Viewport, packTextColor, rectTriangles,
+  textureModeFor;
 import yguilib.render.render_types;
 import yguilib.render.texture : Texture;
 
@@ -1364,6 +1365,7 @@ private:
     in ColorF color
   ) {
     const bool stencil = clipActive();
+    const ubyte[4] packed = packTextColor(color);
     foreach (ref g; run.glyphs) {
       if (g.slot.w <= 0) {
         continue;
@@ -1381,10 +1383,10 @@ private:
       const float u1 = (g.slot.x + g.srcX + g.srcW) * p.invAtlas;
       const float v1 = (g.slot.y + g.srcY + g.srcH) * p.invAtlas;
       const TextVertex[4] quad = [
-        TextVertex(p0.x, p0.y, u0, v0, color.r, color.g, color.b, color.a),
-        TextVertex(p1.x, p1.y, u1, v0, color.r, color.g, color.b, color.a),
-        TextVertex(p2.x, p2.y, u0, v1, color.r, color.g, color.b, color.a),
-        TextVertex(p3.x, p3.y, u1, v1, color.r, color.g, color.b, color.a),
+        TextVertex(p0.x, p0.y, u0, v0, packed),
+        TextVertex(p1.x, p1.y, u1, v0, packed),
+        TextVertex(p2.x, p2.y, u0, v1, packed),
+        TextVertex(p3.x, p3.y, u1, v1, packed),
       ];
       fRenderer.queueTextQuad(atlasTex, stencil, quad);
     }

@@ -159,26 +159,27 @@ size_t vboCapacityFor(size_t bytes) nothrow @safe @nogc pure {
 /// Smallest VBO allocation of `uploadAndDrawDynamic` in bytes.
 enum size_t minVboCapacity = 256;
 
-/// Maximum quads per indexed draw using 16-bit indices (65532 vertices).
-enum size_t maxIndexedQuads = 16383;
+/// Maximum quads per indexed draw (16-bit indices allow up to 16383).
+enum size_t maxIndexedQuads = 2048;
 
-/// Smallest EBO quad capacity allocated for `IndexedQuadArray`.
-enum size_t minIndexedQuadCapacity = 64;
-
-/**
- * EBO quad capacity for `quads`: starts at `minIndexedQuadCapacity`,
- * doubles until `>= quads`, and clamps to `maxIndexedQuads`.
- */
-size_t indexedQuadCapacityFor(size_t quads) nothrow @safe @nogc pure {
-  assert(quads <= maxIndexedQuads);
-  size_t cap = minIndexedQuadCapacity;
-  while (cap < quads) {
-    cap *= 2;
+/// Writes two triangles per quad (`indices.length / 6` quads) into `indices`.
+void fillQuadIndices(ushort[] indices) nothrow @safe @nogc pure {
+  assert(indices.length % 6 == 0);
+  assert(indices.length / 6 <= 16383);
+  foreach (q; 0 .. indices.length / 6) {
+    const ushort b = cast(ushort)(q * 4);
+    const size_t base = q * 6;
+    indices[base + 0] = b;
+    indices[base + 1] = cast(ushort)(b + 1);
+    indices[base + 2] = cast(ushort)(b + 2);
+    indices[base + 3] = cast(ushort)(b + 2);
+    indices[base + 4] = cast(ushort)(b + 1);
+    indices[base + 5] = cast(ushort)(b + 3);
   }
-  return cap > maxIndexedQuads ? maxIndexedQuads : cap;
 }
 
-/// VAO with a dynamic VBO and a lazily-grown static quad EBO.
+
+/// VAO with a dynamic VBO and a static quad EBO built on first draw.
 struct IndexedQuadArray {
   GLuint vao;
   GLuint vbo;
@@ -189,7 +190,7 @@ struct IndexedQuadArray {
 
 /**
  * Creates a VAO for interleaved `TextVertex` data (vec2 position at 0,
- * vec2 texCoord at 1, vec4 color at 2) with an attached EBO. Leaves no
+ * vec2 texCoord at 1, normalized ubyte[4] color at 2) with an attached EBO. Leaves no
  * VAO or buffer bound.
  */
 IndexedQuadArray createTextQuadArray() {
@@ -203,7 +204,7 @@ IndexedQuadArray createTextQuadArray() {
   glGenBuffers(1, &h.ebo);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, h.ebo);
 
-  const GLsizei stride = 8 * float.sizeof;
+  const GLsizei stride = 5 * float.sizeof;
   glEnableVertexAttribArray(0);
   glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, null);
 
@@ -214,7 +215,8 @@ IndexedQuadArray createTextQuadArray() {
 
   glEnableVertexAttribArray(2);
   glVertexAttribPointer(
-    2, 4, GL_FLOAT, GL_FALSE, stride, cast(const(void)*)(4 * float.sizeof)
+    2, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride,
+    cast(const(void)*)(4 * float.sizeof)
   );
 
   glBindVertexArray(0);
@@ -246,31 +248,32 @@ void uploadAndDrawIndexedQuads(
     );
     qa.vboCapacity = cap;
   }
+  else {
+    // Orphan so in-flight draws of earlier flushes do not stall the upload.
+    glBufferData(
+      GL_ARRAY_BUFFER, cast(GLsizeiptr)qa.vboCapacity, null, GL_DYNAMIC_DRAW
+    );
+  }
   glBufferSubData(
     GL_ARRAY_BUFFER, 0, cast(GLsizeiptr)vertexBytes.length, vertexBytes.ptr
   );
 
-  if (quadCount > qa.eboQuadCapacity) {
-    const size_t newQuads = indexedQuadCapacityFor(quadCount);
-    auto indices = new ushort[newQuads * 6];
-    foreach (q; 0 .. newQuads) {
-      const ushort b = cast(ushort)(q * 4);
-      const size_t base = q * 6;
-      indices[base + 0] = b;
-      indices[base + 1] = cast(ushort)(b + 1);
-      indices[base + 2] = cast(ushort)(b + 2);
-      indices[base + 3] = cast(ushort)(b + 2);
-      indices[base + 4] = cast(ushort)(b + 1);
-      indices[base + 5] = cast(ushort)(b + 3);
-    }
+  if (qa.eboQuadCapacity == 0) {
+    // Built once at full capacity from a temporary malloc buffer.
+    import core.stdc.stdlib : free, malloc;
+
+    enum size_t count = maxIndexedQuads * 6;
+    auto indices = (cast(ushort*)malloc(count * ushort.sizeof))[0 .. count];
+    scope(exit) free(indices.ptr);
+    fillQuadIndices(indices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, qa.ebo);
     glBufferData(
       GL_ELEMENT_ARRAY_BUFFER,
-      cast(GLsizeiptr)(indices.length * ushort.sizeof),
+      cast(GLsizeiptr)(count * ushort.sizeof),
       indices.ptr,
       GL_STATIC_DRAW
     );
-    qa.eboQuadCapacity = newQuads;
+    qa.eboQuadCapacity = maxIndexedQuads;
   }
 
   glDrawElements(
@@ -300,14 +303,10 @@ unittest {
 }
 
 unittest {
-  assert(indexedQuadCapacityFor(0) == 64);
-  assert(indexedQuadCapacityFor(1) == 64);
-  assert(indexedQuadCapacityFor(64) == 64);
-  assert(indexedQuadCapacityFor(65) == 128);
-  assert(indexedQuadCapacityFor(500) == 512);
-  assert(indexedQuadCapacityFor(8192) == 8192);
-  assert(indexedQuadCapacityFor(8193) == maxIndexedQuads);
-  assert(indexedQuadCapacityFor(maxIndexedQuads) == maxIndexedQuads);
+  ushort[12] idx;
+  fillQuadIndices(idx[]);
+  assert(idx == [0, 1, 2, 2, 1, 3, 4, 5, 6, 6, 5, 7]);
+  static assert(maxIndexedQuads * 4 <= ushort.max + 1);
 }
 
 /**

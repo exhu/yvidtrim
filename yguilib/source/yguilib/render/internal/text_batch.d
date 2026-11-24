@@ -7,7 +7,6 @@ module yguilib.render.internal.text_batch;
 package(yguilib):
 
 import glad2.gles2;
-import yguilib.allochelpers : ReusableArray;
 import yguilib.render.internal.gl_util : maxIndexedQuads;
 import yguilib.render.internal.pipelines : TextPipeline, TextVertex, Viewport;
 import yguilib.render.internal.stencil_ops : beginClipTest, endStencil;
@@ -69,9 +68,35 @@ struct TextBatch {
       fTexture = texId;
       fStencilClip = stencilClip;
     }
-    foreach (ref v; quad) {
-      fVerts.push(v);
+    appendQuad(quad);
+  }
+
+  /// Number of quads that still fit before `maxIndexedQuads`.
+  size_t remaining() const nothrow @safe {
+    return maxIndexedQuads - fQuadCount;
+  }
+
+  /**
+   * Sets the batch state for a run of quads appended with `appendQuad`.
+   * Requires `texId != 0` and `!needsFlushFor(texId, stencilClip)`.
+   */
+  void beginRun(GLuint texId, bool stencilClip) {
+    assert(texId != 0);
+    assert(!needsFlushFor(texId, stencilClip));
+    fTexture = texId;
+    fStencilClip = stencilClip;
+  }
+
+  /**
+   * Appends one quad without state checks; requires `remaining() > 0` and
+   * a prior `beginRun` (or `pushQuad`) for the current batch state.
+   */
+  void appendQuad(in TextVertex[4] quad) {
+    assert(fQuadCount < maxIndexedQuads);
+    if (fVerts.length == 0) {
+      fVerts = new TextVertex[maxIndexedQuads * 4];
     }
+    fVerts[fQuadCount * 4 .. fQuadCount * 4 + 4] = quad[];
     ++fQuadCount;
   }
 
@@ -86,7 +111,7 @@ struct TextBatch {
     const GLuint tex = fTexture;
     const bool clip = fStencilClip;
     const size_t quads = fQuadCount;
-    const(TextVertex)[] verts = fVerts[];
+    const(TextVertex)[] verts = fVerts[0 .. quads * 4];
     fQuadCount = 0;
     fTexture = 0;
     fStencilClip = false;
@@ -98,7 +123,6 @@ struct TextBatch {
     if (clip) {
       endStencil();
     }
-    fVerts.clear();
 
     version (unittest) {
       ++fStats.flushes;
@@ -108,7 +132,6 @@ struct TextBatch {
 
   /// Drops queued quads while keeping the backing vertex buffer capacity.
   void clear() {
-    fVerts.clear();
     fQuadCount = 0;
     fTexture = 0;
     fStencilClip = false;
@@ -116,7 +139,7 @@ struct TextBatch {
 
   /// Drops queued quads and releases the backing vertex buffer.
   void releaseMemory() {
-    fVerts.releaseMemory();
+    fVerts = null;
     fQuadCount = 0;
     fTexture = 0;
     fStencilClip = false;
@@ -133,7 +156,7 @@ struct TextBatch {
   }
 
 private:
-  ReusableArray!TextVertex fVerts;
+  TextVertex[] fVerts;
   size_t fQuadCount;
   GLuint fTexture;
   bool fStencilClip;
@@ -152,10 +175,10 @@ unittest {
   assert(!batch.needsFlushFor(1, true));
 
   const TextVertex[4] q = [
-    TextVertex(0, 0, 0, 0, 1, 1, 1, 1),
-    TextVertex(10, 0, 1, 0, 1, 1, 1, 1),
-    TextVertex(0, 10, 0, 1, 1, 1, 1, 1),
-    TextVertex(10, 10, 1, 1, 1, 1, 1, 1),
+    TextVertex(0, 0, 0, 0, [255, 255, 255, 255]),
+    TextVertex(10, 0, 1, 0, [255, 255, 255, 255]),
+    TextVertex(0, 10, 0, 1, [255, 255, 255, 255]),
+    TextVertex(10, 10, 1, 1, [255, 255, 255, 255]),
   ];
 
   batch.pushQuad(7, true, q);
@@ -197,10 +220,10 @@ unittest {
 
   TextBatch batch;
   const TextVertex[4] q = [
-    TextVertex(0, 0, 0, 0, 1, 1, 1, 1),
-    TextVertex(8, 0, 1, 0, 1, 1, 1, 1),
-    TextVertex(0, 8, 0, 1, 1, 1, 1, 1),
-    TextVertex(8, 8, 1, 1, 1, 1, 1, 1),
+    TextVertex(0, 0, 0, 0, [255, 255, 255, 255]),
+    TextVertex(8, 0, 1, 0, [255, 255, 255, 255]),
+    TextVertex(0, 8, 0, 1, [255, 255, 255, 255]),
+    TextVertex(8, 8, 1, 1, [255, 255, 255, 255]),
   ];
 
   // Warm up buffer capacity.

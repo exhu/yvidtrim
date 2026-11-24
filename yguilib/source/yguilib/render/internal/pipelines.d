@@ -1025,13 +1025,25 @@ struct TextVertex {
   float y;
   float u;
   float v;
-  float r;
-  float g;
-  float b;
-  float a;
+  /// Normalized RGBA bytes (attribute 2 is `GL_UNSIGNED_BYTE, GL_TRUE`).
+  ubyte[4] color;
 }
 
-static assert(TextVertex.sizeof == 8 * float.sizeof);
+static assert(TextVertex.sizeof == 5 * float.sizeof);
+
+/// Packs a straight-alpha `ColorF` into normalized RGBA bytes.
+ubyte[4] packTextColor(in ColorF c) nothrow @safe @nogc pure {
+  static ubyte q(float v) {
+    const float t = v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
+    return cast(ubyte)(t * 255.0f + 0.5f);
+  }
+  return [q(c.r), q(c.g), q(c.b), q(c.a)];
+}
+
+unittest {
+  assert(packTextColor(ColorF(0, 0.5f, 1, 1)) == [0, 128, 255, 255]);
+  assert(packTextColor(ColorF(-1, 2, 0, 0)) == [0, 255, 0, 0]);
+}
 
 /**
  * Shader pipeline for batched colored glyph quads with per-vertex color.

@@ -148,3 +148,45 @@ Heap details on the `current` run:
    baseline and candidate) so timings reflect production code rather than `-O0`
    debug-contract overhead, and record `gc used`, `gc free`, and `malloc`
    deltas alongside RSS.
+
+## Final Results (phases 1-4, optimized build)
+
+Optimized builds (`-Dbuildtype=debugoptimized -Db_ndebug=true
+-Dbenchmarks=true`), 3 interleaved runs each, `pool-2048` is commit
+`2726853` in a temporary worktree, `batch` is the working tree with: fixed
+`TextVertex[]` buffer and per-run state check, 2048-quad cap, one-time EBO,
+20-byte vertices (`ubyte[4]` color) and VBO orphaning before each
+`glBufferSubData`.
+
+```
+  scenario  config     avg ms        max ms      rss end KiB
+  --------  ---------  ------------  ----------  --------------
+  static    pool-2048  0.640-0.741   1.20-1.48   +7240-7388
+            batch      0.329-0.333   0.85-1.62   +7136-7156
+  churn     pool-2048  0.516-0.639   1.13-1.24   +2220-2228
+            batch      0.359-0.407   0.96-1.31   +2228
+  many      pool-2048  3.034-3.163   3.98-4.23   +1348-1416
+            batch      1.806-1.869   2.91-3.33   +1364
+  thrash    pool-2048  25.61-27.18   30.8-37.6   +16164-17384
+            batch      25.18-25.80   28.7-30.1   +16408-17508
+  cjk-mix   pool-2048  0.635-0.637   1.29-1.73   +5768
+            batch      0.513-0.549   1.43-1.53   +8584
+  cjk-many  pool-2048  2.422-2.479   3.43-3.51   +1488-1492
+            batch      2.193-2.458   3.49-4.16   +3508-3560
+  multicolor batch     0.314-0.331   0.55-0.77   +0-232
+```
+
+Against the targets:
+- avg time <= pool-2048: met in every scenario (`many` 41% faster,
+  `cjk-many` equal to 10% faster, `thrash` equal within noise).
+- No `thrash` spikes: met (max 28.7-30.1 ms; the 2-3 s spikes are gone).
+- RSS delta <= pool-2048 + ~0.5 MiB: met for `static`, `churn`, `many`,
+  `thrash`. NOT met for the CJK scenarios: `cjk-mix` +2.8 MiB and
+  `cjk-many` +2.0 MiB over the baseline.
+
+Shortfall: the CJK RSS excess appears only with the `cjk` font scenarios and
+is not explained by the vertex buffers (those are identical to `many`, which
+is on target). It likely comes from glyph rasterization / cache allocations
+that differ in the batch path (to be investigated); the Latin scenarios show
+no excess. Orphaning the VBO did not measurably change frame times on this
+GPU/driver (radeonsi) since uploads are already small after the 2048 cap.

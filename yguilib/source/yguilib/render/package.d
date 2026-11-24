@@ -22,6 +22,7 @@ import yguilib.render.internal.gl_util : ProgramTracker, maxTextureSize;
 import yguilib.render.internal.pipelines : BlurPipeline, ColorPipeline,
   GradientPipeline, PatternPipeline, RoundRectPipeline, RoundRectShape,
   TextPipeline, TextVertex, TextureMode, TexturePipeline, TexturedQuad,
+  packTextColor,
   ThickLine, Viewport, textureModeFor;
 import yguilib.render.internal.text_batch : TextBatch;
 import yguilib.render.internal.text_cache : TextRun, TextRunCache;
@@ -1248,9 +1249,19 @@ private:
     const float invAtlas = 1.0f / atlasSz;
     const float scale = totalScaling();
     const float invScale = scale > 0.0f ? 1.0f / scale : 1.0f;
+    const ubyte[4] packed = packTextColor(color);
+    if (fTextBatch.needsFlushFor(atlasTex, false)
+        || fTextBatch.remaining() < run.glyphs.length) {
+      flush();
+    }
+    fTextBatch.beginRun(atlasTex, false);
     foreach (ref g; run.glyphs) {
       if (g.slot.w <= 0) {
         continue;
+      }
+      if (fTextBatch.remaining() == 0) {
+        flush();
+        fTextBatch.beginRun(atlasTex, false);
       }
       const float x0 = (screenX + g.dx) * invScale;
       const float y0 = (screenY + g.dy) * invScale;
@@ -1261,12 +1272,12 @@ private:
       const float u1 = (g.slot.x + g.srcX + g.srcW) * invAtlas;
       const float v1 = (g.slot.y + g.srcY + g.srcH) * invAtlas;
       const TextVertex[4] quad = [
-        TextVertex(x0, y0, u0, v0, color.r, color.g, color.b, color.a),
-        TextVertex(x1, y0, u1, v0, color.r, color.g, color.b, color.a),
-        TextVertex(x0, y1, u0, v1, color.r, color.g, color.b, color.a),
-        TextVertex(x1, y1, u1, v1, color.r, color.g, color.b, color.a),
+        TextVertex(x0, y0, u0, v0, packed),
+        TextVertex(x1, y0, u1, v0, packed),
+        TextVertex(x0, y1, u0, v1, packed),
+        TextVertex(x1, y1, u1, v1, packed),
       ];
-      queueTextQuad(atlasTex, false, quad);
+      fTextBatch.appendQuad(quad);
     }
   }
 
