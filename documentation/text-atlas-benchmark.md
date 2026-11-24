@@ -318,6 +318,58 @@ Observations:
 - Output fidelity counts remain unchanged across both runs (`default-mixed`
   `lit=633`, `cjk-mixed` `lit=1142`, `cjk-latin` `lit=372`).
 
+### Optimized-build baseline: pool-2048 vs batch
+
+The earlier `_bench` numbers were taken at `-O0` (`buildtype=debug`), where
+the per-glyph call chain of the batch path is not inlined and
+`ReusableArray` invariants run. This run uses
+`-Dbuildtype=debugoptimized -Db_ndebug=true -Dbenchmarks=true`, the same
+machine, 3 interleaved runs per config. `pool-2048` is commit `2726853`
+in a separate worktree, `batch` is the working tree at `122f1ae`.
+
+```
+  scenario  config     avg ms        max ms       rss end KiB
+  --------  ---------  ------------  -----------  ------------
+  static    pool-2048  0.674-0.718   1.21-2.01    +7236-7388
+            batch      0.395-0.445   0.89-1.13    +9160-9212
+  churn     pool-2048  0.479-0.615   1.21-1.43    +2220-2224
+            batch      0.352-0.448   0.85-3.08    +1100-1108
+  many      pool-2048  2.894-3.255   4.07-4.60    +1348-1392
+            batch      2.012-2.222   3.06-3.56    +5432
+  thrash    pool-2048  25.89-27.91   33.2-42.9    +15996-16144
+            batch      25.77-27.13   31.1-35.4    +19120-19160
+  cjk-mix   pool-2048  0.636-0.688   1.46-1.65    +5768
+            batch      0.519-0.573   0.94-1.29    +7476-7616
+  cjk-many  pool-2048  2.490-2.635   3.45-4.12    +1488-1492
+            batch      2.268-2.546   3.20-4.30    +1632-1684
+```
+
+Heap at end (KiB, gc used / gc free / malloc), identical across runs:
+
+```
+  scenario  pool-2048              batch
+  --------  ---------------------  ----------------------
+  static    +1126 / +2970 / +1362  +2135 / +1961 / +1297
+  churn     +1181 / -1181 / +5     +1181 / -1181 / +19
+  many      +1401 / -1401 / +37    +1991 / +5177 / +42
+  thrash    +12897 / +4511 / +349  +4151 / +19400 / +464
+  cjk-mix   +5275 / -5274 / +4785  +13718 / -13718 / +4783
+  cjk-many  +217 / -217 / +1280    +5018 / -5018 / +1291
+```
+
+Findings:
+- On the optimized build the batch path is not slower in CPU time: it is
+  15-40% faster on `static`, `churn`, `many`, `cjk-mix`, equal on `thrash`
+  and `cjk-many` (within noise). The 35-70% regression in the earlier
+  report came from the `-O0` build and is not reproduced.
+- The memory regression is real: `many` +4.0 MiB RSS (gc free +5177 KiB
+  vs -1401), `static` +1.9 MiB, `cjk-mix` +1.8 MiB, `thrash` +3 MiB.
+  The `thrash` GC free space (+19400 KiB vs +4511) is the largest.
+- Output fidelity is unchanged (`lit=633`, `1142`, `372`).
+- `multicolor` (batch only): 0.351-0.385 ms avg, +348 KiB RSS.
+- Remaining work therefore targets memory (phase 3) and `thrash` /
+  upload cost (phase 4) rather than per-glyph CPU overhead.
+
 ## Caveats
 
 - One machine, one GL driver, a noisy desktop; no pinning of CPU

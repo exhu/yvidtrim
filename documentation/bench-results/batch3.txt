@@ -1,0 +1,41 @@
+textbench batch3
+static     labels=200   cold=   5.02ms avg=  0.366ms p95=  0.492ms max=  1.179ms
+             rss: +3972KiB after cold, +7148KiB at end (peak 101036KiB)
+             heap at end: gc used +1271KiB free +2825KiB, malloc +1302KiB
+             after GC.collect+minimize: rss +7212KiB, gc used +441KiB, malloc +1302KiB
+             gl textures: +1 / +1.00MiB after cold, +1 / +1.00MiB at end
+churn      labels=100   cold=   0.84ms avg=  0.486ms p95=  0.724ms max=  1.106ms
+             rss: +284KiB after cold, +2300KiB at end (peak 103400KiB)
+             heap at end: gc used +1181KiB free +-1181KiB, malloc +6KiB
+             after GC.collect+minimize: rss +2300KiB, gc used +1098KiB, malloc +6KiB
+             gl textures: +1 / +1.00MiB after cold, +1 / +1.00MiB at end
+many       labels=1500  cold=   8.53ms avg=  2.208ms p95=  3.067ms max=  3.622ms
+             rss: +1952KiB after cold, +1340KiB at end (peak 104740KiB)
+             heap at end: gc used +1401KiB free +-1401KiB, malloc +34KiB
+             after GC.collect+minimize: rss +1340KiB, gc used +872KiB, malloc +34KiB
+             gl textures: +1 / +1.00MiB after cold, +1 / +1.00MiB at end
+thrash     labels=5000  cold=  38.14ms avg= 27.235ms p95= 36.285ms max= 37.139ms
+             rss: +7232KiB after cold, +17508KiB at end (peak 122248KiB)
+             heap at end: gc used +12897KiB free +4511KiB, malloc +367KiB
+             after GC.collect+minimize: rss +17508KiB, gc used +2217KiB, malloc +367KiB
+             gl textures: +1 / +1.00MiB after cold, +1 / +1.00MiB at end
+multicolor labels=200   cold=   1.40ms avg=  0.315ms p95=  0.370ms max=  0.556ms
+             rss: +0KiB after cold, +0KiB at end (peak 122248KiB)
+             heap at end: gc used +5074KiB free +-5074KiB, malloc +0KiB
+             after GC.collect+minimize: rss +0KiB, gc used +-3838KiB, malloc +0KiB
+             gl textures: +1 / +1.00MiB after cold, +1 / +1.00MiB at end
+-- default font (no CJK glyphs expected)
+fidelity default-mixed  measure=200.0x18.0 lit=633 x=[11..209]
+-- registered font /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
+fidelity cjk-mixed      measure=221.0x21.0 lit=1142 x=[11..230]
+fidelity cjk-latin      measure=92.0x21.0 lit=372 x=[10..101]
+cjk-mix    labels=100   cold=   2.89ms avg=  0.514ms p95=  0.705ms max=  1.317ms
+             rss: +5000KiB after cold, +8588KiB at end (peak 132648KiB)
+             heap at end: gc used +13718KiB free +-406KiB, malloc +4796KiB
+             after GC.collect+minimize: rss +8588KiB, gc used +1224KiB, malloc +4796KiB
+             gl textures: +1 / +1.00MiB after cold, +1 / +1.00MiB at end
+cjk-many   labels=1500  cold=  45.52ms avg=  2.224ms p95=  2.829ms max=  2.957ms
+             rss: +3500KiB after cold, +3500KiB at end (peak 136148KiB)
+             heap at end: gc used +208KiB free +-208KiB, malloc +1287KiB
+             after GC.collect+minimize: rss +3500KiB, gc used +-2602KiB, malloc +1287KiB
+             gl textures: +1 / +4.00MiB after cold, +1 / +4.00MiB at end

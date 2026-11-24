@@ -210,7 +210,7 @@ with in-place compaction (LRU 2048, `beginFrame()` 2x hard cap). `GlyphAtlas`:
 one RGBA8 page (512..min(4096, max), generation counter), firing
 `onBeforeReset` (`Renderer.flush()`) before clear. Solid text queues quads
 into `TextBatch` (`TextPipeline` indexed quads, per-vertex RGBA), flushing
-on state/target/scissor change, 16383 quads, or `Renderer.flush()`
+on state/target/scissor change, 2048 quads, or `Renderer.flush()`
 (swap/readback); gradient/pattern fills still mask per label.
 
 ## Idiomatic Patterns

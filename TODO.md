@@ -1,3 +1,4 @@
+- optimize text batching performance and memory (documentation/text-batching-perf-report.md)
 - build widget library
 -- checkbox
 -- combobox
