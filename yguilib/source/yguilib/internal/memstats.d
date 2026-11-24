@@ -10,7 +10,7 @@ module yguilib.internal.memstats;
 package(yguilib):
 
 version (MemTelemetry) {
-  /// Tracks live textures and the peaks of their count and size.
+  /// Tracks live textures, peak count/memory, and largest/smallest sizes.
   struct TextureStats {
     struct Dim {
       int w;
@@ -23,6 +23,8 @@ version (MemTelemetry) {
     size_t peakCount;
     Dim maxDim;
     ulong maxBytes;
+    Dim minDim;
+    ulong minBytes;
 
     /// Records creation of texture `id` or re-specification of its image.
     void onAlloc(uint id, int w, int h) {
@@ -41,6 +43,10 @@ version (MemTelemetry) {
       if (b > maxBytes) {
         maxBytes = b;
         maxDim = Dim(w, h);
+      }
+      if (b > 0 && (minBytes == 0 || b < minBytes)) {
+        minBytes = b;
+        minDim = Dim(w, h);
       }
     }
 
@@ -120,10 +126,12 @@ version (MemTelemetry) {
     gHeap.sample();
     infof(
       "Texture stats (RGBA8 textures only): max memory=%s, "
-      ~ "max count=%s, largest=%dx%d (%s)",
+      ~ "max count=%s, largest=%dx%d (%s), smallest=%dx%d (%s)",
       formatBytes(gTextures.peakBytes), gTextures.peakCount,
       gTextures.maxDim.w, gTextures.maxDim.h,
-      formatBytes(gTextures.maxBytes)
+      formatBytes(gTextures.maxBytes),
+      gTextures.minDim.w, gTextures.minDim.h,
+      formatBytes(gTextures.minBytes)
     );
     infof(
       "Heap stats: max GC used=%s, max GC total=%s, max non-GC=%s",
@@ -134,20 +142,42 @@ version (MemTelemetry) {
 
   unittest {
     TextureStats t;
+    assert(t.minDim == TextureStats.Dim(0, 0));
+    assert(t.minBytes == 0);
     t.onAlloc(1, 10, 10);
+    assert(t.minDim == TextureStats.Dim(10, 10));
+    assert(t.minBytes == 400);
     t.onAlloc(2, 20, 5);
     assert(t.curBytes == 800);
     assert(t.peakCount == 2);
+    assert(t.minDim == TextureStats.Dim(10, 10));
+    assert(t.minBytes == 400);
     t.onAlloc(1, 30, 10); // resize replaces the old size
     assert(t.curBytes == 400 + 1200);
     assert(t.peakBytes == 1600);
     assert(t.maxDim == TextureStats.Dim(30, 10));
     assert(t.maxBytes == 1200);
+    assert(t.minDim == TextureStats.Dim(10, 10));
+    assert(t.minBytes == 400);
     t.onFree(1);
     t.onFree(1); // double free is harmless
     assert(t.curBytes == 400);
     assert(t.peakBytes == 1600);
     assert(t.peakCount == 2);
+    assert(t.minDim == TextureStats.Dim(10, 10));
+    assert(t.minBytes == 400);
+    t.onAlloc(3, 4, 8);
+    assert(t.minDim == TextureStats.Dim(4, 8));
+    assert(t.minBytes == 128);
+    t.onAlloc(2, 2, 3); // smaller resize updates minimum
+    assert(t.minDim == TextureStats.Dim(2, 3));
+    assert(t.minBytes == 24);
+    t.onFree(2);
+    assert(t.minDim == TextureStats.Dim(2, 3));
+    assert(t.minBytes == 24);
+    t.onAlloc(4, 0, 0); // zero-sized allocation ignored for minimum
+    assert(t.minDim == TextureStats.Dim(2, 3));
+    assert(t.minBytes == 24);
   }
 
   unittest {
