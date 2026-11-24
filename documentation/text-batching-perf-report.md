@@ -149,40 +149,49 @@ Heap details on the `current` run:
    debug-contract overhead, and record `gc used`, `gc free`, and `malloc`
    deltas alongside RSS.
 
-## Final Results (phases 1-4, optimized build)
+## Final Results (commit 9330be0 vs main, optimized build)
 
-Optimized builds (`-Dbuildtype=debugoptimized -Db_ndebug=true
--Dbenchmarks=true`), 3 interleaved runs each, `pool-2048` is commit
-`2726853` in a temporary worktree, `batch` is the working tree with: fixed
-`TextVertex[]` buffer and per-run state check, 2048-quad cap, one-time EBO,
-20-byte vertices (`ubyte[4]` color) and VBO orphaning before each
-`glBufferSubData`.
+Re-measured on 2026-11-24 with the committed branch
+(`cross-label-text-batching`, `9330be0`) against `main` (`2726853`,
+`pool-2048`, built from a temporary worktree). Both use identical options
+(`-Dbuildtype=debugoptimized -Db_ndebug=true -Dbenchmarks=true`), 3
+interleaved runs each (main, branch, main, ...) with the machine idle.
+The branch has: fixed `TextVertex[]` buffer and per-run state check,
+2048-quad cap, one-time EBO, 20-byte vertices (`ubyte[4]` color) and VBO
+orphaning before each `glBufferSubData`.
 
 ```
-  scenario  config     avg ms        max ms      rss end KiB
-  --------  ---------  ------------  ----------  --------------
-  static    pool-2048  0.640-0.741   1.20-1.48   +7240-7388
-            batch      0.329-0.333   0.85-1.62   +7136-7156
-  churn     pool-2048  0.516-0.639   1.13-1.24   +2220-2228
-            batch      0.359-0.407   0.96-1.31   +2228
-  many      pool-2048  3.034-3.163   3.98-4.23   +1348-1416
-            batch      1.806-1.869   2.91-3.33   +1364
-  thrash    pool-2048  25.61-27.18   30.8-37.6   +16164-17384
-            batch      25.18-25.80   28.7-30.1   +16408-17508
-  cjk-mix   pool-2048  0.635-0.637   1.29-1.73   +5768
-            batch      0.513-0.549   1.43-1.53   +8584
-  cjk-many  pool-2048  2.422-2.479   3.43-3.51   +1488-1492
-            batch      2.193-2.458   3.49-4.16   +3508-3560
-  multicolor batch     0.314-0.331   0.55-0.77   +0-232
+  scenario  config   avg ms        max ms       rss end KiB
+  --------  -------  ------------  -----------  ---------------
+  static    main     0.711-0.731   1.33-1.80    +7096-7264
+            branch   0.364-0.377   1.10-1.18    +7128-7148
+  churn     main     0.618-0.635   1.19-1.22    +2220
+            branch   0.486-0.523   1.11-1.26    +2300
+  many      main     3.147-3.227   3.97-4.17    +1348-1388
+            branch   2.124-2.208   3.53-3.75    +1336-1340
+  thrash    main     24.53-26.26   29.3-31.4    +16072-17168
+            branch   25.09-27.24   36.5-40.8    +17444-17512
+  cjk-mix   main     0.630-0.657   1.29-1.45    +5768-5772
+            branch   0.514-0.527   1.31-1.42    +8584-8588
+  cjk-many  main     2.419-2.503   3.35-4.04    +1488
+            branch   2.190-2.533   2.96-4.97    +3500-3564
+  multicolor branch  0.315-0.323   0.53-0.59    -1072-0
 ```
 
-Against the targets:
-- avg time <= pool-2048: met in every scenario (`many` 41% faster,
-  `cjk-many` equal to 10% faster, `thrash` equal within noise).
-- No `thrash` spikes: met (max 28.7-30.1 ms; the 2-3 s spikes are gone).
-- RSS delta <= pool-2048 + ~0.5 MiB: met for `static`, `churn`, `many`,
-  `thrash`. NOT met for the CJK scenarios: `cjk-mix` +2.8 MiB and
-  `cjk-many` +2.0 MiB over the baseline.
+Findings:
+- Faster: `static` -48%, `many` -31%, `churn` -20%, `cjk-mix` -19%.
+  `cjk-many` is -9% on average but the ranges overlap (one branch run
+  2.533 vs main 2.503), so it is equal within noise.
+- `thrash` is NOT improved: avg 25.1-27.2 ms vs 24.5-26.3 ms (ranges
+  overlap, branch slightly slower), and max frame is worse, 36.5-40.8 ms vs
+  29.3-31.4 ms (p95 36 ms vs 27-29 ms on the branch). The old 2-3 s spikes
+  of the uncommitted version are still gone. The earlier "max 28.7-30.1"
+  figure did not reproduce; the tail regression looks real (all 3 branch
+  runs) and is a candidate for investigation (flush count / orphaning
+  with ~120k quads per frame).
+- RSS: on target for `static`, `churn`, `many` (within ~0.1 MiB). `thrash`
+  is +0.3 to +1.4 MiB over main. CJK scenarios are still over: `cjk-mix`
+  +2.8 MiB, `cjk-many` +2.0 MiB (identical to the earlier measurement).
 
 Shortfall: the CJK RSS excess appears only with the `cjk` font scenarios and
 is not explained by the vertex buffers (those are identical to `many`, which

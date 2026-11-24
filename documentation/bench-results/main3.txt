@@ -1,0 +1,36 @@
+textbench main3
+static     labels=200   cold=   4.79ms avg=  0.711ms p95=  0.927ms max=  1.367ms
+             rss: +5764KiB after cold, +7264KiB at end (peak 100988KiB)
+             heap at end: gc used +1126KiB free +2970KiB, malloc +1362KiB
+             after GC.collect+minimize: rss +7328KiB, gc used +281KiB, malloc +1362KiB
+             gl textures: +1 / +1.00MiB after cold, +1 / +1.00MiB at end
+churn      labels=100   cold=   1.08ms avg=  0.624ms p95=  0.856ms max=  1.223ms
+             rss: +204KiB after cold, +2220KiB at end (peak 103272KiB)
+             heap at end: gc used +1181KiB free +-1181KiB, malloc +6KiB
+             after GC.collect+minimize: rss +2220KiB, gc used +1098KiB, malloc +6KiB
+             gl textures: +1 / +1.00MiB after cold, +1 / +1.00MiB at end
+many       labels=1500  cold=   9.42ms avg=  3.208ms p95=  3.680ms max=  4.125ms
+             rss: +1348KiB after cold, +1348KiB at end (peak 104620KiB)
+             heap at end: gc used +1401KiB free +-1401KiB, malloc +35KiB
+             after GC.collect+minimize: rss +1348KiB, gc used +872KiB, malloc +35KiB
+             gl textures: +1 / +1.00MiB after cold, +1 / +1.00MiB at end
+thrash     labels=5000  cold=  36.13ms avg= 25.125ms p95= 27.937ms max= 29.302ms
+             rss: +5828KiB after cold, +16072KiB at end (peak 120692KiB)
+             heap at end: gc used +12897KiB free +4511KiB, malloc +350KiB
+             after GC.collect+minimize: rss +16072KiB, gc used +2217KiB, malloc +350KiB
+             gl textures: +1 / +1.00MiB after cold, +1 / +1.00MiB at end
+-- default font (no CJK glyphs expected)
+fidelity default-mixed  measure=200.0x18.0 lit=633 x=[11..209]
+-- registered font /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
+fidelity cjk-mixed      measure=221.0x21.0 lit=1142 x=[11..230]
+fidelity cjk-latin      measure=92.0x21.0 lit=372 x=[10..101]
+cjk-mix    labels=100   cold=   3.03ms avg=  0.657ms p95=  0.920ms max=  1.446ms
+             rss: +5084KiB after cold, +5772KiB at end (peak 130252KiB)
+             heap at end: gc used +5275KiB free +-5274KiB, malloc +4784KiB
+             after GC.collect+minimize: rss +5772KiB, gc used +-2610KiB, malloc +4784KiB
+             gl textures: +1 / +1.00MiB after cold, +1 / +1.00MiB at end
+cjk-many   labels=1500  cold=  43.18ms avg=  2.503ms p95=  3.356ms max=  3.849ms
+             rss: +1488KiB after cold, +1488KiB at end (peak 131740KiB)
+             heap at end: gc used +217KiB free +-217KiB, malloc +1279KiB
+             after GC.collect+minimize: rss +1488KiB, gc used +-2594KiB, malloc +1279KiB
+             gl textures: +1 / +4.00MiB after cold, +1 / +4.00MiB at end
