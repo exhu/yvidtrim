@@ -281,8 +281,11 @@ void main(string[] args) {
   run(r, Scenario("churn", 100, 300, one.dup, null,
     (int f, int i) => format("%02d:%02d:%02d.%03d", i, f / 60, f % 60,
       (f * 7 + i) % 1000)));
-  // more distinct strings per frame than the entry cap (512)
+  // 1500 labels (exceeded the historical 512 cap, fits inside the 2048 cap)
   run(r, Scenario("many", 1500, 100, three.dup, null,
+    (int f, int i) => format("Item %04d / file_%d.mp4", i, i * 37)));
+  // more distinct strings per frame than the hard cap (2 * 2048)
+  run(r, Scenario("thrash", 5000, 50, three.dup, null,
     (int f, int i) => format("Item %04d / file_%d.mp4", i, i * 37)));
   cjkScenarios(r);
 }

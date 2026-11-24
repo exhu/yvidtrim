@@ -8,7 +8,7 @@ module yguilib.render.internal.text_cache;
 package(yguilib):
 
 import glad2.gles2;
-import std.array : Appender;
+import yguilib.allochelpers : ReusableArray;
 import yguilib.clibs.sdl3_ttf;
 import yguilib.render.font : Font, invalidFontId;
 import yguilib.render.internal.glyph_atlas : GlyphAtlas, GlyphLookup,
@@ -38,7 +38,8 @@ struct TextRun {
   /// Text area in pixels (includes the outline ring).
   int width;
   int height;
-  /// GC array owned by the cache entry.
+  /// Slice into `TextRunCache`'s pooled glyph buffer, valid until the next
+  /// `runFor` call.
   RunGlyph[] glyphs;
   /// Atlas generation the slots belong to.
   ulong atlasGen;
@@ -49,6 +50,12 @@ private:
 /// `TextRun.atlasGen` of a run whose slots are incomplete.
 enum ulong unresolvedGen = ulong.max;
 
+struct LayoutResult {
+  int count;
+  int width;
+  int height;
+}
+
 struct TextCacheKey {
   ulong fontId;
   float ptSize;
@@ -58,6 +65,8 @@ struct TextCacheKey {
 
 struct TextCacheEntry {
   TextRun run;
+  /// Start offset of `run.glyphs` in `TextRunCache.fGlyphPool`.
+  size_t glyphOffset;
   /// `TextRunCache.fTick` of the last hit or of the insert.
   ulong lastUse;
 }
@@ -65,6 +74,11 @@ struct TextCacheEntry {
 struct EvictCandidate {
   ulong lastUse;
   TextCacheKey key;
+}
+
+struct CompactEntry {
+  size_t offset;
+  TextCacheEntry* entry;
 }
 
 package(yguilib):
@@ -88,7 +102,7 @@ package(yguilib):
  * oldest entries are evicted anyway, even those used in this frame.
  */
 final class TextRunCache {
-  enum size_t maxCacheEntries = 512;
+  enum size_t maxCacheEntries = 2048;
 
   /// Atlas sizes: see `GlyphAtlas`; the texture is created on first use.
   this(size_t maxEntries, int atlasInitial, int atlasMax) {
@@ -128,6 +142,22 @@ final class TextRunCache {
     GlyphAtlas atlas() {
       return fAtlas;
     }
+
+    size_t glyphPoolCapacity() const {
+      return fGlyphPool.length;
+    }
+
+    size_t glyphPoolUsed() const {
+      return fPoolUsed;
+    }
+
+    size_t liveGlyphCount() const {
+      return fLiveGlyphs;
+    }
+
+    size_t compactionCount() const {
+      return fCompactionCount;
+    }
   }
 
   /**
@@ -138,7 +168,7 @@ final class TextRunCache {
     fEvictScratch.clear();
     foreach (key, ref entry; cache) {
       if (key.fontId == fontId) {
-        fEvictScratch.put(EvictCandidate(entry.lastUse, key));
+        fEvictScratch.push(EvictCandidate(entry.lastUse, key));
       }
     }
     foreach (ref cand; fEvictScratch[]) {
@@ -171,6 +201,10 @@ final class TextRunCache {
   void clear() {
     cache.clear();
     fEvictScratch.clear();
+    fCompactScratch.clear();
+    fGlyphPool = null;
+    fPoolUsed = 0;
+    fLiveGlyphs = 0;
     fAtlas.destroy();
   }
 
@@ -207,16 +241,26 @@ final class TextRunCache {
       return null;
     }
     scope(exit) resetOutline(font, outlinePx);
-    TextRun run;
-    if (!layoutRun(font, text, outlinePx, run)) {
+    const LayoutResult laid = layoutQuads(font, text);
+    if (laid.count <= 0) {
       return null;
     }
-    resolveSlots(font, outlinePx, run);
-
     if (cache.length >= maxEntries) {
       evictOldest();
     }
-    cache[key] = TextCacheEntry(run, ++fTick);
+    const size_t n = cast(size_t)laid.count;
+    const size_t offset = allocGlyphSpan(n);
+    TextRun run = TextRun(
+      laid.width,
+      laid.height,
+      fGlyphPool[offset .. offset + n],
+      unresolvedGen
+    );
+    fillRunGlyphs(run.glyphs, outlinePx);
+    resolveSlots(font, outlinePx, run);
+
+    fLiveGlyphs += n;
+    cache[key] = TextCacheEntry(run, offset, ++fTick);
     return &(key in cache).run;
   }
 
@@ -233,11 +277,10 @@ private:
   }
 
   /**
-   * Fills size and glyph rects of `run` (slots left empty). SDL_ttf lays
-   * outlined glyphs out `outlinePx` right and below the top-left of the
-   * rendered surface, so the rects are shifted back by it.
+   * Lays out `text` into the reused `fQuads` buffer, growing it if needed.
+   * Returns `LayoutResult(0, 0, 0)` on failure.
    */
-  bool layoutRun(Font font, string text, int outlinePx, ref TextRun run) {
+  LayoutResult layoutQuads(Font font, string text) {
     if (fQuads.length == 0) {
       fQuads.length = 64;
     }
@@ -255,25 +298,109 @@ private:
       );
     }
     if (n <= 0 || n > cast(int)fQuads.length) {
-      return false;
+      return LayoutResult(0, 0, 0);
     }
-    run.width = w;
-    run.height = h;
-    run.glyphs = new RunGlyph[n];
-    foreach (i, ref g; run.glyphs) {
+    return LayoutResult(n, w, h);
+  }
+
+  /**
+   * Fills `glyphs` from `fQuads`. SDL_ttf lays outlined glyphs out
+   * `outlinePx` right and below the top-left of the rendered surface,
+   * so `dx`/`dy` are shifted back by `outlinePx`.
+   */
+  void fillRunGlyphs(RunGlyph[] glyphs, int outlinePx) const {
+    foreach (i, ref g; glyphs) {
       const q = fQuads[i];
       g.dx = cast(short)(q.dstX - outlinePx);
       g.dy = cast(short)(q.dstY - outlinePx);
       g.dw = cast(short)q.dstW;
       g.dh = cast(short)q.dstH;
       g.glyph = q.glyphIndex;
+      g.slot = GlyphSlot.init;
       g.srcX = cast(short)q.srcX;
       g.srcY = cast(short)q.srcY;
       g.srcW = cast(short)q.srcW;
       g.srcH = cast(short)q.srcH;
     }
-    run.atlasGen = unresolvedGen;
-    return true;
+  }
+
+  size_t initialPoolCap() const {
+    import std.algorithm.comparison : max, min;
+
+    return max(size_t(64), min(size_t(4096), maxEntries * 16));
+  }
+
+  size_t allocGlyphSpan(size_t count) {
+    assert(count > 0);
+    if (fLiveGlyphs == 0) {
+      fPoolUsed = 0;
+    }
+    if (fPoolUsed + count > fGlyphPool.length) {
+      const size_t needed = fLiveGlyphs + count;
+      if (fPoolUsed > fLiveGlyphs && needed * 4 <= fGlyphPool.length * 3) {
+        compactGlyphPool();
+      } else {
+        growGlyphPool(needed);
+      }
+    }
+    const size_t offset = fPoolUsed;
+    fPoolUsed += count;
+    return offset;
+  }
+
+  void compactGlyphPool() {
+    import std.algorithm.sorting : sort;
+
+    fCompactScratch.clear();
+    foreach (ref entry; cache) {
+      fCompactScratch.push(CompactEntry(entry.glyphOffset, &entry));
+    }
+    CompactEntry[] entries = fCompactScratch[];
+    sort!((a, b) => a.offset < b.offset)(entries);
+
+    size_t dst = 0;
+    foreach (ref item; entries) {
+      TextCacheEntry* e = item.entry;
+      const size_t src = e.glyphOffset;
+      const size_t len = e.run.glyphs.length;
+      if (dst != src) {
+        foreach (i; 0 .. len) {
+          fGlyphPool[dst + i] = fGlyphPool[src + i];
+        }
+        e.glyphOffset = dst;
+        e.run.glyphs = fGlyphPool[dst .. dst + len];
+      }
+      dst += len;
+    }
+    assert(dst == fLiveGlyphs);
+    fPoolUsed = dst;
+    fCompactScratch.clear();
+    version (unittest) {
+      fCompactionCount++;
+    }
+  }
+
+  void growGlyphPool(size_t minNeeded) {
+    const size_t targetCap = minNeeded + minNeeded / 3 + 1;
+    size_t newCap =
+      fGlyphPool.length == 0 ? initialPoolCap() : fGlyphPool.length * 2;
+    while (newCap < targetCap) {
+      newCap *= 2;
+    }
+    auto next = new RunGlyph[newCap];
+    size_t dst = 0;
+    foreach (ref entry; cache) {
+      const size_t len = entry.run.glyphs.length;
+      if (len > 0) {
+        next[dst .. dst + len] = entry.run.glyphs[];
+      }
+      entry.glyphOffset = dst;
+      entry.run.glyphs = next[dst .. dst + len];
+      dst += len;
+    }
+    assert(dst == fLiveGlyphs);
+    fGlyphPool = next;
+    fPoolUsed = dst;
   }
 
   /**
@@ -333,7 +460,7 @@ private:
     fEvictScratch.clear();
     foreach (key, ref entry; cache) {
       if (atCap || entry.lastUse < fFrameStartTick) {
-        fEvictScratch.put(EvictCandidate(entry.lastUse, key));
+        fEvictScratch.push(EvictCandidate(entry.lastUse, key));
       }
     }
     EvictCandidate[] cands = fEvictScratch[];
@@ -346,21 +473,37 @@ private:
   }
 
   void removeKey(const TextCacheKey key) {
-    cache.remove(key);
+    auto p = key in cache;
+    if (p !is null) {
+      assert(fLiveGlyphs >= p.run.glyphs.length);
+      fLiveGlyphs -= p.run.glyphs.length;
+      cache.remove(key);
+      if (fLiveGlyphs == 0) {
+        fPoolUsed = 0;
+      }
+    }
   }
 
   size_t maxEntries = maxCacheEntries;
   TextCacheEntry[TextCacheKey] cache;
   GlyphAtlas fAtlas;
+  RunGlyph[] fGlyphPool;
+  size_t fPoolUsed;
+  size_t fLiveGlyphs;
   /// Incremented on every hit and insert (see `TextCacheEntry.lastUse`).
   ulong fTick = 0;
   /// First tick of the current frame (set by `beginFrame()`).
   ulong fFrameStartTick = 0;
   /// Reused eviction / removal buffer, so evicting rarely allocates.
-  Appender!(EvictCandidate[]) fEvictScratch;
+  ReusableArray!EvictCandidate fEvictScratch;
+  /// Reused compaction sort buffer.
+  ReusableArray!CompactEntry fCompactScratch;
   /// Reused layout output buffer.
   yguilib_sdl3_ttf_GlyphQuad[] fQuads;
   bool fLoggedThrash;
+  version (unittest) {
+    size_t fCompactionCount;
+  }
 }
 
 unittest {
@@ -572,4 +715,189 @@ unittest {
 
   tc.removeFont(font.id);
   assert(tc.length == 0 && tc.atlas.length == 0);
+}
+
+// Pool compaction preserves surviving RunGlyph data and keeps steady-state
+// pool capacity constant under eviction churn.
+unittest {
+  import std.format : format;
+  import yguilib.assets : defaultTtfFontData;
+  import yguilib.clibs.sdl3;
+  import yguilib.window : Window;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(160, 120, "test_text_cache_pool_churn");
+  win.create();
+  scope(exit) win.destroy();
+
+  Font font = Font.fromMemory(
+    cast(const(void)[])defaultTtfFontData, 12.0f, 1.0f
+  );
+  scope(exit) font.destroy();
+
+  auto tc = new TextRunCache(8, 512, 2048);
+  scope(exit) tc.clear();
+
+  RunGlyph[][string] snap;
+  tc.beginFrame();
+  foreach (i; 0 .. 8) {
+    const string key = format("item%04d", i);
+    const r = tc.runFor(font, key, 0);
+    assert(r !is null);
+    snap[key] = r.glyphs.dup;
+  }
+  const size_t steadyCap = tc.glyphPoolCapacity();
+  assert(steadyCap == 128);
+  assert(tc.liveGlyphCount() == 64);
+
+  foreach (step; 0 .. 240) {
+    tc.beginFrame();
+    const size_t beforeCompactions = tc.compactionCount();
+    const string nextKey = format("item%04d", 8 + step);
+    const inserted = tc.runFor(font, nextKey, 0);
+    assert(inserted !is null);
+    snap[nextKey] = inserted.glyphs.dup;
+    assert(tc.glyphPoolCapacity() == steadyCap);
+    if (tc.compactionCount() > beforeCompactions) {
+      size_t verified = 0;
+      foreach (k, expected; snap) {
+        if (tc.contains(font, k, 0)) {
+          const r = tc.runFor(font, k, 0);
+          assert(r !is null && r.glyphs == expected);
+          verified++;
+        }
+      }
+      assert(verified >= 6);
+    }
+  }
+  assert(tc.compactionCount() >= 20);
+  assert(tc.glyphPoolCapacity() == steadyCap);
+}
+
+// Overlapping in-place pool compaction (dst < src < dst + len) preserves
+// all RunGlyph fields of the shifted long run.
+unittest {
+  import yguilib.assets : defaultTtfFontData;
+  import yguilib.clibs.sdl3;
+  import yguilib.window : Window;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(160, 120, "test_text_cache_pool_overlap");
+  win.create();
+  scope(exit) win.destroy();
+
+  Font font = Font.fromMemory(
+    cast(const(void)[])defaultTtfFontData, 12.0f, 1.0f
+  );
+  scope(exit) font.destroy();
+
+  auto tc = new TextRunCache(2, 512, 2048);
+  scope(exit) tc.clear();
+
+  const string shortStr = "AB";
+  const string longStr = "CDEFGHIJKLMNOPQRSTUVWXYZ";
+
+  tc.beginFrame();
+  assert(tc.runFor(font, shortStr, 0) !is null);
+  const longRun = tc.runFor(font, longStr, 0);
+  assert(longRun !is null && longRun.glyphs.length == 24);
+  const RunGlyph[] expected = longRun.glyphs.dup;
+  assert(tc.glyphPoolCapacity() == 64);
+  assert(tc.glyphPoolUsed() == 26);
+  assert(tc.liveGlyphCount() == 26);
+
+  const string[4] fillers = [
+    "aaaaaaaaaa", "bbbbbbbbbb", "cccccccccc", "dddddddddd"
+  ];
+  foreach (f; fillers) {
+    tc.beginFrame();
+    assert(tc.runFor(font, longStr, 0) !is null);
+    assert(tc.runFor(font, f, 0) !is null);
+  }
+
+  assert(!tc.contains(font, shortStr, 0));
+  assert(tc.compactionCount() == 1);
+  assert(tc.glyphPoolCapacity() == 64);
+  assert(tc.glyphPoolUsed() == tc.liveGlyphCount());
+  const after = tc.runFor(font, longStr, 0);
+  assert(after !is null && after.glyphs.length == expected.length);
+  foreach (i, ref g; after.glyphs) {
+    assert(g == expected[i]);
+  }
+}
+
+// removeFont decrements liveGlyphCount and resets glyphPoolUsed when empty.
+unittest {
+  import yguilib.assets : defaultTtfFontData;
+  import yguilib.clibs.sdl3;
+  import yguilib.window : Window;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(160, 120, "test_text_cache_pool_remove_font");
+  win.create();
+  scope(exit) win.destroy();
+
+  Font fontA = Font.fromMemory(
+    cast(const(void)[])defaultTtfFontData, 12.0f, 1.0f
+  );
+  scope(exit) fontA.destroy();
+
+  Font fontB = Font.fromMemory(
+    cast(const(void)[])defaultTtfFontData, 14.0f, 1.0f
+  );
+  scope(exit) fontB.destroy();
+
+  auto tc = new TextRunCache(8, 512, 2048);
+  scope(exit) tc.clear();
+
+  assert(tc.runFor(fontA, "Hello", 0) !is null);
+  assert(tc.runFor(fontB, "World!", 0) !is null);
+  assert(tc.liveGlyphCount() == 11);
+  assert(tc.glyphPoolUsed() == 11);
+
+  tc.removeFont(fontA.id);
+  assert(tc.liveGlyphCount() == 6);
+  assert(tc.glyphPoolUsed() == 11);
+
+  tc.removeFont(fontB.id);
+  assert(tc.liveGlyphCount() == 0);
+  assert(tc.glyphPoolUsed() == 0);
+}
+
+// clear resets pool capacity, used count, and live glyph count to 0.
+unittest {
+  import yguilib.assets : defaultTtfFontData;
+  import yguilib.clibs.sdl3;
+  import yguilib.window : Window;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto win = new Window(160, 120, "test_text_cache_pool_clear");
+  win.create();
+  scope(exit) win.destroy();
+
+  Font font = Font.fromMemory(
+    cast(const(void)[])defaultTtfFontData, 12.0f, 1.0f
+  );
+  scope(exit) font.destroy();
+
+  auto tc = new TextRunCache(8, 512, 2048);
+  scope(exit) tc.clear();
+
+  assert(tc.runFor(font, "ClearPool", 0) !is null);
+  assert(tc.glyphPoolCapacity() > 0);
+  assert(tc.glyphPoolUsed() > 0);
+  assert(tc.liveGlyphCount() > 0);
+
+  tc.clear();
+  assert(tc.glyphPoolCapacity() == 0);
+  assert(tc.glyphPoolUsed() == 0);
+  assert(tc.liveGlyphCount() == 0);
 }

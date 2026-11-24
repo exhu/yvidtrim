@@ -1,4 +1,3 @@
-- experiment with a RunGlyph pool (reuse evicted runs' RunGlyph[] or one pooled buffer) and a larger maxCacheEntries in text_cache.d, check with textbench `many` whether RSS / GC free heap drops (see "Memory investigation" in documentation/text-atlas-benchmark.md)
 - cross-label text batching (queue glyph quads, flush on state change) (canvas-render-review 3.7)
 - build widget library
 -- checkbox

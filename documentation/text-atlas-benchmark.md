@@ -56,7 +56,9 @@ Scenarios:
   static        200     300  default  fixed text, 3 sizes (all hits)
   churn         100     300  default  digits change every frame
   many         1500     100  default  more distinct strings than the
-                                      512-entry cache cap, 3 sizes
+                                      512 cap (fits inside 2048), 3 sizes
+  thrash       5000      50  default  more distinct strings than the
+                                      2 * 2048 hard cap, 3 sizes
   cjk-mix       100     300  Noto     "视频剪辑 Video Trim 第N段 00:SS
                                       完成 OK", 3 sizes
   cjk-many     1500     100  Noto     8 distinct han chars per label,
@@ -181,13 +183,84 @@ Findings:
   only when the entry cap is exceeded every frame, as GC garbage from
   per-miss run allocation.
 
-Possible fixes if the `many` case matters (not done):
-- store the glyphs of all cached runs in one pooled buffer, or reuse the
-  `RunGlyph[]` of an evicted entry for the next miss, so a miss
-  allocates nothing;
+Follow-up fixes (first two now implemented, see below):
+- store the glyphs of all cached runs in one pooled buffer (implemented:
+  `TextRunCache` packs `RunGlyph` spans into `fGlyphPool` with in-place
+  compaction and reuses `fQuads` in `layoutQuads`);
 - raise `maxCacheEntries` above the number of labels a screen shows
-  (a run costs about 28 bytes per glyph plus the key string);
+  (implemented: `maxCacheEntries` raised from 512 to 2048; a run costs
+  about 28 bytes per glyph plus the key string);
 - calling `GC.collect()` is not an answer: it does not shrink RSS.
+
+### Follow-up: RunGlyph pool and maxCacheEntries = 2048
+
+Measured on the same machine comparing the pre-pool `512` baseline (1 run),
+`pool-512` (2 runs), and `pool-2048` (`maxCacheEntries = 2048`, hard cap
+`4096`, 2 runs).
+
+Frame times (ms):
+
+```
+  scenario  config     cold ms      avg ms         max ms
+  --------  ---------  -----------  -------------  -------------
+  static    baseline   5.01         0.863          -
+            pool-512   -            0.748-0.886    -
+            pool-2048  -            0.772-0.785    -
+  churn     baseline   1.38         0.845          -
+            pool-512   -            0.717-0.846    -
+            pool-2048  -            0.696-0.759    -
+  many      baseline   17.75        17.814         671.432
+            pool-512   12.42-16.51  11.920-12.079  13.916-17.203
+            pool-2048  8.87-8.89    3.377-3.386    4.290-4.658
+  thrash    pool-2048  65.87-66.87  66.838-67.773  -
+  cjk-mix   baseline   3.39         0.758          -
+            pool-512   -            0.844-0.850    -
+            pool-2048  -            0.874-0.895    -
+  cjk-many  baseline   53.69        11.063         -
+            pool-512   -            10.920-11.367  -
+            pool-2048  44.98-45.04  2.975-2.984    -
+```
+
+Memory deltas over scenario start (KiB):
+
+```
+  scenario  config     rss KiB       gc used KiB  gc free KiB  malloc KiB
+  --------  ---------  ------------  -----------  -----------  ----------
+  static    baseline   +6948         +890         +3206        +1363
+            pool-512   +7308-7376    +1126-1127   +2969-2970   +1362-1363
+            pool-2048  +7280-7296    +1126-1127   +2970        +1362-1363
+  churn     baseline   +308          +510         -510         +6
+            pool-512   +616-624      +602         -602         +5-6
+            pool-2048  +2224-2228    +1177        -1177        +5-6
+  many      baseline   +7732         +1247        +5921        +277
+            pool-512   +1964-2004    +906         -906         +41-43
+            pool-2048  +1348-1388    +1399        -1399        +35-37
+  thrash    pool-2048  +16140-17172  +12896*      +4512        +349-350
+  cjk-mix   baseline   +5196         -2539        +2539        +4785
+            pool-512   +5020-5084    -2336        +2336        +4784-4785
+            pool-2048  +5768         +5274        -5274        +4784
+  cjk-many  baseline   +1492         +3282        -3282        +1277
+            pool-512   +1488         +959         -959         +1277
+            pool-2048  +1488-1492    +217         -217         +1280
+```
+
+`*` In `thrash`, `gc used` drops to `+2216 KiB` after `GC.collect()`.
+
+What dropped and why:
+- `pool-512` removes per-miss `RunGlyph[]` and layout quad allocations: in
+  `many` (100% miss rate at 512), RSS falls from `+7732 KiB` to
+  `+1964-2004 KiB`, `gc free` bloat disappears (`+5921` to `-906 KiB`),
+  `malloc` falls from `+277` to `+41-43 KiB`, and the max frame spike drops
+  from `671.432 ms` (GC pause) to `13.916-17.203 ms`.
+- `pool-2048` raises the cap so `many` (1500) and `cjk-many` (1500) stay
+  cached after frame 1: `many` avg frame drops from `17.814 ms` to
+  `3.377-3.386 ms` (RSS `+1348-1388 KiB`), and `cjk-many` avg frame drops
+  from `11.063 ms` to `2.975-2.984 ms`.
+- `thrash` (5000 labels > 4096 hard cap) forces eviction and in-place pool
+  compaction every frame while keeping `malloc` low (`+349-350 KiB`) and
+  live GC data bounded (`+2216 KiB` after `GC.collect()`).
+- Output fidelity across all runs is unchanged (`default-mixed` lit=633,
+  `cjk-mixed` lit=1142, `cjk-latin` lit=372).
 
 ## Caveats
 

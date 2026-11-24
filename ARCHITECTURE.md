@@ -205,13 +205,13 @@ un-premultiplies). **GL state**: Renderer tracks FBO/viewport/clear color,
 `ClipStack` the scissor, `ProgramTracker` program + uniform epoch: no GL
 queries (debug-checked by `targetState()`); new GL code must use them.
 **Text**: `TextRunCache` lays out runs at the effective scale (`fontAtScale`)
-via SDL_ttf through a no-op `TTF_TextEngine` in the C wrapper (outlined
-layouts shifted back by outlinePx in `layoutRun`); LRU by use tick, strings
-used since `beginFrame()` stay (up to 2x, hard cap). A `const(TextRun)*` is
-valid only until the next `runFor`. `GlyphAtlas`: one RGBA8 page, 512
-doubling to min(4096, GL max), then cleared in place; a generation counter
-invalidates run slots. One draw per label: white straight-alpha coverage
-tinted, or masking the gradient/pattern paint; stroke = outline ring glyphs.
+via SDL_ttf into reused `fQuads` (`layoutQuads`; outlines shifted back by
+outlinePx), storing `RunGlyph` spans in a pooled buffer compacted in place;
+LRU (`maxCacheEntries = 2048`), keeping `beginFrame()` strings up to 2x hard
+cap. A `const(TextRun)*` is valid only until the next `runFor`. `GlyphAtlas`:
+one RGBA8 page, 512 doubling to min(4096, GL max), then cleared in place; a
+generation counter invalidates slots. One draw per label: white straight-alpha
+coverage tinted or masking gradient/pattern paint; stroke = outline ring.
 
 ## Idiomatic Patterns
 - Null Safety: Non-null references by default (tooling flags missing checks);
