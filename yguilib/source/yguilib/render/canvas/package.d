@@ -26,7 +26,7 @@ import yguilib.render.canvas.types;
 import yguilib.render.internal.offscreen : SavedTargetState;
 import yguilib.render.internal.path_flatten : Contours;
 import yguilib.render.internal.pipelines : GradientUniforms, PatternUniforms,
-  TextureMode, Viewport, rectTriangles, textureModeFor;
+  TextVertex, TextureMode, Viewport, rectTriangles, textureModeFor;
 import yguilib.render.render_types;
 import yguilib.render.texture : Texture;
 
@@ -238,6 +238,7 @@ final class Canvas {
     if (st.shadow.isVisible()) {
       drawShadow(ShadowShape.stroke, FillRule.nonZero, st.stroke);
     }
+    fRenderer.flush();
     beginStrokeOnce(clipActive());
     drawPaint(fVerts[], st.stroke);
     beginResetLow();
@@ -308,6 +309,7 @@ final class Canvas {
     if (st.shadow.isVisible()) {
       drawImageShadow(t.id(), tint.a);
     }
+    fRenderer.flush();
     beginClipTest(clipActive());
     fRenderer.texturePipelineRef().drawTexturedTriangles(
       t.id(), fImageVerts[], tint, textureModeFor(t),
@@ -332,6 +334,7 @@ final class Canvas {
     fStack.shrinkTo(n - 1);
     assert(st.clipCount <= fClips[].length);
     if (st.clipCount < fClips[].length) {
+      fRenderer.flush();
       fClipTris.shrinkTo(fClips[][st.clipCount].triStart);
       fClips.shrinkTo(st.clipCount);
       rebuildClip();
@@ -389,6 +392,7 @@ final class Canvas {
     if (!fRenderer.isInitialized()) {
       return;
     }
+    fRenderer.flush();
     const bool scissor = disableScissor();
     if (first) {
       clearClipBit(true);
@@ -922,6 +926,7 @@ private:
     if (blend && st.shadow.isVisible()) {
       drawShadow(ShadowShape.fill, rule, style);
     }
+    fRenderer.flush();
     if (blend && !clipActive() && isSingleConvex(fContours)) {
       version (unittest) {
         ++fPathStats.convexFills;
@@ -1026,6 +1031,7 @@ private:
       || (blur.sigma > 0 && !t.ensureSize(b.width, b.height))) {
       return res;
     }
+    fRenderer.flush();
     res = ShadowPass(b, scale, blur.sigma, fRenderer.targetState());
     a.bindRegion(b.width, b.height, true);
     return res;
@@ -1313,6 +1319,77 @@ private:
     return op < 1 ? 1 : (op > maxTextOutlinePx ? maxTextOutlinePx : op);
   }
 
+  /// Placement metrics and atlas scale shared by Canvas text draw paths.
+  struct TextPlacement {
+    float q;
+    float ox;
+    float oy;
+    float sx;
+    float invAtlas;
+  }
+
+  /// Computes anchor, squeeze, and atlas scale for `text` in font `f`.
+  TextPlacement computeTextPlacement(
+    Font f,
+    string text,
+    int outlinePx,
+    PointF pos,
+    float maxWidth
+  ) const {
+    const float q = f.scaledSize / f.size;
+    const TextMetrics m = textMetricsOf(f, text);
+    const PointF off = textAnchorOffset(
+      m, st.textAlign, st.textBaseline, st.direction
+    );
+    // maxWidth squeezes x about the anchor
+    const float sx = m.width > maxWidth ? maxWidth / m.width : 1.0f;
+    const float margin = outlinePx / q;
+    return TextPlacement(
+      q,
+      pos.x + off.x * sx - margin * sx,
+      pos.y + off.y - margin,
+      sx,
+      1.0f / fRenderer.glyphAtlasSize()
+    );
+  }
+
+  /**
+   * Queues transformed glyph quads of `run` painted with solid `color`
+   * into the renderer's shared text batch.
+   */
+  void queueTransformedTextRun(
+    GLuint atlasTex,
+    in TextRun run,
+    in TextPlacement p,
+    in ColorF color
+  ) {
+    const bool stencil = clipActive();
+    foreach (ref g; run.glyphs) {
+      if (g.slot.w <= 0) {
+        continue;
+      }
+      const float gx0 = p.ox + g.dx / p.q * p.sx;
+      const float gy0 = p.oy + g.dy / p.q;
+      const float gx1 = gx0 + g.dw / p.q * p.sx;
+      const float gy1 = gy0 + g.dh / p.q;
+      const PointF p0 = st.xf.apply(PointF(gx0, gy0));
+      const PointF p1 = st.xf.apply(PointF(gx1, gy0));
+      const PointF p2 = st.xf.apply(PointF(gx0, gy1));
+      const PointF p3 = st.xf.apply(PointF(gx1, gy1));
+      const float u0 = (g.slot.x + g.srcX) * p.invAtlas;
+      const float v0 = (g.slot.y + g.srcY) * p.invAtlas;
+      const float u1 = (g.slot.x + g.srcX + g.srcW) * p.invAtlas;
+      const float v1 = (g.slot.y + g.srcY + g.srcH) * p.invAtlas;
+      const TextVertex[4] quad = [
+        TextVertex(p0.x, p0.y, u0, v0, color.r, color.g, color.b, color.a),
+        TextVertex(p1.x, p1.y, u1, v0, color.r, color.g, color.b, color.a),
+        TextVertex(p2.x, p2.y, u0, v1, color.r, color.g, color.b, color.a),
+        TextVertex(p3.x, p3.y, u1, v1, color.r, color.g, color.b, color.a),
+      ];
+      fRenderer.queueTextQuad(atlasTex, stencil, quad);
+    }
+  }
+
   /**
    * Implementation of `fillText` / `strokeText`: draws the glyph quads of
    * `text` (glyph fill for `outlinePx` 0, otherwise the outline ring of
@@ -1340,53 +1417,37 @@ private:
       return;
     }
     const GLuint atlasTex = fRenderer.glyphAtlasTexture();
-    buildTextVerts(f, text, *run, outlinePx, pos, maxWidth);
+    const int atlasSz = fRenderer.glyphAtlasSize();
+    if (atlasTex == 0 || atlasSz <= 0) {
+      return;
+    }
+    const TextPlacement p = computeTextPlacement(
+      f, text, outlinePx, pos, maxWidth
+    );
     const bool solid = paint.kind == FillStyle.Kind.color;
+    if (solid && !st.shadow.isVisible()) {
+      queueTransformedTextRun(atlasTex, *run, p, paint.color);
+      return;
+    }
+    buildTextVerts(*run, p);
     if (st.shadow.isVisible()) {
       drawImageShadow(atlasTex, solid ? paint.color.a : 1.0f);
     }
-    beginClipTest(clipActive());
     if (solid) {
-      fRenderer.texturePipelineRef().drawTexturedTriangles(
-        atlasTex, fImageVerts[], paint.color, TextureMode.straight,
-        fRenderer.logicViewport()
-      );
+      queueTransformedTextRun(atlasTex, *run, p, paint.color);
     } else {
+      fRenderer.flush();
+      beginClipTest(clipActive());
       drawMaskedPaint(fImageVerts[], atlasTex, paint);
+      endStencil();
     }
-    endStencil();
   }
 
   /**
-   * `fImageVerts` = the glyph quads of `run` (the run of `text` in font
-   * `f` with outline ring width `outlinePx`, 0 for a fill) anchored at
-   * `pos` by the current align, baseline and direction,
-   * squeezed horizontally to `maxWidth` about the anchor.
+   * `fImageVerts` = the glyph quads of `run` placed via `p`, used for
+   * shadows and gradient/pattern masked text.
    */
-  void buildTextVerts(
-    Font f,
-    string text,
-    in TextRun run,
-    int outlinePx,
-    PointF pos,
-    float maxWidth
-  ) {
-    // bitmap pixels per user unit (the quantized font scale)
-    const float q = f.scaledSize / f.size;
-    // advance width at the raster scale (what measureText reports, not
-    // the bitmap width) and the outline margin, in user units
-    const TextMetrics m = textMetricsOf(f, text);
-    const float gw = m.width;
-    const float margin = outlinePx / q;
-    const PointF off = textAnchorOffset(
-      m, st.textAlign, st.textBaseline, st.direction
-    );
-    // maxWidth squeezes x about the anchor
-    const float s = gw > maxWidth ? maxWidth / gw : 1.0f;
-    const float x0 = pos.x + off.x * s;
-    const float atlas = fRenderer.glyphAtlasSize();
-    const float ox = x0 - margin * s;
-    const float oy = pos.y + off.y - margin;
+  void buildTextVerts(in TextRun run, in TextPlacement p) {
     fImageVerts.clear();
     foreach (ref g; run.glyphs) {
       if (g.slot.w <= 0) {
@@ -1394,11 +1455,16 @@ private:
       }
       appendImageVerts(
         RectF(
-          (g.slot.x + g.srcX) / atlas, (g.slot.y + g.srcY) / atlas,
-          g.srcW / atlas, g.srcH / atlas
+          (g.slot.x + g.srcX) * p.invAtlas,
+          (g.slot.y + g.srcY) * p.invAtlas,
+          g.srcW * p.invAtlas,
+          g.srcH * p.invAtlas
         ),
         RectF(
-          ox + g.dx / q * s, oy + g.dy / q, g.dw / q * s, g.dh / q
+          p.ox + g.dx / p.q * p.sx,
+          p.oy + g.dy / p.q,
+          g.dw / p.q * p.sx,
+          g.dh / p.q
         )
       );
     }
@@ -1496,6 +1562,7 @@ private:
     if (!fRenderer.isInitialized()) {
       return;
     }
+    fRenderer.flush();
     const bool scissor = disableScissor();
     clearClipBit(st.clipCount > 0);
     foreach (ref e; fClips[]) {

@@ -109,6 +109,7 @@ struct Scenario {
   float[] sizes;
   string fontName;
   LabelFn text;
+  const(ColorF)[] colors;
 }
 
 double ms(MonoTime a, MonoTime b) {
@@ -117,14 +118,17 @@ double ms(MonoTime a, MonoTime b) {
 
 void drawFrame(Renderer r, ref const Scenario s, int frame) {
   r.clearFrame(ColorF(0.1f, 0.1f, 0.1f, 1.0f));
+  const white = ColorF(1, 1, 1, 1);
   foreach (i; 0 .. s.labels) {
     const float sz = s.sizes[i % s.sizes.length];
     const float x = 8.0f + (i % 4) * 250.0f;
     const float y = 4.0f + (i / 4 % 40) * 18.0f;
+    const c = s.colors.length > 0 ? s.colors[i % s.colors.length] : white;
     r.drawTextWithFontName(
-      s.text(frame, i), PointF(x, y), ColorF(1, 1, 1, 1), sz, s.fontName
+      s.text(frame, i), PointF(x, y), c, sz, s.fontName
     );
   }
+  r.flush();
   glFinish();
 }
 
@@ -201,6 +205,7 @@ void run(Renderer r, Scenario s) {
 void fidelity(Renderer r, string label, string text, float sz, string font) {
   r.clearFrame(ColorF(0, 0, 0, 1));
   r.drawTextWithFontName(text, PointF(10, 10), ColorF(1, 1, 1, 1), sz, font);
+  r.flush();
   glFinish();
   auto buf = new ubyte[viewW * 200 * 4];
   glReadPixels(0, viewH - 200, viewW, 200, GL_RGBA, GL_UNSIGNED_BYTE,
@@ -287,5 +292,14 @@ void main(string[] args) {
   // more distinct strings per frame than the hard cap (2 * 2048)
   run(r, Scenario("thrash", 5000, 50, three.dup, null,
     (int f, int i) => format("Item %04d / file_%d.mp4", i, i * 37)));
+  // 200 labels cycling 4 colors: verifies per-vertex color batching
+  const ColorF[] palette = [
+    ColorF(1.0f, 0.3f, 0.3f, 1.0f),
+    ColorF(0.3f, 1.0f, 0.3f, 1.0f),
+    ColorF(0.3f, 0.6f, 1.0f, 1.0f),
+    ColorF(1.0f, 0.85f, 0.2f, 1.0f),
+  ];
+  run(r, Scenario("multicolor", 200, 300, three.dup, null,
+    (int f, int i) => format("Label %d: the quick brown fox", i), palette));
   cjkScenarios(r);
 }

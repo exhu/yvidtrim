@@ -1018,3 +1018,77 @@ struct PatternPipeline {
 private:
   ProgramTracker* fPrograms;
 }
+
+/// Per-vertex layout for batched glyph quads (`TextPipeline`).
+struct TextVertex {
+  float x;
+  float y;
+  float u;
+  float v;
+  float r;
+  float g;
+  float b;
+  float a;
+}
+
+static assert(TextVertex.sizeof == 8 * float.sizeof);
+
+/**
+ * Shader pipeline for batched colored glyph quads with per-vertex color.
+ */
+struct TextPipeline {
+  GLuint program;
+  IndexedQuadArray qa;
+  GLint uResolutionLoc = -1;
+  GLint uTextureLoc = -1;
+
+  /// `programs` (the renderer's program tracker) must outlive the pipeline.
+  void initialize(ProgramTracker* programs) {
+    assert(programs !is null);
+    fPrograms = programs;
+    program = buildProgram(
+      textVertexShaderSource, textFragmentShaderSource
+    );
+    qa = createTextQuadArray();
+    uResolutionLoc = glGetUniformLocation(program, "uResolution\0".ptr);
+    uTextureLoc = glGetUniformLocation(program, "uTexture\0".ptr);
+  }
+
+  void destroy() {
+    destroyIndexedQuadArray(qa);
+    if (program != 0) {
+      glDeleteProgram(program);
+      program = 0;
+    }
+  }
+
+  /**
+   * Draws `quadCount` indexed glyph quads from `vertices` sampling `texId`
+   * with alpha blending; stencil state is left unchanged.
+   */
+  void drawGlyphQuads(
+    GLuint texId,
+    const(TextVertex)[] vertices,
+    size_t quadCount,
+    in Viewport vp
+  ) {
+    if (texId == 0 || quadCount == 0) {
+      return;
+    }
+    assert(vertices.length == quadCount * 4);
+    setupAlphaBlendState();
+    fPrograms.use(program);
+    fResolution.upload(uResolutionLoc, vp.vw, vp.vh, fPrograms.epoch());
+    glUniform1i(uTextureLoc, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texId);
+    uploadAndDrawIndexedQuads(
+      qa, cast(const(void)[])vertices, quadCount
+    );
+    glBindTexture(GL_TEXTURE_2D, 0);
+  }
+
+private:
+  ProgramTracker* fPrograms;
+  Vec2UniformCache fResolution;
+}

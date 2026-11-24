@@ -55,6 +55,7 @@ final class WidgetPainterSystem : WidgetSystem {
     assert(r !is null);
 
     drawWidgets(widgets, r);
+    r.flush();
     foreach (ref vw; widgets) {
       vw.widget.dirty = false;
     }
@@ -62,14 +63,28 @@ final class WidgetPainterSystem : WidgetSystem {
 
 private:
   void drawWidgets(VisibleWidgets widgets, Renderer r) {
-    foreach (ref vw; widgets) {
-      if (vw.hasClip) {
-        r.pushClipRect(vw.clipRect);
-      }
-      drawWidget(vw.widget, vw.absRect, r);
-      if (vw.hasClip) {
+    bool activeClip = false;
+    RectF activeClipRect;
+    scope(exit) {
+      if (activeClip) {
         r.popClipRect();
       }
+    }
+    foreach (ref vw; widgets) {
+      if (!vw.hasClip) {
+        if (activeClip) {
+          r.popClipRect();
+          activeClip = false;
+        }
+      } else if (!activeClip || vw.clipRect != activeClipRect) {
+        if (activeClip) {
+          r.popClipRect();
+        }
+        r.pushClipRect(vw.clipRect);
+        activeClip = true;
+        activeClipRect = vw.clipRect;
+      }
+      drawWidget(vw.widget, vw.absRect, r);
     }
   }
 
@@ -362,4 +377,25 @@ unittest {
   cd.drawFunc = null;
   painter.drawTree(cdWidgets, renderer);
   assert(calls == 1);
+
+  // Consecutive clipped text-only sibling widgets share 1 flush.
+  auto clipParent = new Widget(9);
+  clipParent.rect = RectF(10, 10, 200, 150);
+  clipParent.clipChildren = true;
+  foreach (i; 0 .. 3) {
+    auto lbl = new Widget(10 + i);
+    lbl.rect = RectF(4, 4 + i * 24, 180, 20);
+    lbl.clipContents = false;
+    lbl.components.textLabel = new TextLabel(
+      "Sibling", ColorF(1, 1, 1, 1)
+    );
+    clipParent.addChild(lbl);
+  }
+  auto clippedWidgets = collector.collectVisibleWithViewport(
+    clipParent, 320.0f, 240.0f, false
+  );
+  renderer.resetTextBatchStats();
+  painter.drawTree(clippedWidgets, renderer);
+  assert(renderer.textBatchStats().flushes == 1);
+  assert(renderer.textBatchStats().flushedQuads > 0);
 }

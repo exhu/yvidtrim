@@ -262,6 +262,62 @@ What dropped and why:
 - Output fidelity across all runs is unchanged (`default-mixed` lit=633,
   `cjk-mixed` lit=1142, `cjk-latin` lit=372).
 
+### Follow-up: Cross-label text batching
+
+Added `TextBatch` + indexed-quad `TextPipeline` with per-vertex RGBA color
+and `Renderer.flush()` before `glFinish()` in `textbench`, plus a `multicolor`
+scenario (200 labels, 300 frames, 3 sizes, 4-color cycle). Two consecutive
+`textbench batch` runs on this machine:
+
+Frame times (ms, `pre-atlas` / `pool-2048` vs `batch` 2 runs):
+
+```
+  scenario    pre-atlas    pool-2048      batch (cold)   batch (avg)
+  ----------  -----------  -------------  -------------  -------------
+  static      0.47-0.54    0.772-0.785    4.74-5.81      0.697-0.810
+  churn       0.95-1.23    0.696-0.759    0.85-1.25      0.663-0.885
+  many        18.3-18.8    3.377-3.386    11.46-15.00    4.532-4.730
+  thrash      -            66.838-67.773  73.36-78.74    76.649-117.725*
+  multicolor  -            -              2.54-5.35      0.702-0.963
+  cjk-mix     1.24-1.28    0.874-0.895    3.62-5.37      0.864-1.103
+  cjk-many    17.7-18.3    2.975-2.984    46.94-50.39    4.850-5.073
+```
+
+`*` Run 1 of `thrash` hit a single-frame `max=2075.897 ms` spike (`p95` was
+`81.042 ms`); Run 2 was `avg=76.649 ms`, `p95=79.016 ms`, `max=80.183 ms`.
+
+Full `batch` run details (run 1 / run 2, `p95`, `max`, RSS delta):
+
+```
+  scenario    p95 (ms)      max (ms)        rss end (KiB)
+  ----------  ------------  --------------  ----------------
+  static      1.131-1.134   1.542-2.064     +9188 to +9196
+  churn       0.997-1.317   1.086-3.954     +1160 to +1168
+  many        5.618-6.270   6.505-7.337     +5456
+  thrash      79.016-81.042 80.183-2075.897 +20864 to +20960
+  multicolor  1.169-1.583   1.580-1.701     +0
+  cjk-mix     1.369-1.617   2.146-2.673     +6588 to +6780
+  cjk-many    6.375-7.025   7.917-9.649     +1628
+```
+
+Observations:
+- `static` (`0.697-0.810 ms`) and `multicolor` (`0.702-0.963 ms`) match on
+  avg frame time (Run 2: `0.697 ms` vs `0.702 ms`), confirming per-vertex color
+  keeps 200 multi-color labels in a single batched draw without flushing on
+  color changes.
+- Compared with `pre-atlas`, `batch` remains slower on steady-state `static`
+  (`0.697-0.810 ms` vs `0.47-0.54 ms`, dominated by `glFinish()` and
+  per-frame CPU quad emission) and faster on `churn`, `many`, `cjk-mix`,
+  and `cjk-many` (Run 2 `churn`: `0.663 ms` vs `0.95-1.23 ms`).
+- Compared with `pool-2048` on this noisy desktop, Run 2 `static`
+  (`0.697 ms`) and `churn` (`0.663 ms`) slightly improve on `pool-2048`
+  (`0.772-0.785 ms` and `0.696-0.759 ms`), while `many` (`4.532-4.730 ms`)
+  and `cjk-many` (`4.850-5.073 ms`) sit higher than the earlier `pool-2048`
+  baseline (`3.377-3.386 ms` and `2.975-2.984 ms`) due to run-to-run host
+  variance and larger batched `glBufferSubData` uploads under `glFinish()`.
+- Output fidelity counts remain unchanged across both runs (`default-mixed`
+  `lit=633`, `cjk-mixed` `lit=1142`, `cjk-latin` `lit=372`).
+
 ## Caveats
 
 - One machine, one GL driver, a noisy desktop; no pinning of CPU

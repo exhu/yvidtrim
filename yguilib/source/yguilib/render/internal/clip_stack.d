@@ -20,14 +20,10 @@ struct ClipStack {
    * unit) when empty, and applies it as the scissor.
    */
   void push(RectF rect, int pixelW, int pixelH, float scale) {
-    const auto stackData = stack[];
-    const RectF active = stackData.length == 0
-      ? RectF(0, 0, logicFromPixels(pixelW, scale),
-        logicFromPixels(pixelH, scale))
-      : stackData[$ - 1];
-    const RectF clipped = intersectRects(active, rect);
+    const bool wasEnabled = !isEmpty();
+    const RectF clipped = nextPushedRect(rect, pixelW, pixelH, scale);
     stack ~= clipped;
-    applyScissor(clipped, pixelW, pixelH, scale);
+    applyScissorIfChanged(clipped, pixelW, pixelH, scale, wasEnabled);
   }
 
   void pop(int pixelW, int pixelH, float scale) {
@@ -40,14 +36,15 @@ struct ClipStack {
     if (stackData.length == 0) {
       glDisable(GL_SCISSOR_TEST);
     } else {
-      applyScissor(stackData[$ - 1], pixelW, pixelH, scale);
+      applyScissorIfChanged(stackData[$ - 1], pixelW, pixelH, scale, true);
     }
   }
 
   void set(RectF rect, int pixelW, int pixelH, float scale) {
+    const bool wasEnabled = !isEmpty();
     stack.clear();
     stack ~= rect;
-    applyScissor(rect, pixelW, pixelH, scale);
+    applyScissorIfChanged(rect, pixelW, pixelH, scale, wasEnabled);
   }
 
   void reset() {
@@ -57,6 +54,47 @@ struct ClipStack {
 
   void clear() {
     stack.clear();
+  }
+
+  /// True when `push(rect, ...)` would enable or change the GL scissor box.
+  bool wouldPushChangeScissor(
+    in RectF rect,
+    int pixelW,
+    int pixelH,
+    float scale
+  ) const {
+    const RectF clipped = nextPushedRect(rect, pixelW, pixelH, scale);
+    const int[4] box = scissorBox(clipped, pixelW, pixelH, scale);
+    return isEmpty() || box != fAppliedBox;
+  }
+
+  /// True when `pop(...)` would disable or change the GL scissor box.
+  bool wouldPopChangeScissor(int pixelW, int pixelH, float scale) const {
+    const auto stackData = stack[];
+    if (stackData.length == 0) {
+      return false;
+    }
+    if (stackData.length == 1) {
+      return true;
+    }
+    const int[4] box = scissorBox(stackData[$ - 2], pixelW, pixelH, scale);
+    return box != fAppliedBox;
+  }
+
+  /// True when `set(rect, ...)` would enable or change the GL scissor box.
+  bool wouldSetChangeScissor(
+    in RectF rect,
+    int pixelW,
+    int pixelH,
+    float scale
+  ) const {
+    const int[4] box = scissorBox(rect, pixelW, pixelH, scale);
+    return isEmpty() || box != fAppliedBox;
+  }
+
+  /// True when `reset()` would disable an active GL scissor test.
+  bool wouldResetChangeScissor() const {
+    return !isEmpty();
   }
 
   /// True when no clip rect is pushed.
@@ -191,6 +229,36 @@ struct ClipStack {
   }
 
 private:
+  RectF nextPushedRect(
+    in RectF rect,
+    int pixelW,
+    int pixelH,
+    float scale
+  ) const {
+    const auto stackData = stack[];
+    const RectF active = stackData.length == 0
+      ? RectF(0, 0, logicFromPixels(pixelW, scale),
+        logicFromPixels(pixelH, scale))
+      : stackData[$ - 1];
+    return intersectRects(active, rect);
+  }
+
+  void applyScissorIfChanged(
+    in RectF rect,
+    int pixelW,
+    int pixelH,
+    float scale,
+    bool wasEnabled
+  ) {
+    const int[4] box = scissorBox(rect, pixelW, pixelH, scale);
+    if (wasEnabled && box == fAppliedBox) {
+      return;
+    }
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(box[0], box[1], box[2], box[3]);
+    fAppliedBox = box;
+  }
+
   Appender!(RectF[]) stack;
   int[4] fAppliedBox;
 }
@@ -215,4 +283,75 @@ unittest {
   // Fully outside rect yields an empty box.
   box = ClipStack.scissorBox(RectF(200, 10, 10, 10), 100, 50, 1.0f);
   assert(box[2] == 0);
+}
+
+// Verifies would*ChangeScissor queries and redundant GL call skipping.
+unittest {
+  import yguilib.render.internal.gl_test_util : GlTestWindow, testHeight,
+    testWidth;
+
+  auto w = GlTestWindow("test_clip_stack_queries");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+
+  ClipStack cs;
+  const int pw = testWidth;
+  const int ph = testHeight;
+  const float scale = 1.0f;
+
+  assert(!cs.wouldPopChangeScissor(pw, ph, scale));
+  assert(!cs.wouldResetChangeScissor());
+  assert(cs.wouldPushChangeScissor(RectF(10, 10, 100, 80), pw, ph, scale));
+  assert(cs.wouldSetChangeScissor(RectF(10, 10, 100, 80), pw, ph, scale));
+
+  cs.push(RectF(10, 10, 100, 80), pw, ph, scale);
+  assert(!cs.isEmpty());
+  assert(cs.wouldResetChangeScissor());
+  assert(cs.wouldPopChangeScissor(pw, ph, scale));
+
+  // Identical or looser nested clip keeps the same intersected scissor box.
+  assert(!cs.wouldPushChangeScissor(RectF(0, 0, 200, 200), pw, ph, scale));
+  assert(!cs.wouldSetChangeScissor(RectF(10, 10, 100, 80), pw, ph, scale));
+  assert(cs.wouldPushChangeScissor(RectF(20, 20, 50, 40), pw, ph, scale));
+  assert(cs.wouldSetChangeScissor(RectF(20, 20, 50, 40), pw, ph, scale));
+
+  // Push identical intersected box: pop does not change scissor.
+  cs.push(RectF(0, 0, 200, 200), pw, ph, scale);
+  assert(!cs.wouldPopChangeScissor(pw, ph, scale));
+  assert(cs.appliedBox() == ClipStack.scissorBox(
+    RectF(10, 10, 100, 80), pw, ph, scale
+  ));
+
+  // Push narrower box: pop does change scissor back to parent.
+  cs.push(RectF(20, 20, 50, 40), pw, ph, scale);
+  assert(cs.wouldPopChangeScissor(pw, ph, scale));
+  assert(cs.appliedBox() == ClipStack.scissorBox(
+    RectF(20, 20, 50, 40), pw, ph, scale
+  ));
+
+  cs.pop(pw, ph, scale);
+  assert(cs.appliedBox() == ClipStack.scissorBox(
+    RectF(10, 10, 100, 80), pw, ph, scale
+  ));
+  cs.pop(pw, ph, scale);
+  assert(cs.appliedBox() == ClipStack.scissorBox(
+    RectF(10, 10, 100, 80), pw, ph, scale
+  ));
+  assert(cs.wouldPopChangeScissor(pw, ph, scale));
+  cs.pop(pw, ph, scale);
+  assert(cs.isEmpty());
+  assert(!glIsEnabled(GL_SCISSOR_TEST));
+
+  // Pushing the same rect again after becoming empty must re-enable scissor.
+  assert(cs.wouldPushChangeScissor(RectF(10, 10, 100, 80), pw, ph, scale));
+  assert(cs.wouldSetChangeScissor(RectF(10, 10, 100, 80), pw, ph, scale));
+  cs.set(RectF(10, 10, 100, 80), pw, ph, scale);
+  assert(glIsEnabled(GL_SCISSOR_TEST));
+  assert(!cs.wouldSetChangeScissor(RectF(10, 10, 100, 80), pw, ph, scale));
+  cs.set(RectF(10, 10, 100, 80), pw, ph, scale);
+  assert(glIsEnabled(GL_SCISSOR_TEST));
+  assert(cs.wouldResetChangeScissor());
+  cs.reset();
+  assert(!glIsEnabled(GL_SCISSOR_TEST));
+  assert(!cs.wouldResetChangeScissor());
 }

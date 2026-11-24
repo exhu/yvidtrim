@@ -1057,6 +1057,7 @@ unittest {
   clear();
   cv.fillStyle(white);
   cv.fillText("Hello", PointF(40, 50));
+  r.flush();
   const base = frameBounds(0);
   const mw = cv.measureText("Hello").width; // state set by clear()
   assert(!base.empty);
@@ -1074,6 +1075,7 @@ unittest {
   cv.translate(PointF(100, 60));
   cv.fillText("Hello", PointF(40, 50));
   cv.restore();
+  r.flush();
   const tr = frameBounds(0);
   assert(tr.x0 == base.x0 + 100 && tr.y0 == base.y0 + 60);
   assert(tr.x1 - tr.x0 == base.x1 - base.x0);
@@ -1086,6 +1088,7 @@ unittest {
   cv.rotate(cast(float)(PI / 2));
   cv.fillText("Hello", PointF(0, 0));
   cv.restore();
+  r.flush();
   const rot = frameBounds(0);
   assert(!rot.empty);
   const rotW = rot.x1 - rot.x0 + 1;
@@ -1102,6 +1105,7 @@ unittest {
   cv.scale(PointF(2, 2));
   cv.fillText("Hello", PointF(20, 20));
   cv.restore();
+  r.flush();
   const sc = frameBounds(0);
   const scW = sc.x1 - sc.x0 + 1;
   assert(scW >= 2 * baseW - 6 && scW <= 2 * baseW + 6);
@@ -1115,6 +1119,7 @@ unittest {
   cv.clip(clipRc);
   cv.fillText("Hello", PointF(40, 50));
   cv.restore();
+  r.flush();
   const cl = frameBounds(0);
   assert(!cl.empty && cl.x1 < 60);
 
@@ -1122,6 +1127,7 @@ unittest {
   clear();
   cv.fillStyle(FillStyle.solid(ColorF(0, 0, 1, 1)));
   cv.fillText("Hello", PointF(40, 50));
+  r.flush();
   assert(frameBounds(0).empty);
   assert(frameBounds(2).x0 == base.x0);
 
@@ -1134,6 +1140,7 @@ unittest {
   cv.fillStyle(FillStyle.solid(ColorF(0, 1, 0, 1)));
   cv.fillText("Hello", PointF(40, 50));
   cv.shadow(Shadow.init);
+  r.flush();
   const sg = frameBounds(1);
   const sr = frameBounds(0);
   assert(!sg.empty && !sr.empty);
@@ -1143,6 +1150,7 @@ unittest {
   clear();
   cv.fillStyle(white);
   cv.fillTextWithMaxWidth("Hello", PointF(40, 50), mw * 0.5f);
+  r.flush();
   const mx = frameBounds(0);
   const mxW = mx.x1 - mx.x0 + 1;
   assert(mx.x0 >= 38 && mx.x0 <= 46);
@@ -1150,6 +1158,7 @@ unittest {
   clear();
   cv.fillStyle(white);
   cv.fillTextWithMaxWidth("Hello", PointF(40, 50), 1000);
+  r.flush();
   const wide = frameBounds(0);
   assert(wide == base);
 
@@ -1180,6 +1189,7 @@ unittest {
   cv.scale(PointF(0, 1));
   cv.fillText("Hello", PointF(40, 50));
   cv.restore();
+  r.flush();
   assert(frameBounds(0).empty);
 }
 
@@ -1203,6 +1213,7 @@ unittest {
   clear();
   cv.fillStyle(FillStyle.solid(ColorF(1, 1, 1, 1)));
   cv.fillText("Hello", PointF(40, 50));
+  r.flush();
   const base = frameBounds(0);
   assert(!base.empty);
 
@@ -1310,6 +1321,7 @@ unittest {
 
   ubyte[] buf;
   void grab() {
+    r.flush();
     buf = grabFrame();
   }
   int ch(int x, int y, int c) {
@@ -1637,6 +1649,7 @@ unittest {
       cv.scale(PointF(scale, scale));
       cv.fillText("Hello", PointF(160 / scale, 60 / scale));
       cv.restore();
+      r.flush();
       return frameBounds(0);
     }
 
@@ -2065,6 +2078,7 @@ unittest {
   clear();
   cv.fillStyle(white);
   cv.fillText("I", PointF(150, 80));
+  r.flush();
   const ib = frameBounds(0);
   assert(!ib.empty);
   const float cx = 0.5f * (ib.x0 + ib.x1 + 1);
@@ -2078,6 +2092,7 @@ unittest {
   cv.translate(PointF(-cx, -cy));
   cv.fillText("I", PointF(150, 80));
   cv.restore();
+  r.flush();
   const buf = grabFrame();
   int lit;
   foreach (y; 0 .. testHeight) {
@@ -2139,12 +2154,14 @@ unittest {
   cv.textAlign(TextAlign.start);
   cv.direction = TextDirection.rtl;
   cv.fillText("Hello", PointF(200, 50));
+  r.flush();
   const rtl = frameBounds(0);
   clear();
   cv.fillStyle(white);
   cv.textAlign(TextAlign.end);
   cv.direction = TextDirection.ltr;
   cv.fillText("Hello", PointF(200, 50));
+  r.flush();
   const ltrEnd = frameBounds(0);
   assert(!rtl.empty && rtl == ltrEnd && rtl.x1 <= 202);
   cv.direction = TextDirection.ltr;
@@ -2154,10 +2171,12 @@ unittest {
   clear();
   cv.fillStyle(white);
   cv.fillText("Hello", PointF(40, 50));
+  r.flush();
   const full = frameBounds(0);
   clear();
   cv.fillStyle(white);
   cv.fillTextWithMaxWidth("Hello", PointF(40, 50), 40);
+  r.flush();
   const sq = frameBounds(0);
   assert(abs(sq.y0 - full.y0) <= 1 && abs(sq.y1 - full.y1) <= 1);
   assert(sq.y0 == full.y0 && sq.y1 == full.y1);
@@ -2198,5 +2217,262 @@ unittest {
   assert(isRgb(20, 20, 0, 0, 0));
   assert(isRgb(100, 50, 0, 0, 0));
   assert(isRgb(200, 40, 0, 0, 0));
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// Consecutive solid fillText and strokeText with varying colors/transforms
+// batch into a single flush.
+unittest {
+  import std.math : PI;
+
+  auto w = GlTestWindow("test_canvas_text_batch_multi");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+  auto r = w.renderer();
+  auto cv = w.canvas();
+
+  const black = ColorF(0, 0, 0, 1);
+  r.clearFrame(black);
+  r.resetTextBatchStats();
+
+  cv.fontSpec = FontSpec(20, null);
+  cv.textBaseline = TextBaseline.top;
+  cv.fillStyle(FillStyle.solid(ColorF(1, 0, 0, 1)));
+  cv.fillText("Red", PointF(10, 10));
+
+  cv.save();
+  cv.translate(PointF(20, 50));
+  cv.rotate(cast(float)(PI / 12));
+  cv.fillStyle(FillStyle.solid(ColorF(0, 1, 0, 1)));
+  cv.fillText("Green", PointF(0, 0));
+  cv.restore();
+
+  cv.save();
+  cv.scale(PointF(1.25f, 1.25f));
+  cv.strokeStyle(StrokeStyle.solid(ColorF(0, 0, 1, 1)));
+  cv.lineWidth(2);
+  cv.strokeText("Blue", PointF(10, 90));
+  cv.restore();
+
+  assert(r.textBatchStats().flushes == 0);
+  r.flush();
+  assert(r.textBatchStats().flushes == 1);
+  assert(r.textBatchStats().flushedQuads > 0);
+
+  const rBox = frameBounds(0);
+  const gBox = frameBounds(1);
+  const bBox = frameBounds(2);
+  assert(!rBox.empty && rBox.y1 < 45);
+  assert(!gBox.empty && gBox.y0 >= 45 && gBox.y1 < 105);
+  assert(!bBox.empty && bBox.y0 >= 105);
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// Clipped Canvas text batches under the same clip, flushes on clip/restore,
+// and separates from unclipped Renderer text draws.
+unittest {
+  auto w = GlTestWindow("test_canvas_text_batch_clip");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+  auto r = w.renderer();
+  auto cv = w.canvas();
+
+  const black = ColorF(0, 0, 0, 1);
+  r.clearFrame(black);
+  r.resetTextBatchStats();
+
+  cv.fontSpec = FontSpec(22, null);
+  cv.textBaseline = TextBaseline.top;
+  cv.save();
+  cv.clip(rectPath(RectF(0, 0, 120, 240)));
+
+  cv.fillStyle(FillStyle.solid(ColorF(1, 0, 0, 1)));
+  cv.fillText("MMMMM", PointF(80, 10));
+  cv.fillStyle(FillStyle.solid(ColorF(0, 1, 0, 1)));
+  cv.fillText("NNNNN", PointF(10, 50));
+  assert(r.textBatchStats().flushes == 0);
+
+  // Unclipped Renderer text flushes the clipped Canvas batch.
+  r.drawTextWithFont("OOO", PointF(150, 10), ColorF(0, 0, 1, 1), null);
+  assert(r.textBatchStats().flushes == 1);
+
+  // Resuming clipped Canvas text flushes the unclipped Renderer batch.
+  cv.fillStyle(FillStyle.solid(ColorF(1, 0, 0, 1)));
+  cv.fillText("PP", PointF(10, 90));
+  assert(r.textBatchStats().flushes == 2);
+
+  // Pushing another clip flushes before updating stencil bit 7.
+  cv.clip(rectPath(RectF(20, 0, 200, 240)));
+  assert(r.textBatchStats().flushes == 3);
+  cv.fillStyle(FillStyle.solid(ColorF(0, 1, 0, 1)));
+  cv.fillText("QQ", PointF(25, 130));
+  cv.fillText("RR", PointF(25, 170));
+  assert(r.textBatchStats().flushes == 3);
+
+  // Restoring clip flushes before rebuildClip().
+  cv.restore();
+  assert(r.textBatchStats().flushes == 4);
+
+  const red = frameBounds(0);
+  const green = frameBounds(1);
+  const blue = frameBounds(2);
+  assert(!red.empty && red.x1 < 120);
+  assert(!green.empty && green.x0 >= 10 && green.x1 < 120);
+  assert(!blue.empty && blue.x0 >= 150);
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// Interleaved Canvas fill, stroke, drawImage, gradient text, and shadowed
+// text auto-flush and preserve exact z-order.
+unittest {
+  import yguilib.render.image : Image;
+
+  auto w = GlTestWindow("test_canvas_text_batch_zorder");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+  auto r = w.renderer();
+  auto cv = w.canvas();
+
+  auto img = new Image(8, 8);
+  for (size_t i = 0; i < img.pixels.length; i += 4) {
+    img.pixels[i .. i + 4] = [0, 0, 255, 255];
+  }
+  Texture tex = r.createTexture(img);
+  assert(tex !is null);
+  scope(exit) tex.destroy();
+
+  const black = ColorF(0, 0, 0, 1);
+  const white = FillStyle.solid(ColorF(1, 1, 1, 1));
+  r.clearFrame(black);
+  r.resetTextBatchStats();
+
+  cv.fontSpec = FontSpec(24, null);
+  cv.textBaseline = TextBaseline.top;
+
+  // 1. fill over solid text
+  cv.fillStyle(white);
+  cv.fillText("HHHH", PointF(20, 20));
+  assert(r.textBatchStats().flushes == 0);
+  cv.fillStyle(FillStyle.solid(ColorF(1, 0, 0, 1)));
+  cv.fill(rectPath(RectF(15, 15, 90, 35)));
+  assert(r.textBatchStats().flushes == 1);
+
+  // 2. stroke over solid text (under active clip too)
+  cv.save();
+  cv.clip(rectPath(RectF(0, 0, 320, 240)));
+  cv.fillStyle(white);
+  cv.fillText("IIII", PointF(120, 20));
+  assert(r.textBatchStats().flushes == 1);
+  cv.strokeStyle(StrokeStyle.solid(ColorF(0, 1, 0, 1)));
+  cv.lineWidth(30);
+  auto bar = new Path2d();
+  bar.moveTo(PointF(115, 32));
+  bar.lineTo(PointF(210, 32));
+  cv.stroke(bar);
+  assert(r.textBatchStats().flushes == 2);
+
+  // 3. drawImage over clipped solid text
+  cv.fillStyle(white);
+  cv.fillText("JJJJ", PointF(220, 20));
+  assert(r.textBatchStats().flushes == 2);
+  cv.drawImage(tex, RectF(215, 15, 80, 35));
+  assert(r.textBatchStats().flushes == 3);
+  cv.restore();
+  assert(r.textBatchStats().flushes == 3);
+
+  // 4. gradient text over solid text (interior pixels become pure red)
+  cv.fillStyle(FillStyle.solid(ColorF(0, 1, 0, 1)));
+  cv.fillText("KKKK", PointF(20, 80));
+  assert(r.textBatchStats().flushes == 3);
+  LinearGradient lg;
+  lg.p0 = PointF(20, 80);
+  lg.p1 = PointF(120, 80);
+  lg.stops.add(0, ColorF(1, 0, 0, 1));
+  lg.stops.add(1, ColorF(1, 0, 0, 1));
+  cv.fillStyle(FillStyle.fromLinear(lg));
+  cv.fillText("KKKK", PointF(20, 80));
+  assert(r.textBatchStats().flushes == 4);
+
+  // 5. shadowed solid text flushes prior batch before shadow pass
+  cv.fillStyle(white);
+  cv.fillText("MMMM", PointF(140, 80));
+  assert(r.textBatchStats().flushes == 4);
+  Shadow sh;
+  sh.offset = PointF(0, 50);
+  sh.color = ColorF(1, 0, 0, 1);
+  cv.shadow(sh);
+  cv.fillStyle(FillStyle.solid(ColorF(0, 1, 0, 1)));
+  cv.fillText("NNNN", PointF(140, 120));
+  cv.shadow(Shadow.init);
+  assert(r.textBatchStats().flushes == 5);
+
+  r.flush();
+  assert(r.textBatchStats().flushes == 6);
+
+  // Covered regions preserve z-order.
+  assert(bounds(15, 15, 90, 35, 2).empty);
+  assert(bounds(115, 17, 95, 30, 2).empty);
+  assert(bounds(215, 15, 80, 35, 0).empty);
+  assert(!bounds(215, 15, 80, 35, 2).empty);
+  const buf = grabFrame();
+  int redTop = 0;
+  int greenLeaked = 0;
+  foreach (y; 80 .. 115) {
+    foreach (x; 20 .. 120) {
+      const int rv = channelAt(buf, x, y, 0);
+      const int gv = channelAt(buf, x, y, 1);
+      if (rv > 200 && gv < 20) {
+        ++redTop;
+      }
+      if (gv > 200 && rv < 20) {
+        ++greenLeaked;
+      }
+    }
+  }
+  assert(redTop > 0 && greenLeaked == 0);
+  assert(!bounds(140, 120, 100, 35, 1).empty);
+  assert(!bounds(140, 170, 100, 35, 0).empty);
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// Steady-state batched Canvas.fillText frames allocate zero GC memory.
+unittest {
+  import core.memory : GC;
+
+  auto w = GlTestWindow("test_canvas_text_batch_gc");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+  auto r = w.renderer();
+  auto cv = w.canvas();
+
+  const black = ColorF(0, 0, 0, 1);
+  void frame() {
+    r.clearFrame(black);
+    cv.fontSpec = FontSpec(18, null);
+    cv.textBaseline = TextBaseline.top;
+    cv.fillStyle(FillStyle.solid(ColorF(1, 1, 1, 1)));
+    cv.fillText("Alpha", PointF(10, 10));
+    cv.save();
+    cv.translate(PointF(20, 40));
+    cv.fillStyle(FillStyle.solid(ColorF(0, 1, 0, 1)));
+    cv.fillText("Beta", PointF(0, 0));
+    cv.restore();
+    cv.fillStyle(FillStyle.solid(ColorF(0, 0, 1, 1)));
+    cv.fillText("Gamma", PointF(10, 80));
+    r.flush();
+  }
+
+  frame();
+  frame();
+  GC.collect();
+  const before = GC.stats();
+  foreach (_; 0 .. 100) {
+    frame();
+  }
+  const after = GC.stats();
+  assert(after.allocatedInCurrentThread == before.allocatedInCurrentThread);
+  assert(
+    after.usedSize + after.freeSize <= before.usedSize + before.freeSize
+  );
   assert(glGetError() == GL_NO_ERROR);
 }

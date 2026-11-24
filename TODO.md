@@ -1,4 +1,3 @@
-- cross-label text batching (queue glyph quads, flush on state change) (canvas-render-review 3.7)
 - build widget library
 -- checkbox
 -- combobox

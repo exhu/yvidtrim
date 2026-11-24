@@ -159,11 +159,155 @@ size_t vboCapacityFor(size_t bytes) nothrow @safe @nogc pure {
 /// Smallest VBO allocation of `uploadAndDrawDynamic` in bytes.
 enum size_t minVboCapacity = 256;
 
+/// Maximum quads per indexed draw using 16-bit indices (65532 vertices).
+enum size_t maxIndexedQuads = 16383;
+
+/// Smallest EBO quad capacity allocated for `IndexedQuadArray`.
+enum size_t minIndexedQuadCapacity = 64;
+
+/**
+ * EBO quad capacity for `quads`: starts at `minIndexedQuadCapacity`,
+ * doubles until `>= quads`, and clamps to `maxIndexedQuads`.
+ */
+size_t indexedQuadCapacityFor(size_t quads) nothrow @safe @nogc pure {
+  assert(quads <= maxIndexedQuads);
+  size_t cap = minIndexedQuadCapacity;
+  while (cap < quads) {
+    cap *= 2;
+  }
+  return cap > maxIndexedQuads ? maxIndexedQuads : cap;
+}
+
+/// VAO with a dynamic VBO and a lazily-grown static quad EBO.
+struct IndexedQuadArray {
+  GLuint vao;
+  GLuint vbo;
+  GLuint ebo;
+  size_t vboCapacity;
+  size_t eboQuadCapacity;
+}
+
+/**
+ * Creates a VAO for interleaved `TextVertex` data (vec2 position at 0,
+ * vec2 texCoord at 1, vec4 color at 2) with an attached EBO. Leaves no
+ * VAO or buffer bound.
+ */
+IndexedQuadArray createTextQuadArray() {
+  IndexedQuadArray h;
+  glGenVertexArrays(1, &h.vao);
+  glBindVertexArray(h.vao);
+
+  glGenBuffers(1, &h.vbo);
+  glBindBuffer(GL_ARRAY_BUFFER, h.vbo);
+
+  glGenBuffers(1, &h.ebo);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, h.ebo);
+
+  const GLsizei stride = 8 * float.sizeof;
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, null);
+
+  glEnableVertexAttribArray(1);
+  glVertexAttribPointer(
+    1, 2, GL_FLOAT, GL_FALSE, stride, cast(const(void)*)(2 * float.sizeof)
+  );
+
+  glEnableVertexAttribArray(2);
+  glVertexAttribPointer(
+    2, 4, GL_FLOAT, GL_FALSE, stride, cast(const(void)*)(4 * float.sizeof)
+  );
+
+  glBindVertexArray(0);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+  return h;
+}
+
+/**
+ * Uploads `vertexBytes` to `qa.vbo` and draws `quadCount` indexed quads
+ * (growing the VBO and regenerating the EBO when needed).
+ */
+void uploadAndDrawIndexedQuads(
+  ref IndexedQuadArray qa,
+  const(void)[] vertexBytes,
+  size_t quadCount
+) {
+  if (quadCount == 0 || vertexBytes.length == 0) {
+    return;
+  }
+  assert(quadCount <= maxIndexedQuads);
+
+  glBindVertexArray(qa.vao);
+  glBindBuffer(GL_ARRAY_BUFFER, qa.vbo);
+  if (vertexBytes.length > qa.vboCapacity) {
+    const size_t cap = vboCapacityFor(vertexBytes.length);
+    glBufferData(
+      GL_ARRAY_BUFFER, cast(GLsizeiptr)cap, null, GL_DYNAMIC_DRAW
+    );
+    qa.vboCapacity = cap;
+  }
+  glBufferSubData(
+    GL_ARRAY_BUFFER, 0, cast(GLsizeiptr)vertexBytes.length, vertexBytes.ptr
+  );
+
+  if (quadCount > qa.eboQuadCapacity) {
+    const size_t newQuads = indexedQuadCapacityFor(quadCount);
+    auto indices = new ushort[newQuads * 6];
+    foreach (q; 0 .. newQuads) {
+      const ushort b = cast(ushort)(q * 4);
+      const size_t base = q * 6;
+      indices[base + 0] = b;
+      indices[base + 1] = cast(ushort)(b + 1);
+      indices[base + 2] = cast(ushort)(b + 2);
+      indices[base + 3] = cast(ushort)(b + 2);
+      indices[base + 4] = cast(ushort)(b + 1);
+      indices[base + 5] = cast(ushort)(b + 3);
+    }
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, qa.ebo);
+    glBufferData(
+      GL_ELEMENT_ARRAY_BUFFER,
+      cast(GLsizeiptr)(indices.length * ushort.sizeof),
+      indices.ptr,
+      GL_STATIC_DRAW
+    );
+    qa.eboQuadCapacity = newQuads;
+  }
+
+  glDrawElements(
+    GL_TRIANGLES, cast(GLsizei)(quadCount * 6), GL_UNSIGNED_SHORT, null
+  );
+}
+
+/// Deletes the non-zero buffers and VAO of `qa` and resets it.
+void destroyIndexedQuadArray(ref IndexedQuadArray qa) {
+  if (qa.ebo != 0) {
+    glDeleteBuffers(1, &qa.ebo);
+  }
+  if (qa.vbo != 0) {
+    glDeleteBuffers(1, &qa.vbo);
+  }
+  if (qa.vao != 0) {
+    glDeleteVertexArrays(1, &qa.vao);
+  }
+  qa = IndexedQuadArray.init;
+}
+
 unittest {
   assert(vboCapacityFor(1) == 256);
   assert(vboCapacityFor(256) == 256);
   assert(vboCapacityFor(257) == 512);
   assert(vboCapacityFor(5000) == 8192);
+}
+
+unittest {
+  assert(indexedQuadCapacityFor(0) == 64);
+  assert(indexedQuadCapacityFor(1) == 64);
+  assert(indexedQuadCapacityFor(64) == 64);
+  assert(indexedQuadCapacityFor(65) == 128);
+  assert(indexedQuadCapacityFor(500) == 512);
+  assert(indexedQuadCapacityFor(8192) == 8192);
+  assert(indexedQuadCapacityFor(8193) == maxIndexedQuads);
+  assert(indexedQuadCapacityFor(maxIndexedQuads) == maxIndexedQuads);
 }
 
 /**

@@ -20,6 +20,11 @@ enum string texVertexShaderSource =
 enum string texFragmentShaderSource =
   import("yguilib/shaders/texture.frag.glsl");
 
+enum string textVertexShaderSource =
+  vertPrelude ~ import("yguilib/shaders/text.vert.glsl");
+enum string textFragmentShaderSource =
+  import("yguilib/shaders/text.frag.glsl");
+
 enum string rrVertexShaderSource =
   vertPrelude ~ import("yguilib/shaders/roundrect.vert.glsl");
 enum string rrFragmentShaderSource =

@@ -88,12 +88,23 @@ private:
  * no destructor: call `destroy()` on the main thread.
  */
 final class GlyphAtlas {
+  alias BeforeResetCallback = void delegate();
+
   /// `maxSize` is typically `min(4096, maxTextureSize())`.
   this(int initialSize, int maxSize) {
     assert(initialSize > 0 && maxSize >= initialSize);
     fSize = initialSize;
     fMaxSize = maxSize;
     fPacker.reset(initialSize);
+  }
+
+  /**
+   * Registers a callback invoked before the live atlas texture is deleted
+   * or reallocated on `clear`, `makeRoom`, or `destroy`. `cb` may be
+   * `null` to clear the callback.
+   */
+  void onBeforeReset(BeforeResetCallback cb) {
+    fOnBeforeReset = cb;
   }
 
   /// The atlas texture; 0 until the first `slotFor`.
@@ -146,17 +157,13 @@ final class GlyphAtlas {
 
   /// Drops all keys, zeroes the texture and bumps `generation()`.
   void clear() {
-    fSlots.clear();
-    fPacker.reset(fSize);
-    fGeneration++;
-    if (fTexture != 0) {
-      deleteTexture(fTexture);
-      fTexture = allocRgbaTexture(fSize);
-    }
+    notifyBeforeReset();
+    resetContents();
   }
 
   /// Frees the texture and drops all keys (main thread only).
   void destroy() {
+    notifyBeforeReset();
     if (fTexture != 0) {
       deleteTexture(fTexture);
       fTexture = 0;
@@ -212,11 +219,28 @@ private:
 
   /// Doubles the texture when below the max size, else clears in place.
   void makeRoom() {
+    notifyBeforeReset();
     if (fSize < fMaxSize) {
       const int grown = fSize * 2 < fMaxSize ? fSize * 2 : fMaxSize;
       fSize = grown;
     }
-    clear();
+    resetContents();
+  }
+
+  void resetContents() {
+    fSlots.clear();
+    fPacker.reset(fSize);
+    fGeneration++;
+    if (fTexture != 0) {
+      deleteTexture(fTexture);
+      fTexture = allocRgbaTexture(fSize);
+    }
+  }
+
+  void notifyBeforeReset() {
+    if (fTexture != 0 && fOnBeforeReset !is null) {
+      fOnBeforeReset();
+    }
   }
 
   GlyphSlot[GlyphKey] fSlots;
@@ -225,6 +249,7 @@ private:
   int fSize;
   int fMaxSize;
   ulong fGeneration;
+  BeforeResetCallback fOnBeforeReset;
 }
 
 version (unittest) {
@@ -469,4 +494,86 @@ unittest {
   assert(atlas.length == 1);
   atlas.slotFor(f1, 0, g1);
   assert(atlas.length == 2);
+}
+
+unittest {
+  auto w = GlTestWindow("test_glyph_atlas_before_reset");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+
+  Font font = Font.fromMemory(
+    cast(const(void)[])defaultTtfFontData, 32.0f, 1.0f
+  );
+  scope(exit) font.destroy();
+
+  auto atlas = new GlyphAtlas(64, 128);
+  scope(exit) atlas.destroy();
+
+  struct ResetEvent {
+    GLuint tex;
+    int size;
+    bool validTex;
+  }
+  ResetEvent[] events;
+  atlas.onBeforeReset(() {
+    const GLuint t = atlas.texture();
+    events ~= ResetEvent(t, atlas.size(), glIsTexture(t) == GL_TRUE);
+  });
+
+  // Clearing before any texture exists must not fire the callback.
+  atlas.clear();
+  assert(events.length == 0);
+
+  enum string text = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+  yguilib_sdl3_ttf_GlyphQuad[64] quads;
+  int tw, th;
+  const n = yguilib_sdl3_ttf_layout_text(
+    font.handle, text.ptr, text.length, quads.ptr, 64, &tw, &th
+  );
+  assert(n == text.length);
+
+  assert(atlas.slotFor(font, 0, quads[0].glyphIndex).ok);
+  const GLuint tex64 = atlas.texture();
+  assert(tex64 != 0);
+
+  // Fill until growth triggers makeRoom().
+  foreach (ref q; quads[1 .. n]) {
+    assert(atlas.slotFor(font, 0, q.glyphIndex).ok);
+    if (atlas.size() == 128) {
+      break;
+    }
+  }
+  assert(atlas.size() == 128);
+  assert(events.length == 1);
+  assert(events[0].tex == tex64);
+  assert(events[0].size == 64);
+  assert(events[0].validTex);
+
+  const GLuint tex128 = atlas.texture();
+  assert(tex128 != 0);
+
+  // Explicit clear fires with current texture and size still valid.
+  atlas.clear();
+  assert(events.length == 2);
+  assert(events[1].tex == tex128);
+  assert(events[1].size == 128);
+  assert(events[1].validTex);
+
+  const GLuint texAfterClear = atlas.texture();
+  assert(texAfterClear != 0);
+
+  // Destroy fires with current texture still valid before deletion.
+  atlas.destroy();
+  assert(events.length == 3);
+  assert(events[2].tex == texAfterClear);
+  assert(events[2].size == 128);
+  assert(events[2].validTex);
+  assert(atlas.texture() == 0);
+
+  // Clearing callback with null prevents further notifications.
+  atlas.onBeforeReset(null);
+  assert(atlas.slotFor(font, 0, quads[0].glyphIndex).ok);
+  atlas.clear();
+  atlas.destroy();
+  assert(events.length == 3);
 }

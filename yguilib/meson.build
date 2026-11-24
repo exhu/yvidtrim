@@ -63,6 +63,7 @@ yguilib_src = files(
   'source/yguilib/render/internal/pipelines.d',
   'source/yguilib/render/internal/stencil_ops.d',
   'source/yguilib/render/internal/svg_path_parser.d',
+  'source/yguilib/render/internal/text_batch.d',
   'source/yguilib/render/internal/text_cache.d',
   'source/yguilib/render/package.d',
   'source/yguilib/render/render_target.d',

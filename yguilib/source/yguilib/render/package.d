@@ -11,7 +11,6 @@
 module yguilib.render;
 
 import glad2.gles2;
-import std.array : Appender;
 import yguilib.events : AppEvent;
 import yguilib.render.internal.clip_stack : ClipStack;
 import yguilib.render.font : Font, defaultFontPtSize;
@@ -22,14 +21,19 @@ import yguilib.render.internal.offscreen : OffscreenTarget,
 import yguilib.render.internal.gl_util : ProgramTracker, maxTextureSize;
 import yguilib.render.internal.pipelines : BlurPipeline, ColorPipeline,
   GradientPipeline, PatternPipeline, RoundRectPipeline, RoundRectShape,
-  TextureMode, TexturePipeline, TexturedQuad, ThickLine, Viewport,
-  textureModeFor;
+  TextPipeline, TextVertex, TextureMode, TexturePipeline, TexturedQuad,
+  ThickLine, Viewport, textureModeFor;
+import yguilib.render.internal.text_batch : TextBatch;
 import yguilib.render.internal.text_cache : TextRun, TextRunCache;
 import yguilib.render.render_types;
 import yguilib.render.render_target : RenderTarget;
 import yguilib.render.texture : Texture;
 import yguilib.assets : defaultTtfFontData;
 import yguilib.render.canvas : Canvas;
+
+version (unittest) {
+  import yguilib.render.internal.text_batch : TextBatchStats;
+}
 
 /// Managed by Window class. Lower level 2d api.
 final class Renderer {
@@ -71,6 +75,10 @@ final class Renderer {
       return;
     }
 
+    if (textCache !is null) {
+      textCache.onBeforeAtlasReset(null);
+    }
+    fTextBatch.releaseMemory();
     clearTextCache();
     if (fontManager !is null) {
       fontManager.onFontDestroyed(null);
@@ -91,12 +99,27 @@ final class Renderer {
     gradientPipeline.destroy();
     rrPipeline.destroy();
     texPipeline.destroy();
+    textPipeline.destroy();
     colorPipeline.destroy();
     clipStack.clear();
     initialized = false;
   }
 
+  /**
+   * Submits any queued batched text quads to the GPU.
+   *
+   * Callers issuing direct raw GL calls (such as `glReadPixels` or
+   * `glFinish`) after text draws must call `flush()` first.
+   */
+  void flush() {
+    if (!initialized) {
+      return;
+    }
+    fTextBatch.flush(textPipeline, logicViewport());
+  }
+
   void viewport(int pixelWidth, int pixelHeight) {
+    flush();
     viewportPixelWidth = pixelWidth;
     viewportPixelHeight = pixelHeight;
     glViewport(0, 0, pixelWidth, pixelHeight);
@@ -111,6 +134,7 @@ final class Renderer {
   void unitsScaling(float scaling) {
     const float newScale = scaling > 0.0f ? scaling : 1.0f;
     if (newScale != fUnitsScaling) {
+      flush();
       fUnitsScaling = newScale;
       onScalingChanged();
     }
@@ -126,6 +150,7 @@ final class Renderer {
   void displayScaling(float scaling) {
     const float newScale = scaling > 0.0f ? scaling : 1.0f;
     if (newScale != fDisplayScaling) {
+      flush();
       fDisplayScaling = newScale;
       onScalingChanged();
     }
@@ -251,6 +276,7 @@ final class Renderer {
    * (`TextRunCache.beginFrame`), protecting this frame's strings.
    */
   void clearFrame(ColorF color) {
+    flush();
     clearColor(color);
     glStencilMask(0xFF);
     glClearStencil(0);
@@ -267,6 +293,7 @@ final class Renderer {
     if (!initialized) {
       return;
     }
+    flush();
     colorPipeline.drawFillRect(rect, color, logicViewport());
   }
 
@@ -282,6 +309,7 @@ final class Renderer {
     if (!initialized) {
       return;
     }
+    flush();
     colorPipeline.drawThinLineWithPoints(
       point1, point2, color, logicViewport()
     );
@@ -325,6 +353,7 @@ final class Renderer {
     if (!initialized) {
       return;
     }
+    flush();
     colorPipeline.drawDashedLine(
       ThickLine(point1, point2, lineWidth), dash, color, logicViewport()
     );
@@ -343,6 +372,7 @@ final class Renderer {
     if (!initialized) {
       return;
     }
+    flush();
     colorPipeline.drawRectWithWidth(rect, lineWidth, color, logicViewport());
   }
 
@@ -430,38 +460,57 @@ final class Renderer {
     if (!initialized) {
       return;
     }
+    flush();
     rrPipeline.draw(
       RoundRectShape(rect, radius, lineWidth, dash), color, logicViewport()
     );
   }
 
   void pushClipRect(RectF rect) {
+    const float scale = totalScaling();
+    if (clipStack.wouldPushChangeScissor(
+        rect, viewportPixelWidth, viewportPixelHeight, scale)) {
+      flush();
+    }
     clipStack.push(
       rect,
       viewportPixelWidth,
       viewportPixelHeight,
-      totalScaling()
+      scale
     );
   }
 
   void popClipRect() {
+    const float scale = totalScaling();
+    if (clipStack.wouldPopChangeScissor(
+        viewportPixelWidth, viewportPixelHeight, scale)) {
+      flush();
+    }
     clipStack.pop(
       viewportPixelWidth,
       viewportPixelHeight,
-      totalScaling()
+      scale
     );
   }
 
   void clipRect(RectF rect) {
+    const float scale = totalScaling();
+    if (clipStack.wouldSetChangeScissor(
+        rect, viewportPixelWidth, viewportPixelHeight, scale)) {
+      flush();
+    }
     clipStack.set(
       rect,
       viewportPixelWidth,
       viewportPixelHeight,
-      totalScaling()
+      scale
     );
   }
 
   void resetClipRect() {
+    if (clipStack.wouldResetChangeScissor()) {
+      flush();
+    }
     clipStack.reset();
   }
 
@@ -590,6 +639,7 @@ final class Renderer {
   }
 
   void clearTextCache() {
+    flush();
     if (textCache !is null) {
       textCache.clear();
     }
@@ -599,6 +649,7 @@ final class Renderer {
     if (!initialized) {
       return;
     }
+    flush();
     // a whole straight-alpha texture stretched to destRect
     texPipeline.drawTexturedQuad(
       texId, TexturedQuad(destRect, RectF(0, 0, 1, 1), color),
@@ -651,6 +702,7 @@ final class Renderer {
       assert(!isActiveTargetTexture(t),
         "drawing the texture of an active render target (feedback loop)");
     }
+    flush();
     texPipeline.drawTexturedQuad(
       t.id(),
       TexturedQuad(dest, textureUv(t, srcPx), tint),
@@ -673,6 +725,7 @@ final class Renderer {
     if (!initialized) {
       return null;
     }
+    flush();
     const int pw = viewportPixelWidth;
     const int ph = viewportPixelHeight;
     const int x0 = max(x, 0);
@@ -766,6 +819,7 @@ final class Renderer {
     import std.algorithm.mutation : swap;
 
     assert(rt.active == 0, "render target is already active");
+    flush();
     // one reusable slot per depth: its buffers are swapped, not copied
     if (fTargetDepth == targetFrames.length) {
       targetFrames ~= TargetFrame.init;
@@ -811,6 +865,7 @@ final class Renderer {
     import std.algorithm.mutation : swap;
 
     assert(fTargetDepth > 0, "endTarget() without beginTarget()");
+    flush();
     --fTargetDepth;
     TargetFrame* f = &targetFrames[fTargetDepth];
     f.target.resolve(fFramebuffer, !clipStack.isEmpty());
@@ -948,6 +1003,16 @@ package(yguilib):
       fClearColor[3]);
   }
 
+  version (unittest) {
+    TextBatchStats textBatchStats() const {
+      return fTextBatch.stats();
+    }
+
+    void resetTextBatchStats() {
+      fTextBatch.resetStats();
+    }
+  }
+
 package(yguilib.render):
   /**
    * The current framebuffer, viewport, scissor and clear color from the
@@ -972,10 +1037,22 @@ package(yguilib.render):
    * clip stack scissor. The scissor and the clear color are restored.
    */
   void clearPixelBox(in int[4] box) {
+    flush();
     glClearColor(0, 0, 0, 0);
     clipStack.clearBox(box, GL_COLOR_BUFFER_BIT);
     glClearColor(fClearColor[0], fClearColor[1], fClearColor[2],
       fClearColor[3]);
+  }
+
+  /// Appends a glyph quad to the shared text batch, flushing on state change.
+  void queueTextQuad(GLuint texId, bool stencilClip, in TextVertex[4] quad) {
+    if (!initialized || texId == 0) {
+      return;
+    }
+    if (fTextBatch.needsFlushFor(texId, stencilClip)) {
+      flush();
+    }
+    fTextBatch.pushQuad(texId, stencilClip, quad);
   }
 
   /// Logic viewport size and total scaling for the pipeline draws.
@@ -1040,21 +1117,25 @@ package(yguilib.render):
 
   /// Shared flat color pipeline (used by `Canvas`).
   ref ColorPipeline colorPipelineRef() return {
+    flush();
     return colorPipeline;
   }
 
   /// Shared gradient paint pipeline (used by `Canvas`).
   ref GradientPipeline gradientPipelineRef() return {
+    flush();
     return gradientPipeline;
   }
 
   /// Shared image pattern paint pipeline (used by `Canvas`).
   ref PatternPipeline patternPipelineRef() return {
+    flush();
     return patternPipeline;
   }
 
   /// Shared textured quad pipeline (Canvas shadow composite).
   ref TexturePipeline texturePipelineRef() return {
+    flush();
     return texPipeline;
   }
 
@@ -1080,6 +1161,7 @@ package(yguilib.render):
 
   /// Shared separable blur pipeline (Canvas shadows).
   ref BlurPipeline blurPipelineRef() return {
+    flush();
     return blurPipeline;
   }
 
@@ -1123,6 +1205,7 @@ private:
 
     colorPipeline.initialize(&fPrograms);
     texPipeline.initialize(&fPrograms);
+    textPipeline.initialize(&fPrograms);
     rrPipeline.initialize(&fPrograms);
     gradientPipeline.initialize(&fPrograms);
     patternPipeline.initialize(&fPrograms);
@@ -1132,6 +1215,7 @@ private:
     textCache = new TextRunCache(
       TextRunCache.maxCacheEntries, 512, min(4096, maxTextureSize())
     );
+    textCache.onBeforeAtlasReset(&flush);
     fontManager = new FontManager();
     fontManager.onFontDestroyed(&onFontDestroyed);
     fCanvas = new Canvas(this);
@@ -1141,44 +1225,49 @@ private:
 
   /// Drops the text runs of a font the font manager is destroying.
   void onFontDestroyed(ulong fontId) {
+    flush();
     if (textCache !is null) {
       textCache.removeFont(fontId);
     }
   }
 
-  /// Draws `run` (null allowed) at `pos` as one batch of glyph quads.
+  /// Draws `run` (null allowed) at `pos` as batched glyph quads.
   void drawTextRun(const(TextRun)* run, PointF pos, ColorF color) {
-    if (run is null) {
+    if (run is null || !initialized) {
+      return;
+    }
+    const GLuint atlasTex = glyphAtlasTexture();
+    const int atlasSz = glyphAtlasSize();
+    if (atlasTex == 0 || atlasSz <= 0) {
       return;
     }
     import std.math : round;
 
     const float screenX = round(pixelsFromLogicFloat(pos.x));
     const float screenY = round(pixelsFromLogicFloat(pos.y));
-    const float invAtlas = 1.0f / glyphAtlasSize();
-    fTextVerts.clear();
+    const float invAtlas = 1.0f / atlasSz;
+    const float scale = totalScaling();
+    const float invScale = scale > 0.0f ? 1.0f / scale : 1.0f;
     foreach (ref g; run.glyphs) {
       if (g.slot.w <= 0) {
         continue;
       }
-      const float x0 = logicFromPixelsFloat(screenX + g.dx);
-      const float y0 = logicFromPixelsFloat(screenY + g.dy);
-      const float x1 = logicFromPixelsFloat(screenX + g.dx + g.dw);
-      const float y1 = logicFromPixelsFloat(screenY + g.dy + g.dh);
+      const float x0 = (screenX + g.dx) * invScale;
+      const float y0 = (screenY + g.dy) * invScale;
+      const float x1 = (screenX + g.dx + g.dw) * invScale;
+      const float y1 = (screenY + g.dy + g.dh) * invScale;
       const float u0 = (g.slot.x + g.srcX) * invAtlas;
       const float v0 = (g.slot.y + g.srcY) * invAtlas;
       const float u1 = (g.slot.x + g.srcX + g.srcW) * invAtlas;
       const float v1 = (g.slot.y + g.srcY + g.srcH) * invAtlas;
-      const float[24] quad = [
-        x0, y0, u0, v0,  x1, y0, u1, v0,  x0, y1, u0, v1,
-        x1, y0, u1, v0,  x1, y1, u1, v1,  x0, y1, u0, v1,
+      const TextVertex[4] quad = [
+        TextVertex(x0, y0, u0, v0, color.r, color.g, color.b, color.a),
+        TextVertex(x1, y0, u1, v0, color.r, color.g, color.b, color.a),
+        TextVertex(x0, y1, u0, v1, color.r, color.g, color.b, color.a),
+        TextVertex(x1, y1, u1, v1, color.r, color.g, color.b, color.a),
       ];
-      fTextVerts.put(quad[]);
+      queueTextQuad(atlasTex, false, quad);
     }
-    texPipeline.drawTexturedTriangles(
-      glyphAtlasTexture(), fTextVerts[], color, TextureMode.straight,
-      logicViewport()
-    );
   }
 
   /// State saved by `beginTarget` and restored by `endTarget`.
@@ -1222,6 +1311,7 @@ private:
    * is mid-frame, with this renderer's context current).
    */
   void onScalingChanged() {
+    flush();
     const float totalScale = totalScaling();
     if (fontManager !is null) {
       fontManager.scaling(totalScale);
@@ -1247,6 +1337,7 @@ private:
 
   ColorPipeline colorPipeline;
   TexturePipeline texPipeline;
+  TextPipeline textPipeline;
   RoundRectPipeline rrPipeline;
   GradientPipeline gradientPipeline;
   PatternPipeline patternPipeline;
@@ -1271,8 +1362,7 @@ private:
   TargetFrame[] targetFrames;
   size_t fTargetDepth;
   TextRunCache textCache;
-  /// Reused (x, y, u, v) vertices of `drawTextRun`.
-  Appender!(float[]) fTextVerts;
+  TextBatch fTextBatch;
   FontManager fontManager;
   Font fDefaultFont;
   bool initialized;
@@ -1509,6 +1599,7 @@ unittest {
     ColorF(1.0f, 1.0f, 1.0f, 1.0f),
     customFont
   );
+  renderer.flush();
 
   import std.algorithm : min;
 
@@ -1533,6 +1624,7 @@ unittest {
     ColorF(0.0f, 1.0f, 0.0f, 1.0f),
     customFont
   );
+  renderer.flush();
   litCount = 0;
   foreach (x; 20 .. 20 + checkW) {
     foreach (y; 30 .. 30 + checkH) {
@@ -1584,6 +1676,7 @@ unittest {
     ColorF(1.0f, 1.0f, 1.0f, 1.0f),
     null
   );
+  renderer.flush();
   litCount = 0;
   foreach (x; 20 .. 80) {
     foreach (y; 20 .. 60) {
@@ -1606,6 +1699,7 @@ unittest {
     ColorF(1.0f, 1.0f, 1.0f, 1.0f),
     null
   );
+  renderer.flush();
   litCount = 0;
   // 35 * 1.5 = 52.5 -> snapped to 53
   // 45 * 1.5 = 67.5 -> snapped to 68
@@ -2273,5 +2367,310 @@ unittest {
     assert(r.glyphAtlasTexture() == atlasTex || i > 0);
   }
   assert(r.glyphAtlasSize() >= 512);
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// Multi-font, multi-size, multi-color consecutive text calls share 1 flush.
+unittest {
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
+
+  auto w = GlTestWindow("test_renderer_text_batch_multi");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+
+  auto r = w.renderer();
+  r.registerFontFromMemory("Alt", cast(const(void)[])defaultTtfFontData);
+  Font f1 = r.font(11.0f, null);
+  Font f2 = r.font(18.0f, null);
+  Font f3 = r.font(24.0f, "Alt");
+
+  r.clearFrame(ColorF(0, 0, 0, 1));
+  r.resetTextBatchStats();
+
+  r.drawTextWithFont("Red", PointF(10, 10), ColorF(1, 0, 0, 1), f1);
+  r.drawTextWithFont("Green", PointF(10, 40), ColorF(0, 1, 0, 1), f2);
+  r.drawTextWithFont("Blue", PointF(10, 80), ColorF(0, 0, 1, 1), f3);
+  assert(r.textBatchStats().flushes == 0);
+
+  r.flush();
+  assert(r.textBatchStats().flushes == 1);
+  assert(r.textBatchStats().flushedQuads > 0);
+
+  int countChannel(int x0, int y0, int bw, int bh, int ch) {
+    Image part = r.readPixels(x0, y0, bw, bh);
+    assert(part !is null);
+    int n = 0;
+    for (size_t i = 0; i < part.pixels.length; i += 4) {
+      if (part.pixels[i + ch] > 120
+          && part.pixels[i + ((ch + 1) % 3)] < 20
+          && part.pixels[i + ((ch + 2) % 3)] < 20) {
+        ++n;
+      }
+    }
+    return n;
+  }
+
+  assert(countChannel(10, 10, 80, 25, 0) > 0);
+  assert(countChannel(10, 40, 100, 35, 1) > 0);
+  assert(countChannel(10, 80, 100, 40, 2) > 0);
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// Interleaved non-text draws auto-flush and preserve z-order.
+unittest {
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
+
+  auto w = GlTestWindow("test_renderer_text_batch_zorder");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+
+  auto r = w.renderer();
+  Font f = r.font(18.0f, null);
+  r.clearFrame(ColorF(0, 0, 0, 1));
+  r.resetTextBatchStats();
+
+  r.drawTextWithFont("HHHH", PointF(10, 20), ColorF(1, 1, 1, 1), f);
+  assert(r.textBatchStats().flushes == 0);
+
+  r.drawFillRect(RectF(10, 20, 100, 35), ColorF(1, 0, 0, 1));
+  assert(r.textBatchStats().flushes == 1);
+
+  r.drawTextWithFont("IIII", PointF(10, 20), ColorF(0, 1, 0, 1), f);
+  assert(r.textBatchStats().flushes == 1);
+
+  r.flush();
+  assert(r.textBatchStats().flushes == 2);
+
+  Image part = r.readPixels(10, 20, 100, 35);
+  assert(part !is null);
+  int greenOnTop = 0;
+  int whiteLeaked = 0;
+  for (size_t i = 0; i < part.pixels.length; i += 4) {
+    if (part.pixels[i + 1] > 150 && part.pixels[i] < 100) {
+      ++greenOnTop;
+    }
+    if (part.pixels[i] > 180 && part.pixels[i + 2] > 180) {
+      ++whiteLeaked;
+    }
+  }
+  assert(greenOnTop > 0);
+  assert(whiteLeaked == 0);
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// Scissor changes flush; redundant identical clip rects do not.
+unittest {
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
+
+  auto w = GlTestWindow("test_renderer_text_batch_scissor");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+
+  auto r = w.renderer();
+  r.clearFrame(ColorF(0, 0, 0, 1));
+  r.resetTextBatchStats();
+
+  r.pushClipRect(RectF(0, 0, 200, 200));
+  r.drawTextWithFont("A", PointF(10, 10), ColorF(1, 1, 1, 1), null);
+  assert(r.textBatchStats().flushes == 0);
+
+  // Intersects to (0, 0, 200, 200): identical scissor box, no flush.
+  r.pushClipRect(RectF(0, 0, 250, 250));
+  r.drawTextWithFont("B", PointF(30, 10), ColorF(1, 1, 1, 1), null);
+  assert(r.textBatchStats().flushes == 0);
+
+  // Popping back to (0, 0, 200, 200) keeps the same scissor box, no flush.
+  r.popClipRect();
+  r.drawTextWithFont("C", PointF(50, 10), ColorF(1, 1, 1, 1), null);
+  assert(r.textBatchStats().flushes == 0);
+
+  // Narrower clip changes the scissor box and flushes prior queued text.
+  r.pushClipRect(RectF(10, 10, 100, 100));
+  assert(r.textBatchStats().flushes == 1);
+  r.drawTextWithFont("D", PointF(20, 40), ColorF(1, 1, 1, 1), null);
+
+  // Popping back to (0, 0, 200, 200) changes the scissor box and flushes.
+  r.popClipRect();
+  assert(r.textBatchStats().flushes == 2);
+  r.drawTextWithFont("E", PointF(70, 10), ColorF(1, 1, 1, 1), null);
+
+  // Final pop disables scissor and flushes.
+  r.popClipRect();
+  assert(r.textBatchStats().flushes == 3);
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// Mid-batch atlas growth and clear flush queued labels before reallocating.
+unittest {
+  import std.conv : to;
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
+
+  auto w = GlTestWindow("test_renderer_text_batch_atlas_reset");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+
+  auto r = w.renderer();
+  Font smallF = r.font(16.0f, null);
+  Font bigF = r.font(64.0f, null);
+
+  // Trigger initial atlas allocation, then test mid-batch growth.
+  r.clearFrame(ColorF(0, 0, 0, 1));
+  r.drawTextWithFont("Init", PointF(0, 0), ColorF(0, 0, 0, 1), smallF);
+  r.flush();
+
+  r.clearFrame(ColorF(0, 0, 0, 1));
+  r.resetTextBatchStats();
+  const int oldAtlasSize = r.glyphAtlasSize();
+
+  r.drawTextWithFont("ABC", PointF(10, 10), ColorF(1, 1, 1, 1), smallF);
+  assert(r.textBatchStats().flushes == 0);
+
+  // Fill 512x512 atlas until it grows (or clear if already at max size).
+  bool grew = false;
+  foreach (i; 0 .. 40) {
+    const string s = "G" ~ i.to!string ~ "WXYZQMRK";
+    r.drawTextWithFont(s, PointF(10, 90), ColorF(0, 1, 0, 1), bigF);
+    if (r.glyphAtlasSize() > oldAtlasSize) {
+      grew = true;
+      break;
+    }
+  }
+  if (!grew) {
+    r.textCache.atlas().clear();
+  }
+  assert(r.textBatchStats().flushes >= 1);
+
+  Image topImg = r.readPixels(10, 10, 60, 30);
+  assert(topImg !is null);
+  int whiteLit = 0;
+  for (size_t i = 0; i < topImg.pixels.length; i += 4) {
+    if (topImg.pixels[i] > 120
+        && topImg.pixels[i + 1] > 120
+        && topImg.pixels[i + 2] > 120) {
+      ++whiteLit;
+    }
+  }
+  assert(whiteLit > 0);
+
+  // Explicit mid-batch atlas clear also flushes queued labels intact.
+  r.clearFrame(ColorF(0, 0, 0, 1));
+  r.resetTextBatchStats();
+  r.drawTextWithFont("DEF", PointF(10, 10), ColorF(1, 1, 1, 1), smallF);
+  assert(r.textBatchStats().flushes == 0);
+  r.textCache.atlas().clear();
+  assert(r.textBatchStats().flushes == 1);
+  Image clearImg = r.readPixels(10, 10, 60, 30);
+  assert(clearImg !is null);
+  int clearLit = 0;
+  for (size_t i = 0; i < clearImg.pixels.length; i += 4) {
+    if (clearImg.pixels[i] > 120 && clearImg.pixels[i + 1] > 120) {
+      ++clearLit;
+    }
+  }
+  assert(clearLit > 0);
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// beginTarget/endTarget and readPixels/captureFrame auto-flush.
+unittest {
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
+
+  auto w = GlTestWindow("test_renderer_text_batch_targets");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+
+  auto r = w.renderer();
+  RenderTarget rt = r.createRenderTarget(160, 120, false);
+  assert(rt !is null);
+  scope(exit) rt.destroy();
+
+  Font f = r.font(16.0f, null);
+  r.clearFrame(ColorF(0, 0, 0, 1));
+  r.resetTextBatchStats();
+
+  r.drawTextWithFont("Main", PointF(10, 10), ColorF(1, 1, 1, 1), f);
+  assert(r.textBatchStats().flushes == 0);
+
+  r.beginTarget(rt, true);
+  assert(r.textBatchStats().flushes == 1);
+  r.drawTextWithFont("RT1", PointF(10, 10), ColorF(0, 1, 0, 1), f);
+  assert(r.textBatchStats().flushes == 1);
+
+  Image rtCap = r.captureFrame();
+  assert(rtCap !is null);
+  assert(r.textBatchStats().flushes == 2);
+  int rtGreen = 0;
+  for (size_t i = 0; i < rtCap.pixels.length; i += 4) {
+    if (rtCap.pixels[i + 1] > 120) {
+      ++rtGreen;
+    }
+  }
+  assert(rtGreen > 0);
+
+  r.drawTextWithFont("RT2", PointF(10, 40), ColorF(0, 0, 1, 1), f);
+  assert(r.textBatchStats().flushes == 2);
+
+  r.endTarget();
+  assert(r.textBatchStats().flushes == 3);
+
+  Image mainPart = r.readPixels(10, 10, 80, 30);
+  assert(mainPart !is null);
+  int mainWhite = 0;
+  for (size_t i = 0; i < mainPart.pixels.length; i += 4) {
+    if (mainPart.pixels[i] > 120
+        && mainPart.pixels[i + 1] > 120
+        && mainPart.pixels[i + 2] > 120) {
+      ++mainWhite;
+    }
+  }
+  assert(mainWhite > 0);
+
+  r.clearFrame(ColorF(0, 0, 0, 1));
+  r.drawImage(rt.texture(), RectF(0, 0, 160, 120), ColorF(1, 1, 1, 1));
+  Image comp = r.readPixels(0, 0, 160, 120);
+  assert(comp !is null);
+  int compBlue = 0;
+  for (size_t i = 0; i < comp.pixels.length; i += 4) {
+    if (comp.pixels[i + 2] > 120 && comp.pixels[i + 1] < 20) {
+      ++compBlue;
+    }
+  }
+  assert(compBlue > 0);
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// Steady-state batched text frames allocate zero GC memory.
+unittest {
+  import core.memory : GC;
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
+
+  auto w = GlTestWindow("test_renderer_text_batch_zero_gc");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+
+  auto r = w.renderer();
+  Font f1 = r.font(12.0f, null);
+  Font f2 = r.font(18.0f, null);
+
+  void drawBatchedFrame() {
+    r.clearFrame(ColorF(0, 0, 0, 1));
+    r.drawTextWithFont("Label One", PointF(10, 10), ColorF(1, 1, 1, 1), f1);
+    r.drawTextWithFont("Label Two", PointF(10, 35), ColorF(1, 0, 0, 1), f2);
+    r.drawTextWithFont("Label Three", PointF(10, 65), ColorF(0, 1, 0, 1), f1);
+    r.drawTextWithFont("Label Four", PointF(10, 90), ColorF(0, 0, 1, 1), f2);
+    r.flush();
+  }
+
+  foreach (_; 0 .. 5) {
+    drawBatchedFrame();
+  }
+
+  GC.collect();
+  const before = GC.stats();
+  foreach (_; 0 .. 50) {
+    drawBatchedFrame();
+  }
+  const after = GC.stats();
+  assert(after.allocatedInCurrentThread == before.allocatedInCurrentThread);
   assert(glGetError() == GL_NO_ERROR);
 }

@@ -128,6 +128,14 @@ final class TextRunCache {
     return fAtlas.size();
   }
 
+  /**
+   * Registers a callback invoked before the atlas texture is deleted or
+   * grown. `cb` may be `null` to clear the callback.
+   */
+  void onBeforeAtlasReset(void delegate() cb) {
+    fAtlas.onBeforeReset(cb);
+  }
+
   version (unittest) {
     /// Number of cached runs of the font `fontId`.
     size_t countForFont(ulong fontId) const {

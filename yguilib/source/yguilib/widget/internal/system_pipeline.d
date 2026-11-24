@@ -262,6 +262,9 @@ private:
     foreach (s; renderSystems) {
       s.render(ctx);
     }
+    if (ctx.renderer !is null) {
+      ctx.renderer.flush();
+    }
 
     clearDirtyAfterRender(ctx.root, ctx.visibleWidgets);
     return true;

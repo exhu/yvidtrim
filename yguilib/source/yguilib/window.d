@@ -108,6 +108,9 @@ package(yguilib):
   }
 
   void swapBuffers() {
+    if (renderer !is null) {
+      renderer.flush();
+    }
     if (handle !is null) {
       yguilib_sdl3_gl_swap_window(handle);
     }
@@ -245,6 +248,7 @@ private:
   void clearWithColor(float r, float g, float b, float a) {
     if (handle !is null && glContext !is null) {
       if (renderer !is null) {
+        renderer.flush();
         // the renderer tracks the clear color (see Renderer.clearColor)
         renderer.clearColor(ColorF(r, g, b, a));
       } else {

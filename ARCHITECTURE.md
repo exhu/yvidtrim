@@ -55,7 +55,7 @@ yvidtrim/
 │   │   │   ├── canvas/    # Canvas, path2d, types, package_test (GL tests)
 │   │   │   ├── image.d, texture.d, render_target.d # Image/Texture/RenderTarget
 │   │   │   └── internal/  # pipelines, path_*, svg_path_parser,
-│   │   │                  # stencil_ops, offscreen, clip_stack,
+│   │   │                  # stencil_ops, offscreen, clip_stack, text_batch,
 │   │   │                  # text_cache, glyph_atlas, gl_util, gl_test_util
 │   │   ├── widget/        # Widget entity, components, builder, WidgetSystem
 │   │   │   ├── virtlist_components.d # VirtListProvider & VirtListComponent
@@ -204,14 +204,14 @@ keeps targets premultiplied (`rt.texture()` bottom-up; `rt.toImage()`
 un-premultiplies). **GL state**: Renderer tracks FBO/viewport/clear color,
 `ClipStack` the scissor, `ProgramTracker` program + uniform epoch: no GL
 queries (debug-checked by `targetState()`); new GL code must use them.
-**Text**: `TextRunCache` lays out runs at the effective scale (`fontAtScale`)
-via SDL_ttf into reused `fQuads` (`layoutQuads`; outlines shifted back by
-outlinePx), storing `RunGlyph` spans in a pooled buffer compacted in place;
-LRU (`maxCacheEntries = 2048`), keeping `beginFrame()` strings up to 2x hard
-cap. A `const(TextRun)*` is valid only until the next `runFor`. `GlyphAtlas`:
-one RGBA8 page, 512 doubling to min(4096, GL max), then cleared in place; a
-generation counter invalidates slots. One draw per label: white straight-alpha
-coverage tinted or masking gradient/pattern paint; stroke = outline ring.
+**Text**: `TextRunCache` lays out runs at `fontAtScale` via SDL_ttf into
+reused `fQuads` (outlines shifted by outlinePx), pooling `RunGlyph` spans
+with in-place compaction (LRU 2048, `beginFrame()` 2x hard cap). `GlyphAtlas`:
+one RGBA8 page (512..min(4096, max), generation counter), firing
+`onBeforeReset` (`Renderer.flush()`) before clear. Solid text queues quads
+into `TextBatch` (`TextPipeline` indexed quads, per-vertex RGBA), flushing
+on state/target/scissor change, 16383 quads, or `Renderer.flush()`
+(swap/readback); gradient/pattern fills still mask per label.
 
 ## Idiomatic Patterns
 - Null Safety: Non-null references by default (tooling flags missing checks);
