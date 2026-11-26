@@ -10,7 +10,7 @@ description: >-
 
 This skill provides static analysis to enforce the styling and syntax
 conventions specified in
-[codestyle.md](file:///home/yur/agy-projects/yvidtrim/codestyle.md).
+[codestyle.md](../../../codestyle.md).
 
 ## Core Script
 

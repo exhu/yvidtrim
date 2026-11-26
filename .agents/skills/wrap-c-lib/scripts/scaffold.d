@@ -241,7 +241,8 @@ void printMesonInstructions(
   writeln("------------------------------------------------------------");
   if (cfg.proj == "yguilib") {
     writefln(
-      "2. Add 'source/yguilib/clibs/%s.d' to yguilib_src in yguilib/meson.build.",
+      "2. Add 'source/yguilib/clibs/%s.d' to yguilib_src in " ~
+      "yguilib/meson.build.",
       cfg.libName,
     );
     writefln(
@@ -259,6 +260,6 @@ void printMesonInstructions(
     writefln("3. Link '%s' into executable in root meson.build.", libTarget);
   }
   writeln("4. Run verification:");
-  writeln("   meson setup _build --reconfigure && " ~
-    "ninja -C _build && meson test -C _build");
+  writeln("   rdmd .agents/skills/build-and-test/scripts/run_verify.d " ~
+    "--reconfigure");
 }

@@ -80,8 +80,9 @@ registering `AnimatedHoverButtonSystem`).
 - Store references only to widgets mutated in `update()`.
 - Synchronize state in `View.update()` using `ModelTracker!M.update()`.
 - Create `ModelTracker!M` and `View` before the `Controller`, pass `tracker`
-  explicitly to both `View` and `Controller`, and attach `rootWidget` to
-  `app.ui.mainWindow()` in `main()` (keeping `Controller` testable with
+  explicitly to both `View` and `Controller`, and call
+  `app.withRootWidget(view.rootWidget())` in `main()`. Controllers never
+  create their View or touch `App`/`Window` (keeping them testable with
   `UiSystemImpl(null)`).
 
 ### Tier 2: Reusable Composite Widget (`*Builder` + `WidgetView`)
@@ -89,8 +90,9 @@ Use for multi-widget controls that encapsulate child widgets, translate child
 events, or synchronize dynamic children via `WidgetArrayProvider` or
 `ScrollableArea` (see `yguilib/source/yguilib/controls/tabcontrol.d`).
 - Define a `*Style` or `*Config` struct for visual defaults.
-- Define a fluent `*Builder` struct with `build(UiSystem ui, Widget parent,
-  RectF rect, UiRegistry registry = null)`.
+- Define a fluent `*Builder` struct with
+  `build(UiSystem ui, Widget parent, RectF rect)` (no default parameter
+  values; see `codestyle.md`).
 - Attach `.viewEvents(renameMap)` and `.viewName(widgetViewName)` to the root
   widget so child `MouseEvent` triggers bubble up and get translated by
   `WidgetView`.
@@ -234,13 +236,8 @@ struct MyWidgetBuilder {
     return this;
   }
 
-  /// Builds the widget tree. `parent` and `registry` may be null in tests.
-  Widget build(
-    UiSystem ui,
-    Widget parent,
-    RectF rect,
-    UiRegistry registry = null
-  ) {
+  /// Builds the widget tree. `parent` may be null in tests.
+  Widget build(UiSystem ui, Widget parent, RectF rect) {
     assert(ui !is null, "ui must not be null");
     const string rootName = widgetName.length > 0 ? widgetName : "myWidget";
 
@@ -317,7 +314,7 @@ rdmd .agents/skills/check-null-safety/scripts/check_null_safety.d
 rdmd .agents/skills/check-boundaries/scripts/check_boundaries.d
 
 # 5. Build and run unit tests
-ninja -C _build && meson test -C _build
+rdmd .agents/skills/build-and-test/scripts/run_verify.d
 ```
 
 ---

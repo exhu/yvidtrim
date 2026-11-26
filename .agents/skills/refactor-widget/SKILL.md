@@ -104,7 +104,7 @@ rdmd .agents/skills/check-codestyle/scripts/check_style.d
 rdmd .agents/skills/check-boundaries/scripts/check_boundaries.d
 
 # 4. Build and test
-ninja -C _build && meson test -C _build
+rdmd .agents/skills/build-and-test/scripts/run_verify.d
 ```
 
 ## CLI Options Reference

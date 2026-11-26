@@ -67,7 +67,7 @@ rdmd .agents/skills/rename-symbol/scripts/rename_symbol.d \
 
 rdmd .agents/skills/check-line-length/scripts/check_line_length.d
 rdmd .agents/skills/check-codestyle/scripts/check_style.d
-ninja -C _build && meson test -C _build
+rdmd .agents/skills/build-and-test/scripts/run_verify.d
 ```
 
 ## CLI Options Reference

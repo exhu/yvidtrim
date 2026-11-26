@@ -9,7 +9,7 @@ description: >-
 
 This skill manages static assets (shaders, fonts, images) and automates
 D string imports according to
-[codestyle.md](file:///home/yur/agy-projects/yvidtrim/codestyle.md).
+[codestyle.md](../../../codestyle.md).
 
 ## Core Script
 

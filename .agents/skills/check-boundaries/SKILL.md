@@ -9,8 +9,8 @@ description: >-
 
 This skill verifies and protects architectural boundaries and encapsulation
 rules defined in
-[codestyle.md](file:///home/yur/agy-projects/yvidtrim/codestyle.md) and
-[AGENTS.md](file:///home/yur/agy-projects/yvidtrim/AGENTS.md).
+[codestyle.md](../../../codestyle.md) and
+[AGENTS.md](../../../AGENTS.md).
 
 ## Core Script
 

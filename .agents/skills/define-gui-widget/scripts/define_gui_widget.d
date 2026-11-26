@@ -525,7 +525,7 @@ string inlineTemplatePart1() {
 module __MOD__;
 
 import yguilib.render.render_types : ColorF, RectF;
-import yguilib.uisystem : UiRegistry, UiSystem;
+import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : TextLabel;
@@ -569,16 +569,8 @@ struct __NAME__Builder {
 string inlineTemplatePart2() {
   return
 `
-  /**
-   * Builds the __NAME__ widget tree.
-   * parent and registry are allowed to be null in isolated tests.
-   */
-  Widget build(
-    UiSystem ui,
-    Widget parent,
-    RectF rect,
-    UiRegistry registry = null
-  ) {
+  /// Builds the __NAME__ widget tree. parent may be null in isolated tests.
+  Widget build(UiSystem ui, Widget parent, RectF rect) {
     assert(ui !is null, "ui must not be null");
     const string rootName = (widgetName.length > 0) ? widgetName : "__CAMEL__";
 
@@ -657,7 +649,7 @@ module __MOD__;
 import yguilib.controller : HandleResult;
 import yguilib.events : AppEvent;
 import yguilib.render.render_types : ColorF, RectF;
-import yguilib.uisystem : UiRegistry, UiSystem;
+import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : TextLabel;
@@ -744,17 +736,9 @@ struct __NAME__Builder {
     return this;
   }
 
-  /// Builds the composite widget. parent and registry may be null in tests.
-  Widget build(
-    UiSystem ui,
-    Widget parent,
-    RectF rect,
-    UiRegistry registry = null
-  ) {
+  /// Builds the composite widget. parent may be null in isolated tests.
+  Widget build(UiSystem ui, Widget parent, RectF rect) {
     assert(ui !is null, "ui must not be null");
-    if (registry is null) {
-      registry = ui;
-    }
     const string rootName = (widgetName.length > 0) ? widgetName : "__CAMEL__";
     const string targetEv = (eventName.length > 0)
       ? eventName
@@ -863,7 +847,7 @@ struct __NAME__Style {
 final class __NAME__Component : WidgetComponent {
   string actionEvent;
 
-  this(string actionEvent = null) {
+  this(string actionEvent) {
     this.actionEvent = actionEvent;
   }
 }
@@ -928,8 +912,7 @@ private:
 
 /// WidgetSystem processing visible widgets with __NAME__Component.
 final class __NAME__System : WidgetSystem {
-  this(int priority = defaultPriority) nothrow @safe {
-    super(priority);
+  this() nothrow @safe {
   }
 
   override @property SystemPhase phases() const nothrow @safe {

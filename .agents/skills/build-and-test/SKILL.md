@@ -10,7 +10,7 @@ description: >-
 
 This skill provides a standardized tool to compile and test `yvidtrim` and
 `yguilib` according to
-[AGENTS.md](file:///home/yur/agy-projects/yvidtrim/AGENTS.md).
+[AGENTS.md](../../../AGENTS.md).
 
 ## Core Script
 

@@ -9,7 +9,7 @@ description: >-
 
 This skill audits D and C sources to enforce the null handling conventions
 and invariants defined in
-[codestyle.md](file:///home/yur/agy-projects/yvidtrim/codestyle.md).
+[codestyle.md](../../../codestyle.md).
 
 ## Core Script
 

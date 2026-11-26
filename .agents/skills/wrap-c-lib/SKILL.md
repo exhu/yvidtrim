@@ -14,9 +14,8 @@ libraries in private C static libraries and exposing minimal D bindings.
 
 ## Architecture Principles
 
-1. **No Direct C/C++ in D**: Never `#include` third-party headers directly
-   into D or auto-bind full C headers. Third-party dependencies must stay
-   strictly in C.
+1. **No Direct C/C++ in D**: Never import C headers into D (e.g. ImportC)
+   or auto-bind them. Third-party dependencies must stay strictly in C.
 2. **Private C Static Wrappers**: External libraries are wrapped in static
    libraries under `<proj>-clibs/` (`yvidtrim-clibs/` for `yvidtrim`,
    `yguilib/yguilib-clibs/` for `yguilib`) with opaque handles, minimal APIs,
@@ -110,19 +109,18 @@ Edit `source/<proj>/clibs/<libname>.d`:
 - Declare matching `struct` definitions (opaque or value) and `enum` values.
 - Declare matching `extern(C)` functions.
 
-### 6. Link in Meson and `dub.json`
+### 6. Link in Meson
 - In `meson.build` (or `yguilib/meson.build` for `yguilib`):
   - Add the D binding file to the relevant source list (`yvidtrim_src` or
     `yguilib_src`).
   - Add `<proj>_<libname>_lib` to the `link_with` list of the executable/test.
-- In `dub.json` (or `yguilib/dub.json`):
-  - The module is automatically picked up by LSP via configured `sourcePaths`.
+- `dub.json` is for IDE/LSP only and needs no change: its `sourcePaths`
+  already pick up the new module. Never run `dub`.
 
-### 7. Build and Verify
-Run the build and test suite:
+### 7. Update Docs, Build and Verify
+- Add the new wrapper to `ARCHITECTURE.md` (keep it under 250 lines).
+- Reconfigure, build, and run the tests (timeout-wrapped):
 ```bash
-meson setup _build --reconfigure
-ninja -C _build
-meson test -C _build
+rdmd .agents/skills/build-and-test/scripts/run_verify.d --reconfigure
 ```
 Ensure all tests pass and no symbol visibility or linkage errors occur.
