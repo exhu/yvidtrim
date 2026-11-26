@@ -128,14 +128,18 @@ struct CheckStep {
   string[] args;
 }
 
-CheckStep[] checkSteps() {
-  return [
+CheckStep[] checkSteps(bool styleAll, bool auditWidgets) {
+  string[] styleArgs = [
+    "rdmd", ".agents/skills/check-codestyle/scripts/check_style.d"
+  ];
+  if (styleAll) {
+    styleArgs ~= "--all";
+  }
+  CheckStep[] steps = [
     CheckStep("line-length", [
       "rdmd", ".agents/skills/check-line-length/scripts/check_line_length.d"
     ]),
-    CheckStep("codestyle", [
-      "rdmd", ".agents/skills/check-codestyle/scripts/check_style.d"
-    ]),
+    CheckStep("codestyle", styleArgs),
     CheckStep("null-safety", [
       "rdmd", ".agents/skills/check-null-safety/scripts/check_null_safety.d"
     ]),
@@ -148,22 +152,44 @@ CheckStep[] checkSteps() {
       "--check"
     ]),
   ];
+  if (auditWidgets) {
+    steps ~= CheckStep("define-gui-widget", [
+      "rdmd",
+      ".agents/skills/define-gui-widget/scripts/define_gui_widget.d",
+      "--audit"
+    ]);
+  }
+  return steps;
 }
 
 /**
  * Runs every checker in checkSteps() under timeout 120, printing one
- * summary line per checker. Stops at the first checker that exits non-zero
- * and returns its exit status; returns 0 when all checkers pass.
+ * summary line per checker. Stops at the first failure unless `keepGoing`
+ * is true; returns 0 when all checkers pass.
  */
-int runChecks() {
-  foreach (step; checkSteps()) {
+int runChecks(bool styleAll, bool auditWidgets, bool keepGoing) {
+  int firstFailure = 0;
+  string[] failedNames;
+  foreach (step; checkSteps(styleAll, auditWidgets)) {
     int res = runCommand(["timeout", "120"] ~ step.args);
     if (res != 0) {
       writefln("Check %s: FAILED (exit %d).", step.name, res);
-      writeln("Checks failed; build and tests were not run.");
-      return res;
+      if (!keepGoing) {
+        writeln("Checks failed; build and tests were not run.");
+        return res;
+      }
+      if (firstFailure == 0) {
+        firstFailure = res;
+      }
+      failedNames ~= step.name;
+    } else {
+      writefln("Check %s: passed.", step.name);
     }
-    writefln("Check %s: passed.", step.name);
+  }
+  if (firstFailure != 0) {
+    writefln("Checks failed (%-(%s, %)); build and tests were not run.",
+      failedNames);
+    return firstFailure;
   }
   writeln("All checks passed.");
   return 0;
@@ -177,6 +203,9 @@ int main(string[] args) {
   bool optClean = false;
   bool optChecks = false;
   bool optChecksOnly = false;
+  bool optStyleAll = false;
+  bool optAuditWidgets = false;
+  bool optKeepGoing = false;
   string optTestName = null;
   int optTimeout = 0;
   string optBench = null;
@@ -198,6 +227,15 @@ int main(string[] args) {
       "checks-only",
         "Run static checkers only; skip build and tests",
         &optChecksOnly,
+      "style-all",
+        "Pass --all to check_style.d during --checks",
+        &optStyleAll,
+      "audit-widgets",
+        "Include define_gui_widget.d --audit in --checks",
+        &optAuditWidgets,
+      "keep-going",
+        "Run all static checkers instead of stopping early",
+        &optKeepGoing,
       "test", "Run a specific test name", &optTestName,
       "timeout",
         "Timeout in seconds (default: 300 tests, 120 bench)",
@@ -247,7 +285,7 @@ int main(string[] args) {
 
   // 0. Static checkers (before any build or benchmark)
   if (optChecks || optChecksOnly) {
-    int checkRes = runChecks();
+    int checkRes = runChecks(optStyleAll, optAuditWidgets, optKeepGoing);
     if (checkRes != 0) {
       return checkRes;
     }

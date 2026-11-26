@@ -92,10 +92,18 @@ rdmd .agents/skills/check-codestyle/scripts/check_style.d \
 rdmd .agents/skills/check-codestyle/scripts/check_style.d --all
 ```
 
+### Check an Inline Snippet or Stdin (Rule Verification)
+```bash
+rdmd .agents/skills/check-codestyle/scripts/check_style.d \
+  --check-code "void setFoo(int v) {}"
+```
+
 ## Options
 
 - `--diff`: Check unstaged git diff additions (default).
 - `--staged`, `--cached`: Check staged git diff additions.
 - `--all`: Scan all tracked source files on disk.
+- `--check-code <snippet>`: Check an inline D code snippet (no temp file).
+- `--stdin`: Read D source code from stdin.
 - `--max-func-lines <N>`: Maximum allowable function length (default: 50).
 - `-h`, `--help`: Display help and options.

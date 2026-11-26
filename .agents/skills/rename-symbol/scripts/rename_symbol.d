@@ -45,8 +45,21 @@ struct Options {
   bool skipStrings = false;
   bool checkCollision = true;
   bool jsonOutput = false;
+  bool summaryOnly = false;
+  bool findOnly = false;
   string ownerType = "";
   LineRange lines;
+}
+
+struct RenamePair {
+  string oldSym;
+  string newSym;
+}
+
+struct PairReport {
+  string oldSym;
+  string newSym;
+  ScanSummary summary;
 }
 
 struct Span {
@@ -496,7 +509,7 @@ void processFile(
     return;
   }
 
-  if (opts.checkCollision && !isMd) {
+  if (!opts.findOnly && opts.checkCollision && !isMd) {
     collectCollisions(file, content, newSym, isD, opts, summary.collisions);
   }
 
@@ -524,6 +537,11 @@ void processFile(
     return;
   }
 
+  if (opts.findOnly) {
+    summary.filesChanged++;
+    return;
+  }
+
   string updated = applySpans(content, spans, newSym, opts);
   if (updated != content) {
     summary.filesChanged++;
@@ -536,10 +554,7 @@ void processFile(
   }
 }
 
-void printJson(
-  const ScanSummary summary,
-  bool applied
-) {
+void printJson(const ScanSummary summary, bool applied) {
   import std.json : JSONValue;
 
   JSONValue[] mArr;
@@ -562,46 +577,236 @@ void printJson(
   writeln(root.toPrettyString());
 }
 
-void printTextReport(
-  const ScanSummary summary,
-  string oldSym,
-  string newSym,
+void printMultiJson(
+  const PairReport[] reports,
+  bool findOnly,
   bool applied
 ) {
-  writefln(
-    "%s: %d occurrence(s) across %d file(s) (%s -> %s)",
-    applied ? "Applied" : "Dry-run",
-    summary.matches.length,
-    summary.filesChanged,
-    oldSym,
-    newSym
-  );
-  foreach (m; summary.matches) {
+  import std.json : JSONValue;
+
+  JSONValue[] results;
+  foreach (rep; reports) {
+    JSONValue[] mArr;
+    foreach (m; rep.summary.matches) {
+      mArr ~= JSONValue([
+        "file": JSONValue(m.file),
+        "line": JSONValue(m.line),
+        "col": JSONValue(m.col),
+        "kind": JSONValue(kindLabel(m.kind)),
+        "text": JSONValue(m.lineText)
+      ]);
+    }
+    results ~= JSONValue([
+      "oldSymbol": JSONValue(rep.oldSym),
+      "newSymbol": JSONValue(rep.newSym),
+      "matchCount": JSONValue(rep.summary.matches.length),
+      "filesCount": JSONValue(rep.summary.filesChanged),
+      "matches": JSONValue(mArr),
+      "collisions": JSONValue(rep.summary.collisions),
+      "lineLengthWarnings": JSONValue(rep.summary.lengthWarnings)
+    ]);
+  }
+  JSONValue root = [
+    "mode": JSONValue(findOnly ? "find" : "batch"),
+    "applied": JSONValue(applied),
+    "results": JSONValue(results)
+  ];
+  writeln(root.toPrettyString());
+}
+
+void printPairTextReport(const PairReport rep, const Options opts) {
+  if (opts.findOnly) {
     writefln(
-      "  %s:%d:%d [%s] %s",
-      m.file, m.line, m.col, kindLabel(m.kind), m.lineText
+      "Find: %d occurrence(s) across %d file(s) (%s)",
+      rep.summary.matches.length, rep.summary.filesChanged, rep.oldSym
+    );
+  } else {
+    writefln(
+      "%s: %d occurrence(s) across %d file(s) (%s -> %s)",
+      opts.apply ? "Applied" : "Dry-run",
+      rep.summary.matches.length,
+      rep.summary.filesChanged,
+      rep.oldSym,
+      rep.newSym
     );
   }
-  if (summary.collisions.length > 0) {
+  if (!opts.summaryOnly) {
+    foreach (m; rep.summary.matches) {
+      writefln(
+        "  %s:%d:%d [%s] %s",
+        m.file, m.line, m.col, kindLabel(m.kind), m.lineText
+      );
+    }
+  }
+  if (rep.summary.collisions.length > 0) {
     writeln("\nWarning: NewSymbol already exists in scanned scope:");
-    foreach (c; summary.collisions) {
+    foreach (c; rep.summary.collisions) {
       writeln("  ", c);
     }
   }
-  if (summary.lengthWarnings.length > 0) {
+  if (rep.summary.lengthWarnings.length > 0) {
     writeln("\nWarning: Lines exceeding 80 chars after rename:");
-    foreach (w; summary.lengthWarnings) {
+    foreach (w; rep.summary.lengthWarnings) {
       writeln("  ", w);
     }
   }
-  if (!applied && summary.matches.length > 0) {
+}
+
+void printMultiTextReport(const PairReport[] reports, const Options opts) {
+  size_t totalMatches = 0;
+  size_t totalCols = 0;
+  size_t totalLenWarns = 0;
+  foreach (idx, rep; reports) {
+    if (idx > 0) {
+      writeln("");
+    }
+    printPairTextReport(rep, opts);
+    totalMatches += rep.summary.matches.length;
+    totalCols += rep.summary.collisions.length;
+    totalLenWarns += rep.summary.lengthWarnings.length;
+  }
+  if (reports.length > 1) {
+    writefln(
+      "\nTotal: %d occurrence(s), %d collision(s), %d line-length warning(s).",
+      totalMatches, totalCols, totalLenWarns
+    );
+  }
+  if (!opts.findOnly && !opts.apply && totalMatches > 0) {
     writeln("\nRe-run with --apply to write changes.");
   }
+}
+
+bool parseMapSpec(string spec, ref RenamePair pair) {
+  import std.string : strip;
+
+  ptrdiff_t eq = spec.indexOf('=');
+  if (eq <= 0 || eq + 1 >= spec.length) {
+    stderr.writefln("Error: invalid --map spec '%s' (expected Old=New).", spec);
+    return false;
+  }
+  pair.oldSym = spec[0 .. eq].strip();
+  pair.newSym = spec[eq + 1 .. $].strip();
+  if (!isValidIdentifier(pair.oldSym) || !isValidIdentifier(pair.newSym)) {
+    stderr.writefln("Error: invalid identifiers in --map '%s'.", spec);
+    return false;
+  }
+  if (pair.oldSym == pair.newSym) {
+    stderr.writefln("Error: identical symbols in --map '%s'.", spec);
+    return false;
+  }
+  return true;
+}
+
+bool loadBatchFile(string path, ref RenamePair[] pairs) {
+  import std.string : strip;
+
+  if (!exists(path) || !isFile(path)) {
+    stderr.writefln("Error: batch file not found: %s", path);
+    return false;
+  }
+  foreach (idx, rawLine; readText(path).splitLines()) {
+    string line = rawLine.strip();
+    if (line.length == 0 || line.startsWith("#")) {
+      continue;
+    }
+    RenamePair p;
+    if (line.indexOf('=') >= 0) {
+      if (!parseMapSpec(line, p)) {
+        return false;
+      }
+      pairs ~= p;
+      continue;
+    }
+    string[] parts = line.split();
+    if (parts.length != 2 || !isValidIdentifier(parts[0]) ||
+        !isValidIdentifier(parts[1]) || parts[0] == parts[1]) {
+      stderr.writefln("Error: invalid batch entry at %s:%d", path, idx + 1);
+      return false;
+    }
+    pairs ~= RenamePair(parts[0], parts[1]);
+  }
+  return true;
+}
+
+bool buildPairsAndPaths(
+  string[] positional,
+  string[] mapSpecs,
+  string batchFile,
+  string[] findSyms,
+  ref Options opts,
+  ref RenamePair[] pairs,
+  ref string[] explicitPaths
+) {
+  if (findSyms.length > 0) {
+    if (opts.apply || mapSpecs.length > 0 || batchFile.length > 0) {
+      stderr.writeln(
+        "Error: --find cannot combine with --apply/--map/--batch."
+      );
+      return false;
+    }
+    opts.findOnly = true;
+    foreach (sym; findSyms) {
+      if (!isValidIdentifier(sym)) {
+        stderr.writefln("Error: invalid --find identifier '%s'.", sym);
+        return false;
+      }
+      pairs ~= RenamePair(sym, sym);
+    }
+    explicitPaths = positional;
+    return true;
+  }
+  if (mapSpecs.length > 0 || batchFile.length > 0) {
+    foreach (spec; mapSpecs) {
+      RenamePair p;
+      if (!parseMapSpec(spec, p)) {
+        return false;
+      }
+      pairs ~= p;
+    }
+    if (batchFile.length > 0 && !loadBatchFile(batchFile, pairs)) {
+      return false;
+    }
+    explicitPaths = positional;
+    return pairs.length > 0;
+  }
+  if (positional.length < 2) {
+    return false;
+  }
+  if (!isValidIdentifier(positional[0]) || !isValidIdentifier(positional[1])) {
+    stderr.writeln("Error: OldSymbol and NewSymbol must be valid identifiers.");
+    return false;
+  }
+  if (positional[0] == positional[1]) {
+    stderr.writeln("Error: OldSymbol and NewSymbol are identical.");
+    return false;
+  }
+  pairs ~= RenamePair(positional[0], positional[1]);
+  explicitPaths = positional.length > 2 ? positional[2 .. $] : [];
+  return true;
+}
+
+PairReport[] runRenamePairs(
+  const string[] files,
+  const RenamePair[] pairs,
+  const Options opts
+) {
+  PairReport[] reports;
+  foreach (pair; pairs) {
+    ScanSummary summary;
+    foreach (file; files) {
+      processFile(file, pair.oldSym, pair.newSym, opts, summary);
+    }
+    reports ~= PairReport(pair.oldSym, pair.newSym, summary);
+  }
+  return reports;
 }
 
 int main(string[] args) {
   Options opts;
   string linesSpec;
+  string[] mapSpecs;
+  string batchFile;
+  string[] findSyms;
   GetoptResult helpInfo;
   try {
     helpInfo = getopt(
@@ -611,6 +816,11 @@ int main(string[] args) {
       "owner", "Restrict to files referencing <Type>", &opts.ownerType,
       "member-only", "Only replace .symbol or ->symbol accesses",
         &opts.memberOnly,
+      "map", "Rename pair <Old>=<New> (repeatable; batch mode)", &mapSpecs,
+      "batch", "File with <Old> <New> or <Old>=<New> pairs", &batchFile,
+      "find", "Find occurrences without renaming (repeatable)", &findSyms,
+      "summary", "Print counts and warnings only (omit match lines)",
+        &opts.summaryOnly,
       "include-docs", "Also scan and rename in .md files", &opts.includeDocs,
       "include-skills", "Also scan .agents/skills/ files", &opts.includeSkills,
       "skip-comments", "Do not replace inside comments", &opts.skipComments,
@@ -625,40 +835,34 @@ int main(string[] args) {
     return 2;
   }
 
-  if (helpInfo.helpWanted || args.length < 3) {
+  RenamePair[] pairs;
+  string[] explicitPaths;
+  bool validArgs = !helpInfo.helpWanted && buildPairsAndPaths(
+    args.length > 1 ? args[1 .. $] : [], mapSpecs, batchFile, findSyms,
+    opts, pairs, explicitPaths
+  );
+  if (helpInfo.helpWanted || !validArgs) {
     defaultGetoptPrinter(
       "Usage: rdmd rename_symbol.d [options] <OldSymbol> <NewSymbol> [paths]",
       helpInfo.options
     );
     return helpInfo.helpWanted ? 0 : 2;
   }
-
   if (!parseLineRange(linesSpec, opts.lines)) {
     stderr.writefln("Error: invalid --lines range '%s'", linesSpec);
     return 2;
   }
 
-  string oldSym = args[1];
-  string newSym = args[2];
-  if (!isValidIdentifier(oldSym) || !isValidIdentifier(newSym)) {
-    stderr.writeln("Error: OldSymbol and NewSymbol must be valid identifiers.");
-    return 2;
-  }
-  if (oldSym == newSym) {
-    stderr.writeln("Error: OldSymbol and NewSymbol are identical.");
-    return 2;
-  }
-
-  string[] files = collectFiles(opts, args.length > 3 ? args[3 .. $] : []);
-  ScanSummary summary;
-  foreach (file; files) {
-    processFile(file, oldSym, newSym, opts, summary);
-  }
-
+  string[] files = collectFiles(opts, explicitPaths);
+  PairReport[] reports = runRenamePairs(files, pairs, opts);
   if (opts.jsonOutput) {
-    printJson(summary, opts.apply);
+    if (!opts.findOnly && mapSpecs.length == 0 && batchFile.length == 0) {
+      printJson(reports[0].summary, opts.apply);
+    } else {
+      printMultiJson(reports, opts.findOnly, opts.apply);
+    }
     return 0;
   }
-  printTextReport(summary, oldSym, newSym, opts.apply);
+  printMultiTextReport(reports, opts);
   return 0;
 }

@@ -35,8 +35,11 @@ rdmd .agents/skills/build-and-test/scripts/run_verify.d [options]
   cleaning build artifacts (`--clean`).
 - **Static Checks**: `--checks` runs the static checkers in order (line length,
   codestyle, null safety, boundaries, assets) before the build. Each runs under
-  `timeout 120`; the first failing checker stops the run with its exit status.
-  `--checks-only` runs the checkers and skips the build and tests.
+  `timeout 120`; the first failing checker stops the run unless `--keep-going`
+  is set. `--style-all` passes `--all` to `check_style.d`; `--audit-widgets`
+  appends `define_gui_widget.d --audit`. `check-boundaries` already verifies
+  `ARCHITECTURE.md < 250` lines (no `wc -l` needed). `--checks-only` runs the
+  checkers and skips the build and tests.
 
 ## CLI Usage
 
@@ -48,6 +51,10 @@ rdmd .agents/skills/build-and-test/scripts/run_verify.d
 ### Static Checks, Then Build and Test (Standard Verification)
 ```bash
 rdmd .agents/skills/build-and-test/scripts/run_verify.d --checks
+
+# Full-repo style scan + widget audit + keep-going checks
+rdmd .agents/skills/build-and-test/scripts/run_verify.d \
+  --checks --style-all --audit-widgets --keep-going
 ```
 
 ### Static Checks Only
@@ -85,9 +92,13 @@ rdmd .agents/skills/build-and-test/scripts/run_verify.d --reconfigure --clean
 - `--verbose`: Run tests in verbose mode (`-v`).
 - `--clean`: Run `ninja clean` before building.
 - `--checks`: Run the static checkers before the build and tests (also before
-  `--bench`). Stops at the first failing checker.
+  `--bench`). Stops at the first failing checker unless `--keep-going` is set.
 - `--checks-only`: Run the static checkers only; skips build and tests. Cannot
   be combined with `--build-only` or `--test-only`.
+- `--style-all`: Pass `--all` to `check_style.d` during `--checks`.
+- `--audit-widgets`: Include `define_gui_widget.d --audit` in `--checks`.
+- `--keep-going`: Run all static checkers instead of stopping at the first
+  failure.
 - `--test <name>`: Run a specific test name.
 - `--timeout <sec>`: Timeout in seconds (default: `300` tests, `120` bench).
 - `--bench <path>`: Build and run benchmark under `_bench/<path>`.

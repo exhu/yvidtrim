@@ -71,12 +71,30 @@ rdmd .agents/skills/build-and-test/scripts/run_verify.d --checks
 If modules were added, moved, or data flow changed, update `ARCHITECTURE.md`
 (keep it under 250 lines).
 
+### 5. Batch Renames & Read-Only Discovery
+Avoid shell `for` loops or chained `&&` calls; pass multiple pairs directly:
+
+```bash
+# Find member usages without a dummy target
+rdmd .agents/skills/rename-symbol/scripts/rename_symbol.d \
+  --owner Widget --member-only --find setCaption --find setVisible
+
+# Dry-run or apply multiple renames with concise warnings
+rdmd .agents/skills/rename-symbol/scripts/rename_symbol.d \
+  --summary --map getStats=queueStats --map setStatsEnabled=statsEnabled \
+  yguilib source
+```
+
 ## CLI Options Reference
 
 - `-a, --apply`: Write changes in-place (default is dry-run).
 - `--lines <start>-<end>`: Restrict to 1-based line range.
 - `--owner <Type>`: Restrict to files referencing `<Type>` in code.
 - `--member-only`: Only replace `.symbol` or `->symbol` accesses.
+- `--map <Old>=<New>`: Rename pair in batch mode (repeatable).
+- `--batch <file>`: Read `<Old> <New>` or `<Old>=<New>` pairs from file.
+- `--find <Symbol>`: Find occurrences without renaming (repeatable).
+- `--summary`: Print counts and warnings only (omit per-match lines).
 - `--include-docs`: Also scan and rename in `.md` files.
 - `--include-skills`: Also scan `.agents/skills/` files.
 - `--skip-comments`: Do not replace inside comments.

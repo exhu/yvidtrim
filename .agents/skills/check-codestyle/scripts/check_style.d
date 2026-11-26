@@ -1152,10 +1152,20 @@ void checkFileContent(
   }
 }
 
+string readAllStdin() {
+  char[] buf;
+  foreach (chunk; stdin.byChunk(4096)) {
+    buf ~= cast(char[]) chunk;
+  }
+  return buf.idup;
+}
+
 int main(string[] args) {
   bool optStaged = false;
   bool optDiff = false;
   bool optAll = false;
+  bool optStdin = false;
+  string optCheckCode = "";
   size_t optMaxFuncLines = 50;
   string[] targets;
 
@@ -1166,6 +1176,9 @@ int main(string[] args) {
       "staged|cached", "Check staged git diff additions", &optStaged,
       "diff", "Check unstaged git diff additions", &optDiff,
       "all", "Scan all tracked source files on disk", &optAll,
+      "check-code", "Check an inline D code snippet (no temp file)",
+        &optCheckCode,
+      "stdin", "Read D source code from stdin", &optStdin,
       "max-func-lines", "Warn on functions longer than N lines (default 50)",
       &optMaxFuncLines
     );
@@ -1201,10 +1214,22 @@ int main(string[] args) {
   }
 
   targets = args[1 .. $];
+  if ((optCheckCode.length > 0 && optStdin) ||
+      ((optCheckCode.length > 0 || optStdin) &&
+        (optAll || optStaged || optDiff || targets.length > 0))) {
+    stderr.writeln(
+      "Error: --check-code/--stdin cannot combine with --all/--diff/targets."
+    );
+    return 1;
+  }
 
   Issue[] issues;
 
-  if (optAll) {
+  if (optCheckCode.length > 0) {
+    checkFileContent("inline.d", optCheckCode, [], optMaxFuncLines, issues);
+  } else if (optStdin) {
+    checkFileContent("stdin.d", readAllStdin(), [], optMaxFuncLines, issues);
+  } else if (optAll) {
     // Scan all files in source, yguilib, clibs
     string[] dirs = ["source", "yguilib", "yvidtrim-clibs"];
     foreach (d; dirs) {

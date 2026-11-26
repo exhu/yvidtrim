@@ -12,6 +12,9 @@ ninja -C _build && timeout 300 meson test -C _build # verify every change
 - Tests only via `meson test` (no ad-hoc `ldc2 -unittest`). Every module
   with `unittest` blocks needs a Meson test target using the shared
   `test_main.d`; no per-module `version (unittest) void main()`.
+- Prefer `rdmd .agents/skills/build-and-test/scripts/run_verify.d`
+  (with `--checks` for static checks + build + tests) over raw chained
+  `ninja && timeout ... meson test` commands.
 - Always use a timeout and never tee test output to files: an assert in
   `scope(exit)` during unwinding can loop forever (100% CPU, fills `/tmp`).
   In GL tests, put `while (r.inTarget()) r.endTarget();` in a `scope(exit)`
@@ -56,8 +59,11 @@ Keep existing comments and docstrings.
 
 ## Skills & Tooling
 - Skill helper scripts: D + stdlib, run with `rdmd .agents/skills/.../x.d`,
-  invoked directly (no `echo`/`awk`/`wc`/`sed`/`grep` wrappers); extend the
-  script if output is lacking.
+  invoked directly (one script call per `run_command` — no shell `for` loops,
+  `&&`/`;` chains, `echo`/`awk`/`wc`/`sed`/`grep` wrappers, raw `find`/`ls`
+  instead of `inspect-tree`, raw `grep`/`rg` instead of `search-code`, or
+  `rm` on scratch files); extend the script if a flag or batch mode is
+  missing.
 - No inline `python3 -c`/`perl -e` to edit or inspect files; use file tools
   or a D skill script.
 
