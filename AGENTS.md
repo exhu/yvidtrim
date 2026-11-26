@@ -51,11 +51,8 @@ ninja -C _build && timeout 300 meson test -C _build # verify every change
   adding modules or changing structure/data flow; keep under 250 lines.
 
 ## Code Style
-Follow `.editorconfig` and `codestyle.md`: 2-space indent, LF, 80 cols,
-`{` on same line, lowercase filenames. D: modules lowercase, types
-`PascalCase`, funcs/vars `camelCase`. C: types `PascalCase`, macros/enums
-`UPPER_SNAKE_CASE`, funcs/vars `snake_case`. Keep existing comments and
-docstrings.
+Read `codestyle.md` before writing code; follow it and `.editorconfig`.
+Keep existing comments and docstrings.
 
 ## Skills & Tooling
 - Skill helper scripts: D + stdlib, run with `rdmd .agents/skills/.../x.d`,
