@@ -58,10 +58,10 @@ reports on existing code is a checker bug unless shown otherwise.
 
 | Phase | State   | Notes |
 |-------|---------|-------|
-| 1     | pending |       |
-| 2     | pending |       |
-| 3     | pending |       |
-| 4     | pending |       |
+| 1     | done    | rule 5 documented but never enforced (old) |
+| 2     | done    | missing Meson paths warn only |
+| 3     | done    | old bug: diff `isLineInSpans` ignores file |
+| 4     | done    | `--checks` / `--checks-only` |
 
 ## Proposed TODO.md Update
 

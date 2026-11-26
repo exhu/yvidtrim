@@ -53,10 +53,7 @@ rdmd .agents/skills/rename-module/scripts/rename_module.d \
   --apply --include-docs \
   yguilib.events.keyboard yguilib.events.internal.keyboard
 
-rdmd .agents/skills/check-line-length/scripts/check_line_length.d
-rdmd .agents/skills/check-codestyle/scripts/check_style.d
-rdmd .agents/skills/check-boundaries/scripts/check_boundaries.d
-rdmd .agents/skills/build-and-test/scripts/run_verify.d
+rdmd .agents/skills/build-and-test/scripts/run_verify.d --checks
 ```
 
 ## CLI Options Reference

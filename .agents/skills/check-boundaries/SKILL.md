@@ -42,6 +42,27 @@ rdmd .agents/skills/check-boundaries/scripts/check_boundaries.d [options]
    bypass private C wrappers.
 6. **`ARCHITECTURE.md` Size Limit**:
    Verifies that `ARCHITECTURE.md` remains under 250 lines per `AGENTS.md`.
+7. **GLES via `glad2.gles2` Only**:
+   In `yguilib/source`, `source`, `yguilib/examples`, and
+   `yguilib/benchmarks`, D files may import GLES only as `glad2.gles2` (no
+   `glad*`, `bindbc.opengl`, `derelict.opengl`, or `gl.*` modules). D files
+   must also not import a C source or header, i.e. `import <name>;` where
+   `<name>.c` or `<name>.h` sits next to the file or in a `*-clibs` directory.
+8. **Controller Isolation**:
+   Files named `*controller*.d` under `source/` and `yguilib/examples/` must
+   not import `yguilib.app` or `yguilib.window`, and must not create their
+   View with `new <Name>View(`. `unittest` blocks are ignored.
+9. **Unittest Modules Built by a Meson Test**:
+   Every `.d` file under `yguilib/source`, `yguilib/examples`,
+   `yguilib/benchmarks`, or `source` that has a top-level or nested `unittest`
+   block must appear as a quoted path in `meson.build` or
+   `yguilib/meson.build`. This is a heuristic: it matches quoted `*.d` strings
+   and does not evaluate Meson. A listed path that does not exist on disk is
+   reported as a warning (exit 0).
+10. **No Ad-hoc Test `main`**:
+   A `version (unittest)` block (braced or single-line, spacing optional) must
+   not declare or call `main(` in any `.d` file except `*/test_main.d`.
+   Comments and string literals are ignored.
 
 ## CLI Usage
 

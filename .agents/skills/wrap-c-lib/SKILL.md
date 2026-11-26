@@ -119,8 +119,8 @@ Edit `source/<proj>/clibs/<libname>.d`:
 
 ### 7. Update Docs, Build and Verify
 - Add the new wrapper to `ARCHITECTURE.md` (keep it under 250 lines).
-- Reconfigure, build, and run the tests (timeout-wrapped):
+- Reconfigure, run the static checks, build, and run the tests (timeout):
 ```bash
-rdmd .agents/skills/build-and-test/scripts/run_verify.d --reconfigure
+rdmd .agents/skills/build-and-test/scripts/run_verify.d --reconfigure --checks
 ```
 Ensure all tests pass and no symbol visibility or linkage errors occur.

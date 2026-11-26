@@ -303,19 +303,12 @@ After defining or modifying a GUI widget or view, run:
 # 1. Audit WidgetBuilder chains (checks .name() and .rect() on every builder)
 rdmd .agents/skills/define-gui-widget/scripts/define_gui_widget.d --audit
 
-# 2. Check 80-char line length
-rdmd .agents/skills/check-line-length/scripts/check_line_length.d
-
-# 3. Check D code style & null safety
-rdmd .agents/skills/check-codestyle/scripts/check_style.d
-rdmd .agents/skills/check-null-safety/scripts/check_null_safety.d
-
-# 4. Check architectural boundaries
-rdmd .agents/skills/check-boundaries/scripts/check_boundaries.d
-
-# 5. Build and run unit tests
-rdmd .agents/skills/build-and-test/scripts/run_verify.d
+# 2. Static checks, then build and run unit tests
+rdmd .agents/skills/build-and-test/scripts/run_verify.d --checks
 ```
+
+If modules were added, moved, or data flow changed, update `ARCHITECTURE.md`
+(keep it under 250 lines).
 
 ---
 

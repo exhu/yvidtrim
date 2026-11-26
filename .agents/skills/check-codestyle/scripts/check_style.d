@@ -12,6 +12,8 @@
  *  - D: no default parameter values, no 'out' parameters,
  *    no overloaded functions, no consecutive capital letters in symbol names,
  *    and constructor count / <= 3 parameter constraints
+ *  - D: override HandleResult handleEvent calls super.handleEvent
+ *  - D: classes that call startTimer also call stopTimer
  */
 module check_style;
 
@@ -373,6 +375,416 @@ ParenContentResult extractParenContent(
   return ParenContentResult(acc, endIdx);
 }
 
+bool isIdentChar(char c) {
+  return isAlphaNum(c) || c == '_';
+}
+
+/**
+ * Returns true when token occurs in source at position pos.
+ */
+bool startsAt(string source, size_t pos, string token) {
+  return pos + token.length <= source.length
+    && source[pos .. pos + token.length] == token;
+}
+
+/**
+ * Returns true when token occurs at pos as a whole word: no identifier
+ * character precedes or follows it.
+ */
+bool isWordAt(string source, size_t pos, string token) {
+  const bool wordStart = pos == 0 || !isIdentChar(source[pos - 1]);
+  const size_t end = pos + token.length;
+  const bool wordEnd = end >= source.length || !isIdentChar(source[end]);
+  return wordStart && wordEnd && startsAt(source, pos, token);
+}
+
+/**
+ * Returns the index just past the first token at or after from, or the
+ * source length when the token never occurs.
+ */
+size_t indexPast(string source, size_t from, string token) {
+  size_t p = from;
+  while (p < source.length && !startsAt(source, p, token)) {
+    p++;
+  }
+  return p < source.length ? p + token.length : source.length;
+}
+
+/**
+ * Returns the index just past a comment or a string/char literal starting at
+ * pos, or pos when none starts there.
+ */
+size_t skipNonCode(string source, size_t pos) {
+  if (pos >= source.length) {
+    return pos;
+  }
+  const char c = source[pos];
+  const char next = pos + 1 < source.length ? source[pos + 1] : '\0';
+  if (c == '/' && next == '/') {
+    size_t end = pos;
+    while (end < source.length && source[end] != '\n') {
+      end++;
+    }
+    return end;
+  }
+  if (c == '/' && next == '*') {
+    return indexPast(source, pos + 2, "*/");
+  }
+  if (c == '/' && next == '+') {
+    size_t p = pos + 2;
+    int depth = 1;
+    while (p < source.length && depth > 0) {
+      if (startsAt(source, p, "/+")) {
+        depth++;
+        p += 2;
+      } else if (startsAt(source, p, "+/")) {
+        depth--;
+        p += 2;
+      } else {
+        p++;
+      }
+    }
+    return p;
+  }
+  if (c == '"' || c == '\'') {
+    size_t p = pos + 1;
+    while (p < source.length && source[p] != c) {
+      p += source[p] == '\\' ? 2 : 1;
+    }
+    return p < source.length ? p + 1 : source.length;
+  }
+  if (c == '`') {
+    return indexPast(source, pos + 1, "`");
+  }
+  const bool rawStart = c == 'r' && next == '"'
+    && (pos == 0 || !isIdentChar(source[pos - 1]));
+  if (rawStart) {
+    return indexPast(source, pos + 2, "\"");
+  }
+  return pos;
+}
+
+/**
+ * Returns the index of the first character at or after pos that is not white
+ * space, or the source length when only white space remains.
+ */
+size_t skipSpaces(string source, size_t pos) {
+  size_t p = pos;
+  while (p < source.length && isWhite(source[p])) {
+    p++;
+  }
+  return p;
+}
+
+/**
+ * Returns the index just past the `openCh ... closeCh` group whose opening
+ * character is at open, or the source length when it never closes. Nested
+ * groups, comments, and string literals are skipped.
+ */
+size_t bracketBlockEnd(
+  string source,
+  size_t open,
+  char openCh,
+  char closeCh
+) {
+  int depth = 0;
+  size_t p = open;
+  while (p < source.length) {
+    const size_t next = skipNonCode(source, p);
+    if (next > p) {
+      p = next;
+      continue;
+    }
+    if (source[p] == openCh) {
+      depth++;
+    } else if (source[p] == closeCh) {
+      depth--;
+      if (depth == 0) {
+        return p + 1;
+      }
+    }
+    p++;
+  }
+  return source.length;
+}
+
+/**
+ * Returns the index just past the `{ ... }` block whose `{` is at open, or
+ * the source length when the block never closes.
+ */
+size_t braceBlockEnd(string source, size_t open) {
+  return bracketBlockEnd(source, open, '{', '}');
+}
+
+/**
+ * Returns the index just past a `unittest { ... }` block starting at start,
+ * or start when no such block begins there.
+ */
+size_t unittestBlockEnd(string source, size_t start) {
+  enum keyword = "unittest";
+  if (!isWordAt(source, start, keyword)) {
+    return start;
+  }
+  const size_t p = skipSpaces(source, start + keyword.length);
+  if (p >= source.length || source[p] != '{') {
+    return start;
+  }
+  return braceBlockEnd(source, p);
+}
+
+/**
+ * Returns the index just past the comment, string literal, or unittest block
+ * starting at pos, or pos when none starts there.
+ */
+size_t skipIgnored(string source, size_t pos) {
+  const size_t unitEnd = unittestBlockEnd(source, pos);
+  return unitEnd > pos ? unitEnd : skipNonCode(source, pos);
+}
+
+/**
+ * Returns the index of the first `{` or `;` in code at or after from, or the
+ * source length when neither occurs.
+ */
+size_t nextBodyStart(string source, size_t from) {
+  size_t p = from;
+  while (p < source.length) {
+    const size_t next = skipNonCode(source, p);
+    if (next > p) {
+      p = next;
+      continue;
+    }
+    if (source[p] == '{' || source[p] == ';') {
+      return p;
+    }
+    p++;
+  }
+  return source.length;
+}
+
+/**
+ * Returns true when name is called as `name(` in code between from and end.
+ * Comments, string literals, and unittest blocks are ignored.
+ */
+bool hasCodeCall(string source, size_t from, size_t end, string name) {
+  size_t p = from;
+  while (p < end) {
+    const size_t next = skipIgnored(source, p);
+    if (next > p) {
+      p = next;
+      continue;
+    }
+    if (isWordAt(source, p, name)) {
+      const size_t q = skipSpaces(source, p + name.length);
+      if (q < source.length && source[q] == '(') {
+        return true;
+      }
+    }
+    p++;
+  }
+  return false;
+}
+
+/**
+ * Returns the 1-based line number of the character at pos.
+ */
+size_t lineNumberAt(string source, size_t pos) {
+  size_t line = 1;
+  foreach (char c; source[0 .. pos]) {
+    if (c == '\n') {
+      line++;
+    }
+  }
+  return line;
+}
+
+/**
+ * Returns true when path equals one of suffixes or ends with "/" followed by
+ * one of them.
+ */
+bool pathEndsWithAny(string path, string[] suffixes) {
+  foreach (suffix; suffixes) {
+    if (path == suffix || path.endsWith("/" ~ suffix)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Returns true when lines fromLine through toLine of filePath overlap a diff
+ * span. With no spans (full scan) every range counts.
+ */
+bool overlapsSpans(
+  string filePath,
+  size_t fromLine,
+  size_t toLine,
+  const FileSpan[] spans
+) {
+  if (spans.length == 0) {
+    return true;
+  }
+  foreach (const ref span; spans) {
+    if (span.file == filePath && span.lineCount > 0
+      && fromLine < span.startLine + span.lineCount
+      && toLine >= span.startLine) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Returns the index of the `(` in `override HandleResult handleEvent(` when
+ * that declaration starts at pos, or the source length otherwise.
+ */
+size_t handleEventParenAt(string source, size_t pos) {
+  if (!isWordAt(source, pos, "override")) {
+    return source.length;
+  }
+  size_t p = skipSpaces(source, pos + "override".length);
+  if (!isWordAt(source, p, "HandleResult")) {
+    return source.length;
+  }
+  p = skipSpaces(source, p + "HandleResult".length);
+  if (!isWordAt(source, p, "handleEvent")) {
+    return source.length;
+  }
+  p = skipSpaces(source, p + "handleEvent".length);
+  if (p < source.length && source[p] == '(') {
+    return p;
+  }
+  return source.length;
+}
+
+/**
+ * Checks that every `override HandleResult handleEvent` body calls
+ * super.handleEvent so unhandled events fall through to the base class.
+ * The controller and internal directories define that fallback and are
+ * skipped. The body is found on the full file, so overlap with diff spans is
+ * decided on the whole function.
+ */
+void checkHandleEventFallback(
+  string filePath,
+  string content,
+  const FileSpan[] diffSpans,
+  ref Issue[] issues
+) {
+  if (filePath.canFind("yguilib/source/yguilib/controller/")
+    || filePath.canFind("yguilib/source/yguilib/internal/")) {
+    return;
+  }
+  size_t p = 0;
+  while (p < content.length) {
+    const size_t next = skipIgnored(content, p);
+    if (next > p) {
+      p = next;
+      continue;
+    }
+    const size_t paren = handleEventParenAt(content, p);
+    if (paren < content.length) {
+      const size_t parenEnd = bracketBlockEnd(content, paren, '(', ')');
+      const size_t bodyOpen = nextBodyStart(content, parenEnd);
+      if (bodyOpen < content.length && content[bodyOpen] == '{') {
+        const size_t bodyEnd = braceBlockEnd(content, bodyOpen);
+        const size_t declLine = lineNumberAt(content, p);
+        const size_t endLine = lineNumberAt(content, bodyEnd - 1);
+        if (overlapsSpans(filePath, declLine, endLine, diffSpans)
+          && !hasCodeCall(content, bodyOpen, bodyEnd, "super.handleEvent")) {
+          issues ~= Issue(filePath, declLine, 1, IssueLevel.error,
+            "override HandleResult handleEvent must return "
+            ~ "super.handleEvent(ev) for unhandled events.");
+        }
+      }
+    }
+    p++;
+  }
+}
+
+/**
+ * A class declaration with a body: its name, the 1-based line of the
+ * declaration, and the body span [open, close) in the source.
+ */
+struct ClassBody {
+  string name;
+  size_t line;
+  size_t open;
+  size_t close;
+}
+
+/**
+ * Returns the class declarations with a body in source, nested ones included.
+ * Comments, string literals, and unittest blocks are ignored.
+ */
+ClassBody[] classBodies(string source) {
+  enum keyword = "class";
+  ClassBody[] bodies;
+  size_t p = 0;
+  while (p < source.length) {
+    const size_t next = skipIgnored(source, p);
+    if (next > p) {
+      p = next;
+      continue;
+    }
+    if (isWordAt(source, p, keyword) && (p == 0 || source[p - 1] != '.')) {
+      const size_t nameStart = skipSpaces(source, p + keyword.length);
+      size_t nameEnd = nameStart;
+      while (nameEnd < source.length && isIdentChar(source[nameEnd])) {
+        nameEnd++;
+      }
+      const bool named = nameStart > p + keyword.length
+        && nameEnd > nameStart
+        && (isAlpha(source[nameStart]) || source[nameStart] == '_');
+      const size_t open = nextBodyStart(source, nameEnd);
+      if (named && open < source.length && source[open] == '{') {
+        bodies ~= ClassBody(
+          source[nameStart .. nameEnd],
+          lineNumberAt(source, p),
+          open,
+          braceBlockEnd(source, open)
+        );
+      }
+      p += keyword.length;
+      continue;
+    }
+    p++;
+  }
+  return bodies;
+}
+
+/**
+ * Warns when a class body calls startTimer but never calls stopTimer, so an
+ * animation timer may keep running when idle. Timer infrastructure files
+ * define or drive the timer API and are skipped.
+ */
+void checkClassTimerPairs(
+  string filePath,
+  string content,
+  const FileSpan[] diffSpans,
+  ref Issue[] issues
+) {
+  string[] infraFiles = [
+    "timercontrol.d",
+    "internal/timer_service.d",
+    "internal/uisystem_impl.d",
+    "controller/package.d"
+  ];
+  if (pathEndsWithAny(filePath, infraFiles)) {
+    return;
+  }
+  foreach (cls; classBodies(content)) {
+    const size_t endLine = lineNumberAt(content, cls.close - 1);
+    if (!overlapsSpans(filePath, cls.line, endLine, diffSpans)) {
+      continue;
+    }
+    if (hasCodeCall(content, cls.open, cls.close, "startTimer")
+      && !hasCodeCall(content, cls.open, cls.close, "stopTimer")) {
+      issues ~= Issue(filePath, cls.line, 1, IssueLevel.warning,
+        "Class '" ~ cls.name ~ "' starts a timer but never stops one; "
+        ~ "stop timers when idle.");
+    }
+  }
+}
+
 /**
  * Scans a file for codestyle violations.
  */
@@ -714,6 +1126,12 @@ void checkFileContent(
       prevNonEmptyLineNo = lineNo;
     }
   }
+
+  // Whole-file rules need the full body of each function or class
+  if (isD) {
+    checkHandleEventFallback(filePath, content, diffSpans, issues);
+    checkClassTimerPairs(filePath, content, diffSpans, issues);
+  }
 }
 
 int main(string[] args) {
@@ -742,6 +1160,21 @@ int main(string[] args) {
     defaultGetoptPrinter(
       "Usage: check_style.d [options] [files...]\n"
       ~ "Enforces codestyle.md formatting and conventions.\n\n"
+      ~ "Rules:\n"
+      ~ "  1 brace placement\n"
+      ~ "  2 indentation (2 spaces, no tabs)\n"
+      ~ "  3 lowercase file names\n"
+      ~ "  4 visibility section order (D)\n"
+      ~ "  5 scoped heavy Phobos imports (D)\n"
+      ~ "  6 function length\n"
+      ~ "  7 no default parameter values (D)\n"
+      ~ "  8 no overloaded functions (D)\n"
+      ~ "  9 no consecutive capital letters (D)\n"
+      ~ "  10 constructor constraints (D)\n"
+      ~ "  11 no public import re-exports (D)\n"
+      ~ "  12 no out parameters (D)\n"
+      ~ "  13 handleEvent falls through to super.handleEvent (D)\n"
+      ~ "  14 startTimer paired with stopTimer (D)\n\n"
       ~ "Options:",
       helpInfo.options
     );

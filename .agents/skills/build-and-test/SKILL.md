@@ -33,12 +33,26 @@ rdmd .agents/skills/build-and-test/scripts/run_verify.d [options]
   fails and prints the failure log excerpt and stack trace.
 - **Environment Management**: Supports reconfiguring Meson (`--reconfigure`) and
   cleaning build artifacts (`--clean`).
+- **Static Checks**: `--checks` runs the static checkers in order (line length,
+  codestyle, null safety, boundaries, assets) before the build. Each runs under
+  `timeout 120`; the first failing checker stops the run with its exit status.
+  `--checks-only` runs the checkers and skips the build and tests.
 
 ## CLI Usage
 
 ### Build and Run All Tests
 ```bash
 rdmd .agents/skills/build-and-test/scripts/run_verify.d
+```
+
+### Static Checks, Then Build and Test (Standard Verification)
+```bash
+rdmd .agents/skills/build-and-test/scripts/run_verify.d --checks
+```
+
+### Static Checks Only
+```bash
+rdmd .agents/skills/build-and-test/scripts/run_verify.d --checks-only
 ```
 
 ### Run Tests Only (Skip Recompilation)
@@ -70,6 +84,10 @@ rdmd .agents/skills/build-and-test/scripts/run_verify.d --reconfigure --clean
 - `--test-only`: Run tests or benchmark only without rebuilding.
 - `--verbose`: Run tests in verbose mode (`-v`).
 - `--clean`: Run `ninja clean` before building.
+- `--checks`: Run the static checkers before the build and tests (also before
+  `--bench`). Stops at the first failing checker.
+- `--checks-only`: Run the static checkers only; skips build and tests. Cannot
+  be combined with `--build-only` or `--test-only`.
 - `--test <name>`: Run a specific test name.
 - `--timeout <sec>`: Timeout in seconds (default: `300` tests, `120` bench).
 - `--bench <path>`: Build and run benchmark under `_bench/<path>`.
@@ -88,3 +106,8 @@ rdmd .agents/skills/build-and-test/scripts/run_verify.d --reconfigure --clean
   `source/guidemo/test_main.d`) in `meson.build` with `d_unittest : true`.
 - When adding a new module with `unittest` blocks, verify it is included in a
   Meson test target and passes under `meson test -C _build`.
+- `check-boundaries` enforces this: rule 9 errors when a module with `unittest`
+  blocks is not quoted in `meson.build` or `yguilib/meson.build`, and rule 10
+  errors when a `version (unittest)` block declares `main(` outside
+  `test_main.d`. After adding a module, run
+  `rdmd .agents/skills/check-boundaries/scripts/check_boundaries.d`.

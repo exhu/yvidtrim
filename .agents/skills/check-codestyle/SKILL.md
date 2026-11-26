@@ -53,6 +53,18 @@ rdmd .agents/skills/check-codestyle/scripts/check_style.d [options] [files...]
 12. **No `out` Parameters (D)**: Errors when a D function, method, or
     constructor declaration uses `out` parameters (excluding `clibs/`
     bindings).
+13. **handleEvent Falls Through to Super (D)**: Errors when an
+    `override HandleResult handleEvent(...)` body does not call
+    `super.handleEvent(`, so unhandled events (quit, redraw) are lost. The
+    body is found by brace matching on the whole file, so diff mode checks
+    every function that overlaps an added line. Skips
+    `yguilib/source/yguilib/controller/` and
+    `yguilib/source/yguilib/internal/`, which define the fallback.
+14. **Timers Are Stopped (D)**: Warns when a class body calls `startTimer(`
+    but never `stopTimer(`, so an animation timer may keep running when idle.
+    Skips `unittest` blocks and the timer infrastructure files
+    (`timercontrol.d`, `internal/timer_service.d`,
+    `internal/uisystem_impl.d`, `controller/package.d`).
 
 ## CLI Usage
 

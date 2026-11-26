@@ -65,10 +65,11 @@ rdmd .agents/skills/rename-symbol/scripts/rename_symbol.d \
 rdmd .agents/skills/rename-symbol/scripts/rename_symbol.d \
   --apply [options] OldSymbol NewSymbol [paths...]
 
-rdmd .agents/skills/check-line-length/scripts/check_line_length.d
-rdmd .agents/skills/check-codestyle/scripts/check_style.d
-rdmd .agents/skills/build-and-test/scripts/run_verify.d
+rdmd .agents/skills/build-and-test/scripts/run_verify.d --checks
 ```
+
+If modules were added, moved, or data flow changed, update `ARCHITECTURE.md`
+(keep it under 250 lines).
 
 ## CLI Options Reference
 

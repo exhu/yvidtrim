@@ -92,20 +92,14 @@ rdmd .agents/skills/refactor-widget/scripts/refactor_widget.d -a
 ```
 
 ### 5. Standard Verification Suite
-Run the full verification pipeline after making changes:
+Run the full verification pipeline after making changes (static checks, then
+build and tests):
 ```bash
-# 1. Line length (<= 80 chars)
-rdmd .agents/skills/check-line-length/scripts/check_line_length.d
-
-# 2. Code style (2-space, LF, opening brace)
-rdmd .agents/skills/check-codestyle/scripts/check_style.d
-
-# 3. Boundaries and encapsulation
-rdmd .agents/skills/check-boundaries/scripts/check_boundaries.d
-
-# 4. Build and test
-rdmd .agents/skills/build-and-test/scripts/run_verify.d
+rdmd .agents/skills/build-and-test/scripts/run_verify.d --checks
 ```
+
+If modules were added, moved, or data flow changed, update `ARCHITECTURE.md`
+(keep it under 250 lines).
 
 ## CLI Options Reference
 

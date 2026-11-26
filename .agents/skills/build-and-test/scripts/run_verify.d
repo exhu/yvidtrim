@@ -15,6 +15,7 @@ import std.string : splitLines;
 
 int runCommand(string[] cmd) {
   writefln("==> Executing: %-(%s %)", cmd);
+  stdout.flush();
   auto pid = spawnProcess(cmd, stdin, stdout, stderr);
   return wait(pid);
 }
@@ -121,12 +122,61 @@ int runBenchmark(
   return 0;
 }
 
+/** One static checker executed by `--checks`, in order. */
+struct CheckStep {
+  string name;
+  string[] args;
+}
+
+CheckStep[] checkSteps() {
+  return [
+    CheckStep("line-length", [
+      "rdmd", ".agents/skills/check-line-length/scripts/check_line_length.d"
+    ]),
+    CheckStep("codestyle", [
+      "rdmd", ".agents/skills/check-codestyle/scripts/check_style.d"
+    ]),
+    CheckStep("null-safety", [
+      "rdmd", ".agents/skills/check-null-safety/scripts/check_null_safety.d"
+    ]),
+    CheckStep("boundaries", [
+      "rdmd", ".agents/skills/check-boundaries/scripts/check_boundaries.d"
+    ]),
+    CheckStep("assets", [
+      "rdmd",
+      ".agents/skills/manage-assets/scripts/manage_assets.d",
+      "--check"
+    ]),
+  ];
+}
+
+/**
+ * Runs every checker in checkSteps() under timeout 120, printing one
+ * summary line per checker. Stops at the first checker that exits non-zero
+ * and returns its exit status; returns 0 when all checkers pass.
+ */
+int runChecks() {
+  foreach (step; checkSteps()) {
+    int res = runCommand(["timeout", "120"] ~ step.args);
+    if (res != 0) {
+      writefln("Check %s: FAILED (exit %d).", step.name, res);
+      writeln("Checks failed; build and tests were not run.");
+      return res;
+    }
+    writefln("Check %s: passed.", step.name);
+  }
+  writeln("All checks passed.");
+  return 0;
+}
+
 int main(string[] args) {
   bool optReconfigure = false;
   bool optBuildOnly = false;
   bool optTestOnly = false;
   bool optVerbose = false;
   bool optClean = false;
+  bool optChecks = false;
+  bool optChecksOnly = false;
   string optTestName = null;
   int optTimeout = 0;
   string optBench = null;
@@ -142,6 +192,12 @@ int main(string[] args) {
       "test-only", "Run tests only without rebuilding", &optTestOnly,
       "verbose", "Run tests in verbose mode (-v)", &optVerbose,
       "clean", "Run ninja clean before building", &optClean,
+      "checks",
+        "Run static checkers before build and tests",
+        &optChecks,
+      "checks-only",
+        "Run static checkers only; skip build and tests",
+        &optChecksOnly,
       "test", "Run a specific test name", &optTestName,
       "timeout",
         "Timeout in seconds (default: 300 tests, 120 bench)",
@@ -180,6 +236,24 @@ int main(string[] args) {
   if (optBench !is null && !isSafeRelativePath(optBench)) {
     stderr.writeln("Error: --bench must be a safe relative path.");
     return 1;
+  }
+  if (optChecksOnly && (optBuildOnly || optTestOnly)) {
+    stderr.writeln(
+      "Error: --checks-only cannot be combined with --build-only "
+      ~ "or --test-only."
+    );
+    return 1;
+  }
+
+  // 0. Static checkers (before any build or benchmark)
+  if (optChecks || optChecksOnly) {
+    int checkRes = runChecks();
+    if (checkRes != 0) {
+      return checkRes;
+    }
+  }
+  if (optChecksOnly) {
+    return 0;
   }
 
   if (optBench !is null) {
