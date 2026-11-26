@@ -1,9 +1,7 @@
+- implement getset-naming.md
 - tooling
--- planning skill: scaffold `plans/<name>.md` + `-phNN.md`, run phases via
+-- planning skill: scaffold `plans/<name>.md` + `-NN.md`, run phases via
    the implementer agent, update overview status
--- decide `setCaption`/`setVisible`/... naming vs codestyle "no set..." rule
-   (rename via `rename-symbol`, or document an exception), then make
-   `check_style.d` flag `get*`/`set*` names
 
 - build widget library
 -- checkbox
