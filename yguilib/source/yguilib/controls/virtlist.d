@@ -652,7 +652,7 @@ struct VirtListBuilder {
 
   /// Binds a `VirtListModel` instance.
   ref VirtListBuilder model(VirtListModel m) return {
-    assignBuilderModel(listTracker, hasModel, m);
+    assignBuilderModel(listTracker, m);
     return this;
   }
 
@@ -660,7 +660,7 @@ struct VirtListBuilder {
   ref VirtListBuilder modelTracker(
     ref ModelTracker!VirtListModel tracker
   ) return {
-    assignBuilderTracker(listTracker, hasModel, tracker);
+    assignBuilderTracker(listTracker, tracker);
     return this;
   }
 
@@ -724,7 +724,7 @@ struct VirtListBuilder {
   ) {
     assert(ui !is null, "ui must not be null");
     registry = resolveBuilderRegistry(ui, registry);
-    ensureDefaultModelTracker(listTracker, hasModel, () => new VirtListModel());
+    ensureDefaultModelTracker(listTracker, () => new VirtListModel());
 
     const string rootName = orDefault(widgetName, "virtList");
     const string targetEvent = orDefault(eventName, defaultVirtListEventName);
@@ -965,7 +965,6 @@ private:
   }
 
   ModelTracker!VirtListModel listTracker;
-  bool hasModel = false;
   VirtListProvider listProvider = null;
   string eventName = defaultVirtListEventName;
   FlexDirection listDirection = FlexDirection.column;

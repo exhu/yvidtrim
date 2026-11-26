@@ -799,14 +799,14 @@ struct ScrollbarBuilder {
   }
 
   ref ScrollbarBuilder model(ScrollbarModel m) return {
-    assignBuilderModel(sbTracker, hasModel, m);
+    assignBuilderModel(sbTracker, m);
     return this;
   }
 
   ref ScrollbarBuilder modelTracker(
     ref ModelTracker!ScrollbarModel tracker
   ) return {
-    assignBuilderTracker(sbTracker, hasModel, tracker);
+    assignBuilderTracker(sbTracker, tracker);
     return this;
   }
 
@@ -848,9 +848,7 @@ struct ScrollbarBuilder {
   ) {
     assert(ui !is null, "ui must not be null");
     registry = resolveBuilderRegistry(ui, registry);
-    ensureDefaultModelTracker(
-      sbTracker, hasModel, () => new ScrollbarModel()
-    );
+    ensureDefaultModelTracker(sbTracker, () => new ScrollbarModel());
 
     const string rootName = orDefault(widgetName, "scrollbar");
     const Axis ax = Axis.of(flexDir);
@@ -1060,7 +1058,6 @@ private:
   }
 
   ModelTracker!ScrollbarModel sbTracker;
-  bool hasModel = false;
   string eventName = defaultScrollbarEventName;
   FlexDirection flexDir = FlexDirection.row;
   ScrollbarStyle cfg;

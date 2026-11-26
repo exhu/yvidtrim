@@ -905,14 +905,14 @@ struct TabControlBuilder {
   }
 
   ref TabControlBuilder model(TabsModel m) return {
-    assignBuilderModel(tabsTracker, hasModel, m);
+    assignBuilderModel(tabsTracker, m);
     return this;
   }
 
   ref TabControlBuilder modelTracker(
     ref ModelTracker!TabsModel tracker
   ) return {
-    assignBuilderTracker(tabsTracker, hasModel, tracker);
+    assignBuilderTracker(tabsTracker, tracker);
     return this;
   }
 
@@ -970,9 +970,7 @@ struct TabControlBuilder {
   ) {
     assert(ui !is null, "ui must not be null");
     registry = resolveBuilderRegistry(ui, registry);
-    ensureDefaultModelTracker(
-      tabsTracker, hasModel, () => new TabsModel(null, 0)
-    );
+    ensureDefaultModelTracker(tabsTracker, () => new TabsModel(null, 0));
 
     const string targetEvent = orDefault(
       eventName, defaultTabControlEventName
@@ -1132,7 +1130,6 @@ private:
   }
 
   ModelTracker!TabsModel tabsTracker;
-  bool hasModel = false;
   string eventName = defaultTabControlEventName;
   FlexDirection flexDir = FlexDirection.row;
   float flexGap = 10.0f;

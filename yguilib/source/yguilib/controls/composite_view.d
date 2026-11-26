@@ -4,7 +4,7 @@
  */
 module yguilib.controls.composite_view;
 
-import yguilib.model : ModelTracker;
+import yguilib.model : ModelTracker, VersionedModel;
 import yguilib.uisystem : UiRegistry, UiSystem;
 import yguilib.widget : Widget;
 import yguilib.widget.widget_view : WidgetView, WidgetViewBase;
@@ -19,8 +19,12 @@ void ensureViewWidgetRegistered(WidgetView view, Widget viewWidget) {
 }
 
 /// Looks up the entry associated with `viewWidget` in `entries`.
-/// `viewWidget` is allowed to be null (returns null).
-Entry findEntry(Entry)(Entry[Widget] entries, Widget viewWidget) {
+/// `viewWidget` is allowed to be null. Returns null if `viewWidget` is null
+/// or not found in `entries`.
+Entry findEntry(Entry)(
+  Entry[Widget] entries,
+  Widget viewWidget
+) if (is(typeof(null) : Entry)) {
   if (viewWidget is null) {
     return null;
   }
@@ -35,7 +39,7 @@ Entry findEntry(Entry)(Entry[Widget] entries, Widget viewWidget) {
 auto entryField(string field, Entry)(
   Entry[Widget] entries,
   Widget viewWidget
-) {
+) if (is(typeof(null) : Entry) && __traits(hasMember, Entry, field)) {
   if (auto e = findEntry(entries, viewWidget)) {
     return __traits(getMember, e, field);
   }
@@ -43,7 +47,11 @@ auto entryField(string field, Entry)(
 }
 
 /// Wraps `model` in a `ModelTracker!M` and binds it to `viewWidget` via `view`.
-void bindCompositeModel(V, M)(V view, Widget viewWidget, M model) {
+void bindCompositeModel(V, M : VersionedModel)(
+  V view,
+  Widget viewWidget,
+  M model
+) {
   assert(view !is null, "view must not be null");
   assert(viewWidget !is null, "viewWidget must not be null");
   assert(model !is null, "model must not be null");
@@ -53,6 +61,7 @@ void bindCompositeModel(V, M)(V view, Widget viewWidget, M model) {
 
 /// Removes `viewWidget` from `entries` and unregisters it from `view` via
 /// a non-virtual base call to `WidgetViewBase.unregisterViewWidget`.
+/// `viewWidget` is allowed to be null (no-op).
 void unregisterCompositeWidget(Entry)(
   WidgetViewBase view,
   ref Entry[Widget] entries,
@@ -71,7 +80,7 @@ bool updateCompositeEntries(Entry)(
 ) {
   assert(onModelChanged !is null, "onModelChanged must not be null");
   bool anyUpdated = false;
-  foreach (w, entry; entries) {
+  foreach (entry; entries) {
     if (entry.tracker.update()) {
       if (onModelChanged(entry)) {
         anyUpdated = true;
@@ -85,15 +94,16 @@ bool updateCompositeEntries(Entry)(
   return anyUpdated;
 }
 
-/// Finds the first `WidgetView` in `views` that has registered `viewWidget`
-/// and casts it to `V`. `viewWidget` is allowed to be null (returns null).
-V findOwningView(V)(WidgetView[] views, Widget viewWidget) {
+/// Finds the first `V` in `views` that has registered `viewWidget`.
+/// `viewWidget` is allowed to be null. Returns null if `viewWidget` is null
+/// or no matching view owns it.
+V findOwningView(V : WidgetView)(WidgetView[] views, Widget viewWidget) {
   if (viewWidget is null) {
     return null;
   }
   foreach (v; views) {
-    if (v !is null && v.isWidgetRegistered(viewWidget)) {
-      if (auto typed = cast(V) v) {
+    if (auto typed = cast(V) v) {
+      if (typed.isWidgetRegistered(viewWidget)) {
         return typed;
       }
     }
@@ -108,44 +118,37 @@ UiRegistry resolveBuilderRegistry(UiSystem ui, UiRegistry registry) {
   return (registry !is null) ? registry : ui;
 }
 
-/// Stores `model` into builder `tracker` and marks `hasModel` true.
-void assignBuilderModel(M)(
+/// Stores `model` into builder `tracker`.
+void assignBuilderModel(M : VersionedModel)(
   ref ModelTracker!M tracker,
-  ref bool hasModel,
   M model
 ) {
   assert(model !is null, "model must not be null");
   tracker = ModelTracker!M(model);
-  hasModel = true;
 }
 
-/// Copies `src` into builder `tracker` and marks `hasModel` true.
-void assignBuilderTracker(M)(
+/// Copies `src` into builder `tracker`.
+void assignBuilderTracker(M : VersionedModel)(
   ref ModelTracker!M tracker,
-  ref bool hasModel,
   ref ModelTracker!M src
 ) {
   tracker = ModelTracker!M.from(src);
-  hasModel = true;
 }
 
-/// Ensures builder `tracker` has a model when `!hasModel` by calling
-/// `makeDefault`. `makeDefault` is required only when `!hasModel`.
-void ensureDefaultModelTracker(M)(
+/// Ensures builder `tracker` has a model when uninitialized by calling
+/// `makeDefault`. `makeDefault` is required only when `tracker.model is null`.
+void ensureDefaultModelTracker(M : VersionedModel)(
   ref ModelTracker!M tracker,
-  ref bool hasModel,
   scope M delegate() makeDefault
 ) {
-  if (!hasModel) {
+  if (tracker.model is null) {
     assert(makeDefault !is null, "makeDefault must not be null");
     tracker = ModelTracker!M(makeDefault());
-    hasModel = true;
   }
 }
 
 unittest {
   import yguilib.internal.uisystem_impl : UiSystemImpl;
-  import yguilib.model : VersionedModel;
 
   final class DummyModel : VersionedModel {
     int count = 0;
@@ -165,6 +168,7 @@ unittest {
   final class DummyView : WidgetViewBase {
     DummyEntry[Widget] entries;
     int bindCalls = 0;
+    bool onChangedResult = true;
 
     void bindModel(Widget viewWidget, ref ModelTracker!DummyModel tracker) {
       ensureViewWidgetRegistered(this, viewWidget);
@@ -179,8 +183,14 @@ unittest {
 
     override bool update() {
       return updateCompositeEntries(entries, (DummyEntry e) {
-        return true;
+        return onChangedResult;
       });
+    }
+  }
+
+  final class UnrelatedView : WidgetViewBase {
+    override bool update() {
+      return false;
     }
   }
 
@@ -190,12 +200,14 @@ unittest {
   auto part1 = ui.makeWidget();
   auto view = new DummyView();
   auto otherView = new DummyView();
+  auto unrelatedView = new UnrelatedView();
   auto model = new DummyModel();
 
   ensureViewWidgetRegistered(view, w1);
   assert(view.isWidgetRegistered(w1));
   ensureViewWidgetRegistered(view, w1);
   assert(view.isWidgetRegistered(w1));
+  ensureViewWidgetRegistered(unrelatedView, w1);
 
   bindCompositeModel(view, w1, model);
   assert(view.bindCalls == 1);
@@ -211,7 +223,8 @@ unittest {
   assert(entryField!("part")(view.entries, w2) is null);
   assert(entryField!("label")(view.entries, null) is null);
 
-  WidgetView[] views = [otherView, view];
+  // Skips null slots and unrelated WidgetView subclasses even if registered
+  WidgetView[] views = [null, unrelatedView, otherView, view];
   assert(findOwningView!DummyView(views, w1) is view);
   assert(findOwningView!DummyView(views, w2) is null);
   assert(findOwningView!DummyView(views, null) is null);
@@ -224,10 +237,25 @@ unittest {
   e1.tracker.commit(editable);
   assert(view.update());
 
+  // onModelChanged returning false keeps update() false unless viewDirty
+  view.onChangedResult = false;
+  editable = e1.tracker.edit();
+  editable.count = 8;
+  e1.tracker.commit(editable);
+  assert(!view.update());
+
+  editable = e1.tracker.edit();
+  editable.count = 9;
+  e1.tracker.commit(editable);
   e1.viewDirty = true;
   assert(view.update());
   assert(!e1.viewDirty);
   assert(!view.update());
+
+  // Unregistering null or unknown widget is a safe no-op
+  view.unregisterViewWidget(null);
+  view.unregisterViewWidget(w2);
+  assert(view.isWidgetRegistered(w1));
 
   // Verify non-virtual base unregister avoids infinite recursion
   view.unregisterViewWidget(w1);
@@ -237,7 +265,6 @@ unittest {
 
 unittest {
   import yguilib.internal.uisystem_impl : UiSystemImpl;
-  import yguilib.model : VersionedModel;
   import yguilib.object_registry : ObjectRegistry;
   import yguilib.widget.widget_view : WidgetViewController;
 
@@ -270,28 +297,27 @@ unittest {
   assert(resolveBuilderRegistry(ui, customReg) is customReg);
 
   ModelTracker!SampleModel tracker;
-  bool hasModel = false;
+  assert(tracker.model is null);
 
-  ensureDefaultModelTracker(tracker, hasModel, () {
+  ensureDefaultModelTracker(tracker, () {
     auto m = new SampleModel();
     m.id = 99;
     return m;
   });
-  assert(hasModel);
-  assert(tracker.model.id == 99);
+  assert(tracker.model !is null && tracker.model.id == 99);
 
-  // Calling again when hasModel is true must not invoke delegate
-  ensureDefaultModelTracker(tracker, hasModel, null);
+  // Calling again when already initialized must not invoke delegate
+  ensureDefaultModelTracker(tracker, null);
   assert(tracker.model.id == 99);
 
   auto m2 = new SampleModel();
   m2.id = 123;
-  assignBuilderModel(tracker, hasModel, m2);
-  assert(hasModel && tracker.model is m2);
+  assignBuilderModel(tracker, m2);
+  assert(tracker.model is m2);
 
   auto m3 = new SampleModel();
   m3.id = 456;
   auto srcTracker = ModelTracker!SampleModel(m3);
-  assignBuilderTracker(tracker, hasModel, srcTracker);
-  assert(hasModel && tracker.model is m3);
+  assignBuilderTracker(tracker, srcTracker);
+  assert(tracker.model is m3);
 }
