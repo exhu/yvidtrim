@@ -57,8 +57,8 @@ interface Controller {
   void onPop();
   void onSuspendByModal();
   void onResumeByModal();
-  @property bool isModal() const;
-  void setModal(bool value);
+  @property bool modal() const;
+  @property void modal(bool value);
 
   void sendAppEvent(AppEvent ev);
 
@@ -104,11 +104,11 @@ class DefaultController : Controller {
   }
   override void onResumeByModal() {
   }
-  @property override bool isModal() const {
-    return isModal_;
+  @property override bool modal() const {
+    return fModal;
   }
-  override void setModal(bool value) {
-    isModal_ = value;
+  @property override void modal(bool value) {
+    fModal = value;
   }
 
   override void onWidgetReleased(Widget w) {
@@ -148,5 +148,5 @@ protected:
 
   UiSystem uiSystem;
 private:
-  bool isModal_ = false;
+  bool fModal = false;
 }

@@ -155,7 +155,7 @@ struct MessageBus {
   /**
    * Enables or disables event queue statistics recording at runtime.
    */
-  void setStatsEnabled(bool enabled) {
+  @property void statsEnabled(bool enabled) {
     synchronized (lock) {
       if (enabled == fStatsEnabled) {
         return;
@@ -186,7 +186,7 @@ struct MessageBus {
   /**
    * Returns a thread-safe snapshot of the recorded event queue statistics.
    */
-  EventQueueStats getStats() {
+  EventQueueStats queueStats() {
     synchronized (lock) {
       fTotalWatch.update();
       fWindowWatch.update();
@@ -219,7 +219,7 @@ struct MessageBus {
       return;
     }
     import std.logger : infof;
-    const stats = getStats();
+    const stats = queueStats();
     infof(
       "MessageBus stats: posted=%s, suppressed=%s, avg=%.2f/s, max=%s/s, " ~
       "duration=%.2fs",
@@ -428,27 +428,27 @@ unittest {
 // Verifies event queue stats counting, noRepeat suppression, and toggling.
 unittest {
   MessageBus bus = MessageBus(new Object);
-  bus.setStatsEnabled(true);
+  bus.statsEnabled(true);
   assert(bus.statsEnabled);
 
   bus.send(AppEvent.makeNoRepeat(AppEvent.Kind.update));
   bus.send(AppEvent.makeNoRepeat(AppEvent.Kind.update));
   bus.send(AppEvent.userEvent(AppEvent.UserData(1)));
 
-  auto stats = bus.getStats();
+  auto stats = bus.queueStats();
   assert(stats.postedCount == 2);
   assert(stats.suppressedCount == 1);
   assert(stats.maxEventsPerSecond == 2);
 
-  bus.setStatsEnabled(false);
+  bus.statsEnabled(false);
   assert(!bus.statsEnabled);
   bus.send(AppEvent.userEvent(AppEvent.UserData(2)));
-  stats = bus.getStats();
+  stats = bus.queueStats();
   assert(stats.postedCount == 2);
 
-  bus.setStatsEnabled(true);
+  bus.statsEnabled(true);
   bus.send(AppEvent.userEvent(AppEvent.UserData(3)));
-  stats = bus.getStats();
+  stats = bus.queueStats();
   assert(stats.postedCount == 3);
   bus.logStats();
 }
@@ -459,7 +459,7 @@ unittest {
   import core.time : msecs;
 
   MessageBus bus = MessageBus(new Object);
-  bus.setStatsEnabled(true);
+  bus.statsEnabled(true);
 
   bus.send(AppEvent.userEvent(AppEvent.UserData(1)));
   bus.send(AppEvent.userEvent(AppEvent.UserData(2)));
@@ -468,7 +468,7 @@ unittest {
   Thread.sleep(1050.msecs);
   bus.send(AppEvent.userEvent(AppEvent.UserData(4)));
 
-  const stats = bus.getStats();
+  const stats = bus.queueStats();
   assert(stats.postedCount == 4);
   assert(stats.maxEventsPerSecond == 3);
   assert(stats.elapsedSeconds >= 1.0);

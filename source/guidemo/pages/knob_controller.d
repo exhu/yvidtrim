@@ -78,9 +78,9 @@ final class KnobPageController : DefaultController {
 
     const string eventName = ev.view.eventName;
     if (eventName == knobDownEvent) {
-      setDragging(true);
+      commitDragging(true);
     } else if (eventName == knobUpEvent) {
-      setDragging(false);
+      commitDragging(false);
     } else if (eventName == knobDragEvent) {
       const auto val = MouseEvent.AppEventViewValue.fromRaw(ev.view.value);
       if (val.relX == 0.0f) {
@@ -96,7 +96,7 @@ final class KnobPageController : DefaultController {
   }
 
 private:
-  void setDragging(bool dragging) {
+  void commitDragging(bool dragging) {
     auto m = tracker.edit();
     m.dragging = dragging;
     tracker.commit(m);
@@ -178,11 +178,11 @@ unittest {
   assert(!hrOther.consume);
 
   // Page visibility follows DemoModel.activePage.
-  assert(!page.isVisible());
+  assert(!page.visible());
   auto dm = demoTracker.edit();
   dm.activePage = DemoPage.knob;
   demoTracker.commit(dm);
   assert(ctrl.update());
   ctrl.updateView();
-  assert(page.isVisible());
+  assert(page.visible());
 }

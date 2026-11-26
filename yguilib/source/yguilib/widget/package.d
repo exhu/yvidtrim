@@ -327,7 +327,7 @@ final class Widget {
 
   /// Returns the widget's content area rectangle, accounting for border
   /// and padding components.
-  RectF getContentArea() const {
+  RectF contentArea() const {
     import std.algorithm.comparison : max;
 
     float borderWidth = 0.0f;
@@ -360,103 +360,6 @@ final class Widget {
     );
 
     return RectF(startX, startY, availW, availH);
-  }
-
-
-  /// Sets text caption. If unchanged, returns false.
-  /// If changed, updates caption and marks content-dirty (which triggers
-  /// layout recalculation only when auto-sized).
-  bool setCaption(string newCaption) {
-    if (fReleased || components.textLabel is null) {
-      return false;
-    }
-    if (components.textLabel.caption == newCaption) {
-      return false;
-    }
-    components.textLabel.caption = newCaption;
-    update(WidgetUpdateScope.content);
-    return true;
-  }
-
-  /// Sets background color. If unchanged, returns false.
-  /// If changed, updates color and marks only visual-dirty (dirty = true),
-  /// avoiding layout recalculation on parent flex containers.
-  bool setBackgroundColor(ColorF newColor) {
-    if (fReleased || components.background is null) {
-      return false;
-    }
-    if (components.background.color == newColor) {
-      return false;
-    }
-    components.background.color = newColor;
-    update(WidgetUpdateScope.visuals);
-    return true;
-  }
-
-  /// Sets text color. If unchanged, returns false.
-  /// If changed, updates color and marks only visual-dirty (dirty = true).
-  bool setTextColor(ColorF newColor) {
-    if (fReleased || components.textLabel is null) {
-      return false;
-    }
-    if (components.textLabel.color == newColor) {
-      return false;
-    }
-    components.textLabel.color = newColor;
-    update(WidgetUpdateScope.visuals);
-    return true;
-  }
-
-  /// Sets border color. If unchanged, returns false.
-  /// If changed, updates color and marks only visual-dirty (dirty = true).
-  bool setBorderColor(ColorF newColor) {
-    if (fReleased || components.border is null) {
-      return false;
-    }
-    if (components.border.color == newColor) {
-      return false;
-    }
-    components.border.color = newColor;
-    update(WidgetUpdateScope.visuals);
-    return true;
-  }
-
-  /// Sets widget visibility. If unchanged, returns false.
-  /// If changed, updates visibility and marks layout-dirty.
-  bool setVisible(bool newVis) {
-    if (fReleased || visible == newVis) {
-      return false;
-    }
-    visible = newVis;
-    update(WidgetUpdateScope.layout);
-    return true;
-  }
-
-  /// Sets `inputEnabled` (the widget's enabled/disabled state; hittability
-  /// is `handleInput`). If unchanged or released, returns false. If changed,
-  /// marks visuals-dirty so systems reacting to the state (e.g. muted button
-  /// colours) run on the next frame.
-  bool setInputEnabled(bool enabled) {
-    if (fReleased || inputEnabled == enabled) {
-      return false;
-    }
-    inputEnabled = enabled;
-    update(WidgetUpdateScope.visuals);
-    return true;
-  }
-
-  /// Sets scroll offset on ScrollableArea component. If unchanged or no
-  /// ScrollableArea component, returns false. If changed, marks layout-dirty.
-  bool setScrollOffset(PointF newOffset) {
-    if (fReleased || components.scrollableArea is null) {
-      return false;
-    }
-    if (components.scrollableArea.offset == newOffset) {
-      return false;
-    }
-    components.scrollableArea.offset = newOffset;
-    update(WidgetUpdateScope.layout);
-    return true;
   }
 
   /// Dumps the widget (and optionally its children) as a human-readable
@@ -585,11 +488,14 @@ final class Widget {
   bool handleInput = false;
   bool clipContents = true;
   bool clipChildren = false;
+  /// Visibility flag (default true). Call `update(WidgetUpdateScope.layout)`
+  /// after changing on a live widget.
   bool visible = true;
   /** Enabled state (default true). When false the widget shows disabled
    * visuals and no mouse view events, drag or cursor capture are produced
    * for it. A disabled widget with `handleInput` still blocks the pointer.
    * Keyboard input (future focus system) also requires it.
+   * Call `update(WidgetUpdateScope.visuals)` after changing on a live widget.
    */
   bool inputEnabled = true;
 
@@ -810,22 +716,22 @@ private:
 unittest {
   auto w = new Widget(1);
   w.rect = RectF(10, 20, 100, 80);
-  assert(w.getContentArea() == RectF(0, 0, 100, 80));
+  assert(w.contentArea() == RectF(0, 0, 100, 80));
 
   w.components.border = Border.rect(ColorF(1, 0, 0, 1), 2.0f);
   w.components.border.width = 5.0f;
-  assert(w.getContentArea() == RectF(5, 5, 90, 70));
+  assert(w.contentArea() == RectF(5, 5, 90, 70));
 
   w.components.border.style = Border.Style.none;
-  assert(w.getContentArea() == RectF(0, 0, 100, 80));
+  assert(w.contentArea() == RectF(0, 0, 100, 80));
   w.components.border.style = Border.Style.rect;
 
   w.components.size = new Size();
   w.components.size.padding = Insets(2, 4, 6, 8);
-  assert(w.getContentArea() == RectF(13, 7, 78, 62));
+  assert(w.contentArea() == RectF(13, 7, 78, 62));
 
   w.rect = RectF(0, 0, 10, 10);
-  assert(w.getContentArea() == RectF(13, 7, 0, 0));
+  assert(w.contentArea() == RectF(13, 7, 0, 0));
 }
 
 unittest {
@@ -959,53 +865,44 @@ unittest {
   assert(item.clipContents);
   assert(!item.clipChildren);
 
-  // Test mutators: setCaption
+  // Test update scopes after property changes
   root.dirty = false;
   root.layoutDirty = false;
   item.dirty = false;
   item.layoutDirty = false;
 
-  // Same caption: no-op
-  assert(!item.setCaption("Button"));
-  assert(!item.dirty);
-
-  // New caption: changed, since fixed size and single line, layout is NOT dirty
-  assert(item.setCaption("New Title"));
+  // Caption + content: fixed size and single line -> layout is NOT dirty
+  item.components.textLabel.caption = "New Title";
+  item.update(WidgetUpdateScope.content);
   assert(item.components.textLabel.caption == "New Title");
   assert(item.dirty);
   assert(!item.layoutDirty);
   assert(!root.layoutDirty);
 
-  // setBackgroundColor: marks only visual dirty
+  // Background color + visuals: marks only visual dirty
   root.dirty = false;
   item.dirty = false;
-  assert(!item.setBackgroundColor(item.components.background.color));
-  assert(!item.dirty);
-
-  assert(item.setBackgroundColor(ColorF(0.5f, 0.5f, 0.5f, 1.0f)));
+  item.components.background.color = ColorF(0.5f, 0.5f, 0.5f, 1.0f);
+  item.update(WidgetUpdateScope.visuals);
   assert(item.dirty);
   assert(!item.layoutDirty);
   assert(!root.layoutDirty);
 
-  // setVisible
+  // Visible + layout: marks item and ancestors layout-dirty
   item.dirty = false;
   item.layoutDirty = false;
   root.layoutDirty = false;
-  assert(!item.setVisible(true));
-  assert(!item.dirty);
-
-  assert(item.setVisible(false));
+  item.visible = false;
+  item.update(WidgetUpdateScope.layout);
   assert(!item.visible);
   assert(item.dirty && item.layoutDirty);
   assert(root.layoutDirty);
 
-  // setInputEnabled
+  // InputEnabled + visuals: marks only visual dirty
   item.dirty = false;
   item.layoutDirty = false;
-  item.inputEnabled = true;
-  assert(!item.setInputEnabled(true));
-  assert(!item.dirty);
-  assert(item.setInputEnabled(false));
+  item.inputEnabled = false;
+  item.update(WidgetUpdateScope.visuals);
   assert(!item.inputEnabled);
   assert(item.dirty && !item.layoutDirty);
 }
@@ -1349,16 +1246,14 @@ unittest {
   child1.release();
   assert(child1.released);
 
-  // Mutators on released widget are no-ops
-  assert(!child1.setCaption("New Caption"));
-  assert(!child1.setBackgroundColor(ColorF(0, 1, 0, 1)));
-  assert(!child1.setTextColor(ColorF(0, 1, 0, 1)));
-  assert(!child1.setBorderColor(ColorF(0, 1, 0, 1)));
-  assert(!child1.setVisible(true));
-  assert(!child1.setScrollOffset(PointF(10, 10)));
+  // Update calls on released widget are no-ops
   child1.dirty = false;
+  child1.layoutDirty = false;
+  child1.update(WidgetUpdateScope.visuals);
+  child1.update(WidgetUpdateScope.content);
+  child1.update(WidgetUpdateScope.layout);
   child1.update(WidgetUpdateScope.all);
-  assert(!child1.dirty);
+  assert(!child1.dirty && !child1.layoutDirty);
 
   // addChild with released widget fails assert
   bool caughtAssert1 = false;

@@ -24,10 +24,11 @@
  *   sent once on the primary button press; release only un-sinks. The
  *   event bubbles through parent ViewComponents (`passViewEvent`), so
  *   composite views can rename it.
- * - Rest colours: `setButtonRestColors` replaces `ButtonStyle.normal` at
+ * - Rest colours: `applyButtonRestColors` replaces `ButtonStyle.normal` at
  *   runtime (e.g. active/inactive tab), applying it at once when idle.
  * - Disabled state: `Widget.inputEnabled` is the enabled flag; change it
- *   with `Widget.setInputEnabled` (marks the widget dirty). Hittability is
+ *   and call `Widget.update(WidgetUpdateScope.visuals)` (marks the widget
+ *   dirty). Hittability is
  *   the separate `Widget.handleInput` flag (set by the button builder), so
  *   a disabled button still blocks clicks to widgets behind it. The system
  *   ignores buttons with `inputEnabled == false`, and in `postLayout` syncs
@@ -126,7 +127,7 @@ final class ButtonComponent : WidgetComponent {
 
   this() {
     pressTimer.start(1.0f, AnimationWrapMode.once);
-    pressTimer.setPause(true);
+    pressTimer.paused(true);
   }
 
   /// Returns the resting colours for enabled state `enabled`.
@@ -302,7 +303,7 @@ Widget createButton(
 /// Sets the resting (normal) colours of button `w` (must carry a
 /// ButtonComponent). Applies them at once when enabled and idle;
 /// a running press animation lerps from the new colours.
-void setButtonRestColors(Widget w, in WidgetColors c) {
+void applyButtonRestColors(Widget w, in WidgetColors c) {
   assert(w !is null, "w must not be null");
   auto comp = w.components.get!ButtonComponent();
   assert(comp !is null, "w must carry a ButtonComponent");
@@ -315,7 +316,11 @@ void setButtonRestColors(Widget w, in WidgetColors c) {
     applyColors(w, c);
   } else {
     // Text is not animated; bg/border follow on the next press step.
-    w.setTextColor(c.text);
+    if (w.components.textLabel !is null &&
+        w.components.textLabel.color != c.text) {
+      w.components.textLabel.color = c.text;
+      w.update(WidgetUpdateScope.visuals);
+    }
   }
 }
 
@@ -506,7 +511,7 @@ private:
     }
     comp.isPressed = true;
     press.begin(hit);
-    setActive(hit, ctx.host);
+    trackActiveButton(hit, ctx.host);
     if (comp.trigger == ButtonTrigger.press) {
       emitButtonAction(ctx, hit, comp.actionEvent);
     }
@@ -526,7 +531,7 @@ private:
     const bool over = press.hitTest(ctx, p) is press.pressed;
     if (over != comp.isPressed) {
       comp.isPressed = over;
-      setActive(press.pressed, ctx.host);
+      trackActiveButton(press.pressed, ctx.host);
     }
   }
 
@@ -541,7 +546,7 @@ private:
     Widget target = press.end();
     stopRepeat();
     comp.isPressed = false;
-    setActive(target, ctx.host);
+    trackActiveButton(target, ctx.host);
 
     if (comp.trigger != ButtonTrigger.release) {
       return;
@@ -558,10 +563,10 @@ private:
       return;
     }
     comp.isPressed = false;
-    setActive(press.pressed, ctx.host);
+    trackActiveButton(press.pressed, ctx.host);
   }
 
-  void setActive(Widget w, WidgetSystemHost fallbackHost) {
+  void trackActiveButton(Widget w, WidgetSystemHost fallbackHost) {
     activeButtons.track(w);
     ensureAnimTimer(fallbackHost);
   }
@@ -588,7 +593,7 @@ private:
     // Normalized duration 1.0: non-positive durations settle at once.
     const float step = sec > 0.0f ? dt / sec : 1.0f;
     comp.pressTimer.stepTowards(step, forward);
-    comp.pressProgress = comp.pressTimer.getProgress();
+    comp.pressProgress = comp.pressTimer.progress();
     applyPressVisuals(w, comp);
     return !comp.pressTimer.isAtTarget(forward);
   }
@@ -747,13 +752,16 @@ unittest {
   }
   assert(sys.animTimerId == invalidTimerId);
 
-  // setInputEnabled(false) mid-press: pressed button is ignored at once,
+  // inputEnabled = false mid-press: pressed button is ignored at once,
   // postLayout applies muted colours and cancels the press
   sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonDown, 50, 20), ctx);
   sys.onTimer(ctx, 1, 0.016f);
   assert(comp.appliedSink > 0);
-  assert(btn.setInputEnabled(false));
-  assert(!btn.setInputEnabled(false));
+  btn.dirty = false;
+  btn.layoutDirty = false;
+  btn.inputEnabled = false;
+  btn.update(WidgetUpdateScope.visuals);
+  assert(btn.dirty && !btn.layoutDirty);
   sys.onTimer(ctx, 1, 0.016f);
   assert(!sys.isAnyAnimating());
   sys.postLayout(ctx);
@@ -775,7 +783,8 @@ unittest {
   assert(host.sentEvents.length == 0);
 
   // Re-enable restores normal colours on the next postLayout
-  assert(btn.setInputEnabled(true));
+  btn.inputEnabled = true;
+  btn.update(WidgetUpdateScope.visuals);
   sys.postLayout(ctx);
   assert(comp.appliedEnabled);
   assert(btn.components.background.color == comp.style.normal.bg);
@@ -843,7 +852,7 @@ unittest {
   sys.onUnregister();
 }
 
-// Unit tests for ButtonTrigger.press, setButtonRestColors, builder setters
+// Unit tests for ButtonTrigger.press, applyButtonRestColors, builder setters
 // and view-event routing through parent ViewComponents
 unittest {
   import yguilib.controls.testing : DummyWidgetSystemHost;
@@ -924,13 +933,13 @@ unittest {
   assert(!sys.isAnyAnimating());
   assert(sys.animTimerId == invalidTimerId);
 
-  // setButtonRestColors while idle applies at once
+  // applyButtonRestColors while idle applies at once
   const WidgetColors active = WidgetColors(
     ColorF(0.4f, 0.5f, 0.6f, 1.0f),
     ColorF(0.7f, 0.7f, 0.7f, 1.0f),
     ColorF(1.0f, 1.0f, 0.0f, 1.0f)
   );
-  setButtonRestColors(btn, active);
+  applyButtonRestColors(btn, active);
   assert(comp.style.normal == active);
   assert(btn.components.background.color == active.bg);
   assert(btn.components.border.color == active.border);
@@ -945,7 +954,7 @@ unittest {
     ColorF(0.3f, 0.3f, 0.3f, 1.0f),
     ColorF(0.8f, 0.8f, 0.8f, 1.0f)
   );
-  setButtonRestColors(btn, inactive);
+  applyButtonRestColors(btn, inactive);
   assert(comp.style.normal == inactive);
   assert(btn.components.background.color != inactive.bg);
   assert(btn.components.textLabel.color == inactive.text);
@@ -957,14 +966,16 @@ unittest {
   assert(sys.animTimerId == invalidTimerId);
 
   // Disabled: rest colours are stored, disabled colours stay visible
-  assert(btn.setInputEnabled(false));
+  btn.inputEnabled = false;
+  btn.update(WidgetUpdateScope.visuals);
   sys.postLayout(ctx);
   assert(btn.components.background.color == dimmed.bg);
-  setButtonRestColors(btn, active);
+  applyButtonRestColors(btn, active);
   assert(comp.style.normal == active);
   assert(btn.components.background.color == dimmed.bg);
   assert(btn.components.textLabel.color == dimmed.text);
-  assert(btn.setInputEnabled(true));
+  btn.inputEnabled = true;
+  btn.update(WidgetUpdateScope.visuals);
   sys.postLayout(ctx);
   assert(btn.components.background.color == active.bg);
 
@@ -1092,12 +1103,14 @@ unittest {
   assert(host.sentEvents.length == 6);
   TimerId heldId = sys.repeatTimerId;
   assert(host.isTimerActive(heldId));
-  assert(btn.setInputEnabled(false));
+  btn.inputEnabled = false;
+  btn.update(WidgetUpdateScope.visuals);
   sys.onTimer(ctx, heldId, 0.3f);
   assert(host.sentEvents.length == 6);
   assert(sys.repeatTimerId == invalidTimerId);
   assert(!host.isTimerActive(heldId));
-  assert(btn.setInputEnabled(true));
+  btn.inputEnabled = true;
+  btn.update(WidgetUpdateScope.visuals);
   sys.postLayout(ctx);
 
   // Widget release stops the repeat timer

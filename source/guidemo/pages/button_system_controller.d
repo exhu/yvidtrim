@@ -143,12 +143,12 @@ unittest {
     .withTrackers(pageTracker2)
     .withPage(page2);
   auto ctrl2 = new ButtonSystemPageController(params2);
-  assert(!page2.isVisible());
+  assert(!page2.visible());
   auto dm = demoTracker.edit();
   dm.activePage = DemoPage.buttonSystem;
   demoTracker.commit(dm);
   assert(ctrl2.update());
   assert(!ctrl2.update());
   ctrl2.updateView();
-  assert(page2.isVisible());
+  assert(page2.visible());
 }

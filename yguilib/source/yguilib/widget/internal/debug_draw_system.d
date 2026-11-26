@@ -21,7 +21,7 @@ import yguilib.widget.system : SystemPhase, WidgetSystem,
  */
 final class DebugDrawSystem : WidgetSystem {
   this() nothrow @safe {
-    setPriority(debugDrawSystemPriority);
+    priority(debugDrawSystemPriority);
   }
 
   override @property SystemPhase phases() const nothrow @safe {

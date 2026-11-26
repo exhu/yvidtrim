@@ -120,9 +120,9 @@ Phase 1: UiSystemImpl.drainMessageBus()
 `UiSystemImpl`) driving every `ButtonComponent` widget made by `ButtonBuilder`:
 plain buttons, TabControl tabs/arrows and Scrollbar arrows.
 `ButtonTrigger.release` (default) or `.press` picks when `actionEvent` fires;
-`postLayout` sets normal/disabled colours from `inputEnabled` (controls only
-call `Widget.setInputEnabled`). `ButtonRepeat` (press trigger) re-sends it
-while held: oneShot delay, then interval timer, stopped on release/disable/hide.
+`postLayout` sets normal/disabled colours from `inputEnabled` (assign it +
+`update(visuals)`). `ButtonRepeat` (press trigger) re-sends `actionEvent`
+while held: delay then interval timer, stopped on release/disable/hide.
 
 **Input flags**: `Widget.handleInput` (default false) makes a widget
 hittable: it takes part in pointer hit-tests and blocks click/hover-through

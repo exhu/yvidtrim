@@ -128,9 +128,9 @@ private:
     } else if (eventName == page6RangeToggleEvent) {
       togglePlaygroundRange();
     } else if (eventName == page6NarrowBarEvent) {
-      setBarWidth(narrowedWidth(tracker.model.playgroundBarWidth));
+      commitBarWidth(narrowedWidth(tracker.model.playgroundBarWidth));
     } else if (eventName == page6WidenBarEvent) {
-      setBarWidth(widenedWidth(tracker.model.playgroundBarWidth));
+      commitBarWidth(widenedWidth(tracker.model.playgroundBarWidth));
     } else if (eventName == page6ResetBarEvent) {
       resetPlayground();
     } else {
@@ -177,7 +177,7 @@ private:
     m.visibleSize = 200;
     m.stepSize = 50;
     playgroundTracker.commit(m);
-    setBarWidth(playgroundDefaultWidth);
+    commitBarWidth(playgroundDefaultWidth);
     syncPlaygroundValue();
   }
 
@@ -189,7 +189,7 @@ private:
   }
 
   /// Stores the playground bar `width` in the page model.
-  void setBarWidth(float width) {
+  void commitBarWidth(float width) {
     auto model = tracker.edit();
     model.playgroundBarWidth = width;
     tracker.commit(model);
@@ -283,12 +283,12 @@ unittest {
   auto demoTracker2 = ModelTracker!DemoModel(new DemoModel());
   auto trackers2 = ScrollbarsPageTrackers.make();
   auto ctrl2 = makeController(ui, root, demoTracker2, trackers2);
-  assert(!ctrl2.page.isVisible());
+  assert(!ctrl2.page.visible());
   auto dm = demoTracker2.edit();
   dm.activePage = DemoPage.scrollbars;
   demoTracker2.commit(dm);
   assert(ctrl2.update());
   assert(!ctrl2.update());
   ctrl2.updateView();
-  assert(ctrl2.page.isVisible());
+  assert(ctrl2.page.visible());
 }

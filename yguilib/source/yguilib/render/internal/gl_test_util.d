@@ -47,7 +47,7 @@ struct GlTestWindow {
     yguilib_sdl3_init();
     fWindow = new Window(testWidth, testHeight, title);
     fWindow.create();
-    fWindow.setDisplayScaling(1.0f);
+    fWindow.displayScaling(1.0f);
     fRenderer = fWindow.renderer;
     fRenderer.viewport(testWidth, testHeight);
   }

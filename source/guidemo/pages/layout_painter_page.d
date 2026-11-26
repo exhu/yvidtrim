@@ -53,17 +53,21 @@ final class LayoutPainterPage {
 
     const auto m = tracker.model;
     // 1. Update animated alpha chip (only visual dirty, no flex re-layout!)
-    if (alphaChip !is null && alphaChip.components.background !is null) {
-      ColorF c = alphaChip.components.background.color;
-      c.a = m.alphaValue;
-      alphaChip.setBackgroundColor(c);
+    if (alphaChip !is null && alphaChip.components.background !is null &&
+        alphaChip.components.background.color.a != m.alphaValue) {
+      alphaChip.components.background.color.a = m.alphaValue;
+      alphaChip.update(WidgetUpdateScope.visuals);
     }
 
     // 2. Update auto-sized label text sample
-    if (autoLabelWidget !is null) {
+    if (autoLabelWidget !is null &&
+        autoLabelWidget.components.textLabel !is null) {
       const string targetText =
         textSamples[m.textSampleIndex % textSamples.length];
-      autoLabelWidget.setCaption(targetText);
+      if (autoLabelWidget.components.textLabel.caption != targetText) {
+        autoLabelWidget.components.textLabel.caption = targetText;
+        autoLabelWidget.update(WidgetUpdateScope.content);
+      }
     }
 
     // 3. Update interactive flex playground container
@@ -81,10 +85,11 @@ final class LayoutPainterPage {
     }
 
     // 4. Update dynamic visibility child
-    if (playgroundChild2 !is null) {
-      if (playgroundChild2.setVisible(m.child2Visible)) {
-        playgroundContainer.update(WidgetUpdateScope.layout);
-      }
+    if (playgroundChild2 !is null &&
+        playgroundChild2.visible != m.child2Visible) {
+      playgroundChild2.visible = m.child2Visible;
+      playgroundChild2.update(WidgetUpdateScope.layout);
+      playgroundContainer.update(WidgetUpdateScope.layout);
     }
   }
 
@@ -141,12 +146,15 @@ final class LayoutPainterPage {
   }
 
   /// Shows or hides the page.
-  void setVisible(bool visible) {
-    root.setVisible(visible);
+  void visible(bool visible) {
+    if (root.visible != visible) {
+      root.visible = visible;
+      root.update(WidgetUpdateScope.layout);
+    }
   }
 
   /// Returns whether the page is visible.
-  bool isVisible() const {
+  bool visible() const {
     return root.visible;
   }
 

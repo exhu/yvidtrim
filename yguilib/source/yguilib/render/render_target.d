@@ -293,7 +293,7 @@ unittest {
   auto win = new Window(320, 240, "test_render_target");
   win.create();
   scope(exit) win.destroy();
-  win.setDisplayScaling(1.0f);
+  win.displayScaling(1.0f);
   Renderer r = win.renderer;
   r.viewport(320, 240);
 

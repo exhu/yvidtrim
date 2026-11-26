@@ -180,11 +180,11 @@ unittest {
   assert(!hrOther.consume);
 
   // Page visibility follows DemoModel.activePage.
-  assert(!page.isVisible());
+  assert(!page.visible());
   auto dm = demoTracker.edit();
   dm.activePage = DemoPage.simpleButton;
   demoTracker.commit(dm);
   assert(ctrl.update());
   ctrl.updateView();
-  assert(page.isVisible());
+  assert(page.visible());
 }

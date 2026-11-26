@@ -8,12 +8,12 @@ import yguilib.render.render_types : PointF;
 import yguilib.widget;
 import yguilib.widget.layout_components;
 import yguilib.widget.drawing_components;
-import yguilib.widget.internal.layout_axis : getCrossOuterSize,
-  getMainOuterSize;
+import yguilib.widget.internal.layout_axis : crossOuterSize,
+  mainOuterSize;
 import yguilib.widget.internal.layout_text : measureTextContentSize;
-import yguilib.widget.internal.text_label_cache : getTextContentSize;
+import yguilib.widget.internal.text_label_cache : textContentSize;
 
-float getBorderWidth(const Border borderComp) {
+float borderWidthFromComponent(const Border borderComp) {
   import std.algorithm.comparison : max;
   if (borderComp !is null && borderComp.style != Border.Style.none) {
     return max(0.0f, borderComp.width);
@@ -25,7 +25,7 @@ PointF calcPaddingAndBorder(
   const Size szComp,
   const Border borderComp
 ) {
-  const float borderWidth = getBorderWidth(borderComp);
+  const float borderWidth = borderWidthFromComponent(borderComp);
   const float borderExtra = borderWidth * 2.0f;
   return PointF(
     szComp.padding.left + szComp.padding.right + borderExtra,
@@ -117,8 +117,8 @@ Nullable!PointF tryCalcFlexContentSize(
     if (!child.visible || child.components.anchor !is null) {
       continue;
     }
-    const float mainDim = getMainOuterSize(child, isRow);
-    const float crossDim = getCrossOuterSize(child, isRow);
+    const float mainDim = mainOuterSize(child, isRow);
+    const float crossDim = crossOuterSize(child, isRow);
     mainSum += mainDim;
     crossMax = max(crossMax, crossDim);
     visibleCount++;
@@ -177,7 +177,7 @@ PointF calcTextContentSize(
     return PointF(0.0f, 0.0f);
   }
 
-  return getTextContentSize(
+  return textContentSize(
     tl.contentSizeCache, r, font, tl.font,
     tl.caption, tl.multiline, tl.overflowEllipsis,
     availableWidth, availableHeight

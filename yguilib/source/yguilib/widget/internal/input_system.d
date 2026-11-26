@@ -29,7 +29,7 @@ struct HoverEntry {
 final class InputSystem : WidgetSystem {
   this(WidgetSystemHost host) {
     assert(host !is null);
-    setPriority(inputSystemPriority);
+    priority(inputSystemPriority);
     this.host = host;
     this.focusSystem = new FocusSystem;
   }

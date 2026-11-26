@@ -88,7 +88,7 @@ final class AnimatedHoverButtonComponent : WidgetComponent {
     hoverTimer.start(1.0f / speed, AnimationWrapMode.once);
     pressTimer.start(1.0f / (speed * 3.0f), AnimationWrapMode.once);
     gradTimer.start((2.0f * PI) / 3.5f, AnimationWrapMode.loop);
-    gradTimer.setPause(false);
+    gradTimer.paused(false);
   }
 
   /// Clears active hover and press interaction flags without stopping timers.
@@ -402,7 +402,7 @@ private:
     // Hover progress transition
     if (!comp.hoverTimer.isAtTarget(hoverForward)) {
       comp.hoverTimer.stepTowards(dt, hoverForward);
-      comp.hoverProgress = comp.hoverTimer.getProgress();
+      comp.hoverProgress = comp.hoverTimer.progress();
       if (comp.hoverPulsePending && comp.hoverProgress >= hoverPulsePeak) {
         comp.hoverPulsePending = false;
       }
@@ -412,7 +412,7 @@ private:
     // Press progress transition
     if (!comp.pressTimer.isAtTarget(comp.isPressed)) {
       comp.pressTimer.stepTowards(dt, comp.isPressed);
-      comp.pressProgress = comp.pressTimer.getProgress();
+      comp.pressProgress = comp.pressTimer.progress();
       visualDirty = true;
     }
 

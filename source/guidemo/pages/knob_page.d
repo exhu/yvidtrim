@@ -9,7 +9,7 @@ import guidemo.model : KnobPageModel;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
-import yguilib.widget : Widget;
+import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : TextLabel;
 import yguilib.widget.input_components : CursorCapture;
@@ -50,7 +50,12 @@ final class KnobPage {
     if (!tracker.update()) {
       return;
     }
-    valueLabel.setCaption(formatValue());
+    const string text = formatValue();
+    if (valueLabel.components.textLabel !is null &&
+        valueLabel.components.textLabel.caption != text) {
+      valueLabel.components.textLabel.caption = text;
+      valueLabel.update(WidgetUpdateScope.content);
+    }
   }
 
   /// Returns the formatted knob value shown in the drag box.
@@ -79,7 +84,7 @@ final class KnobPage {
   }
 
   /// Returns whether the page is visible.
-  bool isVisible() const {
+  bool visible() const {
     return root.visible;
   }
 

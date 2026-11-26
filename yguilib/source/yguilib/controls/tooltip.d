@@ -4,7 +4,7 @@
  */
 module yguilib.controls.tooltip;
 
-import yguilib.controls.common : WidgetColors, orDefault;
+import yguilib.controls.common : WidgetColors, applyColors, orDefault;
 import yguilib.events : AppEvent;
 import yguilib.render.render_types : ColorF, PointF, RectF;
 import yguilib.timercontrol : TimerId, invalidTimerId;
@@ -259,7 +259,7 @@ final class TooltipSystem : WidgetSystem {
 
   /// Constructs a `TooltipSystem` with default timing settings.
   this() nothrow @safe {
-    setPriority(tooltipSystemPriority);
+    priority(tooltipSystemPriority);
   }
 
   /// Creates a `TooltipSystem` configured with custom `timing`.
@@ -270,7 +270,7 @@ final class TooltipSystem : WidgetSystem {
   }
 
   /// Updates timing configuration.
-  void setTiming(in TooltipTiming timing) nothrow @safe {
+  void timing(in TooltipTiming timing) nothrow @safe {
     fTiming = timing;
   }
 
@@ -338,7 +338,8 @@ final class TooltipSystem : WidgetSystem {
     if (w is fActiveTarget) {
       if (fCachedPopup !is null && !fCachedPopup.released &&
           fCachedPopup.visible) {
-        fCachedPopup.setVisible(false);
+        fCachedPopup.visible = false;
+        fCachedPopup.update(WidgetUpdateScope.layout);
       }
       resetToIdle();
     }
@@ -545,10 +546,12 @@ private:
     }
 
     fAnchorCursorPos = fLastCursorPos;
-    fCachedPopup.setCaption(resolved);
+    if (fCachedPopup.components.textLabel !is null) {
+      fCachedPopup.components.textLabel.caption = resolved;
+    }
     fAlpha = 0.0f;
     applyPopupAlpha(fCachedPopup, fCachedStyle, fAlpha);
-    fCachedPopup.setVisible(true);
+    fCachedPopup.visible = true;
     fCachedPopup.update(WidgetUpdateScope.layout);
 
     fState = State.showing;
@@ -601,7 +604,7 @@ private:
   void finishHiding(WidgetSystemHost fallbackHost) {
     fAlpha = 0.0f;
     applyPopupAlpha(fCachedPopup, fCachedStyle, fAlpha);
-    fCachedPopup.setVisible(false);
+    fCachedPopup.visible = false;
     fCachedPopup.update(WidgetUpdateScope.layout);
     stopAnimTimer();
     fActiveTarget = null;
@@ -797,9 +800,14 @@ private:
     import std.algorithm.comparison : clamp;
 
     const float a = clamp(alpha, 0.0f, 1.0f);
-    popup.setBackgroundColor(scaleAlpha(style.colors.bg, a));
-    popup.setBorderColor(scaleAlpha(style.colors.border, a));
-    popup.setTextColor(scaleAlpha(style.colors.text, a));
+    applyColors(
+      popup,
+      WidgetColors(
+        scaleAlpha(style.colors.bg, a),
+        scaleAlpha(style.colors.border, a),
+        scaleAlpha(style.colors.text, a)
+      )
+    );
   }
 
   static ColorF scaleAlpha(ColorF c, float factor) nothrow @safe @nogc {

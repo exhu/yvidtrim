@@ -66,7 +66,7 @@ final class GamepadPage {
   }
 
   /// Returns whether the page is visible.
-  bool isVisible() const {
+  bool visible() const {
     return root.visible;
   }
 

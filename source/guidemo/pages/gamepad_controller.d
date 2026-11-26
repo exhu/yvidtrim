@@ -88,7 +88,7 @@ unittest {
     .withPage(page);
   auto ctrl = new GamepadPageController(params);
 
-  assert(!page.isVisible());
+  assert(!page.visible());
   assert(demoTracker.model.statusText == "");
 
   auto dm = demoTracker.edit();
@@ -98,12 +98,12 @@ unittest {
   assert(demoTracker.model.statusText ==
     "Page 11: Gamepad | Path2d SVG & color helpers (600x400)");
   ctrl.updateView();
-  assert(page.isVisible());
+  assert(page.visible());
 
   dm = demoTracker.edit();
   dm.activePage = DemoPage.canvas;
   demoTracker.commit(dm);
   assert(ctrl.update());
   ctrl.updateView();
-  assert(!page.isVisible());
+  assert(!page.visible());
 }

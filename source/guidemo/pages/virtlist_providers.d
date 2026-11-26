@@ -73,10 +73,10 @@ final class VerticalMediaProvider : VirtListProvider {
     const ItemDimensions dims = computeItemDimensions(item);
     applyRowDimensions(w, dims.width, dims.height);
 
-    refs.headerSubtree.setVisible(item.kind == VerticalItemKind.header);
-    refs.videoSubtree.setVisible(item.kind == VerticalItemKind.video);
-    refs.imageSubtree.setVisible(item.kind == VerticalItemKind.image);
-    refs.fileSubtree.setVisible(item.kind == VerticalItemKind.file);
+    updateVisible(refs.headerSubtree, item.kind == VerticalItemKind.header);
+    updateVisible(refs.videoSubtree, item.kind == VerticalItemKind.video);
+    updateVisible(refs.imageSubtree, item.kind == VerticalItemKind.image);
+    updateVisible(refs.fileSubtree, item.kind == VerticalItemKind.file);
 
     final switch (item.kind) {
     case VerticalItemKind.header:
@@ -445,14 +445,16 @@ private:
     import std.format : format;
 
     applyRowDimensions(refs.headerSubtree, wPx, hPx);
-    refs.headerTitleLabel.setCaption(
+    updateCaption(
+      refs.headerTitleLabel,
       format(
         "Section #%d (Reel %d) [Row %d]%s",
         item.itemId / 12 + 1, item.itemId, index,
         item.expanded ? " [EXPANDED]" : ""
       )
     );
-    refs.headerCountLabel.setCaption(
+    updateCaption(
+      refs.headerCountLabel,
       format("%dx%d", cast(int) wPx, cast(int) hPx)
     );
   }
@@ -477,14 +479,16 @@ private:
       refs.videoMetaLabel, trackW, item.expanded ? 40.0f : 18.0f
     );
 
-    refs.videoTitleLabel.setCaption(
+    updateCaption(
+      refs.videoTitleLabel,
       format(
         "LIVE Video Clip #%d (idx %d)%s",
         item.itemId, index,
         item.expanded ? " [OVERSIZED 700x400]" : ""
       )
     );
-    refs.videoMetaLabel.setCaption(
+    updateCaption(
+      refs.videoMetaLabel,
       item.expanded
         ? format(
             "H.264 3840x2160 60fps | GOP: 2.0s | Smart-cut preview %dx%d",
@@ -521,13 +525,15 @@ private:
     }
     applyRowDimensions(refs.imageExifLabel, wPx - 120.0f, hPx - 44.0f);
 
-    refs.imageTitleLabel.setCaption(
+    updateCaption(
+      refs.imageTitleLabel,
       format(
         "Still Frame #%d (idx %d) [%dx%d]",
         item.itemId, index, cast(int) wPx, cast(int) hPx
       )
     );
-    refs.imageExifLabel.setCaption(
+    updateCaption(
+      refs.imageExifLabel,
       wide
         ? format(
             "EXIF: 50mm f/1.8 ISO 200 | Wide metadata span exceeding " ~
@@ -548,10 +554,12 @@ private:
     import std.format : format;
 
     applyRowDimensions(refs.fileSubtree, wPx, hPx);
-    refs.fileNameLabel.setCaption(
+    updateCaption(
+      refs.fileNameLabel,
       format("media_take_%04d.mkv (idx %d)", item.itemId, index)
     );
-    refs.fileSizeLabel.setCaption(
+    updateCaption(
+      refs.fileSizeLabel,
       format("%.1f MB", 12.4 + (item.itemId % 90) * 1.3)
     );
   }
@@ -644,9 +652,12 @@ final class HorizontalStripProvider : VirtListProvider {
     const ItemDimensions dims = computeCardDimensions(item);
     applyCardDimensions(w, dims.width, dims.height);
 
-    refs.keyframeSubtree.setVisible(item.kind == HorizontalItemKind.keyframe);
-    refs.segmentSubtree.setVisible(item.kind == HorizontalItemKind.segment);
-    refs.markerSubtree.setVisible(item.kind == HorizontalItemKind.marker);
+    updateVisible(
+      refs.keyframeSubtree,
+      item.kind == HorizontalItemKind.keyframe
+    );
+    updateVisible(refs.segmentSubtree, item.kind == HorizontalItemKind.segment);
+    updateVisible(refs.markerSubtree, item.kind == HorizontalItemKind.marker);
 
     final switch (item.kind) {
     case HorizontalItemKind.keyframe:
@@ -847,10 +858,12 @@ private:
     import std.format : format;
 
     applyCardDimensions(refs.keyframeSubtree, wPx, hPx);
-    refs.keyframeTitleLabel.setCaption(
+    updateCaption(
+      refs.keyframeTitleLabel,
       format("KF #%d (i:%d)", item.itemId, index)
     );
-    refs.keyframeSubLabel.setCaption(
+    updateCaption(
+      refs.keyframeSubLabel,
       format(
         "PTS %02d:%02d\n%dx%d",
         cast(int) ((item.itemId * 2) / 60),
@@ -875,14 +888,16 @@ private:
     foreach (child; refs.segmentSubtree.children) {
       applyCardDimensions(child, innerW, child.rect.height);
     }
-    refs.segmentTitleLabel.setCaption(
+    updateCaption(
+      refs.segmentTitleLabel,
       format(
         "GOP Segment #%d (idx %d) [%dx%d]%s",
         item.itemId, index, cast(int) wPx, cast(int) hPx,
         item.resized ? " [WIDE]" : ""
       )
     );
-    refs.segmentMetaLabel.setCaption(
+    updateCaption(
+      refs.segmentMetaLabel,
       format(
         "Oversized card (%dx%d): exceeds viewport height (210px) -> " ~
           "activates vertical cross scrollbar.",
@@ -901,7 +916,8 @@ private:
     import std.format : format;
 
     applyCardDimensions(refs.markerSubtree, wPx, hPx);
-    refs.markerTitleLabel.setCaption(
+    updateCaption(
+      refs.markerTitleLabel,
       format(
         "CH\n#%d\nidx\n%d\n%dx%d",
         item.itemId, index, cast(int) wPx, cast(int) hPx
@@ -926,6 +942,21 @@ private:
 }
 
 private:
+
+void updateVisible(Widget w, bool visible) {
+  if (w !is null && w.visible != visible) {
+    w.visible = visible;
+    w.update(WidgetUpdateScope.layout);
+  }
+}
+
+void updateCaption(Widget w, string text) {
+  if (w !is null && w.components.textLabel !is null &&
+      w.components.textLabel.caption != text) {
+    w.components.textLabel.caption = text;
+    w.update(WidgetUpdateScope.content);
+  }
+}
 
 struct ItemDimensions {
   float width;

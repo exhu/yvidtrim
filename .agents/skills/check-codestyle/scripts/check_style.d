@@ -11,6 +11,7 @@
  *  - Function length <= 50 lines
  *  - D: no default parameter values, no 'out' parameters,
  *    no overloaded functions, no consecutive capital letters in symbol names,
+ *    no get/set prefix on function names,
  *    and constructor count / <= 3 parameter constraints
  *  - D: override HandleResult handleEvent calls super.handleEvent
  *  - D: classes that call startTimer also call stopTimer
@@ -144,6 +145,15 @@ bool hasConsecutiveCaps(string name) {
     } else {
       prevUpper = false;
     }
+  }
+  return false;
+}
+
+/// Returns true if `name` starts with `get` or `set` followed by an ASCII
+/// uppercase letter.
+bool hasGetSetPrefix(string name) {
+  if (name.startsWith("get") || name.startsWith("set")) {
+    return name.length > 3 && isUpper(name[3]);
   }
   return false;
 }
@@ -1041,9 +1051,10 @@ void checkFileContent(
                 auto parenRes = extractParenContent(lines, idx, openCol);
                 // Only treat as declaration if ends with '{' or ';' after ')'
                 string tail = lines[parenRes.endIdx].strip();
-                if (tail.endsWith("{") || tail.endsWith(";")
-                  || tail.endsWith("const") || tail.endsWith("@safe")
-                  || tail.endsWith("nothrow") || tail.endsWith("@nogc")) {
+                if (tail.endsWith("{") || tail.endsWith("}")
+                  || tail.endsWith(";") || tail.endsWith("const")
+                  || tail.endsWith("@safe") || tail.endsWith("nothrow")
+                  || tail.endsWith("@nogc")) {
                   auto info = inspectParamList(parenRes.content);
                   if (checkThisLine && info.hasDefault) {
                     issues ~= Issue(filePath, lineNo, 1, IssueLevel.error,
@@ -1060,6 +1071,13 @@ void checkFileContent(
                     issues ~= Issue(filePath, lineNo, 1, IssueLevel.warning,
                       "Symbol '" ~ fnName
                       ~ "' has consecutive capital letters.");
+                  }
+                  if (checkThisLine && !isClibBinding
+                    && hasGetSetPrefix(fnName)) {
+                    issues ~= Issue(filePath, lineNo, 1, IssueLevel.warning,
+                      "'" ~ fnName
+                      ~ "' uses get/set prefix; use a property pair or a "
+                      ~ "verb (codestyle.md section 2).");
                   }
                   if (scopes.length > 0 && !scopes[$ - 1].isConditional
                     && !isOverloadExempt(fnName)) {
@@ -1174,7 +1192,8 @@ int main(string[] args) {
       ~ "  11 no public import re-exports (D)\n"
       ~ "  12 no out parameters (D)\n"
       ~ "  13 handleEvent falls through to super.handleEvent (D)\n"
-      ~ "  14 startTimer paired with stopTimer (D)\n\n"
+      ~ "  14 startTimer paired with stopTimer (D)\n"
+      ~ "  15 no get/set prefix on function names (D)\n\n"
       ~ "Options:",
       helpInfo.options
     );

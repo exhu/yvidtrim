@@ -15,7 +15,7 @@ import yguilib.widget.widget_view : passViewEvent;
 final class ScrollSystem : WidgetSystem {
   /// Constructs ScrollSystem. `host` is allowed to be null in isolated tests.
   this(WidgetSystemHost host) nothrow @safe {
-    setPriority(scrollSystemPriority);
+    priority(scrollSystemPriority);
     this.host = host;
   }
 
@@ -66,7 +66,7 @@ private:
     assert(sa !is null);
 
     w.clipChildren = true;
-    const RectF contentArea = w.getContentArea();
+    const RectF contentArea = w.contentArea();
     sa.fViewportSize = PointF(contentArea.width, contentArea.height);
 
     Widget child = findFirstScrollChild(w);

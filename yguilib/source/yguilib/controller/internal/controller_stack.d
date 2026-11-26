@@ -8,15 +8,15 @@ import yguilib.controller : Controller;
 struct ControllerStack {
   void push(Controller c) {
     assert(c !is null);
-    c.setModal(false);
+    c.modal(false);
     stack.push(c);
     c.onPush();
   }
 
   void pushModal(Controller c) {
     assert(c !is null);
-    c.setModal(true);
-    auto active = getActiveOrNull();
+    c.modal(true);
+    auto active = activeOrNull();
     if (active !is null) {
       active.onSuspendByModal();
     }
@@ -25,20 +25,20 @@ struct ControllerStack {
   }
 
   void pop() {
-    auto active = getActiveOrNull();
+    auto active = activeOrNull();
     if (active is null) {
       return;
     }
-    const bool wasModal = active.isModal;
+    const bool wasModal = active.modal;
     stack.popBack();
     active.onPop();
-    active = getActiveOrNull();
+    active = activeOrNull();
     if (active !is null && wasModal) {
       active.onResumeByModal();
     }
   }
 
-  Controller getActiveOrNull() {
+  Controller activeOrNull() {
     if (!stack.empty) {
       return stack.back();
     }
@@ -53,7 +53,7 @@ struct ControllerStack {
     return stack.length;
   }
 
-  inout(Controller[]) getAll() inout {
+  inout(Controller[]) controllers() inout {
     return stack[];
   }
 
@@ -125,11 +125,11 @@ unittest {
       *log ~= name ~ ":onResume";
     }
 
-    @property override bool isModal() const {
+    @property override bool modal() const {
       return modalFlag;
     }
 
-    override void setModal(bool value) {
+    @property override void modal(bool value) {
       modalFlag = value;
     }
 
@@ -149,20 +149,20 @@ unittest {
   auto c2 = new ModalTrackController("c2", &log);
 
   stack.push(c1);
-  assert(stack.getActiveOrNull() is c1);
+  assert(stack.activeOrNull() is c1);
   assert(stack.length == 1);
 
   stack.pushModal(c2);
-  assert(stack.getActiveOrNull() is c2);
+  assert(stack.activeOrNull() is c2);
   assert(stack.length == 2);
 
   stack.pop();
-  assert(stack.getActiveOrNull() is c1);
+  assert(stack.activeOrNull() is c1);
   assert(stack.length == 1);
 
   stack.pop();
   assert(stack.empty());
-  assert(stack.getActiveOrNull() is null);
+  assert(stack.activeOrNull() is null);
 
   assert(log == [
     "c1:onPush",

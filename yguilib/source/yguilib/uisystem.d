@@ -48,7 +48,7 @@ interface UiSystem : ControllerStack, WidgetSystemHost, FocusControl,
   uint nextWidgetId();
   Widget makeWidget();
   void releaseWidget(Widget w);
-  void setEventStatsEnabled(bool enabled);
+  @property void eventStatsEnabled(bool enabled);
   @property bool eventStatsEnabled();
 
   /**

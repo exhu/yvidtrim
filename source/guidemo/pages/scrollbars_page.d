@@ -127,7 +127,8 @@ final class ScrollbarsPage {
     const auto pm = playgroundTracker.model;
     const double ratio = cast(double) pm.visibleSize /
       cast(double) ((pm.max - pm.min) + pm.visibleSize);
-    playgroundStatusLabel.setCaption(
+    updateCaption(
+      playgroundStatusLabel,
       format(
         "Value: %d | Range: [%d..%d] | VisibleSize: %d\n" ~
           "Container Width: %.0fpx | Thumb Ratio: %.1f%% (min 20px)",
@@ -163,57 +164,71 @@ final class ScrollbarsPage {
   }
 
   /// Shows or hides the page.
-  void setVisible(bool visible) {
-    root.setVisible(visible);
+  void visible(bool visible) {
+    if (root.visible != visible) {
+      root.visible = visible;
+      root.update(WidgetUpdateScope.layout);
+    }
   }
 
   /// Returns whether the page is visible.
-  bool isVisible() const {
+  bool visible() const {
     return root.visible;
   }
 
 private:
+  static void updateCaption(Widget w, string text) {
+    if (w !is null && w.components.textLabel !is null &&
+        w.components.textLabel.caption != text) {
+      w.components.textLabel.caption = text;
+      w.update(WidgetUpdateScope.content);
+    }
+  }
+
   void updateViewport(long hScroll, long vScroll) {
     import std.format : format;
 
-    if (viewportArea !is null) {
-      viewportArea.setScrollOffset(
-        PointF(cast(float) hScroll, cast(float) vScroll)
+    if (viewportArea !is null &&
+        viewportArea.components.scrollableArea !is null) {
+      const PointF nextOffset = PointF(
+        cast(float) hScroll,
+        cast(float) vScroll
       );
+      if (viewportArea.components.scrollableArea.offset != nextOffset) {
+        viewportArea.components.scrollableArea.offset = nextOffset;
+        viewportArea.update(WidgetUpdateScope.layout);
+      }
     }
-    if (viewportStatusLabel !is null) {
-      viewportStatusLabel.setCaption(
-        format(
-          "Offset: (%d, %d) | Content: 1080x540 | Viewport: 538x176",
-          hScroll,
-          vScroll
-        )
-      );
-    }
+    updateCaption(
+      viewportStatusLabel,
+      format(
+        "Offset: (%d, %d) | Content: 1080x540 | Viewport: 538x176",
+        hScroll,
+        vScroll
+      )
+    );
   }
 
   void updateReportingLabels() {
     import std.format : format;
 
     const auto m = tracker.model;
-    if (liveStatusLabel !is null) {
-      liveStatusLabel.setCaption(
-        format(
-          "Live (reportOnReleaseOnly=false) | Value: %d | Events: %d",
-          m.liveValue,
-          m.liveEventCount
-        )
-      );
-    }
-    if (releaseStatusLabel !is null) {
-      releaseStatusLabel.setCaption(
-        format(
-          "On-Release (reportOnReleaseOnly=true) | Value: %d | Events: %d",
-          m.releaseValue,
-          m.releaseEventCount
-        )
-      );
-    }
+    updateCaption(
+      liveStatusLabel,
+      format(
+        "Live (reportOnReleaseOnly=false) | Value: %d | Events: %d",
+        m.liveValue,
+        m.liveEventCount
+      )
+    );
+    updateCaption(
+      releaseStatusLabel,
+      format(
+        "On-Release (reportOnReleaseOnly=true) | Value: %d | Events: %d",
+        m.releaseValue,
+        m.releaseEventCount
+      )
+    );
   }
 
   void applyPlaygroundWidth(float width) {

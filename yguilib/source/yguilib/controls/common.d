@@ -8,7 +8,7 @@ import std.typecons : Nullable;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF;
 import yguilib.uisystem : UiRegistry, UiSystem;
-import yguilib.widget : Widget;
+import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Border, TextLabel;
 import yguilib.widget.layout_components : Insets;
@@ -30,22 +30,48 @@ enum defaultDisabledColors = WidgetColors(
 /// Applies background, border, and text colors to `w`.
 /// `w` is allowed to be null (no-op).
 void applyColors(Widget w, in WidgetColors c) {
-  if (w is null) {
+  if (w is null || w.released) {
     return;
   }
-  w.setBackgroundColor(c.bg);
-  w.setBorderColor(c.border);
-  w.setTextColor(c.text);
+  bool changed = false;
+  if (w.components.background !is null &&
+      w.components.background.color != c.bg) {
+    w.components.background.color = c.bg;
+    changed = true;
+  }
+  if (w.components.border !is null && w.components.border.color != c.border) {
+    w.components.border.color = c.border;
+    changed = true;
+  }
+  if (w.components.textLabel !is null &&
+      w.components.textLabel.color != c.text) {
+    w.components.textLabel.color = c.text;
+    changed = true;
+  }
+  if (changed) {
+    w.update(WidgetUpdateScope.visuals);
+  }
 }
 
 /// Applies background and border colors to `w`.
 /// `w` is allowed to be null (no-op).
 void applyBgAndBorderColors(Widget w, ColorF bg, ColorF border) {
-  if (w is null) {
+  if (w is null || w.released) {
     return;
   }
-  w.setBackgroundColor(bg);
-  w.setBorderColor(border);
+  bool changed = false;
+  if (w.components.background !is null &&
+      w.components.background.color != bg) {
+    w.components.background.color = bg;
+    changed = true;
+  }
+  if (w.components.border !is null && w.components.border.color != border) {
+    w.components.border.color = border;
+    changed = true;
+  }
+  if (changed) {
+    w.update(WidgetUpdateScope.visuals);
+  }
 }
 
 /// Styling and sizing parameters for a label-bearing button widget.
@@ -113,8 +139,8 @@ C registerWidgetViewPair(V, C)(UiSystem ui) {
   auto view = new V();
   auto ctrl = new C(ui);
   ctrl.registerWidgetView(view);
-  ui.widgetViews.register(view.getWidgetViewName(), view);
-  ui.widgetViewControllers.register(ctrl.getControllerName(), ctrl);
+  ui.widgetViews.register(view.widgetViewName(), view);
+  ui.widgetViewControllers.register(ctrl.controllerName(), ctrl);
   return ctrl;
 }
 
@@ -124,7 +150,7 @@ V findWidgetView(V)(UiRegistry registry, string name) {
   if (registry is null) {
     return null;
   }
-  return cast(V) registry.widgetViews.getByName(name);
+  return cast(V) registry.widgetViews.findByName(name);
 }
 
 /// Sends a `ViewAppEventBuilder` event carrying `value` if `eventName` is
@@ -272,7 +298,7 @@ unittest {
   assert(foundView !is null);
   assert(findWidgetView!SampleView(null, "SampleView") is null);
   assert(findWidgetView!SampleView(ui, "MissingView") is null);
-  assert(ui.widgetViewControllers.getByName("SampleController") is ctrl);
+  assert(ui.widgetViewControllers.findByName("SampleController") is ctrl);
 
   auto viewWidget = ui.makeWidget();
   emitViewValueEvent(ui, "", viewWidget, 99);

@@ -709,8 +709,8 @@ __NAME__WidgetViewController register__NAME__(UiSystem ui) {
   auto view = new __NAME__WidgetView();
   auto ctrl = new __NAME__WidgetViewController(ui);
   ctrl.registerWidgetView(view);
-  ui.widgetViews.register(view.getWidgetViewName(), view);
-  ui.widgetViewControllers.register(ctrl.getControllerName(), ctrl);
+  ui.widgetViews.register(view.widgetViewName(), view);
+  ui.widgetViewControllers.register(ctrl.controllerName(), ctrl);
   return ctrl;
 }
 `;

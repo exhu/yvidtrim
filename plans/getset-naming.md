@@ -59,7 +59,7 @@ violations. Addresses the `TODO.md` tooling item "decide
 ```
 phase  status
 -----  -------
-01     pending
-02     pending
-03     pending
+01     done
+02     done
+03     done
 ```

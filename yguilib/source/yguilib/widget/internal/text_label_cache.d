@@ -144,7 +144,7 @@ struct TextContentSizeCache {
 ///   alignment      - Horizontal alignment within the available width.
 ///   availableWidth - Available horizontal space (0 = unlimited).
 ///   availableHeight - Available vertical space (0 = unlimited).
-FormattedTextLine[] getLayoutLines(
+FormattedTextLine[] layoutLines(
   ref TextLayoutCache cache,
   Renderer r,
   Font font,
@@ -191,7 +191,7 @@ FormattedTextLine[] getLayoutLines(
 ///   overflowEllipsis - When true, truncates overflow with "...".
 ///   availableWidth  - Available horizontal space (0 = unlimited).
 ///   availableHeight - Available vertical space (0 = unlimited).
-PointF getTextContentSize(
+PointF textContentSize(
   ref TextContentSizeCache cache,
   Renderer r,
   Font font,

@@ -91,8 +91,8 @@ class UiSystemImpl : UiSystem {
     return timerService.isTimerActive(id);
   }
 
-  override void setEventStatsEnabled(bool enabled) {
-    messageBus.setStatsEnabled(enabled);
+  override @property void eventStatsEnabled(bool enabled) {
+    messageBus.statsEnabled(enabled);
   }
 
   override @property bool eventStatsEnabled() {
@@ -130,8 +130,8 @@ class UiSystemImpl : UiSystem {
     return pipeline;
   }
 
-  package(yguilib) void setTimerClock(long delegate() clock) {
-    timerService.setClock(clock);
+  package(yguilib) void timerClock(long delegate() clock) {
+    timerService.clock(clock);
   }
 
   package(yguilib) int nextWaitTimeoutMs() const {
@@ -151,7 +151,7 @@ class UiSystemImpl : UiSystem {
   }
 
   override void popController() {
-    Controller active = controllers.getActiveOrNull();
+    Controller active = controllers.activeOrNull();
     if (active !is null) {
       timerService.stopTimersForOwner(cast(Object) active);
     }
@@ -223,7 +223,7 @@ class UiSystemImpl : UiSystem {
     auto sysCtrl = new UiSystemController(this, pipeline);
     pushController(sysCtrl);
     scope (exit) {
-      while (getActiveControllerOrNull() !is null) {
+      while (activeControllerOrNull() !is null) {
         popController();
       }
     }
@@ -233,7 +233,7 @@ class UiSystemImpl : UiSystem {
     messageBus.bindMainThread();
     scope (exit) messageBus.unbindMainThread();
 
-    while (getActiveControllerOrNull() !is null) {
+    while (activeControllerOrNull() !is null) {
       if (!runEventLoopStep()) {
         break;
       }
@@ -263,7 +263,7 @@ class UiSystemImpl : UiSystem {
     foreach (ctrl; controllers) {
       JSONValue[string] ctrlJson;
       ctrlJson["type"] = JSONValue(shortTypeName(ctrl));
-      ctrlJson["isModal"] = JSONValue(ctrl.isModal);
+      ctrlJson["modal"] = JSONValue(ctrl.modal);
       controllerList ~= JSONValue(ctrlJson);
     }
     fields["controllers"] = JSONValue(controllerList);
@@ -348,7 +348,7 @@ private:
    * allocations and protect against stack mutations during handleEvent.
    */
   void snapshotControllers(ref SmallBuffer!(Controller, 16) outBuf) {
-    outBuf.assignSlice(controllers.getAll());
+    outBuf.assignSlice(controllers.controllers());
   }
 
   bool isMainWindowEvent(uint windowId) const {
@@ -421,7 +421,7 @@ private:
       if (processed > 0 && timerService.hasDueTimers(timerService.nowNs())) {
         break;
       }
-      Nullable!AppEvent nullableEvent = getAppEvent();
+      Nullable!AppEvent nullableEvent = nextAppEvent();
       if (nullableEvent.isNull) {
         break;
       }
@@ -512,11 +512,11 @@ private:
     return true;
   }
 
-  Controller getActiveControllerOrNull() {
-    return controllers.getActiveOrNull();
+  Controller activeControllerOrNull() {
+    return controllers.activeOrNull();
   }
 
-  Nullable!AppEvent getAppEvent() {
+  Nullable!AppEvent nextAppEvent() {
     return messageBus.get();
   }
 
@@ -535,9 +535,9 @@ private:
    * Sets the additional scaling factor above displayScaling (e.g. to support
    * zooming in/out UI for user preferences). Defaults to 1.0.
    */
-  void setUnitsScaling(float scaling) {
+  void unitsScaling(float scaling) {
     if (fMainWindow !is null) {
-      fMainWindow.setUnitsScaling(scaling);
+      fMainWindow.unitsScaling(scaling);
     }
     redraw();
   }
@@ -545,30 +545,30 @@ private:
   /**
    * Gets the additional scaling factor above displayScaling (defaults to 1.0).
    */
-  float getUnitsScaling() const {
+  float unitsScaling() const {
     if (fMainWindow !is null) {
-      return fMainWindow.getUnitsScaling();
+      return fMainWindow.unitsScaling();
     }
     return 1.0f;
   }
 
-  float getDisplayScaling() const {
+  float displayScaling() const {
     if (fMainWindow !is null) {
-      return fMainWindow.getDisplayScaling();
+      return fMainWindow.displayScaling();
     }
     return 1.0f;
   }
 
-  void setDisplayScaling(float scaling) {
+  void displayScaling(float scaling) {
     if (fMainWindow !is null) {
-      fMainWindow.setDisplayScaling(scaling);
+      fMainWindow.displayScaling(scaling);
     }
     redraw();
   }
 
-  float getDefaultScaling() const {
+  float defaultScaling() const {
     if (fMainWindow !is null) {
-      return fMainWindow.getDefaultScaling();
+      return fMainWindow.defaultScaling();
     }
     return 1.0f;
   }
@@ -816,12 +816,12 @@ unittest {
   auto window = new Window(320, 240, "test_ui_scaling");
   auto ui = new UiSystemImpl(window);
 
-  assert(ui.getDefaultScaling() == 1.0f);
-  assert(ui.getDisplayScaling() == 1.0f);
-  assert(ui.getUnitsScaling() == 1.0f);
+  assert(ui.defaultScaling() == 1.0f);
+  assert(ui.displayScaling() == 1.0f);
+  assert(ui.unitsScaling() == 1.0f);
 
-  ui.setUnitsScaling(2.0f);
-  assert(ui.getUnitsScaling() == 2.0f);
+  ui.unitsScaling(2.0f);
+  assert(ui.unitsScaling() == 2.0f);
 }
 
 // Verifies unconsumed event propagation from newest to oldest controller.
@@ -1142,7 +1142,7 @@ unittest {
 
   auto ui = new UiSystemImpl(win);
   long fakeNowNs = 1_000_000_000L;
-  ui.setTimerClock(() => fakeNowNs);
+  ui.timerClock(() => fakeNowNs);
 
   auto root = new Widget(ui.nextWidgetId());
   root.rect = RectF(0, 0, 200, 200);
@@ -1304,7 +1304,7 @@ unittest {
 
   final class CounterSystem : WidgetSystem {
     this() nothrow @safe {
-      setPriority(10);
+      priority(10);
     }
 
     override @property SystemPhase phases() const nothrow @safe {
@@ -1377,7 +1377,7 @@ unittest {
     this(string name) {
       this.name = name;
     }
-    string getControllerName() {
+    string controllerName() {
       return name;
     }
     void registerWidgetView(WidgetView v) {}
@@ -1398,16 +1398,16 @@ unittest {
   assert(ui.widgetViews !is null);
 
   auto ctrl = new DummyController("mainCtrl");
-  assert(ui.widgetViewControllers.register(ctrl.getControllerName(), ctrl));
-  assert(ui.widgetViewControllers.getByName("mainCtrl") is ctrl);
+  assert(ui.widgetViewControllers.register(ctrl.controllerName(), ctrl));
+  assert(ui.widgetViewControllers.findByName("mainCtrl") is ctrl);
   assert(ui.widgetViewControllers.unregister("mainCtrl", ctrl));
-  assert(ui.widgetViewControllers.getByName("mainCtrl") is null);
+  assert(ui.widgetViewControllers.findByName("mainCtrl") is null);
 
   auto view = new DummyView();
-  assert(ui.widgetViews.register(view.getWidgetViewName(), view));
-  assert(ui.widgetViews.getByName("DummyView") is view);
+  assert(ui.widgetViews.register(view.widgetViewName(), view));
+  assert(ui.widgetViews.findByName("DummyView") is view);
   assert(ui.widgetViews.unregister("DummyView", view));
-  assert(ui.widgetViews.getByName("DummyView") is null);
+  assert(ui.widgetViews.findByName("DummyView") is null);
 }
 
 // Verifies sequential nextWidgetId generation and independent counters.
@@ -1485,7 +1485,7 @@ unittest {
       assert(ui !is null);
       super(ui);
     }
-    override string getControllerName() {
+    override string controllerName() {
       return "DumpTestViewController";
     }
   }
@@ -1518,7 +1518,7 @@ unittest {
   foreach (c; fields["controllers"].array) {
     if (c["type"].str == "DefaultController") {
       foundCtrl = true;
-      assert(c["isModal"].boolean == false);
+      assert(c["modal"].boolean == false);
     }
   }
   assert(foundCtrl);
@@ -1552,9 +1552,9 @@ unittest {
   } else {
     assert(!ui.eventStatsEnabled);
   }
-  ui.setEventStatsEnabled(false);
+  ui.eventStatsEnabled(false);
   assert(!ui.eventStatsEnabled);
-  ui.setEventStatsEnabled(true);
+  ui.eventStatsEnabled(true);
   assert(ui.eventStatsEnabled);
 }
 
@@ -1596,7 +1596,7 @@ unittest {
 
   auto ui = new UiSystemImpl(null);
   long fakeNowNs = 1_000_000_000L;
-  ui.setTimerClock(() => fakeNowNs);
+  ui.timerClock(() => fakeNowNs);
 
   auto ctrl = new MultiTimerController(ui);
   ui.pushController(ctrl);
@@ -1684,7 +1684,7 @@ unittest {
 
   auto ui = new UiSystemImpl(null);
   long fakeNowNs = 1_000_000_000L;
-  ui.setTimerClock(() => fakeNowNs);
+  ui.timerClock(() => fakeNowNs);
 
   auto sys = new MultiTimerSystem();
   ui.registerWidgetSystem(sys);
@@ -1773,7 +1773,7 @@ unittest {
   ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(999)));
   ui.mainEventLoop();
 
-  assert(ui.getActiveControllerOrNull() is null);
+  assert(ui.activeControllerOrNull() is null);
   assert(popLog == ["c2:onPop", "c1:onPop"]);
   assert(!ui.isTimerActive(c1.timerId));
   assert(!ui.isTimerActive(c2.timerId));

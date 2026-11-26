@@ -81,11 +81,20 @@ final class DemoView {
 
 private:
   void updateStatusBar(string statusText) {
-    statusLabel.setCaption(statusText);
+    if (statusLabel.components.textLabel !is null &&
+        statusLabel.components.textLabel.caption != statusText) {
+      statusLabel.components.textLabel.caption = statusText;
+      statusLabel.update(WidgetUpdateScope.content);
+    }
   }
 
   void updateHints(DebugDrawMode mode) {
-    hintLabel.setCaption(formatGlobalHints(mode));
+    const string hints = formatGlobalHints(mode);
+    if (hintLabel.components.textLabel !is null &&
+        hintLabel.components.textLabel.caption != hints) {
+      hintLabel.components.textLabel.caption = hints;
+      hintLabel.update(WidgetUpdateScope.content);
+    }
   }
 
   void updateDebugDraw(const DemoModel m) {

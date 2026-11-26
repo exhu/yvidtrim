@@ -43,7 +43,7 @@ final class LayoutPainterPageController : DefaultController {
       this.demoTracker.model,
       DemoPage.layoutPainter
     );
-    alphaTimer.setPause(!onPage);
+    alphaTimer.paused(!onPage);
     wasOnPage1 = onPage;
     syncAlphaTimer();
     syncPageShellView(
@@ -97,7 +97,7 @@ final class LayoutPainterPageController : DefaultController {
     }
     syncAlphaTimer();
     if (!isPageActive(demoTracker.model, DemoPage.layoutPainter) ||
-        alphaTimer.isPaused()) {
+        alphaTimer.paused()) {
       return false;
     }
 
@@ -158,10 +158,10 @@ private:
       DemoPage.layoutPainter
     );
     if (onPage1 != wasOnPage1) {
-      alphaTimer.setPause(!onPage1);
+      alphaTimer.paused(!onPage1);
       wasOnPage1 = onPage1;
     }
-    if (onPage1 && !alphaTimer.isPaused()) {
+    if (onPage1 && !alphaTimer.paused()) {
       if (alphaTimerId == invalidTimerId) {
         alphaTimerId = startTimer(
           TimerIntervalMs.fps60,

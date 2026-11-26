@@ -14,7 +14,7 @@ import yguilib.widget.internal.layout_dimension : clampDimension;
 
 /// Computes inner content area bounds deducting padding and border.
 RectF calcContentRect(const Widget w) {
-  return w.getContentArea();
+  return w.contentArea();
 }
 
 /// Re-measures and updates auto-height for a child with TextLabel after its
@@ -73,7 +73,7 @@ void resolveFractionSizes(
       totalWeight += wVal > 0.0f ? wVal : 1.0f;
       fractionCount++;
     } else {
-      fixedSum += getMainOuterSize(child, isRow);
+      fixedSum += mainOuterSize(child, isRow);
     }
   }
 
@@ -112,7 +112,7 @@ void resolveFractionSizes(
     const float maxVal = isRow ? szComp.maxWidth : szComp.maxHeight;
     allocated = clampDimension(allocated, minVal, maxVal);
 
-    setMainSize(child, isRow, allocated);
+    assignMainSize(child, isRow, allocated);
   }
 }
 
@@ -132,7 +132,7 @@ JustifyOffsets computeJustifyOffsets(
 ) {
   float totalChildrenSize = 0.0f;
   foreach (child; children) {
-    totalChildrenSize += getMainOuterSize(child, isRow);
+    totalChildrenSize += mainOuterSize(child, isRow);
   }
 
   const size_t count = children.length;
@@ -179,8 +179,8 @@ void arrangeMainAxis(
 ) {
   float currentPos = startOffset;
   foreach (child; children) {
-    setMainPos(child, isRow, currentPos + getMainMarginStart(child, isRow));
-    currentPos += getMainOuterSize(child, isRow) + gapBetween;
+    assignMainPos(child, isRow, currentPos + mainMarginStart(child, isRow));
+    currentPos += mainOuterSize(child, isRow) + gapBetween;
   }
 }
 
@@ -194,44 +194,44 @@ void alignChildCrossAxis(
 ) {
   final switch (alignItems) {
   case AlignItems.start:
-    setCrossPos(
+    assignCrossPos(
       child,
       isRow,
-      contentCrossPos + getCrossMarginStart(child, isRow)
+      contentCrossPos + crossMarginStart(child, isRow)
     );
     break;
 
   case AlignItems.end:
-    setCrossPos(
+    assignCrossPos(
       child,
       isRow,
       contentCrossPos + contentCrossExtent
-        - getCrossMarginEnd(child, isRow)
-        - getCrossSize(child, isRow)
+        - crossMarginEnd(child, isRow)
+        - crossSize(child, isRow)
     );
     break;
 
   case AlignItems.center:
-    const float crossMs = getCrossMarginStart(child, isRow);
-    const float crossMe = getCrossMarginEnd(child, isRow);
+    const float crossMs = crossMarginStart(child, isRow);
+    const float crossMe = crossMarginEnd(child, isRow);
     const float innerExtent = contentCrossExtent - crossMs - crossMe;
     const float offset = (
-      innerExtent - getCrossSize(child, isRow)
+      innerExtent - crossSize(child, isRow)
     ) * 0.5f;
-    setCrossPos(child, isRow, contentCrossPos + crossMs + round(offset));
+    assignCrossPos(child, isRow, contentCrossPos + crossMs + round(offset));
     break;
 
   case AlignItems.stretch:
-    setCrossPos(
+    assignCrossPos(
       child,
       isRow,
-      contentCrossPos + getCrossMarginStart(child, isRow)
+      contentCrossPos + crossMarginStart(child, isRow)
     );
         import std.algorithm.comparison : max;
     float targetSize = max(
       0.0f,
-      contentCrossExtent - getCrossMarginStart(child, isRow)
-        - getCrossMarginEnd(child, isRow)
+      contentCrossExtent - crossMarginStart(child, isRow)
+        - crossMarginEnd(child, isRow)
     );
     const Size szComp = child.components.size;
     if (szComp !is null) {
@@ -239,7 +239,7 @@ void alignChildCrossAxis(
       const float maxCross = isRow ? szComp.maxHeight : szComp.maxWidth;
       targetSize = clampDimension(targetSize, minCross, maxCross);
     }
-    setCrossSize(child, isRow, targetSize);
+    assignCrossSize(child, isRow, targetSize);
     break;
   }
 }

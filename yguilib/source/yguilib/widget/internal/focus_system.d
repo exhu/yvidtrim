@@ -22,7 +22,7 @@ final class FocusSystem : WidgetSystem {
   // e.g. an active dialog)
 
   this() nothrow @safe {
-    setPriority(focusSystemPriority);
+    priority(focusSystemPriority);
   }
 
   override @property SystemPhase phases() const nothrow @safe {

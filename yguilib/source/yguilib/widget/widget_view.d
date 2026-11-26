@@ -19,7 +19,7 @@ import yguilib.uisystem : UiSystem;
 /// This reacts to top view events (after translation). Returns
 /// Result.updateView on AppEvent.update and calls WidgetView.update.
 interface WidgetViewController {
-  string getControllerName();
+  string controllerName();
   void registerWidgetView(WidgetView v);
   void unregisterWidgetView(WidgetView v);
   void unregisterViewWidget(Widget viewWidget);
@@ -52,7 +52,7 @@ abstract class WidgetViewControllerBase :
     unregisterViewWidget(w);
   }
 
-  override string getControllerName() {
+  override string controllerName() {
     const fullName = typeid(this).name;
     return objectName(fullName);
   }
@@ -84,7 +84,7 @@ final class DefaultWidgetViewController : WidgetViewControllerBase {
 /// into widgets of the view.
 interface WidgetView {
   bool isWidgetRegistered(Widget viewWidget);
-  string getWidgetViewName();
+  string widgetViewName();
   void registerViewWidget(Widget viewWidget);
   void unregisterViewWidget(Widget viewWidget);
   /// called by the system if the event name is in renameEvents
@@ -124,7 +124,7 @@ public:
     return canFind(viewWidgets, viewWidget);
   }
 
-  override string getWidgetViewName() {
+  override string widgetViewName() {
     const fullName = typeid(this).name;
     return objectName(fullName);
   }
@@ -182,7 +182,7 @@ bool applyViewRenaming(
       return true;
     }
     if (view.widgetViewName.length != 0) {
-      if (WidgetView wv = host.widgetViews.getByName(view.widgetViewName)) {
+      if (WidgetView wv = host.widgetViews.findByName(view.widgetViewName)) {
         wv.translateEventForViewWidget(event, viewWidget);
       } else {
         import std.logger : error;
@@ -213,5 +213,5 @@ unittest {
   }
 
   auto view = new SampleWidgetView();
-  assert(view.getWidgetViewName() == "SampleWidgetView");
+  assert(view.widgetViewName() == "SampleWidgetView");
 }

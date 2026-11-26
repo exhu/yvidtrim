@@ -139,7 +139,7 @@ unittest {
   assert(pageTracker.model.labelMultiline);
 
   // Switch to Page 2 (activePage == DemoPage.textLabel)
-  assert(!page.isVisible());
+  assert(!page.visible());
   auto dm = demoTracker.edit();
   dm.activePage = DemoPage.textLabel;
   demoTracker.commit(dm);
@@ -147,7 +147,7 @@ unittest {
   assert(ctrl.update());
   assert(!ctrl.update());
   ctrl.updateView();
-  assert(page.isVisible());
+  assert(page.visible());
 
   auto hrM = ctrl.handleEvent(makeKeyDown(Keycode.m, Scancode.m));
   assert(hrM.result == HandleResult.Result.update);

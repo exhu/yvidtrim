@@ -32,7 +32,7 @@ Entry findEntry(Entry)(Entry[Widget] entries, Widget viewWidget) {
 
 /// Returns `field` from the entry associated with `viewWidget`, or the field
 /// type's `.init` value if `viewWidget` is null or unregistered.
-auto getEntryField(string field, Entry)(
+auto entryField(string field, Entry)(
   Entry[Widget] entries,
   Widget viewWidget
 ) {
@@ -109,7 +109,7 @@ UiRegistry resolveBuilderRegistry(UiSystem ui, UiRegistry registry) {
 }
 
 /// Stores `model` into builder `tracker` and marks `hasModel` true.
-void setBuilderModel(M)(
+void assignBuilderModel(M)(
   ref ModelTracker!M tracker,
   ref bool hasModel,
   M model
@@ -120,7 +120,7 @@ void setBuilderModel(M)(
 }
 
 /// Copies `src` into builder `tracker` and marks `hasModel` true.
-void setBuilderTracker(M)(
+void assignBuilderTracker(M)(
   ref ModelTracker!M tracker,
   ref bool hasModel,
   ref ModelTracker!M src
@@ -206,10 +206,10 @@ unittest {
 
   assert(findEntry(view.entries, null) is null);
   assert(findEntry(view.entries, w2) is null);
-  assert(getEntryField!("part")(view.entries, w1) is part1);
-  assert(getEntryField!("label")(view.entries, w1) == "hello");
-  assert(getEntryField!("part")(view.entries, w2) is null);
-  assert(getEntryField!("label")(view.entries, null) is null);
+  assert(entryField!("part")(view.entries, w1) is part1);
+  assert(entryField!("label")(view.entries, w1) == "hello");
+  assert(entryField!("part")(view.entries, w2) is null);
+  assert(entryField!("label")(view.entries, null) is null);
 
   WidgetView[] views = [otherView, view];
   assert(findOwningView!DummyView(views, w1) is view);
@@ -286,12 +286,12 @@ unittest {
 
   auto m2 = new SampleModel();
   m2.id = 123;
-  setBuilderModel(tracker, hasModel, m2);
+  assignBuilderModel(tracker, hasModel, m2);
   assert(hasModel && tracker.model is m2);
 
   auto m3 = new SampleModel();
   m3.id = 456;
   auto srcTracker = ModelTracker!SampleModel(m3);
-  setBuilderTracker(tracker, hasModel, srcTracker);
+  assignBuilderTracker(tracker, hasModel, srcTracker);
   assert(hasModel && tracker.model is m3);
 }

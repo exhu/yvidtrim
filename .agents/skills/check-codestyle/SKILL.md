@@ -65,6 +65,9 @@ rdmd .agents/skills/check-codestyle/scripts/check_style.d [options] [files...]
     Skips `unittest` blocks and the timer infrastructure files
     (`timercontrol.d`, `internal/timer_service.d`,
     `internal/uisystem_impl.d`, `controller/package.d`).
+15. **No `get`/`set` Prefix (D)**: Warns when a declared D function or method
+    name matches `^(get|set)[A-Z]` (excluding `clibs/` bindings); use a
+    property pair or a verb (`codestyle.md` section 2).
 
 ## CLI Usage
 

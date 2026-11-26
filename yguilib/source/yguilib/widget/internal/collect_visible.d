@@ -70,7 +70,7 @@ private:
     bool childHasClip = parentHasClip;
     RectF childClipRect = parentClipRect;
     if (!ignoreClipChildren && w.clipChildren) {
-      const RectF contentArea = w.getContentArea();
+      const RectF contentArea = w.contentArea();
       const RectF absContentRect = RectF(
         absX + contentArea.x,
         absY + contentArea.y,

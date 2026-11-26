@@ -1,4 +1,3 @@
-- implement getset-naming.md
 - tooling
 -- planning skill: scaffold `plans/<name>.md` + `-NN.md`, run phases via
    the implementer agent, update overview status

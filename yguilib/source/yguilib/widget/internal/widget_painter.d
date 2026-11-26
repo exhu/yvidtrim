@@ -13,8 +13,8 @@ import yguilib.widget : Widget;
 import yguilib.widget.system : SystemPhase, WidgetSystem,
   WidgetSystemContext;
 import yguilib.widget.visible : VisibleWidgets;
-import yguilib.widget.internal.layout_text : getLineStep;
-import yguilib.widget.internal.text_label_cache : getLayoutLines;
+import yguilib.widget.internal.layout_text : lineStepFromFont;
+import yguilib.widget.internal.text_label_cache : layoutLines;
 
 interface CustomWidgetPainter {
   void drawBackground(Widget w, in RectF absRect, Renderer r);
@@ -36,7 +36,7 @@ interface CustomWidgetPainter {
 /// TODO support CustomWidgetPainter
 final class WidgetPainterSystem : WidgetSystem {
   this() nothrow @safe {
-    setPriority(painterSystemPriority);
+    priority(painterSystemPriority);
   }
 
   override @property SystemPhase phases() const nothrow @safe {
@@ -95,7 +95,7 @@ private:
 
     // TODO CustomWidgetPainter.drawBackground
 
-    const RectF contentArea = w.getContentArea();
+    const RectF contentArea = w.contentArea();
     const RectF absContentRect = RectF(
       absRect.x + contentArea.x,
       absRect.y + contentArea.y,
@@ -193,13 +193,13 @@ private:
       return;
     }
 
-    auto lines = getLayoutLines(
+    auto lines = layoutLines(
       comp.layoutCache, r, font, comp.font,
       comp.caption, comp.multiline, comp.overflowEllipsis,
       comp.alignment, absContentRect.width, absContentRect.height
     );
 
-    const float lineStep = getLineStep(r, font);
+    const float lineStep = lineStepFromFont(r, font);
 
     foreach (size_t i, const ref line; lines) {
       if (line.text.length == 0) {
@@ -368,7 +368,7 @@ unittest {
   );
   painter.drawTree(cdWidgets, renderer);
   assert(calls == 1);
-  const RectF ca = cdW.getContentArea();
+  const RectF ca = cdW.contentArea();
   assert(seenE == 30 + ca.x);
   assert(seenF == 40 + ca.y);
   assert(renderer.canvas().transform().isIdentity());

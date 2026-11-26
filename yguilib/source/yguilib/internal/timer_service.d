@@ -19,7 +19,7 @@ struct TimerEntry {
 
 /// Manages wall-clock timers bound to owners.
 struct TimerService {
-  void setClock(long delegate() clock) {
+  void clock(long delegate() clock) {
     clockFn = clock;
   }
 
@@ -247,7 +247,7 @@ unittest {
 
   long fakeNowNs = 1_000_000_000L;
   TimerService svc;
-  svc.setClock(() => fakeNowNs);
+  svc.clock(() => fakeNowNs);
 
   // Idle when empty -> -1
   assert(svc.nextWaitTimeoutMs(fakeNowNs) == -1);
@@ -348,8 +348,8 @@ unittest {
     override void onPop() {}
     override void onSuspendByModal() {}
     override void onResumeByModal() {}
-    @property override bool isModal() const { return false; }
-    override void setModal(bool value) {}
+    @property override bool modal() const { return false; }
+    @property override void modal(bool value) {}
     override void sendAppEvent(AppEvent ev) {}
     override void onWidgetReleased(Widget w) {}
   }
@@ -358,7 +358,7 @@ unittest {
 
   long fakeNowNs = 100_000_000L;
   TimerService svc;
-  svc.setClock(() => fakeNowNs);
+  svc.clock(() => fakeNowNs);
 
   auto ctrl = new DummyCtrl();
   auto sys = new DummySys();
@@ -397,7 +397,7 @@ unittest {
   enum size_t timerCount = 40;
   long fakeNowNs = 1_000_000_000L;
   TimerService svc;
-  svc.setClock(() => fakeNowNs);
+  svc.clock(() => fakeNowNs);
 
   auto owner = new Object();
   TimerId[timerCount] ids;

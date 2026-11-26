@@ -45,7 +45,11 @@ private:
       }
 
       foreach (i, uw; w.children) {
-        uw.setVisible(i < c.itemsCount);
+        const bool vis = (i < c.itemsCount);
+        if (uw.visible != vis) {
+          uw.visible = vis;
+          uw.update(WidgetUpdateScope.layout);
+        }
       }
       w.update(WidgetUpdateScope.layout);
     }

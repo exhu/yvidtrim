@@ -135,9 +135,9 @@ private:
     } else if (eventName == page5ResetTabsEvent) {
       resetDynamicTabs();
     } else if (eventName == page5NarrowViewportEvent) {
-      setViewportWidth(narrowedWidth(tracker.model.viewportWidth));
+      commitViewportWidth(narrowedWidth(tracker.model.viewportWidth));
     } else if (eventName == page5WidenViewportEvent) {
-      setViewportWidth(widenedWidth(tracker.model.viewportWidth));
+      commitViewportWidth(widenedWidth(tracker.model.viewportWidth));
     } else {
       return false;
     }
@@ -190,7 +190,7 @@ private:
   }
 
   /// Stores the dynamic tab viewport `width` in the page model.
-  void setViewportWidth(float width) {
+  void commitViewportWidth(float width) {
     auto model = tracker.edit();
     model.viewportWidth = width;
     tracker.commit(model);
@@ -302,12 +302,12 @@ unittest {
   auto demoTracker2 = ModelTracker!DemoModel(new DemoModel());
   auto trackers2 = TabControlPageTrackers.make();
   auto ctrl2 = makeController(ui, root, demoTracker2, trackers2);
-  assert(!ctrl2.page.isVisible());
+  assert(!ctrl2.page.visible());
   auto dm = demoTracker2.edit();
   dm.activePage = DemoPage.tabControl;
   demoTracker2.commit(dm);
   assert(ctrl2.update());
   assert(!ctrl2.update());
   ctrl2.updateView();
-  assert(ctrl2.page.isVisible());
+  assert(ctrl2.page.visible());
 }

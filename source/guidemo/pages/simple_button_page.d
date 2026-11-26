@@ -11,7 +11,7 @@ import yguilib.controls.common : WidgetColors;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
-import yguilib.widget : Widget;
+import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.layout_components : AlignItems, JustifyContent;
 
@@ -57,9 +57,22 @@ final class SimpleButtonPage {
     if (!tracker.update()) {
       return;
     }
-    statsLabel.setCaption(formatStats());
-    stateLabel.setCaption(formatTargetState());
-    targetBtn.setInputEnabled(tracker.model.targetEnabled);
+    const string stats = formatStats();
+    if (statsLabel.components.textLabel !is null &&
+        statsLabel.components.textLabel.caption != stats) {
+      statsLabel.components.textLabel.caption = stats;
+      statsLabel.update(WidgetUpdateScope.content);
+    }
+    const string state = formatTargetState();
+    if (stateLabel.components.textLabel !is null &&
+        stateLabel.components.textLabel.caption != state) {
+      stateLabel.components.textLabel.caption = state;
+      stateLabel.update(WidgetUpdateScope.content);
+    }
+    if (targetBtn.inputEnabled != tracker.model.targetEnabled) {
+      targetBtn.inputEnabled = tracker.model.targetEnabled;
+      targetBtn.update(WidgetUpdateScope.visuals);
+    }
   }
 
   /// Returns the click counter text shown in the styles section.
@@ -111,7 +124,7 @@ final class SimpleButtonPage {
   }
 
   /// Returns whether the page is visible.
-  bool isVisible() const {
+  bool visible() const {
     return root.visible;
   }
 

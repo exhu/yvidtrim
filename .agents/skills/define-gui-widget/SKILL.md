@@ -147,13 +147,16 @@ follow these rules:
 4. **Use Correct `WidgetUpdateScope` When Mutating Widgets**:
    - `WidgetBuilder.build()` automatically calls
      `widget.update(WidgetUpdateScope.parentView)`.
-   - In `View.update()` or `onTimer` animations:
-     - Use `Widget.setCaption(...)`, `setBackgroundColor(...)`,
-       `setBorderColor(...)`, `setTextColor(...)` (which trigger the minimum
-       required scope automatically).
-     - When toggling visibility (`setVisible(v)`) or changing geometry/layout
-       properties (`rect.x/y/width/height`, `flexContainer.alignItems`), call
-       `widget.update(WidgetUpdateScope.layout)`. Never use
+   - In `View.update()` or `onTimer` animations, assign fields directly and call
+     `widget.update(scope)` (guarding with `!=` in hot paths or every-frame
+     syncs):
+     - `components.textLabel.caption = v` -> `WidgetUpdateScope.content`
+     - `components.background.color = v`, `components.border.color = v`,
+       `components.textLabel.color = v`, `inputEnabled = v` ->
+       `WidgetUpdateScope.visuals`
+     - Toggling `visible = v`, `components.scrollableArea.offset = v`, or
+       changing geometry/layout properties (`rect.x/y/width/height`,
+       `flexContainer.alignItems`) -> `WidgetUpdateScope.layout`. Never use
        `WidgetUpdateScope.visuals` after mutating `rect`: `visuals` does not
        set `layoutDirty`, leaving cached `VisibleWidget.absRect` stale in
        `WidgetSystemPipeline` until an unrelated layout pass (e.g. scrolling).

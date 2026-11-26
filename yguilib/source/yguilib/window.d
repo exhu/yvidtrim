@@ -17,7 +17,7 @@ class Window {
     this.fTitle = title;
   }
 
-  float getDefaultScaling() const {
+  float defaultScaling() const {
     if (handle !is null) {
       float scale = yguilib_sdl3_get_window_display_scale(handle);
       if (scale > 0.0f) {
@@ -31,8 +31,8 @@ class Window {
    * Sets the additional scaling factor above displayScaling (e.g. to support
    * zooming in/out UI for user preferences). Defaults to 1.0.
    */
-  void setUnitsScaling(float scaling) {
-    customUnitsScaling = scaling;
+  void unitsScaling(float scaling) {
+    fUnitsScaling = scaling;
     if (renderer !is null) {
       renderer.unitsScaling(scaling);
       this.width = renderer.viewportWidth();
@@ -44,21 +44,21 @@ class Window {
   /**
    * Gets the additional scaling factor above displayScaling (defaults to 1.0).
    */
-  float getUnitsScaling() const {
+  float unitsScaling() const {
     if (renderer !is null) {
       return renderer.unitsScaling();
     }
-    return customUnitsScaling;
+    return fUnitsScaling;
   }
 
-  float getDisplayScaling() const {
+  float displayScaling() const {
     if (renderer !is null) {
       return renderer.displayScaling();
     }
-    return getDefaultScaling();
+    return defaultScaling();
   }
 
-  void setSize(int newWidth, int newHeight) {
+  void resize(int newWidth, int newHeight) {
     if (handle !is null) {
       yguilib_sdl3_set_window_size(handle, newWidth, newHeight);
       int pw = newWidth;
@@ -151,10 +151,10 @@ package(yguilib):
     pixelWidth = pw;
     pixelHeight = ph;
 
-    float defaultScale = getDefaultScaling();
+    float defaultScale = defaultScaling();
     renderer = new Renderer(pw, ph, defaultScale);
-    if (customUnitsScaling != 1.0f) {
-      renderer.unitsScaling(customUnitsScaling);
+    if (fUnitsScaling != 1.0f) {
+      renderer.unitsScaling(fUnitsScaling);
     }
     this.width = renderer.viewportWidth();
     this.height = renderer.viewportHeight();
@@ -180,7 +180,7 @@ package(yguilib):
   void handleWindowEvent(in AppEvent event) {
     if (event.kind == AppEvent.Kind.windowResized) {
       if (event.window.scale > 0.0f &&
-          event.window.scale != getDisplayScaling()) {
+          event.window.scale != displayScaling()) {
         onDisplayScaleChanged(event.window.scale);
       }
       onResize(event.window.width, event.window.height);
@@ -210,7 +210,7 @@ package(yguilib):
     }
   }
 
-  void setTextInputArea(int x, int y, int w, int h, int cursor) {
+  void updateTextInputArea(int x, int y, int w, int h, int cursor) {
     if (handle !is null) {
       yguilib_sdl3_Rect rect = yguilib_sdl3_Rect(x, y, w, h);
       yguilib_sdl3_set_text_input_area(handle, &rect, cursor);
@@ -223,7 +223,7 @@ package(yguilib):
     }
   }
 
-  void setDisplayScaling(float scaling) {
+  void displayScaling(float scaling) {
     onDisplayScaleChanged(scaling);
   }
 
@@ -305,7 +305,7 @@ private:
 
   int pixelWidth;
   int pixelHeight;
-  float customUnitsScaling = 1.0f;
+  float fUnitsScaling = 1.0f;
   string fTitle;
   string fPendingScreenshotPath;
 
@@ -334,11 +334,11 @@ unittest {
   assert(window.renderer.viewportHeight() == 240);
 
   window.startTextInput();
-  window.setTextInputArea(10, 10, 100, 20, 2);
+  window.updateTextInputArea(10, 10, 100, 20, 2);
   window.clearTextInputArea();
   window.stopTextInput();
 
-  const float scale = window.getDisplayScaling();
+  const float scale = window.displayScaling();
   window.onResize(640, 480);
   assert(window.width == cast(int)(640.0f / scale));
   assert(window.height == cast(int)(480.0f / scale));
@@ -348,18 +348,18 @@ unittest {
   window.makeCurrent();
   window.swapBuffers();
 
-  assert(window.getDefaultScaling() >= 1.0f);
-  assert(window.getUnitsScaling() == 1.0f);
+  assert(window.defaultScaling() >= 1.0f);
+  assert(window.unitsScaling() == 1.0f);
 
-  window.setUnitsScaling(2.0f);
-  assert(window.getUnitsScaling() == 2.0f);
+  window.unitsScaling(2.0f);
+  assert(window.unitsScaling() == 2.0f);
   assert(window.width == cast(int)(640.0f / (scale * 2.0f)));
   assert(window.height == cast(int)(480.0f / (scale * 2.0f)));
 
   window.onDisplayScaleChanged(1.5f);
   // Custom scaling was set to 2.0f, so it retains custom scaling
-  assert(window.getUnitsScaling() == 2.0f);
-  assert(window.getDisplayScaling() == 1.5f);
+  assert(window.unitsScaling() == 2.0f);
+  assert(window.displayScaling() == 1.5f);
   assert(window.width == cast(int)(640.0f / (1.5f * 2.0f)));
   assert(window.height == cast(int)(480.0f / (1.5f * 2.0f)));
 

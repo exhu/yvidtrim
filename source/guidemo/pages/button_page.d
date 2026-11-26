@@ -10,7 +10,7 @@ import guidemo.model : ButtonPageModel;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
-import yguilib.widget : Widget;
+import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.layout_components : AlignItems, FlexDirection, Insets,
@@ -57,13 +57,15 @@ final class ButtonPage {
       return;
     }
 
-    if (counterLabel !is null) {
-      counterLabel.setCaption(
-        format(
-          "Button Action Invocations: %d clicks",
-          tracker.model.buttonClickCount
-        )
+    if (counterLabel !is null && counterLabel.components.textLabel !is null) {
+      const string text = format(
+        "Button Action Invocations: %d clicks",
+        tracker.model.buttonClickCount
       );
+      if (counterLabel.components.textLabel.caption != text) {
+        counterLabel.components.textLabel.caption = text;
+        counterLabel.update(WidgetUpdateScope.content);
+      }
     }
   }
 
@@ -80,12 +82,15 @@ final class ButtonPage {
   }
 
   /// Shows or hides the page.
-  void setVisible(bool visible) {
-    root.setVisible(visible);
+  void visible(bool visible) {
+    if (root.visible != visible) {
+      root.visible = visible;
+      root.update(WidgetUpdateScope.layout);
+    }
   }
 
   /// Returns whether the page is visible.
-  bool isVisible() const {
+  bool visible() const {
     return root.visible;
   }
 

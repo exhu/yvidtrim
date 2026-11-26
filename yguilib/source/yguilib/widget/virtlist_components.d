@@ -196,7 +196,7 @@ final class VirtListComponent : WidgetComponent {
   }
 
   /// Requests scrolling to `offsetPx` along the cross axis.
-  void setCrossOffset(float offsetPx) {
+  void requestCrossOffset(float offsetPx) {
     fCrossOffsetTarget = isFinite(offsetPx) ? offsetPx : 0.0f;
   }
 

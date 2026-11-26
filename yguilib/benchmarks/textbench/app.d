@@ -270,7 +270,7 @@ void main(string[] args) {
   scope(exit) yguilib_sdl3_quit();
   auto w = new Window(viewW, viewH, "textbench");
   w.create();
-  w.setDisplayScaling(1.0f);
+  w.displayScaling(1.0f);
   auto r = w.renderer;
   r.viewport(viewW, viewH);
   scope(exit) w.destroy();

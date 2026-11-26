@@ -192,7 +192,7 @@ string[] wrapLine(
 }
 
 /// Returns the vertical distance between consecutive text lines in logic units.
-float getLineStep(Renderer r, Font font) {
+float lineStepFromFont(Renderer r, Font font) {
   if (r is null || font is null) {
     return 0.0f;
   }
@@ -206,7 +206,7 @@ float getLineStep(Renderer r, Font font) {
 }
 
 /// Returns the height of the first line of text in logic units.
-float getFirstLineHeight(Renderer r, Font font, float lineStep) {
+float firstLineHeightFromFont(Renderer r, Font font, float lineStep) {
   if (r is null || font is null) {
     return 0.0f;
   }
@@ -288,8 +288,8 @@ private string[] buildRawLines(
     return rawLines;
   }
 
-  const float lineStep = getLineStep(r, font);
-  const float firstLineH = getFirstLineHeight(r, font, lineStep);
+  const float lineStep = lineStepFromFont(r, font);
+  const float firstLineH = firstLineHeightFromFont(r, font, lineStep);
   size_t fitCount = 0;
   for (size_t i = 0; i < rawLines.length; i++) {
     if (cast(float)i * lineStep + firstLineH <= availableHeight) {
@@ -352,8 +352,8 @@ PointF measureTextContentSize(
     }
   }
 
-  const float lineStep = getLineStep(r, font);
-  const float firstLineH = getFirstLineHeight(r, font, lineStep);
+  const float lineStep = lineStepFromFont(r, font);
+  const float firstLineH = firstLineHeightFromFont(r, font, lineStep);
 
   const float totalH = lines.length > 1
     ? (cast(float)(lines.length - 1)) * lineStep + firstLineH
@@ -457,8 +457,8 @@ unittest {
   }
 
   // Multiline: vertical truncation with overflowEllipsis == true
-  const float lineStep = getLineStep(r, font);
-  const float firstLineH = getFirstLineHeight(r, font, lineStep);
+  const float lineStep = lineStepFromFont(r, font);
+  const float firstLineH = firstLineHeightFromFont(r, font, lineStep);
   const float limitH = lineStep + firstLineH + 2.0f;
   auto linesVertTrunc = layoutTextLines(
     r, font, "Line 1\nLine 2\r\nLine 3", true, true, TextAlignment.left,

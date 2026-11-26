@@ -214,16 +214,27 @@ final class VirtListPage {
   }
 
   /// Shows or hides the page.
-  void setVisible(bool visible) {
-    root.setVisible(visible);
+  void visible(bool visible) {
+    if (root.visible != visible) {
+      root.visible = visible;
+      root.update(WidgetUpdateScope.layout);
+    }
   }
 
   /// Returns whether the page is visible.
-  bool isVisible() const {
+  bool visible() const {
     return root.visible;
   }
 
 private:
+  static void updateCaption(Widget w, string text) {
+    if (w !is null && w.components.textLabel !is null &&
+        w.components.textLabel.caption != text) {
+      w.components.textLabel.caption = text;
+      w.update(WidgetUpdateScope.content);
+    }
+  }
+
   void applyHorizontalViewportWidth(float width) {
     if (hListRoot is null || hListRoot.rect.width == width) {
       return;
@@ -236,47 +247,45 @@ private:
     import std.format : format;
 
     const auto m = tracker.model;
-    if (vTelemetryLabel !is null) {
-      vTelemetryLabel.setCaption(
-        format(
-          "Items: %d | FirstVis: %d | VisCount: %d | Active: %d | " ~
-            "Pooled: %d\n" ~
-            "ActiveVideos: %d | AnimsStopped: %d | Expand Row -> 700x400px",
-          m.vItemsCount,
-          m.vFirstVisible,
-          m.vVisibleCount,
-          m.vActiveWidgets,
-          m.vPooledWidgets,
-          m.activeVideosCount,
-          m.recycledStopsCount
-        )
-      );
-    }
-    if (hTelemetryLabel !is null) {
-      const float hw = m.hViewportWidth;
-      hTelemetryLabel.setCaption(
-        format(
-          "Items: %d | FirstVis: %d | VisCount: %d | Active: %d | " ~
-            "Pooled: %d\n" ~
-            "ViewportWidth: %.0fpx | Resize Item / - Narrow tests overflow",
-          m.hItemsCount,
-          m.hFirstVisible,
-          m.hVisibleCount,
-          m.hActiveWidgets,
-          m.hPooledWidgets,
-          hw
-        )
-      );
-    }
+    updateCaption(
+      vTelemetryLabel,
+      format(
+        "Items: %d | FirstVis: %d | VisCount: %d | Active: %d | " ~
+          "Pooled: %d\n" ~
+          "ActiveVideos: %d | AnimsStopped: %d | Expand Row -> 700x400px",
+        m.vItemsCount,
+        m.vFirstVisible,
+        m.vVisibleCount,
+        m.vActiveWidgets,
+        m.vPooledWidgets,
+        m.activeVideosCount,
+        m.recycledStopsCount
+      )
+    );
+    const float hw = m.hViewportWidth;
+    updateCaption(
+      hTelemetryLabel,
+      format(
+        "Items: %d | FirstVis: %d | VisCount: %d | Active: %d | " ~
+          "Pooled: %d\n" ~
+          "ViewportWidth: %.0fpx | Resize Item / - Narrow tests overflow",
+        m.hItemsCount,
+        m.hFirstVisible,
+        m.hVisibleCount,
+        m.hActiveWidgets,
+        m.hPooledWidgets,
+        hw
+      )
+    );
   }
 
   VirtListComponent findVirtListComponent(Widget listRoot) {
     if (listRoot is null) {
       return null;
     }
-    if (auto wv = ui.widgetViews.getByName(virtListWidgetViewName)) {
+    if (auto wv = ui.widgetViews.findByName(virtListWidgetViewName)) {
       if (auto vlv = cast(VirtListWidgetView) wv) {
-        Widget vp = vlv.getViewport(listRoot);
+        Widget vp = vlv.viewport(listRoot);
         if (vp !is null) {
           return vp.components.virtList;
         }

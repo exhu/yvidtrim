@@ -113,15 +113,14 @@ final class TabControlPage {
     const auto m = tracker.model;
     updateSubPanels(m.subTab);
 
-    if (eventLogLabel !is null) {
-      eventLogLabel.setCaption(
-        format(
-          "Last Event: \"%s\" | ViewData.value[0] = %d",
-          m.lastEventName,
-          m.lastEventIndex
-        )
-      );
-    }
+    updateCaption(
+      eventLogLabel,
+      format(
+        "Last Event: \"%s\" | ViewData.value[0] = %d",
+        m.lastEventName,
+        m.lastEventIndex
+      )
+    );
 
     applyDynamicViewportWidth(m.viewportWidth);
     updateDynamicStatus(m.viewportWidth);
@@ -149,16 +148,27 @@ final class TabControlPage {
   }
 
   /// Shows or hides the page.
-  void setVisible(bool visible) {
-    root.setVisible(visible);
+  void visible(bool visible) {
+    if (root.visible != visible) {
+      root.visible = visible;
+      root.update(WidgetUpdateScope.layout);
+    }
   }
 
   /// Returns whether the page is visible.
-  bool isVisible() const {
+  bool visible() const {
     return root.visible;
   }
 
 private:
+  static void updateCaption(Widget w, string text) {
+    if (w !is null && w.components.textLabel !is null &&
+        w.components.textLabel.caption != text) {
+      w.components.textLabel.caption = text;
+      w.update(WidgetUpdateScope.content);
+    }
+  }
+
   void applyDynamicViewportWidth(float width) {
     if (dynamicTabControl is null ||
         dynamicTabControl.rect.width == width) {
@@ -171,11 +181,9 @@ private:
   void updateDynamicStatus(float viewportWidth) {
     import std.format : format;
 
-    if (dynamicStatusLabel is null) {
-      return;
-    }
     const auto dm = dynamicTabsTracker.model;
-    dynamicStatusLabel.setCaption(
+    updateCaption(
+      dynamicStatusLabel,
       format(
         "Model Tabs: %d / 10 | Width: %.0fpx | Active: %d (%s)",
         dm.tabNames.length,
@@ -195,9 +203,12 @@ private:
     if (subPanel0.visible != p0 ||
         subPanel1.visible != p1 ||
         subPanel2.visible != p2) {
-      subPanel0.setVisible(p0);
-      subPanel1.setVisible(p1);
-      subPanel2.setVisible(p2);
+      subPanel0.visible = p0;
+      subPanel1.visible = p1;
+      subPanel2.visible = p2;
+      subPanel0.update(WidgetUpdateScope.layout);
+      subPanel1.update(WidgetUpdateScope.layout);
+      subPanel2.update(WidgetUpdateScope.layout);
       root.update(WidgetUpdateScope.layout);
     }
   }
@@ -223,17 +234,12 @@ private:
     ];
 
     const size_t safeIdx = trackIdx < 4 ? trackIdx : 0;
-    if (verticalTitleLabel !is null) {
-      verticalTitleLabel.setCaption(trackTitles[safeIdx]);
-    }
-    if (verticalDescLabel !is null) {
-      verticalDescLabel.setCaption(trackDetails[safeIdx]);
-    }
-    if (verticalIndexLabel !is null) {
-      verticalIndexLabel.setCaption(
-        format("Selected Vertical Tab Index (value[0]): %d", safeIdx)
-      );
-    }
+    updateCaption(verticalTitleLabel, trackTitles[safeIdx]);
+    updateCaption(verticalDescLabel, trackDetails[safeIdx]);
+    updateCaption(
+      verticalIndexLabel,
+      format("Selected Vertical Tab Index (value[0]): %d", safeIdx)
+    );
   }
 
   void buildSwitcherSection() {
@@ -299,7 +305,8 @@ private:
         "- Event name mapped via ViewComponent.renameEvents\n" ~
         "- Tab index stored directly in 64-bit ViewData.value[0] slot."
     );
-    subPanel1.setVisible(false);
+    subPanel1.visible = false;
+    subPanel1.update(WidgetUpdateScope.layout);
 
     subPanel2 = makeSubPanelBox(
       card,
@@ -311,7 +318,8 @@ private:
         "without consuming the event, allowing DemoController to switch\n" ~
         "these content panels in response to the same event."
     );
-    subPanel2.setVisible(false);
+    subPanel2.visible = false;
+    subPanel2.update(WidgetUpdateScope.layout);
   }
 
   Widget makeSubPanelBox(

@@ -10,7 +10,7 @@ import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render : Renderer;
 import yguilib.render.render_types : PointF, RectF;
 import yguilib.widget : Widget, WidgetUpdateScope;
-import yguilib.widget.internal.layout_axis : getCrossSize, setCrossSize;
+import yguilib.widget.internal.layout_axis : crossSize, assignCrossSize;
 import yguilib.widget.internal.layout_dimension : clampDimension;
 import yguilib.widget.internal.layout_flex : updateFlexChildTextHeight;
 import yguilib.widget.internal.layout_system : LayoutSystem;
@@ -27,7 +27,7 @@ final class VirtListSystem : WidgetSystem {
   /// Constructs VirtListSystem. `host` is allowed to be null in isolated
   /// tests.
   this(WidgetSystemHost host) {
-    setPriority(virtListSystemPriority);
+    priority(virtListSystemPriority);
     fHost = host;
     fLayoutSystem = new LayoutSystem();
   }
@@ -159,7 +159,7 @@ private:
         changed = true;
       }
       if (event.wheel.x != 0.0f) {
-        vc.setCrossOffset(vc.crossOffset + event.wheel.x * 24.0f);
+        vc.requestCrossOffset(vc.crossOffset + event.wheel.x * 24.0f);
         changed = true;
       }
     } else {
@@ -181,7 +181,7 @@ private:
 
     w.clipChildren = true;
     const bool isRow = vc.direction == FlexDirection.row;
-    const RectF contentArea = w.getContentArea();
+    const RectF contentArea = w.contentArea();
     const float viewportMain = isRow ? contentArea.width : contentArea.height;
     const float viewportCross = isRow ? contentArea.height : contentArea.width;
     vc.fViewportMainSize = viewportMain;
@@ -422,7 +422,7 @@ private:
     return max(1.0, cast(double) vc.defaultItemMainSize);
   }
 
-  static float getEstimatedItemMainSize(
+  static float estimatedItemMainSize(
     in VirtListComponent vc,
     size_t idx,
     double avgMain
@@ -458,7 +458,7 @@ private:
       acc = cast(double) vc.fAnchorIndex * (avgMain + gap);
     } else {
       foreach (i; 0 .. vc.fAnchorIndex) {
-        acc += getEstimatedItemMainSize(vc, i, avgMain) + gap;
+        acc += estimatedItemMainSize(vc, i, avgMain) + gap;
       }
     }
     const double res = acc - vc.fAnchorOffset;
@@ -529,7 +529,7 @@ private:
     double acc = 0.0;
     size_t idx = 0;
     while (idx + 1 < vc.itemsCount) {
-      const double step = getEstimatedItemMainSize(vc, idx, avgMain) + gap;
+      const double step = estimatedItemMainSize(vc, idx, avgMain) + gap;
       if (acc + step > targetOff) {
         break;
       }
@@ -570,7 +570,7 @@ private:
     }
 
     while (vc.fAnchorIndex + 1 < vc.itemsCount) {
-      const float step = getEstimatedItemMainSize(
+      const float step = estimatedItemMainSize(
         vc, vc.fAnchorIndex, avgMain
       ) + gap;
       if (vc.fAnchorOffset + step > 0.0f) {
@@ -581,7 +581,7 @@ private:
     }
     while (vc.fAnchorOffset > 0.0f && vc.fAnchorIndex > 0) {
       vc.fAnchorIndex--;
-      const float step = getEstimatedItemMainSize(
+      const float step = estimatedItemMainSize(
         vc, vc.fAnchorIndex, avgMain
       ) + gap;
       vc.fAnchorOffset -= step;
@@ -660,7 +660,7 @@ private:
     const bool cached = (idx in vc.fItemMainSizes) !is null;
     const bool dirtyLayout = itemWidget.isTreeLayoutDirty();
     const bool crossChanged = cached && vc.stretchCrossAxis &&
-      getCrossSize(itemWidget, isRow) != vc.fItemCrossSizes[idx];
+      crossSize(itemWidget, isRow) != vc.fItemCrossSizes[idx];
 
     MeasuredItemSize measured;
     if (!cached || acquired.newlyBound || acquired.needsRebind ||
@@ -974,7 +974,7 @@ private:
       const float maxCross = isRow ? sz.maxHeight : sz.maxWidth;
       targetCross = clampDimension(targetCross, minCross, maxCross);
     }
-    setCrossSize(itemWidget, isRow, targetCross);
+    assignCrossSize(itemWidget, isRow, targetCross);
   }
 
   void recomputeAutoMainSizes(
@@ -994,10 +994,10 @@ private:
       if (!mainIsAuto) {
         continue;
       }
-      const float savedCross = getCrossSize(node, isRow);
+      const float savedCross = crossSize(node, isRow);
       LayoutSystem.handleSizeComp(node, r);
       if (stretchCrossAxis || node !is itemWidget) {
-        setCrossSize(node, isRow, savedCross);
+        assignCrossSize(node, isRow, savedCross);
       }
       if (node is itemWidget && !isRow && stretchCrossAxis && r !is null &&
           node.components.textLabel !is null && !hasVisibleFlowChild(node)) {
@@ -1203,8 +1203,10 @@ version (unittest) {
         : (t == 0 ? 30.0f : 90.0f);
       Widget va = w.findByName("variantA");
       Widget vb = w.findByName("variantB");
-      va.setVisible(t == 0);
-      vb.setVisible(t == 1);
+      va.visible = (t == 0);
+      vb.visible = (t == 1);
+      va.update(WidgetUpdateScope.layout);
+      vb.update(WidgetUpdateScope.layout);
       if (t == 0) {
         va.components.size.height = Dimension(h, SizingMode.fixed);
         va.update(WidgetUpdateScope.layout);
@@ -1315,7 +1317,7 @@ unittest {
 
   // Scroll smoothly into oversized item 1 and pan cross axis
   vc.scrollByMain(60.0f);
-  vc.setCrossOffset(90.0f);
+  vc.requestCrossOffset(90.0f);
   runLayoutStep(sys, host, viewport);
   assert(vc.anchorIndex == 1);
   // Item 0 (30) + gap (4) = 34 -> remaining inside item 1 is 60 - 34 = 26

@@ -163,7 +163,10 @@ void syncPageShellView(
   assert(m !is null, "m must not be null");
   assert(pageRoot !is null, "pageRoot must not be null");
   const bool isActive = isPageActive(m, page);
-  pageRoot.setVisible(isActive);
+  if (pageRoot.visible != isActive) {
+    pageRoot.visible = isActive;
+    pageRoot.update(WidgetUpdateScope.layout);
+  }
   syncPageDebugDraw(pageRoot, m.debugDrawMode, isActive);
 }
 

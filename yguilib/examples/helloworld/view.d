@@ -4,7 +4,7 @@ import helloworld.model : HelloModel;
 import yguilib.model : ModelTracker;
 import yguilib.render.render_types : ColorF, RectF;
 import yguilib.uisystem : UiSystem;
-import yguilib.widget : Widget;
+import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.drawing_components : TextLabel;
 import yguilib.widget.layout_components : AlignItems, JustifyContent;
@@ -35,7 +35,12 @@ public:
     if (!tracker.update()) {
       return;
     }
-    helloLabel.setTextColor(tracker.model.currentColor());
+    const ColorF color = tracker.model.currentColor();
+    if (helloLabel.components.textLabel !is null &&
+        helloLabel.components.textLabel.color != color) {
+      helloLabel.components.textLabel.color = color;
+      helloLabel.update(WidgetUpdateScope.visuals);
+    }
   }
 
   Widget rootWidget() {

@@ -167,11 +167,11 @@ private:
     } else if (eventName == page7HorizRemoveEvent) {
       removeHorizontalClip();
     } else if (eventName == page7HorizNarrowEvent) {
-      setHorizontalViewportWidth(
+      commitHorizontalViewportWidth(
         narrowedWidth(tracker.model.hViewportWidth)
       );
     } else if (eventName == page7HorizWidenEvent) {
-      setHorizontalViewportWidth(
+      commitHorizontalViewportWidth(
         widenedWidth(tracker.model.hViewportWidth)
       );
     } else if (eventName == page7HorizResetEvent) {
@@ -315,11 +315,11 @@ private:
     m.updateItems(0, hListDefaultCount);
     m.requestScrollToIndex(0);
     hListTracker.commit(m);
-    setHorizontalViewportWidth(hViewportDefaultWidth);
+    commitHorizontalViewportWidth(hViewportDefaultWidth);
   }
 
   /// Stores the horizontal viewport `width` in the page model.
-  void setHorizontalViewportWidth(float width) {
+  void commitHorizontalViewportWidth(float width) {
     auto model = tracker.edit();
     model.hViewportWidth = width;
     tracker.commit(model);
@@ -399,7 +399,7 @@ unittest {
   auto page = ctrl.page;
 
   // Initially inactive (Page 1 active): page hidden and timer stopped
-  assert(!page.isVisible());
+  assert(!page.visible());
   assert(!ui.isTimerActive(ctrl.animTimerId));
   assert(trackers.page.model.vItemsCount == 10000);
   assert(trackers.page.model.hItemsCount == 1200);
@@ -483,7 +483,7 @@ unittest {
   assert(ctrl.update());
   assert(!ctrl.update());
   ctrl.updateView();
-  assert(page.isVisible());
+  assert(page.visible());
 
   // Popping controller stops timer cleanly
   ctrl.onPop();

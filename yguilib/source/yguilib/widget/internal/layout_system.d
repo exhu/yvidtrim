@@ -28,7 +28,7 @@ interface CustomLayout {
 
 final class LayoutSystem : TwoPassWidgetSystem {
   this() nothrow @safe {
-    setPriority(layoutSystemPriority);
+    priority(layoutSystemPriority);
   }
 
   override @property SystemPhase phases() const nothrow @safe {

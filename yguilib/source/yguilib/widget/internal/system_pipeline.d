@@ -8,7 +8,7 @@ import yguilib.events : AppEvent;
 import yguilib.render : Renderer;
 import yguilib.render.render_types : RectF;
 import yguilib.timercontrol : TimerId;
-import yguilib.widget : Widget;
+import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.internal.collect_visible : VisibleWidgetsCollector;
 import yguilib.widget.system : SystemEventResult, SystemPhase,
   WidgetSystem, WidgetSystemContext, WidgetSystemHost;
@@ -413,7 +413,7 @@ private:
   class PriorityTestSystem : WidgetSystem {
     string name;
     this(string name, int priority) nothrow @safe {
-      setPriority(priority);
+      this.priority = priority;
       this.name = name;
     }
 
@@ -471,7 +471,7 @@ unittest {
     bool wasCalled;
 
     this(int priority, bool consumed, bool requestUpdate) nothrow @safe {
-      setPriority(priority);
+      this.priority = priority;
       this.consumed = consumed;
       this.requestUpdate = requestUpdate;
     }
@@ -538,7 +538,7 @@ unittest {
 
   final class CustomPhaseSystem : WidgetSystem {
     this() nothrow @safe {
-      setPriority(100);
+      priority(100);
     }
 
     override @property SystemPhase phases() const nothrow @safe {
@@ -631,7 +631,8 @@ unittest {
   auto hiddenPage = new Widget(3);
   hiddenPage.rect = RectF(0, 60, 200, 100);
   root.addChild(hiddenPage);
-  hiddenPage.setVisible(false);
+  hiddenPage.visible = false;
+  hiddenPage.update(WidgetUpdateScope.layout);
   auto arrBox = new Widget(4);
   arrBox.rect = RectF(0, 0, 160, 30);
   hiddenPage.addChild(arrBox);
@@ -646,7 +647,8 @@ unittest {
 
   // Show hiddenPage: first pass must collect visible before preLayout so
   // DataSystem populates arrBox.children immediately
-  hiddenPage.setVisible(true);
+  hiddenPage.visible = true;
+  hiddenPage.update(WidgetUpdateScope.layout);
   assert(pipeline.updateAndRenderTree(win));
   assert(arrBox.children.length == 3);
 
@@ -677,7 +679,8 @@ unittest {
   assert(largeContent.rect.y == 0.0f);
 
   // Scroll offset moves largeContent
-  scrollContainer.setScrollOffset(PointF(50, 80));
+  scrollContainer.components.scrollableArea.offset = PointF(50, 80);
+  scrollContainer.update(WidgetUpdateScope.layout);
   assert(pipeline.updateAndRenderTree(win));
   assert(largeContent.rect.x == -50.0f);
   assert(largeContent.rect.y == -80.0f);

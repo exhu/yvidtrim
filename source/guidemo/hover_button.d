@@ -49,6 +49,7 @@ module guidemo.hover_button;
 
 import std.math : PI, abs, sin;
 import yguilib.controller : DefaultController, HandleResult;
+import yguilib.controls.common : applyBgAndBorderColors;
 import yguilib.controls.tooltip : Tooltip;
 import yguilib.events : AppEvent;
 import yguilib.events.builder : ViewAppEventBuilder;
@@ -347,7 +348,7 @@ final class HoverButtonController : DefaultController {
     entry.hoverTimer.start(1.0f / speed, AnimationWrapMode.once);
     entry.pressTimer.start(1.0f / (speed * 3.0f), AnimationWrapMode.once);
     entry.gradTimer.start((2.0f * PI) / 3.5f, AnimationWrapMode.loop);
-    entry.gradTimer.setPause(false);
+    entry.gradTimer.paused(false);
 
     entries ~= entry;
   }
@@ -548,7 +549,7 @@ private:
       // Hover progress transition
       if (!entry.hoverTimer.isAtTarget(hoverForward)) {
         entry.hoverTimer.stepTowards(dt, hoverForward);
-        entry.hoverProgress = entry.hoverTimer.getProgress();
+        entry.hoverProgress = entry.hoverTimer.progress();
         if (entry.hoverPulsePending &&
             entry.hoverProgress >= hoverPulsePeak) {
           entry.hoverPulsePending = false;
@@ -559,7 +560,7 @@ private:
       // Press progress transition
       if (!entry.pressTimer.isAtTarget(entry.isPressed)) {
         entry.pressTimer.stepTowards(dt, entry.isPressed);
-        entry.pressProgress = entry.pressTimer.getProgress();
+        entry.pressProgress = entry.pressTimer.progress();
         buttonVisualDirty = true;
       }
 
@@ -616,8 +617,7 @@ private:
       entry.hoverProgress
     );
 
-    entry.visualWidget.setBackgroundColor(currentBg);
-    entry.visualWidget.setBorderColor(currentBorder);
+    applyBgAndBorderColors(entry.visualWidget, currentBg, currentBorder);
   }
 
   static ColorF lerpColor(in ColorF a, in ColorF b, float t) {
@@ -699,7 +699,7 @@ unittest {
         w.release();
       }
     }
-    override void setEventStatsEnabled(bool enabled) {}
+    override @property void eventStatsEnabled(bool enabled) {}
     override @property bool eventStatsEnabled() {
       return false;
     }

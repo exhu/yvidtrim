@@ -25,122 +25,122 @@ enum AnimationWrapMode {
 struct AnimationTimer {
   /// Append seconds passed.
   void update(float step) {
-    if (paused || duration <= 0 || step <= 0)
+    if (fPaused || fDuration <= 0 || step <= 0)
       return;
     final switch (mode) {
       case AnimationWrapMode.once:
         elapsed += step;
-        if (elapsed >= duration) {
-          elapsed = duration;
-          paused = true;
+        if (elapsed >= fDuration) {
+          elapsed = fDuration;
+          fPaused = true;
         }
         break;
       case AnimationWrapMode.loop:
-        elapsed = fmod(elapsed + step, duration);
+        elapsed = fmod(elapsed + step, fDuration);
         break;
       case AnimationWrapMode.loopInclusive:
         // Reset on the update after reaching duration so 1.0 is observable.
-        if (elapsed >= duration)
+        if (elapsed >= fDuration)
           elapsed = 0;
         elapsed += step;
-        if (elapsed > duration)
-          elapsed = duration;
+        if (elapsed > fDuration)
+          elapsed = fDuration;
         break;
       case AnimationWrapMode.pingPong:
-        elapsed = fmod(elapsed + step, 2.0f * duration);
+        elapsed = fmod(elapsed + step, 2.0f * fDuration);
         break;
     }
   }
 
   /// Resets elapsed time and pauses.
   void stop() {
-    paused = true;
+    fPaused = true;
     elapsed = 0;
   }
 
   void start(float newDuration, AnimationWrapMode newMode) {
-    duration = newDuration;
+    fDuration = newDuration;
     mode = newMode;
     elapsed = 0;
   }
 
-  void setPause(bool aPaused) nothrow @safe {
-    paused = aPaused;
+  void paused(bool aPaused) nothrow @safe {
+    fPaused = aPaused;
   }
 
-  bool isPaused() const nothrow @safe {
-    return paused;
+  bool paused() const nothrow @safe {
+    return fPaused;
   }
 
-  float getDuration() const nothrow @safe {
-    return duration;
+  float duration() const nothrow @safe {
+    return fDuration;
   }
 
-  void setDuration(float newDuration) nothrow @safe {
-    duration = newDuration;
-    if (duration <= 0) {
+  void duration(float newDuration) nothrow @safe {
+    fDuration = newDuration;
+    if (fDuration <= 0) {
       elapsed = 0;
-    } else if (elapsed > duration) {
-      elapsed = duration;
+    } else if (elapsed > fDuration) {
+      elapsed = fDuration;
     }
   }
 
   /// Advances toward duration (forward=true) or 0 (forward=false).
   void stepTowards(float step, bool forward) nothrow @safe {
-    if (duration <= 0 || step <= 0) {
+    if (fDuration <= 0 || step <= 0) {
       return;
     }
-    const float target = forward ? duration : 0.0f;
+    const float target = forward ? fDuration : 0.0f;
     if (elapsed < target) {
       elapsed += step;
       if (elapsed >= target) {
         elapsed = target;
-        paused = true;
+        fPaused = true;
       } else {
-        paused = false;
+        fPaused = false;
       }
     } else if (elapsed > target) {
       elapsed -= step;
       if (elapsed <= target) {
         elapsed = target;
-        paused = true;
+        fPaused = true;
       } else {
-        paused = false;
+        fPaused = false;
       }
     } else {
-      paused = true;
+      fPaused = true;
     }
   }
 
   bool isAtTarget(bool forward) const nothrow @safe {
-    if (duration <= 0) {
+    if (fDuration <= 0) {
       return true;
     }
-    return forward ? (elapsed >= duration) : (elapsed <= 0.0f);
+    return forward ? (elapsed >= fDuration) : (elapsed <= 0.0f);
   }
 
   /// returns [0..1]
-  float getProgress() const nothrow @safe {
+  float progress() const nothrow @safe {
     import std.algorithm.comparison : clamp;
-    if (duration <= 0)
+    if (fDuration <= 0)
       return 0;
     if (mode == AnimationWrapMode.pingPong) {
-      float t = elapsed / duration;
+      float t = elapsed / fDuration;
       return clamp(t <= 1.0f ? t : 2.0f - t, 0, 1f);
     }
-    return clamp(elapsed / duration, 0, 1f);
+    return clamp(elapsed / fDuration, 0, 1f);
   }
 
   /// Linearly maps progress [0..1] into [minVal..maxVal].
   float map(float minVal, float maxVal) const nothrow @safe {
-    return minVal + (maxVal - minVal) * getProgress();
+    return minVal + (maxVal - minVal) * progress();
   }
 
 private:
   float elapsed = 0;
-  float duration = 1;
+  float fDuration = 1;
   AnimationWrapMode mode = AnimationWrapMode.loop;
-  bool paused = true;
+  bool fPaused = true;
 
 }
 
@@ -277,52 +277,52 @@ unittest {
   // Starts paused with zero progress; updates while paused are ignored.
   AnimationTimer timer;
   timer.start(1.0f, AnimationWrapMode.loopInclusive);
-  timer.setPause(true);
-  assert(isClose(timer.getProgress(), 0.0f));
+  timer.paused(true);
+  assert(isClose(timer.progress(), 0.0f));
   timer.update(0.5f);
-  assert(isClose(timer.getProgress(), 0.0f));
-  timer.setPause(false);
+  assert(isClose(timer.progress(), 0.0f));
+  timer.paused(false);
   timer.update(0.5f);
-  assert(isClose(timer.getProgress(), 0.5f));
+  assert(isClose(timer.progress(), 0.5f));
   timer.update(0.5f);
-  assert(isClose(timer.getProgress(), 1f));
+  assert(isClose(timer.progress(), 1f));
   // loopInclusive wraps on the next update after reaching 1.0.
   timer.update(0.25f);
-  assert(isClose(timer.getProgress(), 0.25f));
+  assert(isClose(timer.progress(), 0.25f));
   timer.update(0.9f);
-  assert(isClose(timer.getProgress(), 1f));
+  assert(isClose(timer.progress(), 1f));
   timer.update(0.2f);
-  assert(isClose(timer.getProgress(), 0.2f));
+  assert(isClose(timer.progress(), 0.2f));
 
   // loop stays in [0, 1) and preserves sub-frame overshoot.
   timer.start(1.0f, AnimationWrapMode.loop);
-  timer.setPause(false);
+  timer.paused(false);
   timer.update(0.5f);
-  assert(isClose(timer.getProgress(), 0.5f));
+  assert(isClose(timer.progress(), 0.5f));
   timer.update(0.75f);
-  assert(isClose(timer.getProgress(), 0.25f));
+  assert(isClose(timer.progress(), 0.25f));
 
   // once clamps to 1.0 and pauses.
   timer.start(1.0f, AnimationWrapMode.once);
-  timer.setPause(false);
+  timer.paused(false);
   timer.update(0.6f);
-  assert(isClose(timer.getProgress(), 0.6f));
+  assert(isClose(timer.progress(), 0.6f));
   timer.update(0.8f);
-  assert(isClose(timer.getProgress(), 1.0f));
+  assert(isClose(timer.progress(), 1.0f));
   timer.update(0.5f);
-  assert(isClose(timer.getProgress(), 1.0f));
+  assert(isClose(timer.progress(), 1.0f));
 
   // pingPong bounces 0 -> 1 -> 0.
   timer.start(1.0f, AnimationWrapMode.pingPong);
-  timer.setPause(false);
+  timer.paused(false);
   timer.update(0.5f);
-  assert(isClose(timer.getProgress(), 0.5f));
+  assert(isClose(timer.progress(), 0.5f));
   timer.update(0.5f);
-  assert(isClose(timer.getProgress(), 1.0f));
+  assert(isClose(timer.progress(), 1.0f));
   timer.update(0.5f);
-  assert(isClose(timer.getProgress(), 0.5f));
+  assert(isClose(timer.progress(), 0.5f));
   timer.update(0.5f);
-  assert(isClose(timer.getProgress(), 0.0f));
+  assert(isClose(timer.progress(), 0.0f));
 }
 
 unittest {
@@ -392,34 +392,34 @@ unittest {
 unittest {
   import std.math.operations : isClose;
 
-  // AnimationTimer stepTowards, isAtTarget, map, isPaused, setDuration.
+  // AnimationTimer stepTowards, isAtTarget, map, paused, duration.
   AnimationTimer t;
   t.start(1.0f, AnimationWrapMode.once);
-  assert(t.isPaused());
+  assert(t.paused());
   assert(t.isAtTarget(false));
   assert(!t.isAtTarget(true));
 
   t.stepTowards(0.4f, true);
-  assert(!t.isPaused());
-  assert(isClose(t.getProgress(), 0.4f));
+  assert(!t.paused());
+  assert(isClose(t.progress(), 0.4f));
   assert(isClose(t.map(0.2f, 1.0f), 0.52f));
 
   // Reverse mid-way back toward 0.
   t.stepTowards(0.2f, false);
-  assert(!t.isPaused());
-  assert(isClose(t.getProgress(), 0.2f));
+  assert(!t.paused());
+  assert(isClose(t.progress(), 0.2f));
   t.stepTowards(0.5f, false);
-  assert(t.isPaused());
+  assert(t.paused());
   assert(t.isAtTarget(false));
-  assert(isClose(t.getProgress(), 0.0f));
+  assert(isClose(t.progress(), 0.0f));
 
   // Forward to completion.
-  t.setDuration(0.5f);
-  assert(isClose(t.getDuration(), 0.5f));
+  t.duration(0.5f);
+  assert(isClose(t.duration(), 0.5f));
   t.stepTowards(0.5f, true);
-  assert(t.isPaused());
+  assert(t.paused());
   assert(t.isAtTarget(true));
-  assert(isClose(t.getProgress(), 1.0f));
+  assert(isClose(t.progress(), 1.0f));
 }
 
 unittest {

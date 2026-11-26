@@ -136,7 +136,7 @@ final class CanvasPage {
   }
 
   /// Returns whether the page is visible.
-  bool isVisible() const {
+  bool visible() const {
     return root.visible;
   }
 
@@ -180,11 +180,17 @@ private:
   /// Shows the slot 7 card selected by the model, hides the others.
   void syncSlot7() {
     const CanvasSlot7 s = tracker.model.slot7;
-    interopWidget.parent.setVisible(s == CanvasSlot7.interop);
-    imagesWidget.parent.setVisible(s == CanvasSlot7.images);
-    offscreenWidget.parent.setVisible(s == CanvasSlot7.offscreen);
-    patternsWidget.parent.setVisible(s == CanvasSlot7.patterns);
-    textWidget.parent.setVisible(s == CanvasSlot7.text);
+    void syncCard(Widget card, bool vis) {
+      if (card.visible != vis) {
+        card.visible = vis;
+        card.update(WidgetUpdateScope.layout);
+      }
+    }
+    syncCard(interopWidget.parent, s == CanvasSlot7.interop);
+    syncCard(imagesWidget.parent, s == CanvasSlot7.images);
+    syncCard(offscreenWidget.parent, s == CanvasSlot7.offscreen);
+    syncCard(patternsWidget.parent, s == CanvasSlot7.patterns);
+    syncCard(textWidget.parent, s == CanvasSlot7.text);
   }
 
   Widget addSection(

@@ -67,7 +67,7 @@ struct Axis {
   }
 
   /// Sets the cross-axis dimension of `sz` to `fixed(crossLen)`.
-  void setFixedCrossSize(Size sz, float crossLen) const {
+  void applyFixedCrossSize(Size sz, float crossLen) const {
     assert(sz !is null, "sz must not be null");
     if (isRow) {
       sz.height = Dimension(crossLen, SizingMode.fixed);
@@ -79,7 +79,7 @@ struct Axis {
   /// Creates a `Size` filling the main axis with fixed `crossLen` on cross.
   Size fillMainFixedCross(float crossLen) const {
     auto sz = fillMain();
-    setFixedCrossSize(sz, crossLen);
+    applyFixedCrossSize(sz, crossLen);
     return sz;
   }
 

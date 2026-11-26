@@ -202,7 +202,7 @@ unittest {
   assert(sanitizeSingleLine("SingleLine") == "SingleLine");
 
   import yguilib.clibs.sdl3 : yguilib_sdl3_init, yguilib_sdl3_quit;
-  import yguilib.widget.internal.text_label_cache : getLayoutLines;
+  import yguilib.widget.internal.text_label_cache : layoutLines;
   import yguilib.window : Window;
 
   yguilib_sdl3_init();
@@ -220,7 +220,7 @@ unittest {
 
   // Single line without overflow
   auto tl1 = new TextLabel("Hello", ColorF(1, 1, 1, 1));
-  auto lines1 = getLayoutLines(
+  auto lines1 = layoutLines(
     tl1.layoutCache, r, font, tl1.font,
     tl1.caption, tl1.multiline, tl1.overflowEllipsis,
     tl1.alignment, 200.0f, 100.0f
@@ -231,7 +231,7 @@ unittest {
 
   // Single line with newlines when multiline is false
   auto tlNewlines = new TextLabel("Hello\r\nWorld", ColorF(1, 1, 1, 1));
-  auto linesNewlines = getLayoutLines(
+  auto linesNewlines = layoutLines(
     tlNewlines.layoutCache, r, font, tlNewlines.font,
     tlNewlines.caption, tlNewlines.multiline, tlNewlines.overflowEllipsis,
     tlNewlines.alignment, 200.0f, 100.0f
@@ -247,7 +247,7 @@ unittest {
     "Long text that should overflow",
     ColorF(1, 1, 1, 1)
   );
-  auto linesOverflow = getLayoutLines(
+  auto linesOverflow = layoutLines(
     tlOverflow.layoutCache, r, font, tlOverflow.font,
     tlOverflow.caption, tlOverflow.multiline, tlOverflow.overflowEllipsis,
     tlOverflow.alignment, fullW * 0.5f, 100.0f
@@ -259,7 +259,7 @@ unittest {
 
   // Single line with overflowEllipsis == false
   tlOverflow.overflowEllipsis = false;
-  auto linesNoEllipsis = getLayoutLines(
+  auto linesNoEllipsis = layoutLines(
     tlOverflow.layoutCache, r, font, tlOverflow.font,
     tlOverflow.caption, tlOverflow.multiline, tlOverflow.overflowEllipsis,
     tlOverflow.alignment, fullW * 0.5f, 100.0f
@@ -270,7 +270,7 @@ unittest {
   // Alignment: left, center, right
   auto tlAlign = new TextLabel("Centered", ColorF(1, 1, 1, 1));
   tlAlign.alignment = TextLabel.Alignment.center;
-  auto linesCenter = getLayoutLines(
+  auto linesCenter = layoutLines(
     tlAlign.layoutCache, r, font, tlAlign.font,
     tlAlign.caption, tlAlign.multiline, tlAlign.overflowEllipsis,
     tlAlign.alignment, 200.0f, 100.0f
@@ -280,7 +280,7 @@ unittest {
   assert(linesCenter[0].xOffset == expectedCenter);
 
   tlAlign.alignment = TextLabel.Alignment.right;
-  auto linesRight = getLayoutLines(
+  auto linesRight = layoutLines(
     tlAlign.layoutCache, r, font, tlAlign.font,
     tlAlign.caption, tlAlign.multiline, tlAlign.overflowEllipsis,
     tlAlign.alignment, 200.0f, 100.0f
@@ -292,7 +292,7 @@ unittest {
   // Multiline: explicit breaks
   auto tlMulti = new TextLabel("Line 1\nLine 2\r\nLine 3", ColorF(1, 1, 1, 1));
   tlMulti.multiline = true;
-  auto linesMulti = getLayoutLines(
+  auto linesMulti = layoutLines(
     tlMulti.layoutCache, r, font, tlMulti.font,
     tlMulti.caption, tlMulti.multiline, tlMulti.overflowEllipsis,
     tlMulti.alignment, 200.0f, 100.0f
@@ -309,7 +309,7 @@ unittest {
   );
   tlWrap.multiline = true;
   const float wrapW = r.measureTextWithFont("Word one word two", font).x + 5.0f;
-  auto linesWrap = getLayoutLines(
+  auto linesWrap = layoutLines(
     tlWrap.layoutCache, r, font, tlWrap.font,
     tlWrap.caption, tlWrap.multiline, tlWrap.overflowEllipsis,
     tlWrap.alignment, wrapW, 500.0f
@@ -326,7 +326,7 @@ unittest {
   float firstLineH = r.measureTextWithFont("A", font).y;
   // Fit exactly 2 lines
   float limitH = lineStep + firstLineH + 2.0f;
-  auto linesVertTrunc = getLayoutLines(
+  auto linesVertTrunc = layoutLines(
     tlMulti.layoutCache, r, font, tlMulti.font,
     tlMulti.caption, tlMulti.multiline, tlMulti.overflowEllipsis,
     tlMulti.alignment, 200.0f, limitH
@@ -336,7 +336,7 @@ unittest {
 
   // Multiline: vertical truncation with overflowEllipsis == false
   tlMulti.overflowEllipsis = false;
-  auto linesVertNoTrunc = getLayoutLines(
+  auto linesVertNoTrunc = layoutLines(
     tlMulti.layoutCache, r, font, tlMulti.font,
     tlMulti.caption, tlMulti.multiline, tlMulti.overflowEllipsis,
     tlMulti.alignment, 200.0f, limitH
@@ -346,12 +346,12 @@ unittest {
 
   // Test layoutLines caching
   auto tlCache = new TextLabel("Cached line", ColorF(1, 1, 1, 1));
-  auto linesC1 = getLayoutLines(
+  auto linesC1 = layoutLines(
     tlCache.layoutCache, r, font, tlCache.font,
     tlCache.caption, tlCache.multiline, tlCache.overflowEllipsis,
     tlCache.alignment, 200.0f, 100.0f
   );
-  auto linesC2 = getLayoutLines(
+  auto linesC2 = layoutLines(
     tlCache.layoutCache, r, font, tlCache.font,
     tlCache.caption, tlCache.multiline, tlCache.overflowEllipsis,
     tlCache.alignment, 200.0f, 100.0f
@@ -360,7 +360,7 @@ unittest {
 
   // Changing caption invalidates cache
   tlCache.caption = "Updated line";
-  auto linesC3 = getLayoutLines(
+  auto linesC3 = layoutLines(
     tlCache.layoutCache, r, font, tlCache.font,
     tlCache.caption, tlCache.multiline, tlCache.overflowEllipsis,
     tlCache.alignment, 200.0f, 100.0f

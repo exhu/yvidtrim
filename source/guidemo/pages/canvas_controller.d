@@ -220,7 +220,7 @@ unittest {
   }
 
   // Page hidden: no timer, [Space] not consumed
-  assert(!page.isVisible());
+  assert(!page.visible());
   assert(!ui.isTimerActive(ctrl.animTimerId));
   auto hrHidden = ctrl.handleEvent(makeKeyDown(Keycode.space, Scancode.space));
   assert(!hrHidden.consume);
@@ -232,7 +232,7 @@ unittest {
   demoTracker.commit(dm);
   assert(ctrl.update());
   ctrl.updateView();
-  assert(page.isVisible());
+  assert(page.visible());
   assert(ui.isTimerActive(ctrl.animTimerId));
   assert(ctrl.onTimer(ctrl.animTimerId, 0.5f));
   assert(pageTracker.model.dashOffset > 0);

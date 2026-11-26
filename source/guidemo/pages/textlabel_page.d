@@ -67,8 +67,13 @@ final class TextLabelPage {
       }
     }
 
-    if (interactiveStatusWidget !is null) {
-      interactiveStatusWidget.setCaption(formatInteractiveStatus(m));
+    if (interactiveStatusWidget !is null &&
+        interactiveStatusWidget.components.textLabel !is null) {
+      const string status = formatInteractiveStatus(m);
+      if (interactiveStatusWidget.components.textLabel.caption != status) {
+        interactiveStatusWidget.components.textLabel.caption = status;
+        interactiveStatusWidget.update(WidgetUpdateScope.content);
+      }
     }
   }
 
@@ -94,12 +99,15 @@ final class TextLabelPage {
   }
 
   /// Shows or hides the page.
-  void setVisible(bool visible) {
-    root.setVisible(visible);
+  void visible(bool visible) {
+    if (root.visible != visible) {
+      root.visible = visible;
+      root.update(WidgetUpdateScope.layout);
+    }
   }
 
   /// Returns whether the page is visible.
-  bool isVisible() const {
+  bool visible() const {
     return root.visible;
   }
 

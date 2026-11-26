@@ -791,7 +791,7 @@ final class WidgetBuilder {
   Widget build() {
     if (ViewComponent v = fWidget.components.view) {
       if (v.widgetViewName.length > 0 && fUi.widgetViews !is null) {
-        if (WidgetView wv = fUi.widgetViews.getByName(v.widgetViewName)) {
+        if (WidgetView wv = fUi.widgetViews.findByName(v.widgetViewName)) {
           wv.registerViewWidget(fWidget);
         }
       }
@@ -1038,12 +1038,12 @@ unittest {
 
   // Automatic WidgetView registration via viewName + UiSystem
   final class TestWidgetView : WidgetViewBase {
-    override string getWidgetViewName() {
+    override string widgetViewName() {
       return "TestViewName";
     }
   }
   auto testView = new TestWidgetView();
-  ui.widgetViews.register(testView.getWidgetViewName(), testView);
+  ui.widgetViews.register(testView.widgetViewName(), testView);
 
   auto viewRoot = WidgetBuilder.make(ui)
     .name("viewRoot")

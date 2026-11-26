@@ -145,7 +145,7 @@ protected:
   }
 
   /// Sets execution priority within a phase (lower runs earlier).
-  void setPriority(int priority) nothrow @safe {
+  @property void priority(int priority) nothrow @safe {
     fPriority = priority;
   }
 
@@ -200,7 +200,7 @@ protected:
 unittest {
   final class TestSystem : WidgetSystem {
     this(int priority) nothrow @safe {
-      setPriority(priority);
+      this.priority = priority;
     }
   }
 
