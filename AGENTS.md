@@ -77,6 +77,9 @@ std.logger goes to SDL; enable with e.g.
 ## Planning
 - Plans live in `plans/`: overview `plans/<name>.md` linking verifiable
   phase files `plans/<name>-01.md` ... `-NN.md`, sized to fit context.
+  Phase files never use a `-ph` infix (no `-ph01`), even if archived
+  plans do.
+- Do not read `plans/archive/` unless the user asks for it.
 - Run each phase in a fresh subagent given only its phase file; update the
   overview's status after each phase.
 - Ask about missing/unclear info; for multiple options, recommend one.
