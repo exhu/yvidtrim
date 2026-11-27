@@ -317,6 +317,9 @@ use `makeHeadlessUiSystem()` with `WidgetBuilder`. Migrate `yguilib` hits from
 `--tests` before changing constructor signatures.
 
 ```d
+import yguilib.render.render_types : ColorF, RectF;
+import yguilib.widget.drawing_components : Background;
+import yguilib.widget.layout_components : AlignItems, JustifyContent;
 import yguilib.widget.test_fixture : WidgetFixture;
 
 unittest {

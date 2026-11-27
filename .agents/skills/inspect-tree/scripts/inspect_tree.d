@@ -137,7 +137,8 @@ bool isIgnoredDir(string name, bool includeAll) {
   if (includeAll) {
     return false;
   }
-  return name == "_build" || name == ".git" || name == ".dub"
+  return name == "_build" || name == "_bench" || name == ".git"
+    || name == ".dub"
     || name == ".subprojects" || name == ".cache";
 }
 
@@ -296,7 +297,11 @@ size_t countLines(string content) {
       count++;
     }
   }
-  return count > 0 || content.length > 0 ? count + 1 : 0;
+  // Count a final line that has no trailing newline.
+  if (content.length > 0 && content[$ - 1] != '\n') {
+    count++;
+  }
+  return count;
 }
 
 string extractDModuleName(string content, string relPath) {

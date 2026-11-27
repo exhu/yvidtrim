@@ -19,9 +19,12 @@ rdmd .agents/skills/search-code/scripts/search_code.d [options] [paths...]
 ```
 
 When `[paths...]` is omitted, searches `source`, `yguilib/source`,
-`yguilib/examples`, and `yguilib/benchmarks`. Add `--include-docs`,
-`--include-skills`, or `--include-plans` to include `documentation/`,
-`.agents/skills/`, or `plans/` in the default roots.
+`yguilib/examples`, `yguilib/benchmarks`, `yvidtrim-clibs`, and
+`yguilib/yguilib-clibs`. Add `--include-docs`, `--include-skills`, or
+`--include-plans` to include `documentation/`, `.agents/skills/`, or `plans/`
+in the default roots. Root files such as `meson.build` and `ARCHITECTURE.md`
+are searched only when passed as paths. A path that does not exist is an
+error (exit `2`).
 
 ## Features
 

@@ -10,9 +10,10 @@ module manage_assets;
 
 import std.algorithm : canFind, endsWith, startsWith;
 import std.conv : to;
-import std.file : dirEntries, exists, isDir, isFile, readText, SpanMode, write;
+import std.file : dirEntries, exists, isDir, isFile, mkdirRecurse, readText,
+  SpanMode, write;
 import std.getopt : defaultGetoptPrinter, getopt, GetoptResult;
-import std.path : baseName, buildPath, dirName, extension, relativePath;
+import std.path : baseName, buildPath, dirName, extension;
 import std.regex : ctRegex, matchAll, matchFirst;
 import std.stdio : stderr, writeln, writefln;
 import std.string : replace, splitLines, strip;
@@ -57,20 +58,26 @@ void checkAssetPlacements(ref size_t errorCount) {
   }
 }
 
-void checkStringImports(ref size_t errorCount) {
-  string[] assetsFiles = [
-    "yguilib/source/yguilib/internal/assets.d",
-    "yguilib/source/yguilib/assets.d",
-    "source/yvidtrim/internal/assets.d",
-    "source/yvidtrim/assets.d"
-  ];
-
-  auto importRe = ctRegex!(`import\s*\(\s*"([^"]+)"\s*\)`);
-
-  foreach (af; assetsFiles) {
-    if (!exists(af)) {
+/** Every `assets.d` module under the D source roots. */
+string[] findAssetModules() {
+  string[] found;
+  foreach (root; ["source", "yguilib/source"]) {
+    if (!exists(root) || !isDir(root)) {
       continue;
     }
+    foreach (entry; dirEntries(root, SpanMode.depth)) {
+      if (entry.isFile && baseName(entry.name) == "assets.d") {
+        found ~= entry.name;
+      }
+    }
+  }
+  return found;
+}
+
+void checkStringImports(ref size_t errorCount) {
+  auto importRe = ctRegex!(`import\s*\(\s*"([^"]+)"\s*\)`);
+
+  foreach (af; findAssetModules()) {
     string content = readText(af);
     foreach (m; matchAll(content, importRe)) {
       string relAsset = m[1];
@@ -110,6 +117,16 @@ int generateImports(string pkgName, bool dryRun) {
     return 1;
   }
 
+  string targetPath = pkgName == "yguilib"
+    ? "yguilib/source/yguilib/internal/assets.d"
+    : "source/" ~ pkgName ~ "/internal/assets.d";
+  // Asset modules are hand-edited (e.g. shader composition); never clobber.
+  if (!dryRun && exists(targetPath)) {
+    stderr.writefln("Error: %s already exists; not overwriting. Use "
+      ~ "--dry-run and merge the new lines by hand.", targetPath);
+    return 1;
+  }
+
   string modName = pkgName == "yguilib"
     ? "yguilib.internal.assets"
     : pkgName ~ ".internal.assets";
@@ -119,7 +136,8 @@ int generateImports(string pkgName, bool dryRun) {
 
   foreach (entry; dirEntries(assetDir, SpanMode.depth)) {
     if (entry.isFile) {
-      string relPath = relativePath(entry.name, dirName(assetDir));
+      // Import paths are relative to the asset root (a d_import_dirs entry).
+      string relPath = entry.name[dirName(assetDir).length + 1 .. $];
       string varName = toCamelCaseIdentifier(entry.name);
       outContent ~= "enum string " ~ varName ~ "Source =\n  import(\""
         ~ relPath ~ "\");\n\n";
@@ -131,9 +149,7 @@ int generateImports(string pkgName, bool dryRun) {
     writeln(outContent);
     writeln("----------------------");
   } else {
-    string targetPath = pkgName == "yguilib"
-      ? "yguilib/source/yguilib/internal/assets.d"
-      : "source/" ~ pkgName ~ "/internal/assets.d";
+    mkdirRecurse(dirName(targetPath));
     write(targetPath, outContent);
     writefln("Successfully generated string imports in %s", targetPath);
   }

@@ -37,8 +37,8 @@ rdmd .agents/skills/inspect-tree/scripts/inspect_tree.d [options] [path...]
   `subprojects/*.wrap`, and `dub.json` files with project context.
 - **Documentation Indexing**: Finds `*.md`, `*.adoc`, and text documents,
   extracting top-level titles for quick context scanning.
-- **Clean Filtering**: Ignores build outputs (`_build/`, `.dub/`, `.git/`,
-  `.cache/`) by default.
+- **Clean Filtering**: Ignores build outputs (`_build/`, `_bench/`, `.dub/`,
+  `.git/`, `.cache/`) by default.
 - **Multiple Output Formats**: Supports categorized lists, summary tables,
   hierarchical paths, and structured JSON output.
 
@@ -92,6 +92,6 @@ rdmd .agents/skills/inspect-tree/scripts/inspect_tree.d -j source/guidemo/
 - `-t, --tree`: Display file list in a concise hierarchy format.
 - `-s, --summary`: Display high-level summary counts table only.
 - `-j, --json`: Output structured JSON array.
-- `-a, --all`: Include ignored directories (`_build/`, `.git/`, `.cache/`).
+- `-a, --all`: Include ignored directories (`_build/`, `_bench/`, `.git/`).
 - `--max-depth <N>`: Maximum directory recursion depth (default: 20).
 - `-h, --help`: Display help and usage options.

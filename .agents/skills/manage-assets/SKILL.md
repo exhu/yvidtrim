@@ -27,8 +27,8 @@ rdmd .agents/skills/manage-assets/scripts/manage_assets.d [options]
    `yguilib/assets/yguilib/shaders/`). This prevents name collisions when a
    program and a library use identically named assets.
 2. **String Import Integrity**:
-   Verifies that all `import("...")` expressions in `assets.d` or
-   `internal/assets.d` refer to real files that exist on disk.
+   Verifies that all `import("...")` expressions in every `assets.d` under
+   `source/` and `yguilib/source/` refer to real files that exist on disk.
 3. **Meson String Import Directories**:
    Verifies that `d_import_dirs` in `meson.build` points to the asset roots so
    the D compiler can resolve string imports.
@@ -47,8 +47,13 @@ rdmd .agents/skills/manage-assets/scripts/manage_assets.d \
 ```
 
 ### Generate `internal/assets.d`
+Only for a package that has no `internal/assets.d` yet; an existing file is
+never overwritten. For an existing one, use `--dry-run` and copy the new lines
+by hand. The generator imports every file in the asset directory, so remove
+unwanted ones (such as license text).
+
 ```bash
-rdmd .agents/skills/manage-assets/scripts/manage_assets.d --generate yguilib
+rdmd .agents/skills/manage-assets/scripts/manage_assets.d --generate <pkg>
 ```
 
 ## Options

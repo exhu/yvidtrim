@@ -101,6 +101,12 @@ dep_<libname> = dependency('<pkg_name>')
   link_with : <proj>_<libname>_lib,
 )
 test('<proj>_<libname>', <proj>_<libname>_test)
+
+<proj>_<libname>_dep = declare_dependency(
+  link_with : <proj>_<libname>_lib,
+  include_directories : include_directories('.'),
+  dependencies : [dep_<libname>],
+)
 ```
 
 ### 5. Write Matching D Bindings
@@ -110,10 +116,14 @@ Edit `source/<proj>/clibs/<libname>.d`:
 - Declare matching `extern(C)` functions.
 
 ### 6. Link in Meson
-- In `meson.build` (or `yguilib/meson.build` for `yguilib`):
-  - Add the D binding file to the relevant source list (`yvidtrim_src` or
-    `yguilib_src`).
-  - Add `<proj>_<libname>_lib` to the `link_with` list of the executable/test.
+Consumers link through `<proj>_<libname>_dep`. Linking the library only into
+a test executable builds and passes tests, then fails to link as soon as
+application code calls the wrapper.
+- `yguilib`: in `yguilib/meson.build`, add the D binding to `yguilib_src` and
+  `<proj>_<libname>_dep` to `yguilib_deps`.
+- `yvidtrim`: in the root `meson.build`, add the D binding to
+  `yvidtrim_lib_src` (shared by the app and its tests) and the dep to the
+  `dependencies` of both the `yvidtrim` executable and `yvidtrim_test_exe`.
 - `dub.json` is for IDE/LSP only and needs no change: its `sourcePaths`
   already pick up the new module. Never run `dub`.
 

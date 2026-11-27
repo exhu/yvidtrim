@@ -2,7 +2,7 @@
 module scaffold;
 
 import std.algorithm : canFind, all;
-import std.ascii : isAlphaNum, isLower;
+import std.ascii : isDigit, isLower;
 import std.file : exists, mkdirRecurse, write;
 import std.getopt : defaultGetoptPrinter, getopt, GetoptResult;
 import std.path : buildPath, dirName;
@@ -56,8 +56,8 @@ int main(string[] args) {
 
   if (!isValidLibName(cfg.libName)) {
     stderr.writefln(
-      "Error: <libname> '%s' must contain only lowercase letters, " ~
-      "numbers, and underscores.",
+      "Error: <libname> '%s' must start with a lowercase letter and " ~
+      "contain only lowercase letters, numbers, and underscores.",
       cfg.libName,
     );
     return 1;
@@ -71,8 +71,9 @@ int main(string[] args) {
 }
 
 bool isValidLibName(string name) {
-  if (name.length == 0) return false;
-  return name.all!(c => isLower(c) || isAlphaNum(c) || c == '_');
+  // Starts with a letter: it becomes the D module name `<proj>.clibs.<name>`.
+  if (name.length == 0 || !isLower(name[0])) return false;
+  return name.all!(c => isLower(c) || isDigit(c) || c == '_');
 }
 
 int runScaffold(const ref Config cfg) {
@@ -204,9 +205,10 @@ void printMesonInstructions(
 ) {
   string libTarget = prefix ~ "_lib";
   string testExe = prefix ~ "_test";
+  string depVar = prefix ~ "_dep";
 
   writefln("\n=== Next Steps ===");
-  writefln("1. Add the static library and test in %s/meson.build:", cDir);
+  writefln("1. Append to %s/meson.build:", cDir);
   writeln("------------------------------------------------------------");
   writefln(
     "dep_%s = dependency('%s')\n\n" ~
@@ -223,43 +225,43 @@ void printMesonInstructions(
     "  dependencies : [dep_%s],\n" ~
     "  link_with : %s,\n" ~
     ")\n" ~
-    "test('%s', %s)",
-    cfg.libName,
-    cfg.depName,
-    libTarget,
-    prefix,
-    prefix,
-    cfg.libName,
-    testExe,
-    testExe,
-    prefix,
-    cfg.libName,
-    libTarget,
-    prefix,
-    testExe,
+    "test('%s', %s)\n\n" ~
+    "%s = declare_dependency(\n" ~
+    "  link_with : %s,\n" ~
+    "  include_directories : include_directories('.'),\n" ~
+    "  dependencies : [dep_%s],\n" ~
+    ")",
+    cfg.libName, cfg.depName,
+    libTarget, prefix, prefix, cfg.libName,
+    testExe, testExe, prefix, cfg.libName, libTarget,
+    prefix, testExe,
+    depVar, libTarget, cfg.libName,
   );
   writeln("------------------------------------------------------------");
   if (cfg.proj == "yguilib") {
     writefln(
-      "2. Add 'source/yguilib/clibs/%s.d' to yguilib_src in " ~
-      "yguilib/meson.build.",
+      "2. In yguilib/meson.build, add 'source/yguilib/clibs/%s.d' to " ~
+      "yguilib_src.",
       cfg.libName,
     );
     writefln(
-      "3. Link '%s' into yguilib_test in yguilib/meson.build " ~
-      "(and root meson.build if used by yvidtrim).",
-      libTarget,
+      "3. In yguilib/meson.build, add %s to yguilib_deps, so every " ~
+      "consumer of yguilib_dep links it.",
+      depVar,
     );
   } else {
     writefln(
-      "2. Add 'source/%s/clibs/%s.d' to %s_src in root meson.build.",
-      cfg.proj,
-      cfg.libName,
-      cfg.proj,
+      "2. In the root meson.build, add 'source/%s/clibs/%s.d' to " ~
+      "%s_lib_src.",
+      cfg.proj, cfg.libName, cfg.proj,
     );
-    writefln("3. Link '%s' into executable in root meson.build.", libTarget);
+    writefln(
+      "3. Add %s to the dependencies of both the %s executable and " ~
+      "%s_test_exe.",
+      depVar, cfg.proj, cfg.proj,
+    );
   }
   writeln("4. Run verification:");
   writeln("   rdmd .agents/skills/build-and-test/scripts/run_verify.d " ~
-    "--reconfigure");
+    "--reconfigure --checks");
 }

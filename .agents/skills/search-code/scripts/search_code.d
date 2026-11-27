@@ -83,7 +83,8 @@ void walkDir(string dir, bool includeArchive, ref string[] files) {
 
 string[] defaultSearchRoots(const Options opts) {
   string[] roots = [
-    "source", "yguilib/source", "yguilib/examples", "yguilib/benchmarks"
+    "source", "yguilib/source", "yguilib/examples", "yguilib/benchmarks",
+    "yvidtrim-clibs", "yguilib/yguilib-clibs"
   ];
   if (opts.includeDocs) {
     roots ~= "documentation";
@@ -106,9 +107,6 @@ string[] collectSearchFiles(const Options opts, string[] explicitPaths) {
   string[] files;
   foreach (r; roots) {
     if (!exists(r)) {
-      if (explicitPaths.length > 0) {
-        stderr.writefln("Warning: path not found: %s", r);
-      }
       continue;
     }
     if (isDir(r)) {
@@ -279,6 +277,13 @@ int main(string[] args) {
     return helpInfo.helpWanted ? 0 : 2;
   }
 
+  // A mistyped path must not look like a successful zero-match search.
+  foreach (path; paths) {
+    if (!exists(path)) {
+      stderr.writefln("Error: path not found: %s", path);
+      return 2;
+    }
+  }
   string[] files = collectSearchFiles(opts, paths);
   SearchMatch[] matches;
   FileCount[] counts;
