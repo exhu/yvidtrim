@@ -71,11 +71,10 @@ final class WidgetSystemPipeline {
     return null;
   }
 
-  // TODO call it when window is closed
   /// Notifies all registered systems that a window has closed.
   void notifyWindowClosed(Window window) {
     assert(window !is null);
-    foreach (s; systems[]) {
+    foreach (s; systems[].dup) {
       s.onWindowClosed(window);
     }
   }
@@ -86,12 +85,9 @@ final class WidgetSystemPipeline {
     if (w is null) {
       return;
     }
-    import std.algorithm.mutation : remove;
-    fLastVisibleWidgets = fLastVisibleWidgets.remove!(
-      vw => vw.widget is w
-    );
+    fLastVisibleWidgets = null;
     collector.clearBuffer();
-    foreach (s; systems[]) {
+    foreach (s; systems[].dup) {
       s.onWidgetReleased(w);
     }
   }
@@ -148,24 +144,23 @@ final class WidgetSystemPipeline {
   /// a frame was rendered. A pending `Window.requestScreenshot` is saved
   /// after the render and before the swap.
   void updateAndRender(Window window) {
-    if (window is null) {
+    if (window is null || window.rootWidget is null ||
+        window.renderer is null) {
       return;
     }
-    if (window.rootWidget !is null && window.renderer !is null) {
-      if (!updateAndRenderTree(window)) {
-        if (window.hasPendingScreenshot()) {
-          import std.logger : tracef;
-
-          tracef("Screenshot pending, but no frame rendered; waiting");
-        }
-        return;
-      }
+    if (!updateAndRenderTree(window)) {
       if (window.hasPendingScreenshot()) {
         import std.logger : tracef;
 
-        tracef("Saving pending screenshot after render");
-        saveScreenshot(window.renderer, window.takePendingScreenshotPath());
+        tracef("Screenshot pending, but no frame rendered; waiting");
       }
+      return;
+    }
+    if (window.hasPendingScreenshot()) {
+      import std.logger : tracef;
+
+      tracef("Saving pending screenshot after render");
+      saveScreenshot(window.renderer, window.takePendingScreenshotPath());
     }
     window.swapBuffers();
   }
@@ -204,7 +199,8 @@ private:
     WidgetSystemContext ctx = makeContext(window);
     assert(ctx.root !is null);
     assert(ctx.renderer !is null);
-    if (fLastVisibleWidgets.length == 0 || ctx.root.isTreeLayoutDirty()) {
+    if (preLayoutSystems.length > 0 &&
+        (fLastVisibleWidgets.length == 0 || ctx.root.isTreeLayoutDirty())) {
       fLastVisibleWidgets = collector.collectVisibleWithRenderer(
         ctx.root,
         ctx.renderer,
@@ -283,7 +279,6 @@ private:
       if (i < oldRects.length && vw.widget.rect != oldRects[i]) {
         vw.widget.dirty = true;
       }
-      vw.widget.layoutDirty = false;
     }
     clearTreeLayoutDirty(root);
   }
@@ -293,15 +288,13 @@ private:
       return;
     }
     w.layoutDirty = false;
+    w.subtreeLayoutDirty = false;
     foreach (child; w.children) {
       clearTreeLayoutDirty(child);
     }
   }
 
   static void clearDirtyAfterRender(Widget root, VisibleWidgets visible) {
-    foreach (ref vw; visible) {
-      vw.widget.dirty = false;
-    }
     clearTreeDirty(root);
   }
 
@@ -310,6 +303,7 @@ private:
       return;
     }
     w.dirty = false;
+    w.subtreeDirty = false;
     foreach (child; w.children) {
       clearTreeDirty(child);
     }
@@ -365,56 +359,21 @@ private:
 
 version (unittest) {
 private:
-  import yguilib.object_registry : ObjectRegistry;
   import yguilib.timercontrol : invalidTimerId;
-  import yguilib.timers : TimerMode;
-  import yguilib.widget.widget_view : WidgetView, WidgetViewController;
-
-  class DummyHost : WidgetSystemHost {
-    AppEvent[] sentEvents;
-    ObjectRegistry!WidgetViewController dummyControllers;
-    ObjectRegistry!WidgetView dummyViews;
-
-    this() {
-      dummyControllers = new ObjectRegistry!WidgetViewController();
-      dummyViews = new ObjectRegistry!WidgetView();
-    }
-
-    override void sendAppEvent(AppEvent ev) {
-      sentEvents ~= ev;
-    }
-
-    override TimerId startTimer(
-      Object owner,
-      uint intervalMs,
-      TimerMode mode
-    ) {
-      return invalidTimerId;
-    }
-
-    override void stopTimer(TimerId id) {}
-
-    override bool isTimerActive(TimerId id) const {
-      return false;
-    }
-
-    override @property
-    ObjectRegistry!WidgetViewController widgetViewControllers() {
-      return dummyControllers;
-    }
-
-    override @property ObjectRegistry!WidgetView widgetViews() {
-      return dummyViews;
-    }
-  }
+  import yguilib.widget.test_fixture : DummyHost = MockWidgetSystemHost;
 
   static string[] executionLog;
 
   class PriorityTestSystem : WidgetSystem {
     string name;
+    int fPrio;
     this(string name, int priority) nothrow @safe {
-      this.priority = priority;
+      fPrio = priority;
       this.name = name;
+    }
+
+    override @property int priority() const nothrow @safe {
+      return fPrio;
     }
 
     override @property SystemPhase phases() const nothrow @safe {
@@ -466,14 +425,19 @@ unittest {
 // Verifies event consumption and view update aggregation.
 unittest {
   final class EvSys : WidgetSystem {
+    int fPrio;
     bool consumed;
     bool requestUpdate;
     bool wasCalled;
 
     this(int priority, bool consumed, bool requestUpdate) nothrow @safe {
-      this.priority = priority;
+      fPrio = priority;
       this.consumed = consumed;
       this.requestUpdate = requestUpdate;
+    }
+
+    override @property int priority() const nothrow @safe {
+      return fPrio;
     }
 
     override @property SystemPhase phases() const nothrow @safe {
@@ -538,7 +502,10 @@ unittest {
 
   final class CustomPhaseSystem : WidgetSystem {
     this() nothrow @safe {
-      priority(100);
+    }
+
+    override @property int priority() const nothrow @safe {
+      return 100;
     }
 
     override @property SystemPhase phases() const nothrow @safe {
@@ -754,4 +721,82 @@ unittest {
   assert(otherSys.timerCalls == 1);
   assert(otherSys.lastId == 9);
   assert(isClose(otherSys.lastDt, 0.032f));
+}
+
+// Verifies notifyWidgetReleased, notifyWindowClosed, findSystemByType, and
+// ctx.unclippedWidgets preservation in postLayout.
+unittest {
+  import yguilib.clibs.sdl3 : yguilib_sdl3_init, yguilib_sdl3_quit;
+
+  yguilib_sdl3_init();
+  scope (exit) yguilib_sdl3_quit();
+
+  auto win = new Window(320, 240, "test_pipeline_lifecycle");
+  win.create();
+  scope (exit) win.destroy();
+
+  auto host = new DummyHost;
+  auto pipeline = new WidgetSystemPipeline(host);
+
+  final class LifecycleSystem : WidgetSystem {
+    Window closedWin;
+    Widget releasedWidget;
+    size_t postLayoutUnclippedCount = 0;
+    bool postLayoutHasUnclipped = false;
+    WidgetSystemPipeline owner;
+
+    override @property SystemPhase phases() const nothrow @safe {
+      return SystemPhase.postLayout;
+    }
+
+    override void onWindowClosed(Window window) {
+      closedWin = window;
+      // Verify snapshot safety if a system unregisters itself during callback
+      if (owner !is null) {
+        owner.unregisterSystem(this);
+      }
+    }
+
+    override void onWidgetReleased(Widget w) {
+      releasedWidget = w;
+    }
+
+    override void postLayout(ref WidgetSystemContext ctx) {
+      postLayoutUnclippedCount = ctx.unclippedWidgets.length;
+      postLayoutHasUnclipped = ctx.unclippedWidgets.length > 0 &&
+        !ctx.unclippedWidgets[1].hasClip;
+    }
+  }
+
+  auto sys = new LifecycleSystem();
+  sys.owner = pipeline;
+  pipeline.registerSystem(sys);
+
+  // findSystemByType
+  assert(pipeline.findSystemByType(typeid(LifecycleSystem)) is sys);
+  assert(pipeline.findSystemByType(typeid(PriorityTestSystem)) is null);
+
+  auto root = new Widget(1);
+  root.rect = RectF(0, 0, 320, 240);
+  root.clipChildren = true;
+  auto child = new Widget(2);
+  child.rect = RectF(10, 10, 50, 50);
+  root.addChild(child);
+  win.rootWidget = root;
+
+  assert(pipeline.updateAndRenderTree(win));
+  assert(sys.postLayoutUnclippedCount == 2);
+  assert(sys.postLayoutHasUnclipped);
+  assert(pipeline.lastVisibleWidgets.length == 2);
+  assert(pipeline.lastVisibleWidgets[1].hasClip);
+
+  // notifyWidgetReleased purges cached visible widgets and notifies systems
+  pipeline.notifyWidgetReleased(child);
+  assert(sys.releasedWidget is child);
+  assert(pipeline.lastVisibleWidgets.length == 0);
+
+  // notifyWindowClosed iterates snapshot safely even when system unregisters
+  pipeline.notifyWindowClosed(win);
+  assert(sys.closedWin is win);
+  assert(pipeline.findSystemByType(typeid(LifecycleSystem)) is null);
 }

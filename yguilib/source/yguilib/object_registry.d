@@ -8,18 +8,22 @@ final class ObjectRegistry(T) if (is(T == class) || is(T == interface)) {
     return null;
   }
   bool register(string name, T obj) {
-    assert(name !in objMap);
-    if (name in objMap)
+    assert(obj !is null, "obj must not be null");
+    if (name in objMap) {
+      assert(false, "duplicate object registration");
       return false;
+    }
 
     objMap[name] = obj;
     return true;
   }
 
   bool unregister(string name, T obj) {
-    if (name in objMap && cast(Object) objMap[name] is cast(Object) obj) {
-      objMap.remove(name);
-      return true;
+    if (auto p = name in objMap) {
+      if (cast(Object) *p is cast(Object) obj) {
+        objMap.remove(name);
+        return true;
+      }
     }
     return false;
   }
@@ -95,12 +99,12 @@ unittest {
     int id();
   }
   static class Impl : DummyInterface {
-    int _id;
+    int fId;
     this(int id) {
-      _id = id;
+      fId = id;
     }
     int id() {
-      return _id;
+      return fId;
     }
   }
 
@@ -114,7 +118,7 @@ unittest {
   assert(ifaceRegistry.unregister("first", iface1));
   assert(ifaceRegistry.findByName("first") is null);
 
-  // Test opApply iteration
+  // Test opApply iteration (1-arg, 2-arg, and early break)
   auto iterRegistry = new ObjectRegistry!Dummy();
   iterRegistry.register("a", new Dummy(100));
   iterRegistry.register("b", new Dummy(200));
@@ -126,4 +130,27 @@ unittest {
   }
   assert(count == 2);
   assert(sum == 300);
+
+  int breakCount = 0;
+  foreach (item; iterRegistry) {
+    breakCount++;
+    break;
+  }
+  assert(breakCount == 1);
+
+  int twoArgSum = 0;
+  size_t nameLenSum = 0;
+  foreach (name, item; iterRegistry) {
+    nameLenSum += name.length;
+    twoArgSum += item.id;
+  }
+  assert(nameLenSum == 2);
+  assert(twoArgSum == 300);
+
+  int twoArgBreakCount = 0;
+  foreach (name, item; iterRegistry) {
+    twoArgBreakCount++;
+    break;
+  }
+  assert(twoArgBreakCount == 1);
 }

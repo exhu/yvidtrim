@@ -21,7 +21,10 @@ import yguilib.widget.system : SystemPhase, WidgetSystem,
  */
 final class DebugDrawSystem : WidgetSystem {
   this() nothrow @safe {
-    priority(debugDrawSystemPriority);
+  }
+
+  override @property int priority() const nothrow @safe {
+    return debugDrawSystemPriority;
   }
 
   override @property SystemPhase phases() const nothrow @safe {
@@ -37,33 +40,33 @@ final class DebugDrawSystem : WidgetSystem {
 
 package(yguilib):
   static string formatLabel(const Widget w) {
-    import std.format : format;
+    import std.conv : to;
 
-    string base = w.name.length > 0
-      ? format("%s %s", w.uId, w.name)
-      : format("%s", w.uId);
-    if (!w.visible) {
-      return base ~ " [hidden]";
+    const string idStr = to!string(w.uId);
+    if (w.name.length > 0) {
+      return w.visible
+        ? idStr ~ " " ~ w.name
+        : idStr ~ " " ~ w.name ~ " [hidden]";
     }
-    return base;
+    return w.visible ? idStr : idStr ~ " [hidden]";
   }
 
   static DebugDrawComponent resolveEffectiveComp(
-    const Widget w,
+    Widget w,
     DebugDrawComponent inheritedComp
   ) {
     if (w.components.debugDraw !is null) {
-      return cast(DebugDrawComponent) w.components.debugDraw;
+      return w.components.debugDraw;
     }
     return inheritedComp;
   }
 
   static DebugDrawComponent resolveNextInherited(
-    const Widget w,
+    Widget w,
     DebugDrawComponent inheritedComp
   ) {
     if (w.components.debugDraw !is null) {
-      auto own = cast(DebugDrawComponent) w.components.debugDraw;
+      auto own = w.components.debugDraw;
       if (own.enabled && own.recursive) {
         return own;
       }
@@ -188,5 +191,14 @@ unittest {
   WidgetSystemContext ctx;
   ctx.root = root;
   ctx.renderer = renderer;
+  sys.render(ctx);
+
+  // Non-recursive DebugDrawComponent with drawHidden = true
+  auto nonRec = new DebugDrawComponent();
+  nonRec.recursive = false;
+  nonRec.drawHidden = true;
+  hidden.components.debugDraw = nonRec;
+  assert(DebugDrawSystem.resolveEffectiveComp(hidden, null) is nonRec);
+  assert(DebugDrawSystem.resolveNextInherited(hidden, rootComp) is null);
   sys.render(ctx);
 }

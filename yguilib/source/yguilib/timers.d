@@ -1,5 +1,6 @@
 module yguilib.timers;
 import core.time : MonoTime, ticksToNSecs;
+import std.math : isFinite;
 import std.math.remainder : fmod;
 
 /// Controls whether a registered UiSystem timer fires once or repeats.
@@ -25,8 +26,15 @@ enum AnimationWrapMode {
 struct AnimationTimer {
   /// Append seconds passed.
   void update(float step) {
-    if (fPaused || fDuration <= 0 || step <= 0)
+    if (
+      fPaused ||
+      !(fDuration > 0) ||
+      !isFinite(fDuration) ||
+      !(step > 0) ||
+      !isFinite(step)
+    ) {
       return;
+    }
     final switch (mode) {
       case AnimationWrapMode.once:
         elapsed += step;
@@ -58,14 +66,16 @@ struct AnimationTimer {
     elapsed = 0;
   }
 
+  /// Configures duration and wrap mode, resetting elapsed to 0
+  /// (remains paused).
   void start(float newDuration, AnimationWrapMode newMode) {
     fDuration = newDuration;
     mode = newMode;
     elapsed = 0;
   }
 
-  void paused(bool aPaused) nothrow @safe {
-    fPaused = aPaused;
+  void paused(bool isPaused) nothrow @safe {
+    fPaused = isPaused;
   }
 
   bool paused() const nothrow @safe {
@@ -78,16 +88,26 @@ struct AnimationTimer {
 
   void duration(float newDuration) nothrow @safe {
     fDuration = newDuration;
-    if (fDuration <= 0) {
+    if (!(fDuration > 0) || !isFinite(fDuration)) {
       elapsed = 0;
-    } else if (elapsed > fDuration) {
-      elapsed = fDuration;
+    } else {
+      const float maxElapsed = mode == AnimationWrapMode.pingPong
+        ? 2.0f * fDuration
+        : fDuration;
+      if (elapsed > maxElapsed) {
+        elapsed = maxElapsed;
+      }
     }
   }
 
   /// Advances toward duration (forward=true) or 0 (forward=false).
   void stepTowards(float step, bool forward) nothrow @safe {
-    if (fDuration <= 0 || step <= 0) {
+    if (
+      !(fDuration > 0) ||
+      !isFinite(fDuration) ||
+      !(step > 0) ||
+      !isFinite(step)
+    ) {
       return;
     }
     const float target = forward ? fDuration : 0.0f;
@@ -113,7 +133,7 @@ struct AnimationTimer {
   }
 
   bool isAtTarget(bool forward) const nothrow @safe {
-    if (fDuration <= 0) {
+    if (!(fDuration > 0) || !isFinite(fDuration)) {
       return true;
     }
     return forward ? (elapsed >= fDuration) : (elapsed <= 0.0f);
@@ -122,8 +142,9 @@ struct AnimationTimer {
   /// returns [0..1]
   float progress() const nothrow @safe {
     import std.algorithm.comparison : clamp;
-    if (fDuration <= 0)
+    if (!(fDuration > 0) || !isFinite(fDuration)) {
       return 0;
+    }
     if (mode == AnimationWrapMode.pingPong) {
       float t = elapsed / fDuration;
       return clamp(t <= 1.0f ? t : 2.0f - t, 0, 1f);
@@ -147,14 +168,22 @@ private:
 
 /// reusable tool to measure parts of code
 struct StopWatchNs {
+  /// Sets a custom nanosecond clock delegate, or `null` to use `MonoTime`.
+  void clock(long delegate() clockFn) nothrow @safe {
+    fClock = clockFn;
+  }
+
   void reset() {
     fElapsed = 0;
     running = false;
   }
 
   void start() {
+    if (running) {
+      return;
+    }
     running = true;
-    startTime = currentTimeNs();
+    startTime = nowNs();
   }
 
   void update() {
@@ -170,28 +199,38 @@ struct StopWatchNs {
   }
 
   /// time passed in nanoseconds
-  long elapsed() {
+  long elapsed() const nothrow @safe {
     return fElapsed;
   }
 
 private:
+  long nowNs() const {
+    return fClock !is null ? fClock() : currentTimeNs();
+  }
+
   void updateElapsed() {
-    const long current = currentTimeNs();
+    const long current = nowNs();
     fElapsed += current - startTime;
     startTime = current;
   }
 
+  long delegate() fClock = null;
   long startTime = 0;
   long fElapsed = 0;
   bool running = false;
 }
 
 struct Timer {
+  /// Sets a custom nanosecond clock delegate, or `null` to use `MonoTime`.
+  void clock(long delegate() clockFn) nothrow @safe {
+    fClock = clockFn;
+  }
+
   /// duration in seconds
   void start(float duration) {
-    assert(duration >= 0);
+    assert(isFinite(duration) && duration >= 0);
     durationNs = cast(long)(duration * 1_000_000_000.0);
-    startTimeNs = currentTimeNs();
+    startTimeNs = nowNs();
     looping = false;
     running = true;
   }
@@ -216,7 +255,7 @@ struct Timer {
   bool updateAndTrigger() {
     if (!running)
       return false;
-    const long now = currentTimeNs();
+    const long now = nowNs();
     if (now - startTimeNs < durationNs)
       return false;
     if (looping)
@@ -227,6 +266,11 @@ struct Timer {
   }
 
 private:
+  long nowNs() const {
+    return fClock !is null ? fClock() : currentTimeNs();
+  }
+
+  long delegate() fClock = null;
   long durationNs = 1_000_000_000;
   long startTimeNs = 0;
   bool looping = false;
@@ -235,12 +279,17 @@ private:
 
 /// Measures elapsed seconds between consecutive steps (e.g. animation frames).
 struct DeltaTimer {
+  /// Sets a custom nanosecond clock delegate, or `null` to use `MonoTime`.
+  void clock(long delegate() clockFn) nothrow @safe {
+    fClock = clockFn;
+  }
+
   /// Returns seconds elapsed since previous step,
   /// clamped to [minStep, maxStep].
   /// On the first call (or after reset), returns initialStep.
   float step(float minStep, float maxStep, float initialStep) {
     import std.algorithm.comparison : clamp;
-    const long now = currentTimeNs();
+    const long now = nowNs();
     if (!hasLastTime) {
       lastTimeNs = now;
       hasLastTime = true;
@@ -257,14 +306,13 @@ struct DeltaTimer {
   }
 
 private:
+  long nowNs() const {
+    return fClock !is null ? fClock() : currentTimeNs();
+  }
+
+  long delegate() fClock = null;
   long lastTimeNs = 0;
   bool hasLastTime = false;
-}
-
-/// gets time in constructor and destructor, dumps duration
-struct MeasureScopeTime {
-  // TODO
-
 }
 
 private:
@@ -326,23 +374,25 @@ unittest {
 }
 
 unittest {
-  import core.thread : Thread;
-  import core.time : msecs;
-
+  long fakeNow = 1_000_000;
   StopWatchNs sw;
+  sw.clock(() => fakeNow);
   assert(sw.elapsed() == 0);
 
   sw.start();
-  Thread.sleep(2.msecs);
+  fakeNow += 2_000_000;
+  sw.start(); // idempotent while running; must not discard elapsed time
+  fakeNow += 3_000_000;
   sw.update();
-  const ulong first = sw.elapsed();
-  assert(first > 0);
+  const long first = sw.elapsed();
+  assert(first == 5_000_000);
 
+  fakeNow += 1_000_000;
   sw.stop();
-  const ulong stopped = sw.elapsed();
-  assert(stopped >= first);
+  const long stopped = sw.elapsed();
+  assert(stopped == 6_000_000);
 
-  Thread.sleep(2.msecs);
+  fakeNow += 2_000_000;
   sw.update();
   assert(sw.elapsed() == stopped);
 
@@ -351,48 +401,48 @@ unittest {
 }
 
 unittest {
-  import core.thread : Thread;
-  import core.time : msecs;
-
+  long fakeNow = 0;
   Timer timer;
+  timer.clock(() => fakeNow);
   assert(!timer.updateAndTrigger());
 
   // Not yet elapsed.
   timer.start(1.0f);
+  fakeNow += 500_000_000;
   assert(!timer.updateAndTrigger());
 
   // One-shot triggers once and stops.
   timer.start(0.005f);
-  Thread.sleep(10.msecs);
+  fakeNow += 10_000_000;
   assert(timer.updateAndTrigger());
   assert(!timer.updateAndTrigger());
 
   // Stop prevents triggering even after duration passes.
   timer.start(0.005f);
   timer.stop();
-  Thread.sleep(10.msecs);
+  fakeNow += 10_000_000;
   assert(!timer.updateAndTrigger());
 
   // Looping triggers repeatedly, resetting start point on each trigger.
   timer.startLoop(0.010f);
-  Thread.sleep(15.msecs);
+  fakeNow += 15_000_000;
   assert(timer.updateAndTrigger());
   assert(!timer.updateAndTrigger());
-  Thread.sleep(15.msecs);
+  fakeNow += 15_000_000;
   assert(timer.updateAndTrigger());
 
   // Switching from startLoop to start resets looping to false.
   timer.start(0.005f);
-  Thread.sleep(10.msecs);
+  fakeNow += 10_000_000;
   assert(timer.updateAndTrigger());
-  Thread.sleep(10.msecs);
+  fakeNow += 10_000_000;
   assert(!timer.updateAndTrigger());
 }
 
 unittest {
   import std.math.operations : isClose;
 
-  // AnimationTimer stepTowards, isAtTarget, map, paused, duration.
+  // AnimationTimer stepTowards, isAtTarget, map, paused, duration, stop, NaN.
   AnimationTimer t;
   t.start(1.0f, AnimationWrapMode.once);
   assert(t.paused());
@@ -403,6 +453,11 @@ unittest {
   assert(!t.paused());
   assert(isClose(t.progress(), 0.4f));
   assert(isClose(t.map(0.2f, 1.0f), 0.52f));
+
+  // NaN step is ignored cleanly.
+  t.stepTowards(float.nan, true);
+  t.update(float.nan);
+  assert(isClose(t.progress(), 0.4f));
 
   // Reverse mid-way back toward 0.
   t.stepTowards(0.2f, false);
@@ -420,24 +475,50 @@ unittest {
   assert(t.paused());
   assert(t.isAtTarget(true));
   assert(isClose(t.progress(), 1.0f));
+
+  // stop() resets progress and pauses.
+  t.stop();
+  assert(t.paused());
+  assert(isClose(t.progress(), 0.0f));
+
+  // duration(<= 0) and NaN reset progress to 0.
+  t.start(1.0f, AnimationWrapMode.once);
+  t.paused(false);
+  t.update(0.5f);
+  t.duration(0.0f);
+  assert(isClose(t.progress(), 0.0f));
+  t.duration(float.nan);
+  assert(isClose(t.progress(), 0.0f));
+  assert(t.isAtTarget(true));
+
+  // pingPong duration() preserves return half up to 2 * duration.
+  t.start(1.0f, AnimationWrapMode.pingPong);
+  t.paused(false);
+  t.update(1.5f); // return half: progress = 0.5
+  assert(isClose(t.progress(), 0.5f));
+  t.duration(1.0f);
+  assert(isClose(t.progress(), 0.5f));
+  t.duration(0.6f); // clamps elapsed from 1.5 to 1.2 -> progress = 0.0
+  assert(isClose(t.progress(), 0.0f));
 }
 
 unittest {
-  import core.thread : Thread;
-  import core.time : msecs;
   import std.math.operations : isClose;
 
+  long fakeNow = 10_000_000;
   DeltaTimer dt;
+  dt.clock(() => fakeNow);
   const float first = dt.step(0.0f, 0.1f, 0.016f);
   assert(isClose(first, 0.016f));
 
   // Sub-millisecond immediate step must not be inflated to 1 ms by default.
+  fakeNow += 200_000;
   const float immediate = dt.step(0.0f, 0.1f, 1.0f / 60.0f);
-  assert(immediate >= 0.0f && immediate < 0.001f);
+  assert(isClose(immediate, 0.0002f));
 
-  Thread.sleep(5.msecs);
+  fakeNow += 5_000_000;
   const float second = dt.step(0.0f, 0.1f, 0.016f);
-  assert(second >= 0.0f && second <= 0.1f);
+  assert(isClose(second, 0.005f));
 
   dt.reset();
   const float afterReset = dt.step(0.0f, 0.1f, 0.02f);

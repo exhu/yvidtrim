@@ -2,10 +2,10 @@ module yguilib.serhelpers;
 
 import std.conv : to;
 import std.json : JSONOptions, JSONType, JSONValue, toJSON;
-import std.math : isFinite, isInfinity, isNaN;
-import std.traits : FieldNameTuple, hasUDA, isArray, isAssociativeArray,
-  isBasicType, isBoolean, isDelegate, isFloatingPoint, isFunctionPointer,
-  isIntegral, isPointer, isSomeChar, isSomeString;
+import std.math : isInfinity, isNaN;
+import std.traits : BaseClassesTuple, FieldNameTuple, hasUDA, isArray,
+  isAssociativeArray, isBoolean, isDelegate, isFloatingPoint,
+  isFunctionPointer, isIntegral, isPointer, isSomeString, isUnsigned;
 
 /// UDA to exclude specific fields (e.g. cyclic parent references)
 /// from reflection-based JSON serialization.
@@ -22,7 +22,11 @@ JSONValue toJsonValue(T)(auto ref const T value) {
   } else static if (isBoolean!T) {
     return JSONValue(cast(bool) value);
   } else static if (isIntegral!T) {
-    return JSONValue(cast(long) value);
+    static if (isUnsigned!T) {
+      return JSONValue(cast(ulong) value);
+    } else {
+      return JSONValue(cast(long) value);
+    }
   } else static if (isFloatingPoint!T) {
     if (isNaN(value)) {
       return JSONValue("NaN");
@@ -31,7 +35,48 @@ JSONValue toJsonValue(T)(auto ref const T value) {
       return JSONValue(value > 0 ? "infinity" : "-infinity");
     }
     return JSONValue(cast(double) value);
-  } else static if (is(T == struct)) {
+  } else {
+    return toJsonComposite(value);
+  }
+}
+
+/// Serializes any struct or class instance into a JSON string.
+string serializeToJson(T)(auto ref const T value, bool pretty) {
+  const JSONValue jv = toJsonValue(value);
+  if (pretty) {
+    return toJSON(jv, true, JSONOptions.specialFloatLiterals);
+  }
+  return toJSON(jv, false, JSONOptions.specialFloatLiterals);
+}
+
+/// Returns the unqualified type name for an object or interface instance at
+/// runtime, or of a value's static type. Template arguments are dropped
+/// (e.g. `Box!int` becomes `Box`).
+string shortTypeName(T)(auto ref const T item) {
+  static if (is(T == class) || is(T == interface)) {
+    if (item is null) {
+      return "null";
+    }
+    auto obj = cast(const Object) item;
+    string fullName = (obj !is null) ? typeid(obj).name : typeid(item).name;
+  } else {
+    string fullName = T.stringof;
+  }
+  import std.string : indexOf, lastIndexOf;
+
+  const bangIdx = fullName.indexOf('!');
+  if (bangIdx >= 0) {
+    fullName = fullName[0 .. bangIdx];
+  }
+  const dotIdx = fullName.lastIndexOf('.');
+  return dotIdx >= 0 ? fullName[dotIdx + 1 .. $] : fullName;
+}
+
+private:
+
+/// Helper to convert composite, reference, or fallback values to JSONValue.
+JSONValue toJsonComposite(T)(auto ref const T value) {
+  static if (is(T == struct)) {
     return serializeStructOrClass(value);
   } else static if (is(T == class) || is(T == interface)) {
     if (value is null) {
@@ -39,9 +84,9 @@ JSONValue toJsonValue(T)(auto ref const T value) {
     }
     return serializeStructOrClass(value);
   } else static if (isArray!T) {
-    JSONValue[] arr;
-    foreach (ref elem; value) {
-      arr ~= toJsonValue(elem);
+    auto arr = new JSONValue[value.length];
+    foreach (i, ref elem; value) {
+      arr[i] = toJsonValue(elem);
     }
     return JSONValue(arr);
   } else static if (isAssociativeArray!T) {
@@ -67,34 +112,23 @@ JSONValue toJsonValue(T)(auto ref const T value) {
   }
 }
 
-/// Serializes any struct or class instance into a JSON string.
-string serializeToJson(T)(auto ref const T value, bool pretty) {
-  const JSONValue jv = toJsonValue(value);
-  if (pretty) {
-    return toJSON(jv, true, JSONOptions.specialFloatLiterals);
-  }
-  return toJSON(jv, false, JSONOptions.specialFloatLiterals);
-}
-
-/// Returns the unqualified type name for an object or interface instance at
-/// runtime, or of a value's static type. Template arguments are dropped
-/// (e.g. `Box!int` becomes `Box`).
-string shortTypeName(T)(T item) {
-  static if (is(T == class) || is(T == interface)) {
-    if (item is null) {
-      return "null";
+void serializeFieldsOf(U, V)(
+  auto ref const V value,
+  ref JSONValue[string] fields
+) {
+  enum fieldNames = FieldNameTuple!U;
+  static foreach (i; 0 .. fieldNames.length) {
+    static if (!hasUDA!(__traits(getMember, U, fieldNames[i]), SerIgnore)) {
+      static if (is(U == V)) {
+        fields[fieldNames[i]] = toJsonValue(value.tupleof[i]);
+      } else {
+        fields[fieldNames[i]] = toJsonValue(
+          (cast(const U) value).tupleof[i]
+        );
+      }
     }
-    auto obj = cast(Object) item;
-    string fullName = (obj !is null) ? typeid(obj).name : typeid(item).name;
-  } else {
-    string fullName = T.stringof;
   }
-  import std.string : lastIndexOf;
-  const dotIdx = fullName.lastIndexOf('.');
-  return dotIdx >= 0 ? fullName[dotIdx + 1 .. $] : fullName;
 }
-
-private:
 
 /// Helper to serialize struct or class fields.
 JSONValue serializeStructOrClass(T)(auto ref const T value) {
@@ -109,15 +143,17 @@ JSONValue serializeStructOrClass(T)(auto ref const T value) {
     return toJsonValue(value.get);
   } else {
     JSONValue[string] root;
-    root["type"] = JSONValue(T.stringof);
+    root["type"] = JSONValue(shortTypeName(value));
 
     JSONValue[string] fields;
-    enum fieldNames = FieldNameTuple!T;
-    static foreach (i; 0 .. fieldNames.length) {
-      static if (!hasUDA!(__traits(getMember, T, fieldNames[i]), SerIgnore)) {
-        fields[fieldNames[i]] = toJsonValue(value.tupleof[i]);
+    static if (is(T == class)) {
+      static foreach_reverse (Base; BaseClassesTuple!T) {
+        static if (!is(Base == Object)) {
+          serializeFieldsOf!Base(value, fields);
+        }
       }
     }
+    serializeFieldsOf!T(value, fields);
 
     static if (__traits(hasMember, T, "onSerializeFields")) {
       value.onSerializeFields(fields);
@@ -214,4 +250,53 @@ unittest {
 
   int val = 42;
   assert(shortTypeName(val) == "int");
+
+  // ulong > long.max
+  const ulong bigUlong = ulong.max;
+  const JSONValue bigJv = toJsonValue(bigUlong);
+  assert(bigJv.type == JSONType.uinteger);
+  assert(bigJv.uinteger == ulong.max);
+
+  // Arrays
+  const int[] nums = [1, 2, 3];
+  const JSONValue arrJv = toJsonValue(nums);
+  assert(arrJv.type == JSONType.array);
+  assert(arrJv.array.length == 3);
+  assert(arrJv.array[2].integer == 3);
+
+  // Associative arrays
+  const int[string] scores = ["a": 10, "b": 20];
+  const JSONValue aaJv = toJsonValue(scores);
+  assert(aaJv.type == JSONType.object);
+  assert(aaJv["a"].integer == 10);
+  assert(aaJv["b"].integer == 20);
+
+  // Pointers (non-null and null)
+  int target = 99;
+  int* ptr = &target;
+  assert(toJsonValue(ptr).integer == 99);
+  int* nullPtr = null;
+  assert(toJsonValue(nullPtr).type == JSONType.null_);
+
+  // Template shortTypeName
+  struct Box(U) {
+    U value;
+  }
+  auto box = Box!int(7);
+  assert(shortTypeName(box) == "Box");
+  auto nestedBox = Box!(Box!int)(box);
+  assert(shortTypeName(nestedBox) == "Box");
+
+  // Base-class fields
+  class BaseItem {
+    int baseId = 5;
+  }
+  class DerivedItem : BaseItem {
+    string label = "hi";
+  }
+  auto derived = new DerivedItem();
+  const JSONValue derivedJv = toJsonValue(derived);
+  assert(derivedJv["type"].str == "DerivedItem");
+  assert(derivedJv["fields"]["baseId"].integer == 5);
+  assert(derivedJv["fields"]["label"].str == "hi");
 }

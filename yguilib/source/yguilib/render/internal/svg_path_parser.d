@@ -36,6 +36,10 @@ bool parseSvgPathInto(Path2d path, string d) nothrow @safe {
 
 private:
 
+bool isFinitePoint(PointF p) nothrow @safe @nogc pure {
+  return isFinite(p.x) && isFinite(p.y);
+}
+
 struct SvgState {
   PointF cur = PointF(0, 0);
   PointF start = PointF(0, 0);
@@ -323,7 +327,9 @@ bool parseMoveTo(
     const PointF dst = resolvePoint(pt.get, st.cur, useRel);
     if (first) {
       path.moveTo(dst);
-      st.start = dst;
+      if (isFinitePoint(dst)) {
+        st.start = dst;
+      }
       st.hasInitialCmd = true;
       st.prevCmd = cmd;
       first = false;
@@ -331,7 +337,9 @@ bool parseMoveTo(
       path.lineTo(dst);
       st.prevCmd = rel ? 'l' : 'L';
     }
-    st.cur = dst;
+    if (isFinitePoint(dst)) {
+      st.cur = dst;
+    }
   }
   return !first;
 }
@@ -351,7 +359,9 @@ bool parseLineTo(
     }
     const PointF dst = resolvePoint(pt.get, st.cur, rel);
     path.lineTo(dst);
-    st.cur = dst;
+    if (isFinitePoint(dst)) {
+      st.cur = dst;
+    }
     st.prevCmd = cmd;
     first = false;
   }
@@ -373,7 +383,9 @@ bool parseHorizTo(
     }
     const PointF dst = PointF(rel ? st.cur.x + x.get : x.get, st.cur.y);
     path.lineTo(dst);
-    st.cur = dst;
+    if (isFinitePoint(dst)) {
+      st.cur = dst;
+    }
     st.prevCmd = cmd;
     first = false;
   }
@@ -395,7 +407,9 @@ bool parseVertTo(
     }
     const PointF dst = PointF(st.cur.x, rel ? st.cur.y + y.get : y.get);
     path.lineTo(dst);
-    st.cur = dst;
+    if (isFinitePoint(dst)) {
+      st.cur = dst;
+    }
     st.prevCmd = cmd;
     first = false;
   }
@@ -429,8 +443,12 @@ bool parseCubicTo(
     const PointF cp2 = resolvePoint(p2.get, st.cur, rel);
     const PointF dst = resolvePoint(p3.get, st.cur, rel);
     path.bezierCurveTo(cp1, cp2, dst);
-    st.lastCubicCp = cp2;
-    st.cur = dst;
+    if (isFinitePoint(cp2)) {
+      st.lastCubicCp = cp2;
+    }
+    if (isFinitePoint(dst)) {
+      st.cur = dst;
+    }
     st.prevCmd = cmd;
     first = false;
   }
@@ -463,8 +481,12 @@ bool parseSmoothCubicTo(
     const PointF cp2 = resolvePoint(p2.get, st.cur, rel);
     const PointF dst = resolvePoint(p3.get, st.cur, rel);
     path.bezierCurveTo(cp1, cp2, dst);
-    st.lastCubicCp = cp2;
-    st.cur = dst;
+    if (isFinitePoint(cp2)) {
+      st.lastCubicCp = cp2;
+    }
+    if (isFinitePoint(dst)) {
+      st.cur = dst;
+    }
     st.prevCmd = cmd;
     first = false;
   }
@@ -492,8 +514,12 @@ bool parseQuadTo(
     const PointF cp = resolvePoint(p1.get, st.cur, rel);
     const PointF dst = resolvePoint(p2.get, st.cur, rel);
     path.quadraticCurveTo(cp, dst);
-    st.lastQuadCp = cp;
-    st.cur = dst;
+    if (isFinitePoint(cp)) {
+      st.lastQuadCp = cp;
+    }
+    if (isFinitePoint(dst)) {
+      st.cur = dst;
+    }
     st.prevCmd = cmd;
     first = false;
   }
@@ -520,8 +546,12 @@ bool parseSmoothQuadTo(
       : st.cur;
     const PointF dst = resolvePoint(p2.get, st.cur, rel);
     path.quadraticCurveTo(cp, dst);
-    st.lastQuadCp = cp;
-    st.cur = dst;
+    if (isFinitePoint(cp)) {
+      st.lastQuadCp = cp;
+    }
+    if (isFinitePoint(dst)) {
+      st.cur = dst;
+    }
     st.prevCmd = cmd;
     first = false;
   }
@@ -651,7 +681,9 @@ bool parseArcCmd(
     SvgArcArgs resolved = args.get;
     resolved.end = resolvePoint(resolved.end, st.cur, rel);
     emitSvgArc(path, st.cur, resolved);
-    st.cur = resolved.end;
+    if (isFinitePoint(resolved.end)) {
+      st.cur = resolved.end;
+    }
     st.prevCmd = cmd;
     first = false;
   }

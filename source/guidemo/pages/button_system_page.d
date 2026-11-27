@@ -535,7 +535,7 @@ private:
 unittest {
   import yguilib.controls.hover_button_system : AnimatedHoverButtonComponent;
   import yguilib.controls.tooltip : Tooltip;
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : makeHeadlessUiSystem;
 
   void checkButtons(Widget node, ref size_t count, ref bool foundLong) {
     if (node is null) {
@@ -557,7 +557,7 @@ unittest {
     }
   }
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   auto parent = new Widget(ui.nextWidgetId());
   auto pageTracker = ModelTracker!ButtonSystemPageModel(
     new ButtonSystemPageModel()

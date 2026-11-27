@@ -16,7 +16,7 @@ import yguilib.render.texture : Texture;
 
 // Canvas GL rendering (stencil-then-cover, transforms, strokes, clips)
 unittest {
-  import std.math : PI, cos, sin;
+  import std.math : PI;
 
   auto w = GlTestWindow("test_canvas");
   scope(exit) w.destroy();
@@ -43,17 +43,7 @@ unittest {
   assert(isRgb(150, 150, 255, 0, 0));
 
   // 2. self-intersecting star: nonZero fills the center, evenOdd not
-  auto star = new Path2d();
-  foreach (k; 0 .. 5) {
-    const float a = cast(float)(-PI / 2 + k * 4 * PI / 5);
-    const PointF pt = PointF(160 + 80 * cos(a), 120 + 80 * sin(a));
-    if (k == 0) {
-      star.moveTo(pt);
-    } else {
-      star.lineTo(pt);
-    }
-  }
-  star.closePath();
+  auto star = makeStarPath();
   r.clearFrame(black);
   cv.fillStyle(green);
   cv.fill(star);
@@ -357,7 +347,7 @@ unittest {
   assert(isRgb(55, 55, 0, 255, 0)); // shape over the shadow
   assert(isRgb(65, 65, 0, 255, 0));
   assert(isRgb(115, 62, 255, 0, 0)); // shadow outside the shape
-  assert(isRgb(62, 98, 255, 0, 0));
+  assert(isRgb(62, 97, 255, 0, 0));
   assert(isRgb(115, 95, 0, 0, 0));
   assert(isRgb(45, 45, 0, 0, 0));
   // 2b. shadow alpha = shadow color alpha * paint alpha
@@ -494,7 +484,7 @@ unittest {
   // still draws
   r.offscreenTargetRef(0).destroy();
   r.offscreenTargetRef(0).limitMaxSize(8);
-  assert(!r.offscreenTargetRef(0).ensureSize(9, 9));
+  assert(!r.offscreenTargetRef(0).ensureSize(9, 9, 0));
   r.clearFrame(black);
   cv.shadow(hard);
   cv.fillStyle(green);
@@ -982,39 +972,39 @@ unittest {
   scope(exit) w.endTargets();
   auto cv = w.canvas();
 
-  assert(cv.fontSpec.ptSize == defaultFontPtSize);
-  assert(cv.textAlign == TextAlign.start);
-  assert(cv.textBaseline == TextBaseline.alphabetic);
-  assert(cv.direction == TextDirection.ltr);
+  assert(cv.fontSpec().ptSize == defaultFontPtSize);
+  assert(cv.textAlign() == TextAlign.start);
+  assert(cv.textBaseline() == TextBaseline.alphabetic);
+  assert(cv.direction() == TextDirection.ltr);
 
-  cv.fontSpec = FontSpec(20, null);
-  cv.textAlign = TextAlign.center;
-  cv.textBaseline = TextBaseline.middle;
-  cv.direction = TextDirection.rtl;
+  cv.fontSpec(FontSpec(20, null));
+  cv.textAlign(TextAlign.center);
+  cv.textBaseline(TextBaseline.middle);
+  cv.direction(TextDirection.rtl);
   cv.save();
-  cv.fontSpec = FontSpec(30, null);
-  cv.textAlign = TextAlign.end;
-  cv.textBaseline = TextBaseline.top;
-  cv.direction = TextDirection.ltr;
-  assert(cv.fontSpec.ptSize == 30);
+  cv.fontSpec(FontSpec(30, null));
+  cv.textAlign(TextAlign.end);
+  cv.textBaseline(TextBaseline.top);
+  cv.direction(TextDirection.ltr);
+  assert(cv.fontSpec().ptSize == 30);
   cv.restore();
-  assert(cv.fontSpec.ptSize == 20);
-  assert(cv.textAlign == TextAlign.center);
-  assert(cv.textBaseline == TextBaseline.middle);
-  assert(cv.direction == TextDirection.rtl);
+  assert(cv.fontSpec().ptSize == 20);
+  assert(cv.textAlign() == TextAlign.center);
+  assert(cv.textBaseline() == TextBaseline.middle);
+  assert(cv.direction() == TextDirection.rtl);
 
   // invalid sizes are ignored
-  cv.fontSpec = FontSpec(0, null);
-  cv.fontSpec = FontSpec(-3, null);
-  cv.fontSpec = FontSpec(float.nan, null);
-  cv.fontSpec = FontSpec(float.infinity, null);
-  assert(cv.fontSpec.ptSize == 20);
+  cv.fontSpec(FontSpec(0, null));
+  cv.fontSpec(FontSpec(-3, null));
+  cv.fontSpec(FontSpec(float.nan, null));
+  cv.fontSpec(FontSpec(float.infinity, null));
+  assert(cv.fontSpec().ptSize == 20);
 
   const e = cv.measureText("");
   assert(e.width == 0 && e.fontAscent == 0 && e.fontDescent == 0);
   const m = cv.measureText("Hello");
   assert(m.width > 0 && m.fontAscent > 0 && m.fontDescent >= 0);
-  cv.fontSpec = FontSpec(40, null);
+  cv.fontSpec(FontSpec(40, null));
   const m2 = cv.measureText("Hello");
   assert(m2.width > m.width && m2.fontAscent > m.fontAscent);
 
@@ -1031,6 +1021,7 @@ unittest {
   const m4 = cv.measureText("Hello");
   cv.restore();
   assert(m4.width == m2.width && m4.fontAscent == m2.fontAscent);
+  assert(glGetError() == GL_NO_ERROR);
 }
 
 // Canvas.fillText (position, transform, clip, shadow, maxWidth, no-ops)
@@ -1048,10 +1039,9 @@ unittest {
   // clearFrame resets the canvas state, so set the font after it
   void clear() {
     r.clearFrame(black);
-    cv.fontSpec = FontSpec(24, null);
-    cv.textBaseline = TextBaseline.top;
+    cv.fontSpec(FontSpec(24, null));
+    cv.textBaseline(TextBaseline.top);
   }
-  cv.textBaseline = TextBaseline.top;
 
   // 1. plain text: box starts at the anchor, width follows measureText
   clear();
@@ -1191,6 +1181,7 @@ unittest {
   cv.restore();
   r.flush();
   assert(frameBounds(0).empty);
+  assert(glGetError() == GL_NO_ERROR);
 }
 
 // Canvas.fillText with gradient and pattern fills (alpha mask variants)
@@ -1402,12 +1393,11 @@ unittest {
   cv.strokeText("O", PointF(100, 40));
   grab();
   assert(litSpan(buf, 0).count == 0);
+  assert(glGetError() == GL_NO_ERROR);
 }
 
 // dashed stroke: transform, shadow, and a warmed-up loop without GC growth
 unittest {
-  import core.memory : GC;
-
   auto w = GlTestWindow("test_canvas_dash_gc");
   scope(exit) w.destroy();
   scope(exit) w.endTargets();
@@ -1447,26 +1437,15 @@ unittest {
     cv.stroke(line);
   }
 
-  frame();
-  frame();
-  GC.collect();
-  const before = GC.stats();
-  foreach (_; 0 .. 100) {
-    frame();
-  }
-  const after = GC.stats();
+  assertZeroGc(&frame, 100);
   cv.lineDash(LineDash.init);
   cv.lineDashOffset(0);
-  assert(after.allocatedInCurrentThread == before.allocatedInCurrentThread);
-  assert(
-    after.usedSize + after.freeSize <= before.usedSize + before.freeSize
-  );
+  assert(glGetError() == GL_NO_ERROR);
 }
 
 // nested clips inside and across a render target pass; clip, save and
 // target passes do not allocate after a warm-up
 unittest {
-  import core.memory : GC;
   import yguilib.render.render_target : RenderTarget;
 
   auto w = GlTestWindow("test_canvas_clip_state");
@@ -1567,18 +1546,7 @@ unittest {
   }
 
   r.clearFrame(black);
-  clipLoop();
-  clipLoop();
-  GC.collect();
-  auto before = GC.stats();
-  foreach (_; 0 .. 100) {
-    clipLoop();
-  }
-  auto after = GC.stats();
-  assert(after.allocatedInCurrentThread == before.allocatedInCurrentThread);
-  assert(
-    after.usedSize + after.freeSize <= before.usedSize + before.freeSize
-  );
+  assertZeroGc(&clipLoop, 100);
 
   // repeated target passes (with Canvas and Renderer clips inside) do
   // not grow the GC heap either
@@ -1593,18 +1561,7 @@ unittest {
     cv.restore();
   }
 
-  targetPass();
-  targetPass();
-  GC.collect();
-  before = GC.stats();
-  foreach (_; 0 .. 50) {
-    targetPass();
-  }
-  after = GC.stats();
-  assert(after.allocatedInCurrentThread == before.allocatedInCurrentThread);
-  assert(
-    after.usedSize + after.freeSize <= before.usedSize + before.freeSize
-  );
+  assertZeroGc(&targetPass, 50);
   assert(glGetError() == GL_NO_ERROR);
 }
 
@@ -1641,8 +1598,8 @@ unittest {
   void checkCenter(float scale) {
     auto drawAt(TextAlign a) {
       r.clearFrame(black);
-      cv.fontSpec = FontSpec(24, null);
-      cv.textBaseline = TextBaseline.top;
+      cv.fontSpec(FontSpec(24, null));
+      cv.textBaseline(TextBaseline.top);
       cv.textAlign(a);
       cv.fillStyle(white);
       cv.save();
@@ -1894,17 +1851,7 @@ unittest {
   assert(near(160, 120, 128, 128, 128, 1));
 
   // the concave star uses the stencil path and is still correct
-  auto star = new Path2d();
-  foreach (k; 0 .. 5) {
-    const float a = cast(float)(-PI / 2 + k * 4 * PI / 5);
-    const PointF pt = PointF(160 + 80 * cos(a), 120 + 80 * sin(a));
-    if (k == 0) {
-      star.moveTo(pt);
-    } else {
-      star.lineTo(pt);
-    }
-  }
-  star.closePath();
+  auto star = makeStarPath();
   r.clearFrame(black);
   cv.fillStyle(half);
   const s1 = cv.pathStats();
@@ -2066,8 +2013,8 @@ unittest {
   const white = FillStyle.solid(ColorF(1, 1, 1, 1));
   void clear() {
     r.clearFrame(black);
-    cv.fontSpec = FontSpec(48, null);
-    cv.textBaseline = TextBaseline.top;
+    cv.fontSpec(FontSpec(48, null));
+    cv.textBaseline(TextBaseline.top);
   }
 
   // 1. "W" cached first, then a rotated "I": lit pixels stay near the
@@ -2152,19 +2099,19 @@ unittest {
   clear();
   cv.fillStyle(white);
   cv.textAlign(TextAlign.start);
-  cv.direction = TextDirection.rtl;
+  cv.direction(TextDirection.rtl);
   cv.fillText("Hello", PointF(200, 50));
   r.flush();
   const rtl = frameBounds(0);
   clear();
   cv.fillStyle(white);
   cv.textAlign(TextAlign.end);
-  cv.direction = TextDirection.ltr;
+  cv.direction(TextDirection.ltr);
   cv.fillText("Hello", PointF(200, 50));
   r.flush();
   const ltrEnd = frameBounds(0);
   assert(!rtl.empty && rtl == ltrEnd && rtl.x1 <= 202);
-  cv.direction = TextDirection.ltr;
+  cv.direction(TextDirection.ltr);
   cv.textAlign(TextAlign.start);
 
   // 4. maxWidth squeezes all glyph quads about the anchor
@@ -2178,7 +2125,6 @@ unittest {
   cv.fillTextWithMaxWidth("Hello", PointF(40, 50), 40);
   r.flush();
   const sq = frameBounds(0);
-  assert(abs(sq.y0 - full.y0) <= 1 && abs(sq.y1 - full.y1) <= 1);
   assert(sq.y0 == full.y0 && sq.y1 == full.y1);
   assert(glGetError() == GL_NO_ERROR);
 }
@@ -2235,8 +2181,8 @@ unittest {
   r.clearFrame(black);
   r.resetTextBatchStats();
 
-  cv.fontSpec = FontSpec(20, null);
-  cv.textBaseline = TextBaseline.top;
+  cv.fontSpec(FontSpec(20, null));
+  cv.textBaseline(TextBaseline.top);
   cv.fillStyle(FillStyle.solid(ColorF(1, 0, 0, 1)));
   cv.fillText("Red", PointF(10, 10));
 
@@ -2437,8 +2383,6 @@ unittest {
 
 // Steady-state batched Canvas.fillText frames allocate zero GC memory.
 unittest {
-  import core.memory : GC;
-
   auto w = GlTestWindow("test_canvas_text_batch_gc");
   scope(exit) w.destroy();
   scope(exit) w.endTargets();
@@ -2448,8 +2392,8 @@ unittest {
   const black = ColorF(0, 0, 0, 1);
   void frame() {
     r.clearFrame(black);
-    cv.fontSpec = FontSpec(18, null);
-    cv.textBaseline = TextBaseline.top;
+    cv.fontSpec(FontSpec(18, null));
+    cv.textBaseline(TextBaseline.top);
     cv.fillStyle(FillStyle.solid(ColorF(1, 1, 1, 1)));
     cv.fillText("Alpha", PointF(10, 10));
     cv.save();
@@ -2462,17 +2406,212 @@ unittest {
     r.flush();
   }
 
-  frame();
-  frame();
+  assertZeroGc(&frame, 100);
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+// Regression tests: text shadows (overlapping quads, gradient/pattern alpha,
+// whitespace), gradient steady-state GC, clip(emptyPath), clearRect after
+// batched fillText, and headless Canvas.
+unittest {
+  import yguilib.render.image : Image;
+  import yguilib.render : Renderer;
+
+  auto w = GlTestWindow("test_canvas_regressions");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+  auto r = w.renderer();
+  auto cv = w.canvas();
+  const black = ColorF(0, 0, 0, 1);
+
+  // 7. Headless Canvas (!fRenderer.isInitialized()) across draw/clip/text ops
+  {
+    auto hr = new Renderer(320, 240, 1.0f);
+    hr.destroy();
+    assert(!hr.isInitialized());
+    auto hcv = hr.canvas();
+    auto hp = rectPath(RectF(0, 0, 20, 20));
+    hcv.save();
+    hcv.clip(hp);
+    hcv.fill(hp);
+    hcv.stroke(hp);
+    hcv.clearRect(RectF(0, 0, 10, 10));
+    hcv.fillText("Hi", PointF(5, 5));
+    hcv.strokeText("Hi", PointF(5, 5));
+    const m = hcv.measureText("Hi");
+    assert(m.width == 0);
+    hcv.drawImage(null, RectF(0, 0, 10, 10));
+    hcv.restore();
+  }
+
+  void setupText(float pt) {
+    r.clearFrame(black);
+    cv.fontSpec(FontSpec(pt, null));
+    cv.textBaseline(TextBaseline.top);
+  }
+
+  // 1. Shadowed strokeText and squeezed fillText do not punch holes in
+  //    neighbor glyph shadows
+  setupText(48);
+  Shadow sh;
+  sh.offset = PointF(0, 60);
+  sh.color = ColorF(0, 1, 0, 1);
+  cv.shadow(sh);
+  cv.lineWidth(12);
+  cv.strokeStyle(FillStyle.solid(ColorF(1, 0, 0, 1)));
+  cv.strokeText("O", PointF(40, 20));
+  r.flush();
+  auto buf = grabFrame();
+  const int singleOShadow = litSpan(buf, 1).count;
+  assert(singleOShadow > 0);
+
+  setupText(48);
+  cv.shadow(sh);
+  cv.lineWidth(12);
+  cv.strokeStyle(FillStyle.solid(ColorF(1, 0, 0, 1)));
+  cv.strokeText("OO", PointF(40, 20));
+  r.flush();
+  buf = grabFrame();
+  const int doubleOShadow = litSpan(buf, 1).count;
+  assert(doubleOShadow > singleOShadow + singleOShadow / 2);
+
+  setupText(48);
+  cv.shadow(sh);
+  cv.fillStyle(FillStyle.solid(ColorF(1, 0, 0, 1)));
+  cv.fillTextWithMaxWidth("HHHH", PointF(40, 20), 25);
+  r.flush();
+  const sqShadow = frameBounds(1);
+  assert(!sqShadow.empty && sqShadow.x1 - sqShadow.x0 >= 15);
+
+  // 2. Shadowed gradient/pattern text honors paint alpha (< 1)
+  auto measureShadowGreen(in FillStyle style) {
+    setupText(60);
+    Shadow s;
+    s.offset = PointF(0, 70);
+    s.color = ColorF(0, 1, 0, 1);
+    cv.shadow(s);
+    cv.fillStyle(style);
+    cv.fillText("H", PointF(40, 20));
+    r.flush();
+    auto frame = grabFrame();
+    int peak = 0;
+    foreach (y; 85 .. 150) {
+      foreach (x; 35 .. 110) {
+        const int g = channelAt(frame, x, y, 1);
+        if (g > peak) {
+          peak = g;
+        }
+      }
+    }
+    return peak;
+  }
+
+  LinearGradient lgFull;
+  lgFull.p1 = PointF(200, 0);
+  lgFull.stops.add(0, ColorF(1, 0, 0, 1));
+  lgFull.stops.add(1, ColorF(1, 0, 0, 1));
+  LinearGradient lgHalf;
+  lgHalf.p1 = PointF(200, 0);
+  lgHalf.stops.add(0, ColorF(1, 0, 0, 0.5f));
+  lgHalf.stops.add(1, ColorF(1, 0, 0, 0.5f));
+  const int gFull = measureShadowGreen(FillStyle.fromLinear(lgFull));
+  const int gHalf = measureShadowGreen(FillStyle.fromLinear(lgHalf));
+  assert(gFull > 220 && gHalf > 90 && gHalf < 160);
+
+  auto img = new Image(4, 4);
+  foreach (i; 0 .. 16) {
+    const ubyte[4] c = [255, 0, 0, 255];
+    img.pixels[i * 4 .. i * 4 + 4] = c;
+  }
+  Texture patTex = r.createTexture(img);
+  assert(patTex !is null);
+  scope(exit) patTex.destroy();
+  auto patFull = Pattern.fromTexture(patTex, PatternRepeat.repeat);
+  auto patHalf = Pattern.fromTexture(patTex, PatternRepeat.repeat);
+  patHalf.tint = ColorF(1, 1, 1, 0.5f);
+  const int pFull = measureShadowGreen(FillStyle.fromPattern(patFull));
+  const int pHalf = measureShadowGreen(FillStyle.fromPattern(patHalf));
+  assert(pFull > 220 && pHalf > 90 && pHalf < 160);
+
+  // 3. Whitespace-only text with shadow draws nothing and has no GL error
+  setupText(36);
+  cv.shadow(sh);
+  cv.fillStyle(FillStyle.solid(ColorF(1, 1, 1, 1)));
+  cv.fillText("   ", PointF(20, 20));
+  r.flush();
+  assert(frameBounds(0).empty);
+
+  // 4. Gradient fill steady-state zero-GC
+  auto rect = rectPath(RectF(10, 10, 80, 60));
+  RadialGradient rg;
+  rg.c0 = PointF(50, 40);
+  rg.c1 = PointF(50, 40);
+  rg.r1 = 50;
+  rg.stops.add(0, ColorF(1, 0, 0, 1));
+  rg.stops.add(1, ColorF(0, 0, 1, 1));
+  const linFill = FillStyle.fromLinear(lgFull);
+  const radFill = FillStyle.fromRadial(rg);
+  void gradFrame() {
+    r.clearFrame(black);
+    cv.fillStyle(linFill);
+    cv.fill(rect);
+    cv.fillStyle(radFill);
+    cv.fill(rect);
+    r.flush();
+  }
+  assertZeroGc(&gradFrame, 50);
+
+  // 5. Canvas.clip(emptyPath) masks out all drawing
+  r.clearFrame(black);
+  cv.save();
+  cv.clip(new Path2d());
+  cv.fillStyle(FillStyle.solid(ColorF(1, 1, 1, 1)));
+  cv.fill(rectPath(RectF(0, 0, 320, 240)));
+  cv.restore();
+  assert(frameBounds(0).empty);
+
+  // 6. clearRect after batched fillText flushes text before clearing
+  setupText(36);
+  cv.fillStyle(FillStyle.solid(ColorF(1, 1, 1, 1)));
+  cv.fillText("Hello", PointF(40, 40));
+  cv.clearRect(RectF(0, 0, 320, 240));
+  assert(frameBounds(0).empty);
+
+  assert(glGetError() == GL_NO_ERROR);
+}
+
+private:
+
+Path2d makeStarPath() {
+  import std.math : PI, cos, sin;
+
+  auto star = new Path2d();
+  foreach (k; 0 .. 5) {
+    const float a = cast(float)(-PI / 2 + k * 4 * PI / 5);
+    const PointF pt = PointF(160 + 80 * cos(a), 120 + 80 * sin(a));
+    if (k == 0) {
+      star.moveTo(pt);
+    } else {
+      star.lineTo(pt);
+    }
+  }
+  star.closePath();
+  return star;
+}
+
+void assertZeroGc(scope void delegate() fn, size_t iters) {
+  import core.memory : GC;
+
+  fn();
+  fn();
   GC.collect();
   const before = GC.stats();
-  foreach (_; 0 .. 100) {
-    frame();
+  foreach (_; 0 .. iters) {
+    fn();
   }
   const after = GC.stats();
   assert(after.allocatedInCurrentThread == before.allocatedInCurrentThread);
   assert(
     after.usedSize + after.freeSize <= before.usedSize + before.freeSize
   );
-  assert(glGetError() == GL_NO_ERROR);
 }

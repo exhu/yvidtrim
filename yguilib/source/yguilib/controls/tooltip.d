@@ -68,6 +68,7 @@ struct TooltipStyle {
   float maxWidth = 360.0f;
   float maxHeight = float.infinity;
   float edgeMargin = 8.0f;
+  float flipGap = 8.0f;
   PointF cursorOffset = PointF(12.0f, 18.0f);
 }
 
@@ -99,9 +100,6 @@ final class TooltipLayerComponent : WidgetComponent {
 
 /// Fluent builder for creating a topmost tooltip layer and its popup child.
 struct TooltipLayerBuilder {
-  TooltipStyle config;
-  string widgetName = null;
-
   /// Sets the layer widget name (popup child is named `<name>Popup`).
   ref TooltipLayerBuilder name(string layerName) return {
     widgetName = layerName;
@@ -140,6 +138,9 @@ struct TooltipLayerBuilder {
   }
 
 private:
+  TooltipStyle config;
+  string widgetName = null;
+
   Widget buildPopupWidget(UiSystem ui, Widget layer, string popupName) {
     auto b = WidgetBuilder.make(ui)
       .parent(layer)
@@ -187,8 +188,10 @@ Widget createTooltipLayer(
 ) {
   assert(ui !is null, "ui must not be null");
   TooltipLayerBuilder b;
-  b.config = style;
-  b.widgetName = name;
+  b.style(style);
+  if (name.length > 0) {
+    b.name(name);
+  }
   return b.build(ui, parent);
 }
 
@@ -259,7 +262,10 @@ final class TooltipSystem : WidgetSystem {
 
   /// Constructs a `TooltipSystem` with default timing settings.
   this() nothrow @safe {
-    priority(tooltipSystemPriority);
+  }
+
+  override @property int priority() const nothrow @safe {
+    return tooltipSystemPriority;
   }
 
   /// Creates a `TooltipSystem` configured with custom `timing`.
@@ -308,17 +314,13 @@ final class TooltipSystem : WidgetSystem {
 
   override void onRegister(WidgetSystemHost newHost) {
     if (host !is null && host !is newHost) {
-      stopAllTimers();
+      resetForHostChange();
     }
     super.onRegister(newHost);
   }
 
   override void onUnregister() {
-    stopAllTimers();
-    fActiveTarget = null;
-    fPendingTarget = null;
-    fAlpha = 0.0f;
-    fState = State.idle;
+    resetForHostChange();
     super.onUnregister();
   }
 
@@ -332,6 +334,7 @@ final class TooltipSystem : WidgetSystem {
     if (w is fCachedLayer || w is fCachedPopup) {
       fCachedLayer = null;
       fCachedPopup = null;
+      fLayerMissing = false;
       resetToIdle();
       return;
     }
@@ -372,6 +375,7 @@ final class TooltipSystem : WidgetSystem {
   override void preLayout(ref WidgetSystemContext ctx) {
     import std.algorithm.comparison : max, min;
 
+    fLayerMissing = false;
     if (!discoverLayer(ctx) || !fCachedPopup.visible) {
       return;
     }
@@ -408,7 +412,7 @@ final class TooltipSystem : WidgetSystem {
 
     if (layerSize.y > 0.0f &&
         y + fCachedPopup.rect.height > layerSize.y - margin) {
-      y = ly - fCachedPopup.rect.height - 8.0f;
+      y = ly - fCachedPopup.rect.height - fCachedStyle.flipGap;
     }
     if (layerSize.x > 0.0f) {
       const float maxX = max(
@@ -432,7 +436,7 @@ final class TooltipSystem : WidgetSystem {
       return;
     }
     if (fActiveTarget.released || !isEffectivelyVisible(fActiveTarget)) {
-      cancelOrHideActive(ctx.host);
+      cancelOrHideActive();
       return;
     }
     const bool checkObstruction =
@@ -445,7 +449,7 @@ final class TooltipSystem : WidgetSystem {
         ctx.visibleWidgets, fLastCursorPos, fCachedLayer
       );
       if (hit !is fActiveTarget) {
-        cancelOrHideActive(ctx.host);
+        cancelOrHideActive();
       }
     }
   }
@@ -467,25 +471,25 @@ private:
     final switch (fState) {
     case State.idle:
       if (hit !is null) {
-        startWaitingDelay(hit, p, ctx.host);
+        startWaitingDelay(hit, p);
       }
       break;
     case State.waitingDelay:
-      handleMotionWhileWaiting(hit, p, ctx.host);
+      handleMotionWhileWaiting(hit, p);
       break;
     case State.showing:
     case State.visible:
       if (hit !is fActiveTarget) {
         fPendingTarget = hit;
         fPendingCursorPos = p;
-        beginHiding(ctx.host);
+        beginHiding();
       }
       break;
     case State.hiding:
       if (hit is fActiveTarget && fActiveTarget !is null) {
         fPendingTarget = null;
         fState = State.showing;
-        ensureAnimTimer(ctx.host);
+        ensureAnimTimer();
       } else {
         fPendingTarget = hit;
         fPendingCursorPos = p;
@@ -495,15 +499,11 @@ private:
     return SystemEventResult(false, false);
   }
 
-  void handleMotionWhileWaiting(
-    Widget hit,
-    PointF p,
-    WidgetSystemHost fallbackHost
-  ) {
+  void handleMotionWhileWaiting(Widget hit, PointF p) {
     if (hit !is fActiveTarget) {
       stopDelayTimer();
       if (hit !is null) {
-        startWaitingDelay(hit, p, fallbackHost);
+        startWaitingDelay(hit, p);
       } else {
         fActiveTarget = null;
         fState = State.idle;
@@ -512,7 +512,7 @@ private:
     }
     if (movedBeyondThreshold(p, fDwellOrigin)) {
       fDwellOrigin = p;
-      restartDelayTimer(fallbackHost);
+      restartDelayTimer();
     }
   }
 
@@ -521,7 +521,7 @@ private:
       resetToIdle();
     } else if (fState == State.showing || fState == State.visible) {
       fPendingTarget = null;
-      beginHiding(ctx.host);
+      beginHiding();
     } else if (fState == State.hiding) {
       fPendingTarget = null;
     }
@@ -549,13 +549,22 @@ private:
     if (fCachedPopup.components.textLabel !is null) {
       fCachedPopup.components.textLabel.caption = resolved;
     }
+    if (fTiming.fadeInDuration <= 0.0f) {
+      fAlpha = 1.0f;
+      applyPopupAlpha(fCachedPopup, fCachedStyle, fAlpha);
+      fCachedPopup.visible = true;
+      fCachedPopup.update(WidgetUpdateScope.layout);
+      fState = State.visible;
+      stopAnimTimer();
+      return;
+    }
     fAlpha = 0.0f;
     applyPopupAlpha(fCachedPopup, fCachedStyle, fAlpha);
     fCachedPopup.visible = true;
     fCachedPopup.update(WidgetUpdateScope.layout);
 
     fState = State.showing;
-    ensureAnimTimer(ctx.host);
+    ensureAnimTimer();
   }
 
   void handleAnimTimer(ref WidgetSystemContext ctx, float dt) {
@@ -566,7 +575,7 @@ private:
     if (fState == State.showing) {
       stepShowing(dt);
     } else if (fState == State.hiding) {
-      stepHiding(ctx.host, dt);
+      stepHiding(dt);
     } else {
       stopAnimTimer();
     }
@@ -588,24 +597,26 @@ private:
     }
   }
 
-  void stepHiding(WidgetSystemHost fallbackHost, float dt) {
+  void stepHiding(float dt) {
     if (fTiming.fadeOutDuration <= 0.0f) {
       fAlpha = 0.0f;
     } else {
       fAlpha -= dt / fTiming.fadeOutDuration;
     }
     if (fAlpha <= 0.0f) {
-      finishHiding(fallbackHost);
+      finishHiding();
     } else {
       applyPopupAlpha(fCachedPopup, fCachedStyle, fAlpha);
     }
   }
 
-  void finishHiding(WidgetSystemHost fallbackHost) {
+  void finishHiding() {
     fAlpha = 0.0f;
-    applyPopupAlpha(fCachedPopup, fCachedStyle, fAlpha);
-    fCachedPopup.visible = false;
-    fCachedPopup.update(WidgetUpdateScope.layout);
+    if (fCachedPopup !is null && !fCachedPopup.released) {
+      applyPopupAlpha(fCachedPopup, fCachedStyle, fAlpha);
+      fCachedPopup.visible = false;
+      fCachedPopup.update(WidgetUpdateScope.layout);
+    }
     stopAnimTimer();
     fActiveTarget = null;
 
@@ -613,45 +624,56 @@ private:
       Widget nextTarget = fPendingTarget;
       const PointF nextPos = fPendingCursorPos;
       fPendingTarget = null;
-      startWaitingDelay(nextTarget, nextPos, fallbackHost);
+      startWaitingDelay(nextTarget, nextPos);
     } else {
       fPendingTarget = null;
       fState = State.idle;
     }
   }
 
-  void startWaitingDelay(
-    Widget target,
-    PointF origin,
-    WidgetSystemHost fallbackHost
-  ) {
+  void startWaitingDelay(Widget target, PointF origin) {
     fActiveTarget = target;
     fDwellOrigin = origin;
     fState = State.waitingDelay;
-    restartDelayTimer(fallbackHost);
+    restartDelayTimer();
   }
 
-  void restartDelayTimer(WidgetSystemHost fallbackHost) {
-    ensureHost(fallbackHost);
+  void restartDelayTimer() {
     stopDelayTimer();
     if (host !is null) {
       fDelayTimerId = startTimer(fTiming.showDelayMs, TimerMode.oneShot);
     }
   }
 
-  void beginHiding(WidgetSystemHost fallbackHost) {
+  void beginHiding() {
     stopDelayTimer();
+    if (fTiming.fadeOutDuration <= 0.0f) {
+      finishHiding();
+      return;
+    }
     fState = State.hiding;
-    ensureAnimTimer(fallbackHost);
+    ensureAnimTimer();
   }
 
-  void cancelOrHideActive(WidgetSystemHost fallbackHost) {
+  void cancelOrHideActive() {
     if (fState == State.waitingDelay) {
       resetToIdle();
     } else if (fState == State.showing || fState == State.visible) {
       fPendingTarget = null;
-      beginHiding(fallbackHost);
+      beginHiding();
     }
+  }
+
+  void resetForHostChange() {
+    if (fCachedPopup !is null && !fCachedPopup.released &&
+        fCachedPopup.visible) {
+      fCachedPopup.visible = false;
+      fCachedPopup.update(WidgetUpdateScope.layout);
+    }
+    resetToIdle();
+    fCachedLayer = null;
+    fCachedPopup = null;
+    fLayerMissing = false;
   }
 
   void resetToIdle() {
@@ -662,14 +684,7 @@ private:
     fState = State.idle;
   }
 
-  void ensureHost(WidgetSystemHost fallbackHost) {
-    if (host is null && fallbackHost !is null) {
-      host = fallbackHost;
-    }
-  }
-
-  void ensureAnimTimer(WidgetSystemHost fallbackHost) {
-    ensureHost(fallbackHost);
+  void ensureAnimTimer() {
     if (fAnimTimerId == invalidTimerId && host !is null) {
       fAnimTimerId = startTimer(TimerIntervalMs.fps60, TimerMode.repeat);
     }
@@ -715,6 +730,9 @@ private:
       }
       return true;
     }
+    if (fLayerMissing) {
+      return false;
+    }
     fCachedLayer = null;
     fCachedPopup = null;
 
@@ -726,10 +744,12 @@ private:
       found = findLayerInTree(ctx.root);
     }
     if (found is null) {
+      fLayerMissing = true;
       return false;
     }
     auto comp = found.components.get!TooltipLayerComponent();
     if (comp is null || comp.popupWidget is null || comp.popupWidget.released) {
+      fLayerMissing = true;
       return false;
     }
     fCachedLayer = found;
@@ -827,6 +847,7 @@ private:
   Widget fCachedLayer = null;
   Widget fCachedPopup = null;
   TooltipStyle fCachedStyle;
+  bool fLayerMissing = false;
   TimerId fDelayTimerId = invalidTimerId;
   TimerId fAnimTimerId = invalidTimerId;
 }
@@ -1019,8 +1040,7 @@ unittest {
   ];
 
   // Hover -> waitingDelay
-  AppEvent ev;
-  ev.kind = AppEvent.Kind.mouseMotion;
+  auto ev = AppEvent(AppEvent.Kind.mouseMotion);
   ev.mouse.x = 50.0f;
   ev.mouse.y = 35.0f;
   auto res = sys.handleEvent(ev, ctx);
@@ -1072,8 +1092,7 @@ unittest {
   // Reach visible again, then click dismisses to hiding
   sys.onTimer(ctx, sys.animTimerId, 0.10f);
   assert(sys.state == TooltipSystem.State.visible);
-  AppEvent downEv;
-  downEv.kind = AppEvent.Kind.mouseButtonDown;
+  auto downEv = AppEvent(AppEvent.Kind.mouseButtonDown);
   downEv.mouse.x = 50.0f;
   downEv.mouse.y = 35.0f;
   sys.handleEvent(downEv, ctx);
@@ -1089,8 +1108,7 @@ unittest {
   // Hover then windowMouseLeave cancels waitingDelay
   sys.handleEvent(ev, ctx);
   assert(sys.state == TooltipSystem.State.waitingDelay);
-  AppEvent leaveEv;
-  leaveEv.kind = AppEvent.Kind.windowMouseLeave;
+  auto leaveEv = AppEvent(AppEvent.Kind.windowMouseLeave);
   sys.handleEvent(leaveEv, ctx);
   assert(sys.state == TooltipSystem.State.idle);
   assert(sys.delayTimerId == invalidTimerId);
@@ -1140,8 +1158,7 @@ unittest {
   );
 
   // Trigger tooltip near bottom-right corner
-  AppEvent ev;
-  ev.kind = AppEvent.Kind.mouseMotion;
+  auto ev = AppEvent(AppEvent.Kind.mouseMotion);
   ev.mouse.x = 270.0f;
   ev.mouse.y = 175.0f;
   tooltipSys.handleEvent(ev, ctx);
@@ -1206,8 +1223,7 @@ unittest {
     VisibleWidget(layer, RectF(0, 0, 400, 300), false, RectF.init),
   ];
 
-  AppEvent ev;
-  ev.kind = AppEvent.Kind.mouseMotion;
+  auto ev = AppEvent(AppEvent.Kind.mouseMotion);
   ev.mouse.x = 30.0f;
   ev.mouse.y = 20.0f;
   sys.handleEvent(ev, ctx);
@@ -1227,5 +1243,115 @@ unittest {
   // Release layer -> cached layer cleared cleanly
   layer.release();
   sys.onWidgetReleased(layer);
+  assert(sys.state == TooltipSystem.State.idle);
+}
+
+// Test 7: postLayout obstruction, target handoff, host switch, 0-dur fade
+unittest {
+  import yguilib.controls.testing : DummyWidgetSystemHost;
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+
+  auto host1 = new DummyWidgetSystemHost();
+  auto host2 = new DummyWidgetSystemHost();
+  auto ui = new UiSystemImpl(null);
+  auto root = WidgetBuilder.make(ui)
+    .name("root")
+    .rect(RectF(0, 0, 400, 300))
+    .build();
+  auto btnA = WidgetBuilder.make(ui)
+    .parent(root)
+    .name("btnA")
+    .rect(RectF(10, 10, 80, 30))
+    .handleInput(true)
+    .component(Tooltip.withText("Hint A"))
+    .build();
+  auto btnB = WidgetBuilder.make(ui)
+    .parent(root)
+    .name("btnB")
+    .rect(RectF(120, 10, 80, 30))
+    .handleInput(true)
+    .component(Tooltip.withText("Hint B"))
+    .build();
+  auto blocker = WidgetBuilder.make(ui)
+    .parent(root)
+    .name("blocker")
+    .rect(RectF(10, 10, 80, 30))
+    .visible(false)
+    .handleInput(true)
+    .build();
+  auto layer = createTooltipLayer(ui, root, TooltipStyle.init, "ttLayer");
+  auto popup = layer.components.get!TooltipLayerComponent().popupWidget;
+
+  // 0-duration fade fast-path
+  TooltipTiming zeroFade;
+  zeroFade.showDelayMs = 100;
+  zeroFade.fadeInDuration = 0.0f;
+  zeroFade.fadeOutDuration = 0.0f;
+  auto sys = TooltipSystem.withTiming(zeroFade);
+  sys.onRegister(host1);
+
+  WidgetSystemContext ctx;
+  ctx.host = host1;
+  ctx.root = root;
+  ctx.visibleWidgets = [
+    VisibleWidget(root, RectF(0, 0, 400, 300), false, RectF.init),
+    VisibleWidget(btnA, RectF(10, 10, 80, 30), false, RectF.init),
+    VisibleWidget(btnB, RectF(120, 10, 80, 30), false, RectF.init),
+    VisibleWidget(layer, RectF(0, 0, 400, 300), false, RectF.init),
+  ];
+
+  AppEvent motion(float x, float y) {
+    auto ev = AppEvent(AppEvent.Kind.mouseMotion);
+    ev.mouse.x = x;
+    ev.mouse.y = y;
+    return ev;
+  }
+
+  sys.handleEvent(motion(30, 20), ctx);
+  sys.onTimer(ctx, sys.delayTimerId, 0.1f);
+  assert(sys.state == TooltipSystem.State.visible);
+  assert(sys.animTimerId == invalidTimerId);
+  assert(popup.visible);
+
+  // Target-A -> Target-B handoff with 0-duration fadeOut
+  sys.handleEvent(motion(140, 20), ctx);
+  assert(sys.state == TooltipSystem.State.waitingDelay);
+  assert(sys.activeTarget is btnB);
+  assert(!popup.visible);
+
+  // Obstruction in postLayout cancels waitingDelay
+  blocker.visible = true;
+  ctx.visibleWidgets = [
+    VisibleWidget(root, RectF(0, 0, 400, 300), false, RectF.init),
+    VisibleWidget(btnA, RectF(10, 10, 80, 30), false, RectF.init),
+    VisibleWidget(btnB, RectF(120, 10, 80, 30), false, RectF.init),
+    VisibleWidget(blocker, RectF(120, 10, 80, 30), false, RectF.init),
+    VisibleWidget(layer, RectF(0, 0, 400, 300), false, RectF.init),
+  ];
+  sys.postLayout(ctx);
+  assert(sys.state == TooltipSystem.State.idle);
+  assert(sys.activeTarget is null);
+
+  // Host switch and onUnregister hide popup and reset state
+  blocker.visible = false;
+  ctx.visibleWidgets = [
+    VisibleWidget(root, RectF(0, 0, 400, 300), false, RectF.init),
+    VisibleWidget(btnA, RectF(10, 10, 80, 30), false, RectF.init),
+    VisibleWidget(layer, RectF(0, 0, 400, 300), false, RectF.init),
+  ];
+  sys.handleEvent(motion(30, 20), ctx);
+  sys.onTimer(ctx, sys.delayTimerId, 0.1f);
+  assert(popup.visible);
+  sys.onRegister(host2);
+  assert(!popup.visible);
+  assert(sys.state == TooltipSystem.State.idle);
+  assert(sys.activeTarget is null);
+
+  ctx.host = host2;
+  sys.handleEvent(motion(30, 20), ctx);
+  sys.onTimer(ctx, sys.delayTimerId, 0.1f);
+  assert(popup.visible);
+  sys.onUnregister();
+  assert(!popup.visible);
   assert(sys.state == TooltipSystem.State.idle);
 }

@@ -74,6 +74,16 @@ void applyBgAndBorderColors(Widget w, ColorF bg, ColorF border) {
   }
 }
 
+/// Updates `w.inputEnabled` to `enabled` and requests a visual update
+/// when the state changed. `w` is allowed to be null (no-op).
+void applyWidgetInputEnabled(Widget w, bool enabled) {
+  if (w is null || w.released || w.inputEnabled == enabled) {
+    return;
+  }
+  w.inputEnabled = enabled;
+  w.update(WidgetUpdateScope.visuals);
+}
+
 /// Styling and sizing parameters for a label-bearing button widget.
 struct ButtonFace {
   WidgetColors colors;
@@ -85,10 +95,23 @@ struct ButtonFace {
   Insets padding;
 }
 
+/// Widget construction styling options shared by button builders.
+struct ButtonBaseConfig {
+  string text = "Button";
+  ColorF normalBg = ColorF(0.20f, 0.22f, 0.28f, 1.0f);
+  ColorF borderColor = ColorF(0.35f, 0.38f, 0.48f, 1.0f);
+  ColorF textColor = ColorF(0.95f, 0.95f, 0.95f, 1.0f);
+  float cornerRadius = 6.0f;
+  float borderWidth = 1.0f;
+  float fontSize = 13.0f;
+  Insets padding = Insets(6.0f, 14.0f, 6.0f, 14.0f);
+  string actionEvent = null;
+}
+
 /// Applies background, optional border, and centered text styling from `face`
 /// to `b`. `label` is allowed to be null/empty.
 void applyButtonFaceStyle(
-  ref WidgetBuilder b,
+  WidgetBuilder b,
   string label,
   in ButtonFace face
 ) {
@@ -248,11 +271,20 @@ unittest {
   assert(flatBtn.components.background.style == Background.Style.rect);
   assert(flatBtn.components.border is null);
 
-  applyBgAndBorderColors(btn, offColors.bg, offColors.border);
-  assert(btn.components.background.color == offColors.bg);
-  assert(btn.components.border.color == offColors.border);
+  applyColors(btn, onColors);
+  assert(btn.components.background.color == onColors.bg);
+  assert(btn.components.border.color == onColors.border);
   assert(btn.components.textLabel.color == onColors.text);
 
+  applyWidgetInputEnabled(null, false);
+  applyWidgetInputEnabled(btn, false);
+  assert(!btn.inputEnabled);
+  applyWidgetInputEnabled(btn, true);
+  assert(btn.inputEnabled);
+
+  btn.release();
+  applyColors(btn, offColors);
+  applyWidgetInputEnabled(btn, false);
 }
 
 unittest {

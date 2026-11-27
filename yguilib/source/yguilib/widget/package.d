@@ -5,12 +5,9 @@ import yguilib.render.render_types;
 import yguilib.widget.layout_components;
 import yguilib.widget.input_components;
 import yguilib.widget.data_components;
-import yguilib.render.font : defaultFontPtSize;
-import yguilib.widget.widget_view : WidgetViewController, WidgetView;
-import yguilib.serhelpers : SerIgnore, shortTypeName, toJsonValue,
-  serializeToJson;
-import std.json : JSONValue, JSONType;
-import std.typecons : Nullable;
+import yguilib.serhelpers : SerIgnore, shortTypeName, toJsonValue;
+import std.array : Appender;
+import std.json : JSONValue;
 
 /// Widgets can have this component to mark a root view to rename events
 /// (e.g. "buttonClick" into "togglePlay"), or to select which events are
@@ -94,42 +91,74 @@ struct WidgetComponents {
 
   DebugDrawComponent debugDraw;
 
+  /// True if `C` is one of the built-in component fields on `WidgetComponents`.
+  template isBuiltinComponent(C) {
+    import std.traits : FieldNameTuple, hasUDA;
+    private static bool check() {
+      enum fieldNames = FieldNameTuple!WidgetComponents;
+      static foreach (i; 0 .. fieldNames.length) {
+        static if (!hasUDA!(
+              __traits(getMember, WidgetComponents, fieldNames[i]),
+              SerIgnore)) {
+          if (is(C == typeof(WidgetComponents.init.tupleof[i]))) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+    enum bool isBuiltinComponent = check();
+  }
+
   /// Attaches or replaces a user-defined component of type `C`.
   /// Pass `null` to remove the component of type `C`.
   void set(C : WidgetComponent)(C comp) {
+    static assert(
+      !isBuiltinComponent!C,
+      "Use the built-in field on WidgetComponents instead of set!C"
+    );
     if (comp is null) {
       custom.remove(typeid(C));
-      customSerializers.remove(typeid(C));
     } else {
-      custom[typeid(C)] = comp;
-      customSerializers[typeid(C)] = (const WidgetComponent c) {
-        return toJsonValue(cast(const C) c);
-      };
+      custom[typeid(C)] = CustomComponentEntry(
+        comp,
+        (const WidgetComponent c) {
+          return toJsonValue(cast(const C) c);
+        }
+      );
     }
   }
 
   /// Retrieves a user-defined component of type `C`, or `null` if absent.
   inout(C) get(C : WidgetComponent)() inout {
+    static assert(
+      !isBuiltinComponent!C,
+      "Use the built-in field on WidgetComponents instead of get!C"
+    );
     if (auto p = typeid(C) in custom) {
-      return cast(inout(C))*p;
+      return cast(inout(C)) p.component;
     }
     return null;
   }
 
   /// Returns true if a user-defined component of type `C` is attached.
   bool has(C : WidgetComponent)() const {
+    static assert(
+      !isBuiltinComponent!C,
+      "Use the built-in field on WidgetComponents instead of has!C"
+    );
     return (typeid(C) in custom) !is null;
   }
 
   /// Appends user-defined custom components to serialized fields.
   void onSerializeFields(ref JSONValue[string] fields) const {
     JSONValue[string] customMap;
-    foreach (ti, comp; custom) {
-      if (comp !is null) {
-        if (auto serializer = ti in customSerializers) {
-          customMap[ti.toString()] = (*serializer)(comp);
+    foreach (ti, entry; custom) {
+      if (entry.component !is null) {
+        if (entry.serializer !is null) {
+          customMap[ti.toString()] = entry.serializer(entry.component);
         } else {
-          customMap[ti.toString()] = toJsonValue(comp);
+          customMap[ti.toString()] = toJsonValue(entry.component);
         }
       }
     }
@@ -150,9 +179,9 @@ struct WidgetComponents {
         }
       }
     }
-    foreach (ti, comp; custom) {
-      if (comp !is null) {
-        names ~= shortTypeName(comp);
+    foreach (ti, entry; custom) {
+      if (entry.component !is null) {
+        names ~= shortTypeName(entry.component);
       }
     }
     return names;
@@ -160,29 +189,25 @@ struct WidgetComponents {
 
   /// Clears all built-in and custom component references.
   void clear() {
-    flexContainer = null;
-    size = null;
-    anchor = null;
-    background = null;
-    textLabel = null;
-    border = null;
-    customDraw = null;
-    scrollableArea = null;
-    view = null;
-    focus = null;
-    defaultButton = null;
-    keyboardEvent = null;
-    mouseEvent = null;
-    widgetArray = null;
-    virtList = null;
+    import std.traits : FieldNameTuple, hasUDA;
+    enum fieldNames = FieldNameTuple!WidgetComponents;
+    static foreach (i; 0 .. fieldNames.length) {
+      static if (!hasUDA!(
+            __traits(getMember, WidgetComponents, fieldNames[i]),
+            SerIgnore)) {
+        this.tupleof[i] = null;
+      }
+    }
     custom.clear();
-    customSerializers.clear();
   }
 
 private:
-  @SerIgnore WidgetComponent[TypeInfo_Class] custom;
-  @SerIgnore JSONValue function(const WidgetComponent)[TypeInfo_Class]
-    customSerializers;
+  struct CustomComponentEntry {
+    WidgetComponent component;
+    JSONValue function(const WidgetComponent) serializer;
+  }
+
+  @SerIgnore CustomComponentEntry[TypeInfo_Class] custom;
 }
 
 /// Specifies which aspect of a widget changed when calling `Widget.update`.
@@ -244,17 +269,17 @@ final class Widget {
     assert(!fReleased, "Cannot add child to a released widget");
     assert(w !is null, "Child widget must not be null");
     assert(!w.released, "Cannot add a released widget as child");
-    if (fReleased || w is null || w.fReleased) {
-      return;
-    }
     assert(w !is this, "Widget cannot be a child of itself");
     assert(!isChildOf(w), "Cannot add an ancestor as a child");
+    if (fReleased || w is null || w.fReleased || w is this || isChildOf(w)) {
+      return;
+    }
 
     if (w.fParent is this) {
       return;
     }
     if (w.fParent !is null) {
-      w.fParent.detachChild(w);
+      w.fParent.removeChildInternal(w);
     }
     w.fParent = this;
     fChildren ~= w;
@@ -265,23 +290,14 @@ final class Widget {
 
   /// Removes `w` from this widget if it is a child.
   bool removeChild(Widget w) {
-    import std.algorithm.mutation : remove;
-
     if (w is null || w.fParent !is this) {
       return false;
     }
-    fChildren = fChildren.remove!(c => c is w);
-    w.fParent = null;
+    removeChildInternal(w);
     w.fParentView = null;
     w.updateParentViews();
-    markLayoutDirty();
     w.markTreeDirty();
     return true;
-  }
-
-  /// Detaches `w` from this widget if it is a child.
-  void detachChild(Widget w) {
-    removeChild(w);
   }
 
   /// Returns true if this widget is a descendant of `ancestor`.
@@ -422,42 +438,17 @@ final class Widget {
     return app.data;
   }
 
-  /// Converts essential widget fields to a flat JSONValue.
-  JSONValue dumpSimpleToJsonValue(bool withChildren) const {
-    JSONValue[string] fields;
-    fields["name"] = toJsonValue(name);
-    fields["uId"] = toJsonValue(uId);
-    const float[4] rectArr = [rect.x, rect.y, rect.width, rect.height];
-    fields["rect"] = toJsonValue(rectArr[]);
-    fields["visible"] = toJsonValue(visible);
-    fields["handleInput"] = toJsonValue(handleInput);
-    fields["inputEnabled"] = toJsonValue(inputEnabled);
-
-    const compNames = components.nonNullComponentNames();
-    if (compNames.length > 0) {
-      fields["components"] = toJsonValue(compNames);
-    }
-
-    if (withChildren && fChildren.length > 0) {
-      JSONValue[] childrenArr;
-      foreach (child; fChildren) {
-        childrenArr ~= child.dumpSimpleToJsonValue(true);
-      }
-      fields["children"] = JSONValue(childrenArr);
-    }
-
-    return JSONValue(fields);
-  }
-
   /// Checks if this or child Widget has the name.
   /// Returns null if none.
-  Widget findByName(string nameToSearch) {
-    if (name == nameToSearch)
+  inout(Widget) findByName(string nameToSearch) inout {
+    if (name == nameToSearch) {
       return this;
+    }
     foreach (c; children) {
       auto w = c.findByName(nameToSearch);
-      if (w)
+      if (w !is null) {
         return w;
+      }
     }
     return null;
   }
@@ -531,6 +522,10 @@ final class Widget {
       fParent.removeChild(this);
     }
     fReleased = true;
+    foreach (c; fChildren) {
+      c.fParent = null;
+      c.fParentView = null;
+    }
     fChildren = null;
     fParentView = null;
     components.clear();
@@ -570,10 +565,10 @@ package(yguilib):
 
   /// Returns true if this widget or any visible descendant needs redrawing.
   bool isTreeDirty() const {
-    if (!visible) {
+    if (!visible || !subtreeDirty) {
       return false;
     }
-    if (dirty) {
+    if (fDirty) {
       return true;
     }
     foreach (child; fChildren) {
@@ -586,10 +581,10 @@ package(yguilib):
 
   /// Returns true if this widget or any visible descendant needs layout.
   bool isTreeLayoutDirty() const {
-    if (!visible) {
+    if (!visible || !subtreeLayoutDirty) {
       return false;
     }
-    if (layoutDirty) {
+    if (fLayoutDirty) {
       return true;
     }
     foreach (child; fChildren) {
@@ -608,10 +603,54 @@ package(yguilib):
     return fParent.findParentView();
   }
 
-  bool dirty = true;
-  bool layoutDirty = true;
+  @property bool dirty() const nothrow @safe @nogc {
+    return fDirty;
+  }
+
+  @property void dirty(bool val) nothrow @safe @nogc {
+    fDirty = val;
+    if (val) {
+      markSubtreeDirty();
+    }
+  }
+
+  @property bool layoutDirty() const nothrow @safe @nogc {
+    return fLayoutDirty;
+  }
+
+  @property void layoutDirty(bool val) nothrow @safe @nogc {
+    fLayoutDirty = val;
+    if (val) {
+      markSubtreeLayoutDirty();
+    }
+  }
+
+  bool subtreeDirty = true;
+  bool subtreeLayoutDirty = true;
 
 private:
+  void removeChildInternal(Widget w) {
+    import std.algorithm.mutation : remove;
+
+    fChildren = fChildren.remove!(c => c is w);
+    w.fParent = null;
+    markLayoutDirty();
+  }
+
+  void markSubtreeDirty() nothrow @safe @nogc {
+    for (Widget cur = this; cur !is null && !cur.subtreeDirty;
+         cur = cur.fParent) {
+      cur.subtreeDirty = true;
+    }
+  }
+
+  void markSubtreeLayoutDirty() nothrow @safe @nogc {
+    for (Widget cur = this; cur !is null && !cur.subtreeLayoutDirty;
+         cur = cur.fParent) {
+      cur.subtreeLayoutDirty = true;
+    }
+  }
+
   /// Recomputes cached parentView for this widget and all its descendants.
   void updateParentViews() {
     fParentView = findParentView();
@@ -622,17 +661,23 @@ private:
 
   /// Marks this widget and its ancestors as layout dirty.
   void markLayoutDirty() {
-    layoutDirty = true;
-    dirty = true;
-    if (fParent !is null && !fParent.layoutDirty) {
+    fLayoutDirty = true;
+    fDirty = true;
+    subtreeLayoutDirty = true;
+    subtreeDirty = true;
+    if (fParent !is null &&
+        (!fParent.fLayoutDirty || !fParent.subtreeLayoutDirty ||
+         !fParent.subtreeDirty)) {
       fParent.markLayoutDirty();
     }
   }
 
   /// Marks this widget and all its descendants as dirty and layout-dirty.
   void markTreeDirty() {
-    dirty = true;
-    layoutDirty = true;
+    fDirty = true;
+    fLayoutDirty = true;
+    subtreeDirty = true;
+    subtreeLayoutDirty = true;
     foreach (child; fChildren) {
       child.markTreeDirty();
     }
@@ -705,8 +750,8 @@ private:
     return "[" ~ parts.join(", ") ~ "]";
   }
 
-  import std.array : Appender;
-
+  bool fDirty = true;
+  bool fLayoutDirty = true;
   @SerIgnore Widget fParent;
   @SerIgnore Widget[] fChildren;
   @SerIgnore Widget fParentView;
@@ -1308,4 +1353,54 @@ unittest {
   assert(!isEffectivelyVisible(root));
   assert(!isEffectivelyVisible(mid));
   assert(!isEffectivelyVisible(leaf));
+}
+
+// Verifies debugDraw clearing, child detachment on release, cycle guard,
+// and const/inout findByName.
+unittest {
+  import core.exception : AssertError;
+
+  auto root = new Widget(1);
+  root.name = "root";
+  auto child = new Widget(2);
+  child.name = "child";
+  auto grandChild = new Widget(3);
+  grandChild.name = "grand";
+  root.addChild(child);
+  child.addChild(grandChild);
+
+  // inout findByName works on const Widget
+  const(Widget) cRoot = root;
+  assert(cRoot.findByName("grand") is grandChild);
+  assert(cRoot.findByName("missing") is null);
+
+  // addChild cycle guard throws AssertError in debug
+  bool caughtSelf = false;
+  try {
+    root.addChild(root);
+  } catch (AssertError) {
+    caughtSelf = true;
+  }
+  assert(caughtSelf);
+
+  bool caughtCycle = false;
+  try {
+    grandChild.addChild(root);
+  } catch (AssertError) {
+    caughtCycle = true;
+  }
+  assert(caughtCycle);
+
+  // debugDraw is cleared by WidgetComponents.clear()
+  root.components.debugDraw = new DebugDrawComponent();
+  assert(root.components.debugDraw !is null);
+  root.components.clear();
+  assert(root.components.debugDraw is null);
+
+  // release() detaches children so fParent/fParentView are not dangling
+  root.release();
+  assert(root.released);
+  assert(root.children.length == 0);
+  assert(child.parent is null);
+  assert(child.parentView is null);
 }

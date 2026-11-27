@@ -243,9 +243,9 @@ private:
 
 // View header layout construction test
 unittest {
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : makeHeadlessUiSystem;
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   auto model = new DemoModel();
   auto tracker = ModelTracker!DemoModel(model);
   auto tabsModel = createHeaderTabsModel();

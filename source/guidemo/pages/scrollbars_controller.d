@@ -221,11 +221,11 @@ private:
 
 unittest {
   import yguilib.events.builder : ViewAppEventBuilder;
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : UiSystem, makeHeadlessUiSystem;
   import yguilib.widget : Widget;
 
   ScrollbarsPageController makeController(
-    UiSystemImpl ui,
+    UiSystem ui,
     Widget root,
     ref ModelTracker!DemoModel demoTracker,
     ref ScrollbarsPageTrackers trackers
@@ -239,7 +239,7 @@ unittest {
     return new ScrollbarsPageController(params);
   }
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   auto root = new Widget(ui.nextWidgetId());
   auto demoTracker = ModelTracker!DemoModel(new DemoModel());
   auto trackers = ScrollbarsPageTrackers.make();

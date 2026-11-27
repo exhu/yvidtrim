@@ -38,12 +38,12 @@ struct TextBatch {
 
   /// Texture id of the active batch (0 when empty).
   GLuint texture() const nothrow @safe {
-    return fTexture;
+    return fQuadCount == 0 ? 0 : fTexture;
   }
 
   /// Stencil clip state of the active batch (`false` when empty).
   bool stencilClip() const nothrow @safe {
-    return fStencilClip;
+    return fQuadCount == 0 ? false : fStencilClip;
   }
 
   /**
@@ -92,6 +92,7 @@ struct TextBatch {
    * a prior `beginRun` (or `pushQuad`) for the current batch state.
    */
   void appendQuad(in TextVertex[4] quad) {
+    assert(fTexture != 0);
     assert(fQuadCount < maxIndexedQuads);
     if (fVerts.length == 0) {
       fVerts = new TextVertex[maxIndexedQuads * 4];
@@ -140,9 +141,7 @@ struct TextBatch {
   /// Drops queued quads and releases the backing vertex buffer.
   void releaseMemory() {
     fVerts = null;
-    fQuadCount = 0;
-    fTexture = 0;
-    fStencilClip = false;
+    clear();
   }
 
   version (unittest) {
@@ -213,6 +212,72 @@ unittest {
   assert(batch.quadCount() == 0);
   assert(batch.texture() == 0);
   assert(!batch.stencilClip());
+  assert(batch.remaining() == maxIndexedQuads);
+}
+
+unittest {
+  import yguilib.render.internal.gl_test_util : GlTestWindow, testHeight,
+    testWidth;
+  import yguilib.render.internal.gl_util : allocRgbaTexture, deleteTexture,
+    ProgramTracker;
+  import yguilib.render.internal.pipelines : TextPipeline, Viewport;
+
+  const TextVertex[4] q = [
+    TextVertex(0, 0, 0, 0, [255, 255, 255, 255]),
+    TextVertex(10, 0, 1, 0, [255, 255, 255, 255]),
+    TextVertex(0, 10, 0, 1, [255, 255, 255, 255]),
+    TextVertex(10, 10, 1, 1, [255, 255, 255, 255]),
+  ];
+
+  // beginRun with 0 quads preserves empty invariants.
+  TextBatch batch;
+  batch.beginRun(42, true);
+  assert(batch.empty());
+  assert(batch.quadCount() == 0);
+  assert(batch.texture() == 0);
+  assert(!batch.stencilClip());
+  assert(batch.remaining() == maxIndexedQuads);
+
+  // appendQuad decrements remaining() and exposes run state.
+  batch.appendQuad(q);
+  batch.appendQuad(q);
+  assert(!batch.empty());
+  assert(batch.quadCount() == 2);
+  assert(batch.texture() == 42);
+  assert(batch.stencilClip());
+  assert(batch.remaining() == maxIndexedQuads - 2);
+
+  // flush draws queued quads, resets state, and records stats.
+  auto w = GlTestWindow("test_text_batch_flush");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+
+  ProgramTracker programs;
+  TextPipeline pipeline;
+  pipeline.initialize(&programs);
+  scope(exit) pipeline.destroy();
+
+  const GLuint tex = allocRgbaTexture(4);
+  scope(exit) deleteTexture(tex);
+
+  const Viewport vp = Viewport(testWidth, testHeight);
+  TextBatch glBatch;
+  glBatch.flush(pipeline, vp);
+  assert(glBatch.stats().flushes == 0);
+  assert(glBatch.stats().flushedQuads == 0);
+
+  glBatch.beginRun(tex, false);
+  glBatch.appendQuad(q);
+  glBatch.appendQuad(q);
+  glBatch.flush(pipeline, vp);
+  assert(glBatch.empty());
+  assert(glBatch.quadCount() == 0);
+  assert(glBatch.texture() == 0);
+  assert(!glBatch.stencilClip());
+  assert(glBatch.remaining() == maxIndexedQuads);
+  assert(glBatch.stats().flushes == 1);
+  assert(glBatch.stats().flushedQuads == 2);
+  glBatch.releaseMemory();
 }
 
 unittest {

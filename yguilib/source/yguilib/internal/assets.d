@@ -49,6 +49,13 @@ enum string paintMaskVertexShaderSource =
  * `fragSource` with `#define MASK 1` after its `#version` line, selecting
  * the alpha-mask variant of `paint.frag.glsl` and `pattern.frag.glsl`.
  */
-enum string withMaskDefine(string fragSource) =
-  "#version 300 es\n#define MASK 1\n"
-  ~ fragSource["#version 300 es\n".length .. $];
+template withMaskDefine(string fragSource) {
+  static assert(
+    fragSource.length >= "#version 300 es\n".length &&
+      fragSource[0 .. "#version 300 es\n".length] == "#version 300 es\n",
+    "Fragment shader must start with '#version 300 es\\n'"
+  );
+  enum string withMaskDefine =
+    "#version 300 es\n#define MASK 1\n"
+    ~ fragSource["#version 300 es\n".length .. $];
+}

@@ -12,25 +12,37 @@ struct VisibleWidget {
   RectF absRect;
   bool hasClip;
   RectF clipRect;
+
+  /// Returns true if `p` is inside `absRect` and (when `hasClip` is true)
+  /// inside `clipRect`.
+  bool containsPoint(in PointF p) const {
+    if (hasClip && !clipRect.contains(p)) {
+      return false;
+    }
+    return absRect.contains(p);
+  }
 }
 
 /// Contiguous slice of visible widgets in pre-order (root-to-leaf).
 alias VisibleWidgets = VisibleWidget[];
 
-/// Returns the topmost visible widget containing `p` that has component `C`,
-/// or `null` if no visible widget matches.
+/// Returns the topmost visible widget containing `p` that has a custom
+/// component `C`, or `null` if no visible widget matches.
 Widget findTopmostWithComponent(C : WidgetComponent)(
   VisibleWidgets widgets,
   PointF p
 ) {
+  import yguilib.widget : WidgetComponents;
+
+  static assert(
+    !WidgetComponents.isBuiltinComponent!C,
+    "findTopmostWithComponent only supports custom WidgetComponents"
+  );
   foreach_reverse (ref vw; widgets) {
     if (vw.widget is null || !vw.widget.components.has!C()) {
       continue;
     }
-    if (vw.hasClip && !vw.clipRect.contains(p)) {
-      continue;
-    }
-    if (vw.absRect.contains(p)) {
+    if (vw.containsPoint(p)) {
       return vw.widget;
     }
   }
@@ -73,4 +85,19 @@ unittest {
   // Outside all widgets -> returns null
   assert(findTopmostWithComponent!MarkerComponent(list, PointF(150, 150))
     is null);
+
+  // VisibleWidget.containsPoint
+  auto vwUnclipped = VisibleWidget(
+    base, RectF(10, 10, 50, 50), false, RectF()
+  );
+  assert(vwUnclipped.containsPoint(PointF(10, 10)));
+  assert(vwUnclipped.containsPoint(PointF(59, 59)));
+  assert(!vwUnclipped.containsPoint(PointF(60, 10)));
+
+  auto vwClipped = VisibleWidget(
+    base, RectF(10, 10, 50, 50), true, RectF(20, 20, 15, 15)
+  );
+  assert(vwClipped.containsPoint(PointF(25, 25)));
+  assert(!vwClipped.containsPoint(PointF(15, 15)));
+  assert(!vwClipped.containsPoint(PointF(40, 40)));
 }

@@ -8,7 +8,7 @@ import yguilib.events : AppEvent;
 import yguilib.events.keyboard : Keycode, Scancode;
 
 Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
-  switch (sdlEv.type) {
+  final switch (sdlEv.type) {
     case yguilib_sdl3_EventType.quit:
       return Nullable!AppEvent(AppEvent(AppEvent.Kind.appQuit));
 
@@ -38,11 +38,16 @@ Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
       return Nullable!AppEvent(makeWheelEvent(sdlEv));
 
     case yguilib_sdl3_EventType.keyDown: {
-      import std.logger : tracef;
-
       auto keyEv = makeKeyEvent(AppEvent.Kind.keyDown, sdlEv);
-      tracef("SDL keyDown: key=0x%x scancode=%d", cast(uint) keyEv.keyData.key,
-        cast(int) keyEv.keyData.scancode);
+      debug {
+        import std.logger : tracef;
+
+        tracef(
+          "SDL keyDown: key=0x%x scancode=%d",
+          cast(uint) keyEv.keyData.key,
+          cast(int) keyEv.keyData.scancode
+        );
+      }
       return Nullable!AppEvent(keyEv);
     }
 
@@ -53,7 +58,9 @@ Nullable!AppEvent appEventFromSdlEvent(in yguilib_sdl3_Event sdlEv) {
     case yguilib_sdl3_EventType.textInput:
       return Nullable!AppEvent(makeTextEvent(sdlEv));
 
-    default:
+    case yguilib_sdl3_EventType.none:
+    case yguilib_sdl3_EventType.wake:
+    case yguilib_sdl3_EventType.unknown:
       return Nullable!AppEvent.init;
   }
 }
@@ -104,7 +111,8 @@ AppEvent makeWindowEvent(in yguilib_sdl3_Event sdlEv) {
         AppEvent.WindowData(
           sdlEv.window.windowId,
           sdlEv.window.width,
-          sdlEv.window.height
+          sdlEv.window.height,
+          sdlEv.window.scale
         )
       );
     case yguilib_sdl3_EventType.windowDisplayScaleChanged:
@@ -122,11 +130,13 @@ AppEvent makeWindowEvent(in yguilib_sdl3_Event sdlEv) {
         AppEvent.Kind.windowMouseEnter,
         AppEvent.WindowData(sdlEv.window.windowId)
       );
-    default:
+    case yguilib_sdl3_EventType.windowMouseLeave:
       return AppEvent.windowEvent(
         AppEvent.Kind.windowMouseLeave,
         AppEvent.WindowData(sdlEv.window.windowId)
       );
+    default:
+      assert(false, "Unexpected window event type");
   }
 }
 
@@ -145,6 +155,8 @@ AppEvent makeWheelEvent(in yguilib_sdl3_Event sdlEv) {
   );
 }
 
+/// Converts a null-terminated C string to a D $(D string).
+/// Accepts and returns $(D null).
 string stringFromCstr(const(char)* s) {
   if (s is null) {
     return null;
@@ -343,4 +355,98 @@ unittest {
   assert(!winLeaveApp.isNull);
   assert(winLeaveApp.get().kind == AppEvent.Kind.windowMouseLeave);
   assert(winLeaveApp.get().window.windowId == 42);
+
+  yguilib_sdl3_Event quitSdl;
+  quitSdl.type = yguilib_sdl3_EventType.quit;
+  auto quitApp = appEventFromSdlEvent(quitSdl);
+  assert(!quitApp.isNull);
+  assert(quitApp.get().kind == AppEvent.Kind.appQuit);
+
+  yguilib_sdl3_Event closeSdl;
+  closeSdl.window.type = yguilib_sdl3_EventType.windowClose;
+  closeSdl.window.windowId = 7;
+  auto closeApp = appEventFromSdlEvent(closeSdl);
+  assert(!closeApp.isNull);
+  assert(closeApp.get().kind == AppEvent.Kind.windowClose);
+  assert(closeApp.get().window.windowId == 7);
+
+  yguilib_sdl3_Event resizedSdl;
+  resizedSdl.window.type = yguilib_sdl3_EventType.windowResized;
+  resizedSdl.window.windowId = 8;
+  resizedSdl.window.width = 800;
+  resizedSdl.window.height = 600;
+  resizedSdl.window.scale = 1.5f;
+  auto resizedApp = appEventFromSdlEvent(resizedSdl);
+  assert(!resizedApp.isNull);
+  assert(resizedApp.get().kind == AppEvent.Kind.windowResized);
+  assert(resizedApp.get().window.width == 800);
+  assert(resizedApp.get().window.height == 600);
+  assert(resizedApp.get().window.scale == 1.5f);
+
+  yguilib_sdl3_Event exposedSdl;
+  exposedSdl.window.type = yguilib_sdl3_EventType.windowExposed;
+  exposedSdl.window.windowId = 9;
+  exposedSdl.window.width = 1024;
+  exposedSdl.window.height = 768;
+  exposedSdl.window.scale = 2.0f;
+  auto exposedApp = appEventFromSdlEvent(exposedSdl);
+  assert(!exposedApp.isNull);
+  assert(exposedApp.get().kind == AppEvent.Kind.windowExposed);
+  assert(exposedApp.get().window.windowId == 9);
+  assert(exposedApp.get().window.width == 1024);
+  assert(exposedApp.get().window.height == 768);
+  assert(exposedApp.get().window.scale == 2.0f);
+
+  yguilib_sdl3_Event buttonUpSdl;
+  buttonUpSdl.button.type = yguilib_sdl3_EventType.mouseButtonUp;
+  buttonUpSdl.button.windowId = 10;
+  buttonUpSdl.button.x = 50.0f;
+  buttonUpSdl.button.y = 60.0f;
+  buttonUpSdl.button.button = 1;
+  buttonUpSdl.button.down = 0;
+  buttonUpSdl.button.clicks = 1;
+  auto buttonUpApp = appEventFromSdlEvent(buttonUpSdl);
+  assert(!buttonUpApp.isNull);
+  assert(buttonUpApp.get().kind == AppEvent.Kind.mouseButtonUp);
+  assert(!buttonUpApp.get().mouse.down);
+  assert(buttonUpApp.get().mouse.button == 1);
+
+  yguilib_sdl3_Event keyUpSdl;
+  keyUpSdl.key.type = yguilib_sdl3_EventType.keyUp;
+  keyUpSdl.key.windowId = 11;
+  keyUpSdl.key.key = 27;
+  keyUpSdl.key.scancode = 41;
+  keyUpSdl.key.mod = 0x0002;
+  keyUpSdl.key.repeat = 0;
+  auto keyUpApp = appEventFromSdlEvent(keyUpSdl);
+  assert(!keyUpApp.isNull);
+  assert(keyUpApp.get().kind == AppEvent.Kind.keyUp);
+  assert(keyUpApp.get().keyData.mod == 0x0002);
+  assert(!keyUpApp.get().keyData.repeat);
+
+  yguilib_sdl3_Event nullTextSdl;
+  nullTextSdl.textInput.type = yguilib_sdl3_EventType.textInput;
+  nullTextSdl.textInput.windowId = 12;
+  nullTextSdl.textInput.text = null;
+  auto nullTextApp = appEventFromSdlEvent(nullTextSdl);
+  assert(!nullTextApp.isNull);
+  assert(nullTextApp.get().textData.text is null);
+
+  yguilib_sdl3_Event nullEditSdl;
+  nullEditSdl.textEditing.type = yguilib_sdl3_EventType.textEditing;
+  nullEditSdl.textEditing.windowId = 12;
+  nullEditSdl.textEditing.text = null;
+  auto nullEditApp = appEventFromSdlEvent(nullEditSdl);
+  assert(!nullEditApp.isNull);
+  assert(nullEditApp.get().textData.text is null);
+
+  foreach (ignored; [
+    yguilib_sdl3_EventType.none,
+    yguilib_sdl3_EventType.wake,
+    yguilib_sdl3_EventType.unknown,
+  ]) {
+    yguilib_sdl3_Event ignSdl;
+    ignSdl.type = ignored;
+    assert(appEventFromSdlEvent(ignSdl).isNull);
+  }
 }

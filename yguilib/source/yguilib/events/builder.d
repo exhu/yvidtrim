@@ -49,30 +49,12 @@ struct ViewAppEventBuilder {
     return this;
   }
 
-  /// Sets the custom user payload object and optional release delegate.
+  /// Sets the custom user payload object.
   ///
   /// Params:
   ///   obj = Custom payload object. Allowed to be null.
-  ///   release = Optional cleanup delegate called on event destruction.
-  ///             Allowed to be null.
-  ref ViewAppEventBuilder data(
-    Object obj,
-    void delegate(in AppEvent.ViewData) release
-  ) return {
+  ref ViewAppEventBuilder data(Object obj) return {
     viewData.data = obj;
-    viewData.releaseData = release;
-    return this;
-  }
-
-  /// Sets the release delegate for custom payload cleanup.
-  ///
-  /// Params:
-  ///   release = Cleanup delegate called on event destruction.
-  ///             Allowed to be null.
-  ref ViewAppEventBuilder releaseData(
-    void delegate(in AppEvent.ViewData) release
-  ) return {
-    viewData.releaseData = release;
     return this;
   }
 
@@ -108,7 +90,6 @@ unittest {
   assert(ev1.view.viewWidget is parent);
   assert(ev1.view.value[0] == 42);
   assert(ev1.view.data is null);
-  assert(ev1.view.releaseData is null);
 
   // Test 2: Parameterized constructor (eventName only)
   auto ev2 = ViewAppEventBuilder("menuAction")
@@ -130,7 +111,7 @@ unittest {
   assert(ev3.view.viewWidget is null);
   assert(ev3.view.value[0] == 0);
 
-  // Test 4: Custom object payload with release delegate
+  // Test 4: Custom object payload
   static class TestPayload {
     int id;
     this(int id) {
@@ -138,41 +119,16 @@ unittest {
     }
   }
 
-  bool released = false;
-  ulong releasedVal = 0;
-  {
-    auto ev4 = ViewAppEventBuilder("withPayload")
-      .data(new TestPayload(777), (in AppEvent.ViewData vd) {
-        released = true;
-        releasedVal = vd.value[0];
-      })
-      .value(99)
-      .build();
+  auto ev4 = ViewAppEventBuilder("withPayload")
+    .data(new TestPayload(777))
+    .value(99)
+    .build();
 
-    assert(ev4.view.data !is null);
-    assert((cast(TestPayload)ev4.view.data).id == 777);
-    assert(ev4.view.value[0] == 99);
-    assert(!released);
-  }
-  assert(released);
-  assert(releasedVal == 99);
+  assert(ev4.view.data !is null);
+  assert((cast(TestPayload)ev4.view.data).id == 777);
+  assert(ev4.view.value[0] == 99);
 
-  // Test 5: Separate releaseData setter
-  bool separateReleased = false;
-  {
-    auto ev5 = ViewAppEventBuilder("separateRelease")
-      .data(new TestPayload(888), null)
-      .releaseData((in AppEvent.ViewData vd) {
-        separateReleased = true;
-      })
-      .build();
-
-    assert(ev5.view.data !is null);
-    assert(!separateReleased);
-  }
-  assert(separateReleased);
-
-  // Test 6: Setting full value array
+  // Test 5: Setting full value array
   ulong[AppEvent.ViewData.valueSize] fullVal = [10, 20, 30, 40];
   auto ev6 = ViewAppEventBuilder("fullVal")
     .valueArray(fullVal)

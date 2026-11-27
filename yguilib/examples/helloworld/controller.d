@@ -55,9 +55,9 @@ private:
 
 unittest {
   import yguilib.events.builder : ViewAppEventBuilder;
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : makeHeadlessUiSystem;
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   auto tracker = ModelTracker!HelloModel(new HelloModel());
   auto view = new HelloView(ui, tracker);
   auto ctrl = new HelloController(ui, tracker, view);

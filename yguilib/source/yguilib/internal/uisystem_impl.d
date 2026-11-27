@@ -1,8 +1,9 @@
 module yguilib.internal.uisystem_impl;
 
-import glad2.gles2;
+package(yguilib):
+
+import std.logger : warningf;
 import std.typecons : Nullable;
-import std.logger;
 import yguilib.allochelpers : SmallBuffer;
 import yguilib.clibs.sdl3;
 import yguilib.internal.memstats : logMemStats, telemetrySampleHeap;
@@ -11,12 +12,10 @@ import yguilib.timercontrol : TimerId;
 import yguilib.timers : TimerIntervalMs, TimerMode;
 import yguilib.uisystem;
 import yguilib.controller : Controller, DefaultController, HandleResult;
-import yguilib.controller.internal.controller_stack : ControllerStack;
+import yguilib.controller.internal.controller_stack : ControllerStackStorage;
 import yguilib.events : AppEvent;
-import yguilib.events.keyboard : Keycode, Scancode;
 import yguilib.events.internal.message_bus : MessageBus;
 import yguilib.events.internal.sdl_events : appEventFromSdlEvent;
-import yguilib.render : Renderer;
 import yguilib.object_registry : ObjectRegistry;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.widget_view : WidgetViewController, WidgetView;
@@ -41,6 +40,7 @@ class UiSystemImpl : UiSystem {
   this(Window w) {
     fMainWindow = w;
     messageBus = MessageBus(this);
+    fEventStatsEnabled = messageBus.statsEnabled;
     pipeline = new WidgetSystemPipeline(this);
     pipeline.registerSystem(new FocusSystem());
     pipeline.registerSystem(new InputSystem(this));
@@ -62,6 +62,12 @@ class UiSystemImpl : UiSystem {
     fWidgetViews = new ObjectRegistry!WidgetView();
   }
 
+  invariant {
+    assert(pipeline !is null);
+    assert(fWidgetViewControllers !is null);
+    assert(fWidgetViews !is null);
+  }
+
   override uint nextWidgetId() {
     return fNextWidgetId++;
   }
@@ -75,12 +81,21 @@ class UiSystemImpl : UiSystem {
     messageBus.send(ev);
   }
 
-  override TimerId startTimer(
-    Object owner,
+  override TimerId startControllerTimer(
+    Controller target,
     uint intervalMs,
     TimerMode mode
   ) {
-    return timerService.startTimer(owner, intervalMs, mode);
+    assert(target !is null);
+    return timerService.startTimer(cast(Object) target, intervalMs, mode);
+  }
+
+  override TimerId startSystemTimer(
+    WidgetSystem target,
+    uint intervalMs,
+    TimerMode mode
+  ) {
+    return timerService.startTimer(target, intervalMs, mode);
   }
 
   override void stopTimer(TimerId id) {
@@ -92,11 +107,12 @@ class UiSystemImpl : UiSystem {
   }
 
   override @property void eventStatsEnabled(bool enabled) {
+    fEventStatsEnabled = enabled;
     messageBus.statsEnabled(enabled);
   }
 
-  override @property bool eventStatsEnabled() {
-    return messageBus.statsEnabled;
+  override @property bool eventStatsEnabled() const {
+    return fEventStatsEnabled;
   }
 
   override @property Window mainWindow() {
@@ -126,22 +142,6 @@ class UiSystemImpl : UiSystem {
     pipeline.unregisterSystem(system);
   }
 
-  package(yguilib) @property WidgetSystemPipeline systemPipeline() {
-    return pipeline;
-  }
-
-  package(yguilib) void timerClock(long delegate() clock) {
-    timerService.clock(clock);
-  }
-
-  package(yguilib) int nextWaitTimeoutMs() const {
-    return timerService.nextWaitTimeoutMs(timerService.nowNs());
-  }
-
-  protected override WidgetSystem findWidgetSystemByType(TypeInfo_Class type) {
-    return pipeline.findSystemByType(type);
-  }
-
   override void pushController(Controller c) {
     controllers.push(c);
   }
@@ -167,13 +167,16 @@ class UiSystemImpl : UiSystem {
   }
 
   override void releaseWidget(Widget w) {
-    if (w is null || w.released) {
+    if (w is null || w.released || releasingWidgets.contains(w)) {
       return;
     }
+    releasingWidgets.push(w);
+    scope (exit) releasingWidgets.removeFirst(w);
 
     // 1. Snapshot children and recursively release them bottom-up
-    Widget[] childrenSnapshot = w.children.dup;
-    foreach (child; childrenSnapshot) {
+    SmallBuffer!(Widget, 16) childrenSnapshot;
+    childrenSnapshot.assignSlice(w.children);
+    foreach (child; childrenSnapshot[]) {
       releaseWidget(child);
     }
 
@@ -182,33 +185,16 @@ class UiSystemImpl : UiSystem {
     if (fMainWindow !is null && fMainWindow.rootWidget is w) {
       fMainWindow.rootWidget = null;
     }
-
-    foreach (view; fWidgetViews) {
-      if (view !is null) {
-        view.unregisterViewWidget(w);
-      }
-    }
-
-    foreach (ctrl; fWidgetViewControllers) {
-      if (ctrl !is null) {
-        ctrl.unregisterViewWidget(w);
-      }
-    }
-
-    foreach (ctrl; controllers) {
-      if (ctrl !is null) {
-        ctrl.onWidgetReleased(w);
-      }
-    }
-
-    pipeline.notifyWidgetReleased(w);
+    notifyReleaseListeners(w);
 
     // 3. Clear w's own fields and mark released
     w.release();
   }
 
   override void mainEventLoop() {
-    yguilib_sdl3_init();
+    if (yguilib_sdl3_init() != 0) {
+      throw new Exception("Failed to initialize SDL3");
+    }
     scope (exit) yguilib_sdl3_quit();
 
     if (fMainWindow !is null) {
@@ -216,12 +202,13 @@ class UiSystemImpl : UiSystem {
     }
     scope (exit) {
       if (fMainWindow !is null) {
+        pipeline.notifyWindowClosed(fMainWindow);
         fMainWindow.destroy();
       }
     }
 
     auto sysCtrl = new UiSystemController(this, pipeline);
-    pushController(sysCtrl);
+    controllers.pushBottom(sysCtrl);
     scope (exit) {
       while (activeControllerOrNull() !is null) {
         popController();
@@ -263,7 +250,7 @@ class UiSystemImpl : UiSystem {
     foreach (ctrl; controllers) {
       JSONValue[string] ctrlJson;
       ctrlJson["type"] = JSONValue(shortTypeName(ctrl));
-      ctrlJson["modal"] = JSONValue(ctrl.modal);
+      ctrlJson["modal"] = JSONValue(controllers.isModal(ctrl));
       controllerList ~= JSONValue(ctrlJson);
     }
     fields["controllers"] = JSONValue(controllerList);
@@ -285,7 +272,57 @@ class UiSystemImpl : UiSystem {
     return serializeToJson(JSONValue(root), true);
   }
 
+protected:
+  override WidgetSystem findWidgetSystemByType(TypeInfo_Class type) {
+    return pipeline.findSystemByType(type);
+  }
+
+package(yguilib):
+  @property WidgetSystemPipeline systemPipeline() {
+    return pipeline;
+  }
+
+  void timerClock(long delegate() clock) {
+    timerService.clock(clock);
+  }
+
+  int nextWaitTimeoutMs() const {
+    return timerService.nextWaitTimeoutMs(timerService.nowNs());
+  }
+
 private:
+  void notifyReleaseListeners(Widget w) {
+    SmallBuffer!(WidgetView, 16) viewsSnapshot;
+    foreach (view; fWidgetViews) {
+      if (view !is null) {
+        viewsSnapshot.push(view);
+      }
+    }
+    foreach (view; viewsSnapshot[]) {
+      view.unregisterViewWidget(w);
+    }
+
+    SmallBuffer!(WidgetViewController, 16) viewCtrlsSnapshot;
+    foreach (ctrl; fWidgetViewControllers) {
+      if (ctrl !is null) {
+        viewCtrlsSnapshot.push(ctrl);
+      }
+    }
+    foreach (ctrl; viewCtrlsSnapshot[]) {
+      ctrl.unregisterViewWidget(w);
+    }
+
+    SmallBuffer!(Controller, 16) ctrlsSnapshot;
+    snapshotControllers(ctrlsSnapshot);
+    foreach (ctrl; ctrlsSnapshot[]) {
+      if (ctrl !is null) {
+        ctrl.onWidgetReleased(w);
+      }
+    }
+
+    pipeline.notifyWidgetReleased(w);
+  }
+
   auto dumpWindowInfoJson() {
     import std.json : JSONValue;
     if (fMainWindow is null) {
@@ -333,6 +370,12 @@ private:
     const int res = yguilib_sdl3_wait_event(&sdlEv, waitMs);
     if (res > 0) {
       enqueueSdlEvent(sdlEv);
+    } else if (res < 0) {
+      warningf(
+        "yguilib_sdl3_wait_event failed (res=%d, waitMs=%d)",
+        res,
+        waitMs
+      );
     }
   }
 
@@ -348,7 +391,7 @@ private:
    * allocations and protect against stack mutations during handleEvent.
    */
   void snapshotControllers(ref SmallBuffer!(Controller, 16) outBuf) {
-    outBuf.assignSlice(controllers.controllers());
+    controllers.snapshot(outBuf);
   }
 
   bool isMainWindowEvent(uint windowId) const {
@@ -498,8 +541,6 @@ private:
     waitForEventsIfIdle();
     drainSdlEvents();
 
-    const bool needRender = fPendingRedraw;
-    fPendingRedraw = false;
     ControllerDirtyList dirtyViews;
 
     const EventBatchResult batch = drainMessageBus(dirtyViews);
@@ -507,7 +548,7 @@ private:
       return false;
     }
     runPhase2Updates(dirtyViews, batch.needModelUpdate);
-    runPhase3Render(dirtyViews, needRender || batch.needRender);
+    runPhase3Render(dirtyViews, batch.needRender);
     telemetrySampleHeap();
     return true;
   }
@@ -520,69 +561,17 @@ private:
     return messageBus.get();
   }
 
-  bool hasPendingAppEvents() {
-    return messageBus.hasPending();
-  }
-
-  void redraw() {
-    if (fMainWindow !is null && fMainWindow.rootWidget !is null) {
-      fMainWindow.rootWidget.update(WidgetUpdateScope.all);
-      fPendingRedraw = true;
-    }
-  }
-
-  /**
-   * Sets the additional scaling factor above displayScaling (e.g. to support
-   * zooming in/out UI for user preferences). Defaults to 1.0.
-   */
-  void unitsScaling(float scaling) {
-    if (fMainWindow !is null) {
-      fMainWindow.unitsScaling(scaling);
-    }
-    redraw();
-  }
-
-  /**
-   * Gets the additional scaling factor above displayScaling (defaults to 1.0).
-   */
-  float unitsScaling() const {
-    if (fMainWindow !is null) {
-      return fMainWindow.unitsScaling();
-    }
-    return 1.0f;
-  }
-
-  float displayScaling() const {
-    if (fMainWindow !is null) {
-      return fMainWindow.displayScaling();
-    }
-    return 1.0f;
-  }
-
-  void displayScaling(float scaling) {
-    if (fMainWindow !is null) {
-      fMainWindow.displayScaling(scaling);
-    }
-    redraw();
-  }
-
-  float defaultScaling() const {
-    if (fMainWindow !is null) {
-      return fMainWindow.defaultScaling();
-    }
-    return 1.0f;
-  }
-
-  ControllerStack controllers;
+  ControllerStackStorage controllers;
   MessageBus messageBus;
   TimerService timerService;
   Window fMainWindow;
   WidgetSystemPipeline pipeline;
   ObjectRegistry!WidgetViewController fWidgetViewControllers;
   ObjectRegistry!WidgetView fWidgetViews;
+  SmallBuffer!(Widget, 16) releasingWidgets;
   uint fNextWidgetId = 1;
-  bool fPendingRedraw = false;
-} // -UiSystem
+  bool fEventStatsEnabled = false;
+}
 
 ////// TESTS /////
 
@@ -811,25 +800,12 @@ unittest {
   assert(ctrl.updateCount >= 1);
 }
 
-// Verifies UiSystemImpl scaling and redraw APIs.
+// Verifies unconsumed event propagation and consumption across controllers.
 unittest {
-  auto window = new Window(320, 240, "test_ui_scaling");
-  auto ui = new UiSystemImpl(window);
-
-  assert(ui.defaultScaling() == 1.0f);
-  assert(ui.displayScaling() == 1.0f);
-  assert(ui.unitsScaling() == 1.0f);
-
-  ui.unitsScaling(2.0f);
-  assert(ui.unitsScaling() == 2.0f);
-}
-
-// Verifies unconsumed event propagation from newest to oldest controller.
-unittest {
-  class PropagationTestController : DefaultController {
+  class EventPropTestController : DefaultController {
     string name;
     string[]* log;
-    bool shouldConsume;
+    bool shouldConsume = false;
     this(UiSystem ui, string name, string[]* log) {
       assert(ui !is null);
       assert(log !is null);
@@ -853,70 +829,44 @@ unittest {
     }
   }
 
-  string[] log;
-  auto window = new Window(100, 100, "test_prop");
-  auto ui = new UiSystemImpl(window);
+  {
+    string[] log;
+    auto window = new Window(100, 100, "test_prop");
+    auto ui = new UiSystemImpl(window);
 
-  auto cOldest = new PropagationTestController(ui, "oldest", &log);
-  auto cNewest = new PropagationTestController(ui, "newest", &log);
+    auto cOldest = new EventPropTestController(ui, "oldest", &log);
+    auto cNewest = new EventPropTestController(ui, "newest", &log);
 
-  ui.pushController(cOldest);
-  ui.pushController(cNewest);
+    ui.pushController(cOldest);
+    ui.pushController(cNewest);
 
-  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(42)));
-  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(999)));
+    ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(42)));
+    ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(999)));
 
-  ui.mainEventLoop();
+    ui.mainEventLoop();
 
-  assert(log == ["newest:handleEvent", "oldest:handleEvent"]);
-}
-
-// Verifies event consumption stopping propagation down the controller stack.
-unittest {
-  class ConsumeTestController : DefaultController {
-    string name;
-    string[]* log;
-    bool shouldConsume;
-    this(UiSystem ui, string name, string[]* log) {
-      assert(ui !is null);
-      assert(log !is null);
-      super(ui);
-      this.name = name;
-      this.log = log;
-    }
-
-    override HandleResult handleEvent(AppEvent ev) {
-      if (ev.kind == AppEvent.Kind.user && ev.user.eventId == 42) {
-        *log ~= name ~ ":handleEvent";
-        HandleResult res;
-        res.result = HandleResult.Result.nothing;
-        res.consume = shouldConsume;
-        return res;
-      }
-      if (ev.kind == AppEvent.Kind.user && ev.user.eventId == 999) {
-        return HandleResult(HandleResult.Result.quit);
-      }
-      return super.handleEvent(ev);
-    }
+    assert(log == ["newest:handleEvent", "oldest:handleEvent"]);
   }
 
-  string[] log;
-  auto window = new Window(100, 100, "test_consume");
-  auto ui = new UiSystemImpl(window);
+  {
+    string[] log;
+    auto window = new Window(100, 100, "test_consume");
+    auto ui = new UiSystemImpl(window);
 
-  auto cOldest = new ConsumeTestController(ui, "oldest", &log);
-  auto cNewest = new ConsumeTestController(ui, "newest", &log);
-  cNewest.shouldConsume = true;
+    auto cOldest = new EventPropTestController(ui, "oldest", &log);
+    auto cNewest = new EventPropTestController(ui, "newest", &log);
+    cNewest.shouldConsume = true;
 
-  ui.pushController(cOldest);
-  ui.pushController(cNewest);
+    ui.pushController(cOldest);
+    ui.pushController(cNewest);
 
-  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(42)));
-  ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(999)));
+    ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(42)));
+    ui.sendAppEvent(AppEvent.userEvent(AppEvent.UserData(999)));
 
-  ui.mainEventLoop();
+    ui.mainEventLoop();
 
-  assert(log == ["newest:handleEvent"]);
+    assert(log == ["newest:handleEvent"]);
+  }
 }
 
 // Verifies updateView ordering and batched view updates across stack.
@@ -1162,12 +1112,12 @@ unittest {
   // Idle when no timers active
   assert(ui.nextWaitTimeoutMs() == -1);
 
-  const TimerId cTimer = ui.startTimer(
+  const TimerId cTimer = ui.startControllerTimer(
     ctrl,
     TimerIntervalMs.fps60,
     TimerMode.repeat
   );
-  const TimerId sTimer = ui.startTimer(
+  const TimerId sTimer = ui.startSystemTimer(
     sys,
     TimerIntervalMs.fps60,
     TimerMode.repeat
@@ -1304,7 +1254,10 @@ unittest {
 
   final class CounterSystem : WidgetSystem {
     this() nothrow @safe {
-      priority(10);
+    }
+
+    override @property int priority() const nothrow @safe {
+      return 10;
     }
 
     override @property SystemPhase phases() const nothrow @safe {

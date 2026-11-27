@@ -110,10 +110,10 @@ private:
 unittest {
   import std.math : isClose;
   import yguilib.events.builder : ViewAppEventBuilder;
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : makeHeadlessUiSystem;
   import yguilib.widget : Widget;
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   auto root = new Widget(ui.nextWidgetId());
   auto demoTracker = ModelTracker!DemoModel(new DemoModel());
   auto knobTracker = ModelTracker!KnobPageModel(new KnobPageModel());
@@ -131,7 +131,7 @@ unittest {
 
   // Locked drag: local coords stay at the press point, deltas in relX/relY.
   auto dragVal = MouseEvent.AppEventViewValue.pack(
-    10.0f, 10.0f, 1, true, 25.0f, 7.0f, 30.0f, 30.0f
+    MouseEvent.PackParams(10.0f, 10.0f, 1, true, 25.0f, 7.0f, 30.0f, 30.0f)
   );
   auto dragEv = ViewAppEventBuilder(knobDragEvent)
     .valueArray(dragVal.raw)
@@ -141,7 +141,7 @@ unittest {
 
   // Negative relX beyond any widget/window bound keeps accumulating.
   auto backVal = MouseEvent.AppEventViewValue.pack(
-    10.0f, 10.0f, 1, true, -5000.0f, 0.0f, 30.0f, 30.0f
+    MouseEvent.PackParams(10.0f, 10.0f, 1, true, -5000.0f, 0.0f, 30.0f, 30.0f)
   );
   auto backEv = ViewAppEventBuilder(knobDragEvent)
     .valueArray(backVal.raw)
@@ -155,7 +155,7 @@ unittest {
   // Vertical-only drag is ignored.
   const float before = knobTracker.model.value;
   auto vertVal = MouseEvent.AppEventViewValue.pack(
-    10.0f, 10.0f, 1, true, 0.0f, 40.0f, 30.0f, 30.0f
+    MouseEvent.PackParams(10.0f, 10.0f, 1, true, 0.0f, 40.0f, 30.0f, 30.0f)
   );
   auto vertEv = ViewAppEventBuilder(knobDragEvent)
     .valueArray(vertVal.raw)

@@ -48,15 +48,14 @@
 module yguilib.controls.button;
 
 import std.math : round;
-import yguilib.controls.common : WidgetColors, applyBgAndBorderColors,
-  applyColors, defaultDisabledColors;
-import yguilib.controls.internal.button_support : ActiveWidgets,
-  ButtonBaseConfig, ButtonBuilderCommon, PressTracker, emitButtonAction;
+import yguilib.controls.common : ButtonBaseConfig, WidgetColors,
+  applyBgAndBorderColors, applyColors, defaultDisabledColors;
+import yguilib.controls.internal.button_support : ButtonAnimDriver,
+  ButtonBuilderCommon, PressTracker, emitButtonAction;
 import yguilib.events : AppEvent;
 import yguilib.render.render_types : ColorF, PointF, RectF, lerpColor;
 import yguilib.timercontrol : TimerId, invalidTimerId;
-import yguilib.timers : AnimationTimer, AnimationWrapMode, TimerIntervalMs,
-  TimerMode;
+import yguilib.timers : AnimationTimer, AnimationWrapMode, TimerMode;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, WidgetUpdateScope;
 import yguilib.widget.component : WidgetComponent;
@@ -169,8 +168,13 @@ final class ButtonComponent : WidgetComponent {
       return;
     }
     Insets p = basePadding;
-    p.top += sink;
-    p.bottom = p.bottom - sink > 0.0f ? p.bottom - sink : 0.0f;
+    const float effectiveSink = sink > 0
+      ? (cast(float) sink < basePadding.bottom
+        ? cast(float) sink
+        : basePadding.bottom)
+      : 0.0f;
+    p.top += effectiveSink;
+    p.bottom -= effectiveSink;
     w.components.size.padding = p;
     w.update(WidgetUpdateScope.layout);
   }
@@ -257,6 +261,11 @@ struct ButtonBuilder {
       !buttonRepeat.enabled || buttonTrigger == ButtonTrigger.press,
       "repeat requires ButtonTrigger.press"
     );
+    assert(
+      !buttonRepeat.enabled || buttonRepeat.intervalMs > 0,
+      "repeat.intervalMs must be > 0"
+    );
+    assert(buttonStyle.sinkPx >= 0.0f, "sinkPx must be >= 0");
     auto b = makeButtonBase(ui, parent, rect, "button");
     auto comp = new ButtonComponent();
     comp.style = buttonStyle;
@@ -330,22 +339,24 @@ final class ButtonSystem : WidgetSystem {
   }
 
   override @property SystemPhase phases() const nothrow @safe {
-    return SystemPhase.event | SystemPhase.postLayout;
+    return SystemPhase.event |
+      SystemPhase.preLayout |
+      SystemPhase.postLayout;
   }
 
   override void onRegister(WidgetSystemHost newHost) {
     if (host !is null && host !is newHost) {
-      stopAnimTimer();
+      anim.stopTimer(host);
       stopRepeat();
     }
     super.onRegister(newHost);
     if (newHost !is null) {
-      ensureAnimTimer(newHost);
+      anim.ensureTimer(this, newHost);
     }
   }
 
   override void onUnregister() {
-    stopAnimTimer();
+    anim.stopTimer(host);
     stopRepeat();
     super.onUnregister();
   }
@@ -378,15 +389,18 @@ final class ButtonSystem : WidgetSystem {
       onRepeatTimer(ctx);
       return;
     }
-    stepActiveButtons(dt);
-    if (!isAnyAnimating()) {
-      stopAnimTimer();
+    if (id != invalidTimerId && id == anim.animTimerId) {
+      stepActiveButtons(dt);
     }
+  }
+
+  override void preLayout(ref WidgetSystemContext ctx) {
+    syncEnabledStates(ctx);
   }
 
   override void postLayout(ref WidgetSystemContext ctx) {
     syncEnabledStates(ctx);
-    activeButtons.removeInvisible((Widget w) {
+    anim.removeInvisible(host, (Widget w) {
       auto comp = w.components.get!ButtonComponent();
       if (comp !is null) {
         comp.resetPress(w);
@@ -397,28 +411,27 @@ final class ButtonSystem : WidgetSystem {
     if (hadPress && press.pressed is null) {
       stopRepeat();
     }
-    if (!isAnyAnimating()) {
-      stopAnimTimer();
-    }
   }
 
   override void onWidgetReleased(Widget w) {
     if (w is null) {
       return;
     }
-    activeButtons.remove(w);
     if (press.pressed is w) {
       stopRepeat();
     }
     press.forget(w);
-    if (!isAnyAnimating()) {
-      stopAnimTimer();
-    }
+    anim.remove(w, host);
   }
 
   /// Returns true while some button press animation is running.
   bool isAnyAnimating() const nothrow @safe {
-    return !activeButtons.empty;
+    return !anim.empty;
+  }
+
+  /// Current 60 FPS animation timer ID (or `invalidTimerId`).
+  @property TimerId animTimerId() const nothrow @safe {
+    return anim.animTimerId;
   }
 
 private:
@@ -426,13 +439,7 @@ private:
     if (host is null && fallbackHost !is null) {
       host = fallbackHost;
     }
-    if (animTimerId == invalidTimerId && isAnyAnimating() && host !is null) {
-      animTimerId = startTimer(TimerIntervalMs.fps60, TimerMode.repeat);
-    }
-  }
-
-  void stopAnimTimer() {
-    stopTimer(animTimerId);
+    anim.ensureTimer(this, host);
   }
 
   /// Starts the oneShot delay timer of `comp`'s auto-repeat (restarting).
@@ -470,14 +477,35 @@ private:
 
   /// Applies disabled/normal colours to visible buttons whose
   /// `inputEnabled` changed since their colours were last applied.
-  static void syncEnabledStates(ref WidgetSystemContext ctx) {
+  void syncEnabledStates(ref WidgetSystemContext ctx) {
     foreach (ref vw; ctx.visibleWidgets) {
       if (vw.widget is null) {
         continue;
       }
-      if (auto comp = vw.widget.components.get!ButtonComponent()) {
-        comp.syncEnabled(vw.widget);
+      auto comp = vw.widget.components.get!ButtonComponent();
+      if (comp !is null && comp.syncEnabled(vw.widget)) {
+        if (!vw.widget.inputEnabled) {
+          if (press.pressed is vw.widget) {
+            press.end();
+            stopRepeat();
+          }
+          anim.remove(vw.widget, host);
+        }
       }
+    }
+  }
+
+  /// Cancels any active press and stops its repeat timer.
+  void cancelActivePress(WidgetSystemHost fallbackHost) {
+    Widget prev = press.end();
+    stopRepeat();
+    if (prev is null) {
+      return;
+    }
+    auto prevComp = prev.components.get!ButtonComponent();
+    if (prevComp !is null && prevComp.isPressed) {
+      prevComp.isPressed = false;
+      trackActiveButton(prev, fallbackHost);
     }
   }
 
@@ -501,7 +529,11 @@ private:
       return;
     }
     const p = PointF(event.mouse.x, event.mouse.y);
-    Widget hit = press.hitTest(ctx, p);
+    auto hitVw = press.hitTest(ctx, p);
+    Widget hit = hitVw.isNull ? null : hitVw.get().widget;
+    if (press.pressed !is null && press.pressed !is hit) {
+      cancelActivePress(ctx.host);
+    }
     if (hit is null) {
       return;
     }
@@ -528,7 +560,8 @@ private:
       return;
     }
     const p = PointF(event.mouse.x, event.mouse.y);
-    const bool over = press.hitTest(ctx, p) is press.pressed;
+    auto hitVw = press.hitTest(ctx, p);
+    const bool over = !hitVw.isNull && hitVw.get().widget is press.pressed;
     if (over != comp.isPressed) {
       comp.isPressed = over;
       trackActiveButton(press.pressed, ctx.host);
@@ -552,33 +585,28 @@ private:
       return;
     }
     const p = PointF(event.mouse.x, event.mouse.y);
-    if (press.hitTest(ctx, p) is target) {
+    auto hitVw = press.hitTest(ctx, p);
+    if (!hitVw.isNull && hitVw.get().widget is target) {
       emitButtonAction(ctx, target, comp.actionEvent);
     }
   }
 
   void handleWindowMouseLeave(ref WidgetSystemContext ctx) {
-    auto comp = pressedComponent();
-    if (comp is null || !comp.isPressed) {
-      return;
-    }
-    comp.isPressed = false;
-    trackActiveButton(press.pressed, ctx.host);
+    cancelActivePress(ctx.host);
   }
 
   void trackActiveButton(Widget w, WidgetSystemHost fallbackHost) {
-    activeButtons.track(w);
-    ensureAnimTimer(fallbackHost);
+    if (host is null && fallbackHost !is null) {
+      host = fallbackHost;
+    }
+    anim.trackAndStart(w, this, host);
   }
 
   void stepActiveButtons(float dt) {
-    for (ptrdiff_t i = cast(ptrdiff_t) activeButtons.length - 1; i >= 0; --i) {
-      Widget w = activeButtons[i];
+    anim.step(host, (Widget w) {
       auto comp = w.components.get!ButtonComponent();
-      if (comp is null || !w.inputEnabled || !stepComponent(w, comp, dt)) {
-        activeButtons.removeAt(cast(size_t) i);
-      }
-    }
+      return comp !is null && w.inputEnabled && stepComponent(w, comp, dt);
+    });
   }
 
   /// Steps the press animation of `w`; returns true while still animating.
@@ -609,10 +637,21 @@ private:
   }
 
   PressTracker!ButtonComponent press;
-  ActiveWidgets activeButtons;
-  TimerId animTimerId = invalidTimerId;
+  ButtonAnimDriver anim;
   TimerId repeatTimerId = invalidTimerId;
   bool repeatInDelay = false;
+}
+
+version (unittest) private AppEvent mouseEv(
+  AppEvent.Kind kind,
+  float x,
+  float y
+) {
+  auto ev = AppEvent(kind);
+  ev.mouse.x = x;
+  ev.mouse.y = y;
+  ev.mouse.button = 1;
+  return ev;
 }
 
 // Unit tests for ButtonBuilder, enabled state, and ButtonSystem
@@ -629,15 +668,6 @@ unittest {
 
   auto host = new DummyWidgetSystemHost();
   auto testUi = new UiSystemImpl(null);
-
-  AppEvent mouseEv(AppEvent.Kind kind, float x, float y) {
-    AppEvent ev;
-    ev.kind = kind;
-    ev.mouse.x = x;
-    ev.mouse.y = y;
-    ev.mouse.button = 1;
-    return ev;
-  }
 
   // Builder tree and defaults
   ButtonBuilder b;
@@ -689,7 +719,7 @@ unittest {
   assert(comp.isPressed);
   assert(host.isTimerActive(sys.animTimerId));
   foreach (_; 0 .. 10) {
-    sys.onTimer(ctx, 1, 0.016f);
+    sys.onTimer(ctx, sys.animTimerId, 0.016f);
   }
   assert(comp.pressProgress == 1.0f);
   assert(comp.appliedSink == 2);
@@ -710,7 +740,7 @@ unittest {
   assert(host.sentEvents[0].view.widget is btn);
   assert(host.isTimerActive(sys.animTimerId));
   foreach (_; 0 .. 20) {
-    sys.onTimer(ctx, 1, 0.016f);
+    sys.onTimer(ctx, sys.animTimerId, 0.016f);
   }
   assert(comp.pressProgress == 0.0f && comp.appliedSink == 0);
   assert(btn.components.size.padding == base);
@@ -721,7 +751,7 @@ unittest {
   // Press, drag off (un-sinks), drag back (re-sinks), drag off, release
   host.sentEvents = null;
   sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonDown, 50, 20), ctx);
-  sys.onTimer(ctx, 1, 0.016f);
+  sys.onTimer(ctx, sys.animTimerId, 0.016f);
   assert(comp.pressProgress > 0.0f);
   sys.handleEvent(mouseEv(AppEvent.Kind.mouseMotion, 300, 20), ctx);
   assert(!comp.isPressed);
@@ -732,7 +762,7 @@ unittest {
   sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonUp, 300, 20), ctx);
   assert(host.sentEvents.length == 0);
   foreach (_; 0 .. 20) {
-    sys.onTimer(ctx, 1, 0.016f);
+    sys.onTimer(ctx, sys.animTimerId, 0.016f);
   }
   assert(comp.pressProgress == 0.0f);
   assert(btn.components.size.padding == base);
@@ -741,28 +771,27 @@ unittest {
 
   // Window mouse leave un-presses visually, release still cancels
   sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonDown, 50, 20), ctx);
-  AppEvent leave;
-  leave.kind = AppEvent.Kind.windowMouseLeave;
+  auto leave = AppEvent(AppEvent.Kind.windowMouseLeave);
   sys.handleEvent(leave, ctx);
   assert(!comp.isPressed);
   sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonUp, 300, 20), ctx);
   assert(host.sentEvents.length == 0);
   foreach (_; 0 .. 20) {
-    sys.onTimer(ctx, 1, 0.016f);
+    sys.onTimer(ctx, sys.animTimerId, 0.016f);
   }
   assert(sys.animTimerId == invalidTimerId);
 
   // inputEnabled = false mid-press: pressed button is ignored at once,
   // postLayout applies muted colours and cancels the press
   sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonDown, 50, 20), ctx);
-  sys.onTimer(ctx, 1, 0.016f);
+  sys.onTimer(ctx, sys.animTimerId, 0.016f);
   assert(comp.appliedSink > 0);
   btn.dirty = false;
   btn.layoutDirty = false;
   btn.inputEnabled = false;
   btn.update(WidgetUpdateScope.visuals);
   assert(btn.dirty && !btn.layoutDirty);
-  sys.onTimer(ctx, 1, 0.016f);
+  sys.onTimer(ctx, sys.animTimerId, 0.016f);
   assert(!sys.isAnyAnimating());
   sys.postLayout(ctx);
   assert(!comp.appliedEnabled);
@@ -772,7 +801,7 @@ unittest {
   assert(btn.components.textLabel.color == comp.style.disabled.text);
   sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonUp, 50, 20), ctx);
   assert(host.sentEvents.length == 0);
-  sys.onTimer(ctx, 1, 0.016f);
+  sys.onTimer(ctx, sys.animTimerId, 0.016f);
   assert(!sys.isAnyAnimating());
   assert(sys.animTimerId == invalidTimerId);
 
@@ -841,7 +870,7 @@ unittest {
 
   // postLayout resets and forgets invisible buttons
   sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonDown, 50, 20), ctx);
-  sys.onTimer(ctx, 1, 0.016f);
+  sys.onTimer(ctx, sys.animTimerId, 0.016f);
   btn.visible = false;
   sys.postLayout(ctx);
   assert(!sys.isAnyAnimating());
@@ -863,18 +892,11 @@ unittest {
   auto host = new DummyWidgetSystemHost();
   auto testUi = new UiSystemImpl(null);
 
-  AppEvent mouseEv(AppEvent.Kind kind, float x, float y) {
-    AppEvent ev;
-    ev.kind = kind;
-    ev.mouse.x = x;
-    ev.mouse.y = y;
-    ev.mouse.button = 1;
-    return ev;
-  }
-
   void settle(ButtonSystem sys, ref WidgetSystemContext ctx) {
     foreach (_; 0 .. 30) {
-      sys.onTimer(ctx, 1, 0.016f);
+      if (sys.animTimerId != invalidTimerId) {
+        sys.onTimer(ctx, sys.animTimerId, 0.016f);
+      }
     }
   }
 
@@ -947,7 +969,7 @@ unittest {
 
   // Mid-press: normal updated, background lerps to new normal on settle
   sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonDown, 40, 15), ctx);
-  sys.onTimer(ctx, 1, 0.016f);
+  sys.onTimer(ctx, sys.animTimerId, 0.016f);
   assert(comp.pressProgress > 0.0f);
   const WidgetColors inactive = WidgetColors(
     ColorF(0.25f, 0.25f, 0.25f, 1.0f),
@@ -1012,15 +1034,6 @@ unittest {
 
   auto host = new DummyWidgetSystemHost();
   auto testUi = new UiSystemImpl(null);
-
-  AppEvent mouseEv(AppEvent.Kind kind, float x, float y) {
-    AppEvent ev;
-    ev.kind = kind;
-    ev.mouse.x = x;
-    ev.mouse.y = y;
-    ev.mouse.button = 1;
-    return ev;
-  }
 
   // Builder: repeatWithTiming / repeat set comp.repeat; default is off
   ButtonBuilder db;
@@ -1132,4 +1145,83 @@ unittest {
   assert(!host.isTimerActive(heldId));
   sys.onUnregister();
   assert(sys.repeatTimerId == invalidTimerId);
+}
+
+// Edge-case tests: preLayout sync, disable mid-repeat, second press, leave
+unittest {
+  import yguilib.controls.testing : DummyWidgetSystemHost;
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.widget.visible : VisibleWidget;
+
+  auto host = new DummyWidgetSystemHost();
+  auto testUi = new UiSystemImpl(null);
+
+  ButtonBuilder b1;
+  auto btn1 = b1
+    .text("One")
+    .trigger(ButtonTrigger.press)
+    .repeatWithTiming(200, 50)
+    .padding(1.0f, 4.0f)
+    .sink(4.0f)
+    .action("act1")
+    .build(testUi, null, RectF(0, 0, 80, 30));
+
+  ButtonBuilder b2;
+  auto btn2 = b2
+    .text("Two")
+    .action("act2")
+    .build(testUi, null, RectF(100, 0, 80, 30));
+
+  // applySink must not increase total vertical padding when bottom < sinkPx
+  auto comp1 = btn1.components.get!ButtonComponent();
+  comp1.applySink(btn1, 4);
+  const auto p = btn1.components.size.padding;
+  assert(p.top + p.bottom <= 2.0f + 0.001f);
+  comp1.applySink(btn1, 0);
+
+  auto sys = new ButtonSystem();
+  assert((sys.phases & SystemPhase.preLayout) != 0);
+  sys.onRegister(host);
+
+  WidgetSystemContext ctx;
+  ctx.host = host;
+  ctx.visibleWidgets = [
+    VisibleWidget(btn1, RectF(0, 0, 80, 30), false, RectF.init),
+    VisibleWidget(btn2, RectF(100, 0, 80, 30), false, RectF.init),
+  ];
+
+  // Disable mid-press/repeat in preLayout stops repeat & anim timers
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonDown, 40, 15), ctx);
+  assert(sys.press.pressed is btn1);
+  assert(sys.repeatTimerId != invalidTimerId);
+  btn1.inputEnabled = false;
+  btn1.update(WidgetUpdateScope.visuals);
+  sys.preLayout(ctx);
+  assert(sys.press.pressed is null);
+  assert(sys.repeatTimerId == invalidTimerId);
+  assert(!sys.isAnyAnimating());
+  assert(sys.animTimerId == invalidTimerId);
+
+  // Re-enable in preLayout
+  btn1.inputEnabled = true;
+  btn1.update(WidgetUpdateScope.visuals);
+  sys.preLayout(ctx);
+
+  // Second mouseButtonDown on btn2 cancels btn1 press and stops repeat
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonDown, 40, 15), ctx);
+  assert(sys.press.pressed is btn1);
+  assert(sys.repeatTimerId != invalidTimerId);
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonDown, 140, 15), ctx);
+  assert(sys.press.pressed is btn2);
+  assert(!comp1.isPressed);
+  assert(sys.repeatTimerId == invalidTimerId);
+
+  // windowMouseLeave cancels active press and repeat
+  sys.handleEvent(mouseEv(AppEvent.Kind.mouseButtonDown, 40, 15), ctx);
+  assert(sys.press.pressed is btn1);
+  assert(sys.repeatTimerId != invalidTimerId);
+  sys.handleEvent(AppEvent(AppEvent.Kind.windowMouseLeave), ctx);
+  assert(sys.press.pressed is null);
+  assert(sys.repeatTimerId == invalidTimerId);
+  assert(!comp1.isPressed);
 }

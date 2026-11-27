@@ -1,16 +1,73 @@
 module yguilib.widget.test_fixture;
 
+version (unittest):
+package(yguilib):
+
+import yguilib.controller : Controller;
+import yguilib.events : AppEvent;
 import yguilib.internal.uisystem_impl : UiSystemImpl;
+import yguilib.object_registry : ObjectRegistry;
 import yguilib.render.render_types : ColorF, RectF;
+import yguilib.timercontrol : TimerId, invalidTimerId;
+import yguilib.timers : TimerMode;
 import yguilib.uisystem : UiSystem;
-import yguilib.widget : ViewComponent, Widget, WidgetUpdateScope;
+import yguilib.widget : ViewComponent, Widget;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.component : WidgetComponent;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget.input_components : MouseEvent;
-import yguilib.widget.layout_components : AlignItems, Dimension, FlexContainer,
-  FlexDirection, Insets, JustifyContent, Size, SizingMode;
+import yguilib.widget.layout_components : AlignItems, FlexContainer,
+  FlexDirection, Insets, JustifyContent, Size;
 import yguilib.widget.scroll_components : ScrollableArea;
+import yguilib.widget.system : WidgetSystem, WidgetSystemHost;
+import yguilib.widget.widget_view : WidgetView, WidgetViewController;
+
+/// Shared headless `WidgetSystemHost` test double for widget system tests.
+class MockWidgetSystemHost : WidgetSystemHost {
+  AppEvent[] sentEvents;
+  ObjectRegistry!WidgetViewController controllers;
+  ObjectRegistry!WidgetView views;
+
+  this() {
+    controllers = new ObjectRegistry!WidgetViewController();
+    views = new ObjectRegistry!WidgetView();
+  }
+
+  override void sendAppEvent(AppEvent ev) {
+    sentEvents ~= ev;
+  }
+
+  override TimerId startControllerTimer(
+    Controller target,
+    uint intervalMs,
+    TimerMode mode
+  ) {
+    return invalidTimerId;
+  }
+
+  override TimerId startSystemTimer(
+    WidgetSystem target,
+    uint intervalMs,
+    TimerMode mode
+  ) {
+    return invalidTimerId;
+  }
+
+  override void stopTimer(TimerId id) {}
+
+  override bool isTimerActive(TimerId id) const {
+    return false;
+  }
+
+  override @property
+  ObjectRegistry!WidgetViewController widgetViewControllers() {
+    return controllers;
+  }
+
+  override @property ObjectRegistry!WidgetView widgetViews() {
+    return views;
+  }
+}
 
 /**
  * Reusable test fixture for Widget construction, hierarchy building, and
@@ -24,12 +81,9 @@ class WidgetFixture {
   this() {
   }
 
-  /// Binds the fixture to an existing UiSystem.
+  /// Binds the fixture to an existing UiSystem (`ui` is allowed to be null).
   WidgetFixture withUi(UiSystem ui) {
     fUi = ui;
-    if (ui !is null) {
-      fNextId = ui.nextWidgetId();
-    }
     return this;
   }
 
@@ -49,7 +103,8 @@ class WidgetFixture {
     return fUi;
   }
 
-  /// Creates a Widget with the given parent and rect.
+  /// Creates a Widget with the given parent (`parent` is allowed to be null)
+  /// and rect.
   Widget makeWidget(Widget parent, RectF rect) {
     auto w = new Widget(nextId());
     w.rect = rect;
@@ -59,7 +114,8 @@ class WidgetFixture {
     return w;
   }
 
-  /// Creates a Widget with explicit ID, parent, and rect.
+  /// Creates a Widget with explicit ID, parent (`parent` is allowed to be
+  /// null), and rect.
   Widget makeWidgetWithId(uint uId, Widget parent, RectF rect) {
     auto w = new Widget(uId);
     w.rect = rect;
@@ -151,21 +207,13 @@ class WidgetFixture {
 
   /// Sets uniform padding on widget's Size component.
   Widget withPaddingAll(Widget w, float all) {
-    assert(w !is null);
-    if (w.components.size is null) {
-      w.components.size = new Size();
-    }
-    w.components.size.padding = Insets.all(all);
+    ensureSize(w).padding = Insets.all(all);
     return w;
   }
 
   /// Sets vertical and horizontal padding on widget's Size component.
   Widget withPaddingVertHoriz(Widget w, float vertical, float horizontal) {
-    assert(w !is null);
-    if (w.components.size is null) {
-      w.components.size = new Size();
-    }
-    w.components.size.padding = Insets.vh(vertical, horizontal);
+    ensureSize(w).padding = Insets.vh(vertical, horizontal);
     return w;
   }
 
@@ -177,31 +225,19 @@ class WidgetFixture {
     float bottom,
     float left
   ) {
-    assert(w !is null);
-    if (w.components.size is null) {
-      w.components.size = new Size();
-    }
-    w.components.size.padding = Insets(top, right, bottom, left);
+    ensureSize(w).padding = Insets(top, right, bottom, left);
     return w;
   }
 
   /// Sets uniform margin on widget's Size component.
   Widget withMarginAll(Widget w, float all) {
-    assert(w !is null);
-    if (w.components.size is null) {
-      w.components.size = new Size();
-    }
-    w.components.size.margin = Insets.all(all);
+    ensureSize(w).margin = Insets.all(all);
     return w;
   }
 
   /// Sets vertical and horizontal margin on widget's Size component.
   Widget withMarginVertHoriz(Widget w, float vertical, float horizontal) {
-    assert(w !is null);
-    if (w.components.size is null) {
-      w.components.size = new Size();
-    }
-    w.components.size.margin = Insets.vh(vertical, horizontal);
+    ensureSize(w).margin = Insets.vh(vertical, horizontal);
     return w;
   }
 
@@ -213,11 +249,7 @@ class WidgetFixture {
     float bottom,
     float left
   ) {
-    assert(w !is null);
-    if (w.components.size is null) {
-      w.components.size = new Size();
-    }
-    w.components.size.margin = Insets(top, right, bottom, left);
+    ensureSize(w).margin = Insets(top, right, bottom, left);
     return w;
   }
 
@@ -310,35 +342,26 @@ class WidgetFixture {
   }
 
   /// Finds a widget by uId within the subtree rooted at `root`.
+  /// `root` is allowed to be null.
   static Widget findById(Widget root, uint uId) {
-    if (root is null) {
-      return null;
-    }
-    if (root.uId == uId) {
-      return root;
-    }
-    foreach (child; root.children) {
-      if (auto found = findById(child, uId)) {
-        return found;
-      }
-    }
-    return null;
+    return root is null ? null : root.findByUId(uId);
   }
 
-  /// Returns true if `child` is an ancestor descendant of `ancestor`.
+  /// Returns true if `child` is a descendant of `ancestor`.
+  /// `child` and `ancestor` are allowed to be null.
   static bool isChildOf(const Widget child, const Widget ancestor) {
-    if (child is null || ancestor is null) {
-      return false;
-    }
-    for (auto cur = cast(Widget) child.parent; cur !is null; cur = cur.parent) {
-      if (cur is ancestor) {
-        return true;
-      }
-    }
-    return false;
+    return child !is null && child.isChildOf(ancestor);
   }
 
 private:
+  static Size ensureSize(Widget w) {
+    assert(w !is null);
+    if (w.components.size is null) {
+      w.components.size = new Size();
+    }
+    return w.components.size;
+  }
+
   uint fNextId = 1;
   UiSystem fUi = null;
 }

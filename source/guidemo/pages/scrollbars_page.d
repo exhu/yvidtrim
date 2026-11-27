@@ -42,21 +42,21 @@ struct ScrollbarsPageTrackers {
 
   /// Creates trackers with default models.
   static ScrollbarsPageTrackers make() {
-    ScrollbarsPageTrackers t;
-    t.page = ModelTracker!ScrollbarsPageModel(new ScrollbarsPageModel());
-    t.playground = ModelTracker!ScrollbarModel(
-      new ScrollbarModel().withRange(0, 1000).withValue(200)
-        .withVisibleSize(200).withStepSize(50)
+    return ScrollbarsPageTrackers(
+      ModelTracker!ScrollbarsPageModel(new ScrollbarsPageModel()),
+      ModelTracker!ScrollbarModel(
+        new ScrollbarModel().withRange(0, 1000).withValue(200)
+          .withVisibleSize(200).withStepSize(50)
+      )
     );
-    return t;
   }
 
   /// Copies `other` with independent per-holder versions.
   static ScrollbarsPageTrackers from(ref ScrollbarsPageTrackers other) {
-    ScrollbarsPageTrackers t;
-    t.page = ModelTracker!ScrollbarsPageModel.from(other.page);
-    t.playground = ModelTracker!ScrollbarModel.from(other.playground);
-    return t;
+    return ScrollbarsPageTrackers(
+      ModelTracker!ScrollbarsPageModel.from(other.page),
+      ModelTracker!ScrollbarModel.from(other.playground)
+    );
   }
 }
 

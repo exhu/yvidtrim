@@ -14,7 +14,8 @@ package(yguilib):
 import glad2.gles2;
 import std.array : Appender;
 import yguilib.render.internal.gl_util;
-import yguilib.render.render_types : ColorF, DashPattern, PointF, RectF;
+import yguilib.render.render_types : ColorF, DashPattern, PointF, RectF,
+  isFiniteRect;
 import yguilib.render.texture : Texture;
 import yguilib.internal.assets;
 
@@ -38,6 +39,7 @@ struct ColorPipeline {
 
   void destroy() {
     mesh.destroy();
+    fDashScratch = Appender!(float[]).init;
   }
 
   /// Draws with alpha blending (see `setupAlphaBlendState`); stencil state
@@ -103,15 +105,20 @@ struct ColorPipeline {
     in ColorF color,
     in Viewport vp
   ) {
-    if (line.width <= 0.0f) {
+    import std.math : isFinite, sqrt;
+
+    if (!isFinite(line.width) || !(line.width > 0.0f)) {
+      return;
+    }
+    if (!isFinite(line.p1.x) || !isFinite(line.p1.y)
+        || !isFinite(line.p2.x) || !isFinite(line.p2.y)) {
       return;
     }
 
-    import std.math : sqrt;
     const float dx = line.p2.x - line.p1.x;
     const float dy = line.p2.y - line.p1.y;
     const float dist = sqrt(dx * dx + dy * dy);
-    if (dist <= 0.0f) {
+    if (!isFinite(dist) || !(dist > 0.0f)) {
       return;
     }
 
@@ -123,7 +130,8 @@ struct ColorPipeline {
       line.p1, line.p2, ux, uy, dist, -uy * halfWidth, ux * halfWidth
     );
 
-    if (dash.dashLen <= 0.0f || dash.gapLen <= 0.0f) {
+    if (!isFinite(dash.dashLen) || !isFinite(dash.gapLen)
+        || !(dash.dashLen > 0.0f) || !(dash.gapLen > 0.0f)) {
       drawSolidThickLine(f, color, vp);
       return;
     }
@@ -136,7 +144,10 @@ struct ColorPipeline {
     in ColorF color,
     in Viewport vp
   ) {
-    if (rect.width <= 0.0f || rect.height <= 0.0f || lineWidth <= 0.0f) {
+    import std.math : isFinite;
+
+    if (!isFiniteRect(rect) || !isFinite(lineWidth)
+        || !(rect.width > 0.0f && rect.height > 0.0f && lineWidth > 0.0f)) {
       return;
     }
 
@@ -216,9 +227,13 @@ private:
     in Viewport vp
   ) {
     import std.algorithm : min;
+    import std.math : isFinite;
 
-    fDashScratch.clear();
     const float period = dash.dashLen + dash.gapLen;
+    if (!isFinite(period) || !(period > 0.0f)) {
+      return;
+    }
+    fDashScratch.clear();
     const size_t estDashes = cast(size_t)(f.dist / period) + 1;
     fDashScratch.reserve(estDashes * 12);
 
@@ -245,7 +260,11 @@ private:
         ];
         fDashScratch.put(dashQuad[]);
       }
-      cur += period;
+      const float next = cur + period;
+      if (next <= cur) {
+        break;
+      }
+      cur = next;
     }
 
     if (fDashScratch[].length > 0) {
@@ -294,6 +313,8 @@ struct TexturePipeline {
     uColorLoc = mesh.uniform("uColor\0");
     uTextureLoc = mesh.uniform("uTexture\0");
     uModeLoc = mesh.uniform("uMode\0");
+    fPrograms.use(mesh.program);
+    glUniform1i(uTextureLoc, 0);
   }
 
   void destroy() {
@@ -370,7 +391,6 @@ struct TexturePipeline {
     fPrograms.use(mesh.program);
     fResolution.upload(uResolutionLoc, vp.vw, vp.vh, fPrograms.epoch());
     glUniform4f(uColorLoc, color.r, color.g, color.b, color.a);
-    glUniform1i(uTextureLoc, 0);
     glUniform1i(uModeLoc, cast(GLint)mode);
 
     glActiveTexture(GL_TEXTURE0);
@@ -454,7 +474,7 @@ struct RoundRectShape {
 }
 
 /// Two triangles of interleaved (x, y, u, v) for `dest` mapped to `uv`.
-float[24] quadVertices(in RectF dest, in RectF uv) {
+float[24] quadVertices(in RectF dest, in RectF uv) nothrow @safe @nogc pure {
   const float x0 = dest.x;
   const float y0 = dest.y;
   const float x1 = dest.x + dest.width;
@@ -514,6 +534,8 @@ struct BlurPipeline {
     uSigmaLoc = mesh.uniform("uSigma\0");
     uUvMinLoc = mesh.uniform("uUvMin\0");
     uUvMaxLoc = mesh.uniform("uUvMax\0");
+    fPrograms.use(mesh.program);
+    glUniform1i(uTextureLoc, 0);
   }
 
   void destroy() {
@@ -534,7 +556,6 @@ struct BlurPipeline {
     const float tw = p.textureWidth;
     const float th = p.textureHeight;
     fResolution.upload(uResolutionLoc, w, h, fPrograms.epoch());
-    glUniform1i(uTextureLoc, 0);
     if (p.vertical) {
       glUniform2f(uDirectionLoc, 0, 1.0f / th);
     } else {
@@ -595,12 +616,17 @@ struct RoundRectPipeline {
 
   /// Draws `s` (see `RoundRectShape`) with alpha blending.
   void draw(in RoundRectShape s, in ColorF color, in Viewport vp) {
+    import std.algorithm : min;
+    import std.math : isFinite;
+
     const RectF rect = s.rect;
+    if (!isFiniteRect(rect) || !(rect.width > 0.0f && rect.height > 0.0f)) {
+      return;
+    }
     const float halfW = rect.width * 0.5f;
     const float halfH = rect.height * 0.5f;
-    import std.algorithm : min;
-    const float rMin = min(s.radius, min(halfW, halfH));
-    const float r = rMin < 0.0f ? 0.0f : rMin;
+    const float r = isFinite(s.radius) && s.radius > 0.0f
+      ? min(s.radius, min(halfW, halfH)) : 0.0f;
 
     const float px = vp.scale > 0.0f ? (1.0f / vp.scale) : 1.0f;
     const float margin = px * 2.0f;
@@ -765,6 +791,8 @@ struct GradientPipeline {
     maskMesh = ProgramMesh.vec4(paintMaskVertexShaderSource,
       withMaskDefine!paintFragmentShaderSource);
     maskLocs = GradientLocs.query(maskMesh.program);
+    fPrograms.use(maskMesh.program);
+    glUniform1i(maskLocs.uMask, 0);
   }
 
   void destroy() {
@@ -819,7 +847,6 @@ struct GradientPipeline {
     setupAlphaBlendState();
     fPrograms.use(maskMesh.program);
     maskLocs.set(u, vp, fPrograms.epoch());
-    glUniform1i(maskLocs.uMask, 0);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, maskTexId);
     uploadAndDrawDynamic(
@@ -881,7 +908,6 @@ struct PatternLocs {
    */
   void set(in PatternUniforms u, in Viewport vp, uint epoch) {
     fResolution.upload(uResolution, vp.vw, vp.vh, epoch);
-    glUniform1i(uTexture, 0);
     glUniformMatrix3fv(uInvXf, 1, GL_FALSE, u.invXf.ptr);
     glUniform4f(uTint, u.tint.r, u.tint.g, u.tint.b, u.tint.a);
     glUniform1i(uRepeat, u.repeat & 3);
@@ -917,6 +943,11 @@ struct PatternPipeline {
       withMaskDefine!patternFragmentShaderSource
     );
     maskLocs = PatternLocs.query(maskMesh.program);
+    fPrograms.use(mesh.program);
+    glUniform1i(locs.uTexture, 0);
+    fPrograms.use(maskMesh.program);
+    glUniform1i(maskLocs.uTexture, 0);
+    glUniform1i(maskLocs.uMask, 1);
 
     glGenSamplers(4, samplers.ptr);
     foreach (i; 0 .. 4) {
@@ -956,7 +987,6 @@ struct PatternPipeline {
     TexturePipeline.setupBlendForMode(u.mode);
     fPrograms.use(maskMesh.program);
     maskLocs.set(u, vp, fPrograms.epoch());
-    glUniform1i(maskLocs.uMask, 1);
 
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, maskTexId);
@@ -1064,6 +1094,8 @@ struct TextPipeline {
     qa = createTextQuadArray();
     uResolutionLoc = glGetUniformLocation(program, "uResolution\0".ptr);
     uTextureLoc = glGetUniformLocation(program, "uTexture\0".ptr);
+    fPrograms.use(program);
+    glUniform1i(uTextureLoc, 0);
   }
 
   void destroy() {
@@ -1091,7 +1123,6 @@ struct TextPipeline {
     setupAlphaBlendState();
     fPrograms.use(program);
     fResolution.upload(uResolutionLoc, vp.vw, vp.vh, fPrograms.epoch());
-    glUniform1i(uTextureLoc, 0);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texId);
     uploadAndDrawIndexedQuads(

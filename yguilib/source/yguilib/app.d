@@ -35,6 +35,7 @@ final class App {
   }
 
   static App makeAppWithTitleWh(string title, int width, int height) {
+    assert(width > 0 && height > 0, "window dimensions must be > 0");
     return new App(new Window(width, height, title));
   }
 
@@ -63,5 +64,27 @@ package(yguilib):
     fUi = new UiSystemImpl(w);
   }
 
+private:
   UiSystem fUi;
+}
+
+unittest {
+  import core.exception : AssertError;
+  import std.exception : assertThrown;
+  import std.logger : sharedLog;
+
+  auto prevLog = sharedLog;
+  scope (exit) sharedLog = prevLog;
+
+  assertThrown!AssertError(App.makeAppWithTitleWh("bad", 0, 100));
+  assertThrown!AssertError(App.makeAppWithTitleWh("bad", 100, -1));
+
+  auto app = App.makeAppWithTitleWh("test_app", 320, 240);
+  assert(app.ui !is null);
+  assert(app.ui.mainWindow !is null);
+  assert(app.ui.mainWindow.title == "test_app");
+
+  auto root = app.ui.makeWidget();
+  assert(app.withRootWidget(root) is app);
+  assert(app.ui.mainWindow.rootWidget is root);
 }

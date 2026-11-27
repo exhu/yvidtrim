@@ -2,5 +2,5 @@
 module yguilib.assets;
 
 /// default font data, public because expected to be used by library consumers.
-enum string defaultTtfFontData =
+immutable string defaultTtfFontData =
   import("yguilib/fonts/GoogleSansCode-Regular.ttf");

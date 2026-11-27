@@ -272,17 +272,20 @@ ColorF colorFromString(string s) nothrow @safe @nogc pure {
   return c.isNull ? ColorF(0.0f, 0.0f, 0.0f, 0.0f) : c.get;
 }
 
-// parseColor / colorFromString: hex and transparent
-unittest {
-  import std.math : isClose;
-
+version (unittest) {
+  private:
   bool nearColor(in ColorF a, in ColorF b) {
+    import std.math : isClose;
+
     return isClose(a.r, b.r, 1e-5, 1e-5)
       && isClose(a.g, b.g, 1e-5, 1e-5)
       && isClose(a.b, b.b, 1e-5, 1e-5)
       && isClose(a.a, b.a, 1e-5, 1e-5);
   }
+}
 
+// parseColor / colorFromString: hex and transparent
+unittest {
   assert(nearColor(colorFromString("transparent"), ColorF(0, 0, 0, 0)));
   assert(nearColor(colorFromString("TRANSPARENT"), ColorF(0, 0, 0, 0)));
   assert(nearColor(colorFromString(" \ttransparent\n "), ColorF(0, 0, 0, 0)));
@@ -313,15 +316,6 @@ unittest {
 
 // parseColor: rgb/rgba syntax, clamping, scientific notation, invalid inputs
 unittest {
-  import std.math : isClose;
-
-  bool nearColor(in ColorF a, in ColorF b) {
-    return isClose(a.r, b.r, 1e-5, 1e-5)
-      && isClose(a.g, b.g, 1e-5, 1e-5)
-      && isClose(a.b, b.b, 1e-5, 1e-5)
-      && isClose(a.a, b.a, 1e-5, 1e-5);
-  }
-
   assert(nearColor(
     colorFromString("rgb(43, 49, 64)"),
     ColorF(43 / 255.0f, 49 / 255.0f, 64 / 255.0f, 1.0f)

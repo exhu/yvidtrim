@@ -74,8 +74,9 @@ abstract class WidgetSystem {
   }
 
   /// Read-only priority within a phase (lower runs earlier).
+  /// Override in subclasses to customize execution priority.
   @property int priority() const nothrow @safe {
-    return fPriority;
+    return defaultPriority;
   }
 
   /// Bitmask of SystemPhase values this system is active in.
@@ -133,7 +134,7 @@ protected:
     if (host is null) {
       return invalidTimerId;
     }
-    return host.startTimer(this, intervalMs, mode);
+    return host.startSystemTimer(this, intervalMs, mode);
   }
 
   /// Stops a timer owned by this WidgetSystem and resets `id` to invalid.
@@ -142,11 +143,6 @@ protected:
       host.stopTimer(id);
     }
     id = invalidTimerId;
-  }
-
-  /// Sets execution priority within a phase (lower runs earlier).
-  @property void priority(int priority) nothrow @safe {
-    fPriority = priority;
   }
 
   /// Helper: Root-to-leaf (back-to-front) iteration over a widget list.
@@ -164,9 +160,6 @@ protected:
   }
 
   WidgetSystemHost host;
-
-private:
-  int fPriority = defaultPriority;
 }
 
 /// Convenience base class for systems that perform a bottom-up (leaf-to-root)
@@ -199,8 +192,13 @@ protected:
 // Verifies WidgetSystem default priorities and lifecycle no-op defaults.
 unittest {
   final class TestSystem : WidgetSystem {
+    int fPrio;
     this(int priority) nothrow @safe {
-      this.priority = priority;
+      fPrio = priority;
+    }
+
+    override @property int priority() const nothrow @safe {
+      return fPrio;
     }
   }
 

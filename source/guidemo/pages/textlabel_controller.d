@@ -107,10 +107,10 @@ private:
 }
 
 unittest {
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : makeHeadlessUiSystem;
   import yguilib.widget : Widget;
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   auto demoModel = new DemoModel();
   auto demoTracker = ModelTracker!DemoModel(demoModel);
   auto root = new Widget(ui.nextWidgetId());

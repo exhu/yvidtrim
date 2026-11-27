@@ -1,13 +1,13 @@
 module yguilib.widget.drawing_components;
 
 import yguilib.render : Renderer;
-import yguilib.render.font : Font, defaultFontPtSize;
-import yguilib.render.render_types : ColorF, PointF, RectF;
-import yguilib.widget.component;
+import yguilib.render.font : defaultFontPtSize;
+import yguilib.render.render_types : ColorF;
 import yguilib.widget : Widget;
+import yguilib.widget.component;
 import colors = yguilib.render.colors;
 
-package(yguilib) import yguilib.widget.internal.layout_text : FormattedTextLine,
+package(yguilib) import yguilib.widget.internal.layout_text :
   TextAlignment, sanitizeSingleLine;
 
 class Background : WidgetComponent {
@@ -154,7 +154,7 @@ class Border : WidgetComponent {
 
   ColorF color;
   Style style;
-  /// pixels
+  /// logical points
   float width = 2.0f;
   float dashLen = 5.0f;
   float gap = 2.0f;
@@ -179,7 +179,7 @@ class DebugDrawComponent : WidgetComponent {
   /// should visible=false widgets be drawn
   bool drawHidden = false;
   /// if true enables debug draw for children widgets as if they have the same
-  /// DebugDrawCompoenent, so that it's enough to add DebugDrawComponent with
+  /// DebugDrawComponent, so that it's enough to add DebugDrawComponent with
   /// recursive=true only to the root widget to visualize the whole tree.
   bool recursive;
   /// text and frame color
@@ -202,7 +202,7 @@ unittest {
   assert(sanitizeSingleLine("SingleLine") == "SingleLine");
 
   import yguilib.clibs.sdl3 : yguilib_sdl3_init, yguilib_sdl3_quit;
-  import yguilib.widget.internal.text_label_cache : layoutLines;
+  import yguilib.widget.internal.text_label_cache : layoutLines, TextLayoutKey;
   import yguilib.window : Window;
 
   yguilib_sdl3_init();
@@ -218,12 +218,25 @@ unittest {
   auto font = r.defaultFont();
   assert(font !is null);
 
+  TextLayoutKey keyFromLabel(
+    const TextLabel tl,
+    float availW,
+    float availH
+  ) {
+    TextLayoutKey k;
+    k.withSize(availW, availH)
+      .withCaption(tl.caption)
+      .withFont(font)
+      .withMultiline(tl.multiline)
+      .withEllipsis(tl.overflowEllipsis)
+      .withAlignment(tl.alignment);
+    return k;
+  }
+
   // Single line without overflow
   auto tl1 = new TextLabel("Hello", ColorF(1, 1, 1, 1));
   auto lines1 = layoutLines(
-    tl1.layoutCache, r, font, tl1.font,
-    tl1.caption, tl1.multiline, tl1.overflowEllipsis,
-    tl1.alignment, 200.0f, 100.0f
+    tl1.layoutCache, r, font, keyFromLabel(tl1, 200.0f, 100.0f)
   );
   assert(lines1.length == 1);
   assert(lines1[0].text == "Hello");
@@ -232,9 +245,7 @@ unittest {
   // Single line with newlines when multiline is false
   auto tlNewlines = new TextLabel("Hello\r\nWorld", ColorF(1, 1, 1, 1));
   auto linesNewlines = layoutLines(
-    tlNewlines.layoutCache, r, font, tlNewlines.font,
-    tlNewlines.caption, tlNewlines.multiline, tlNewlines.overflowEllipsis,
-    tlNewlines.alignment, 200.0f, 100.0f
+    tlNewlines.layoutCache, r, font, keyFromLabel(tlNewlines, 200.0f, 100.0f)
   );
   assert(linesNewlines.length == 1);
   assert(linesNewlines[0].text == "Hello World");
@@ -248,9 +259,8 @@ unittest {
     ColorF(1, 1, 1, 1)
   );
   auto linesOverflow = layoutLines(
-    tlOverflow.layoutCache, r, font, tlOverflow.font,
-    tlOverflow.caption, tlOverflow.multiline, tlOverflow.overflowEllipsis,
-    tlOverflow.alignment, fullW * 0.5f, 100.0f
+    tlOverflow.layoutCache, r, font,
+    keyFromLabel(tlOverflow, fullW * 0.5f, 100.0f)
   );
   assert(linesOverflow.length == 1);
   assert(linesOverflow[0].text.length >= 3);
@@ -260,9 +270,8 @@ unittest {
   // Single line with overflowEllipsis == false
   tlOverflow.overflowEllipsis = false;
   auto linesNoEllipsis = layoutLines(
-    tlOverflow.layoutCache, r, font, tlOverflow.font,
-    tlOverflow.caption, tlOverflow.multiline, tlOverflow.overflowEllipsis,
-    tlOverflow.alignment, fullW * 0.5f, 100.0f
+    tlOverflow.layoutCache, r, font,
+    keyFromLabel(tlOverflow, fullW * 0.5f, 100.0f)
   );
   assert(linesNoEllipsis.length == 1);
   assert(linesNoEllipsis[0].text == "Long text that should overflow");
@@ -271,9 +280,7 @@ unittest {
   auto tlAlign = new TextLabel("Centered", ColorF(1, 1, 1, 1));
   tlAlign.alignment = TextLabel.Alignment.center;
   auto linesCenter = layoutLines(
-    tlAlign.layoutCache, r, font, tlAlign.font,
-    tlAlign.caption, tlAlign.multiline, tlAlign.overflowEllipsis,
-    tlAlign.alignment, 200.0f, 100.0f
+    tlAlign.layoutCache, r, font, keyFromLabel(tlAlign, 200.0f, 100.0f)
   );
   assert(linesCenter.length == 1);
   const float expectedCenter = (200.0f - linesCenter[0].width) * 0.5f;
@@ -281,9 +288,7 @@ unittest {
 
   tlAlign.alignment = TextLabel.Alignment.right;
   auto linesRight = layoutLines(
-    tlAlign.layoutCache, r, font, tlAlign.font,
-    tlAlign.caption, tlAlign.multiline, tlAlign.overflowEllipsis,
-    tlAlign.alignment, 200.0f, 100.0f
+    tlAlign.layoutCache, r, font, keyFromLabel(tlAlign, 200.0f, 100.0f)
   );
   assert(linesRight.length == 1);
   const float expectedRight = 200.0f - linesRight[0].width;
@@ -293,9 +298,7 @@ unittest {
   auto tlMulti = new TextLabel("Line 1\nLine 2\r\nLine 3", ColorF(1, 1, 1, 1));
   tlMulti.multiline = true;
   auto linesMulti = layoutLines(
-    tlMulti.layoutCache, r, font, tlMulti.font,
-    tlMulti.caption, tlMulti.multiline, tlMulti.overflowEllipsis,
-    tlMulti.alignment, 200.0f, 100.0f
+    tlMulti.layoutCache, r, font, keyFromLabel(tlMulti, 200.0f, 100.0f)
   );
   assert(linesMulti.length == 3);
   assert(linesMulti[0].text == "Line 1");
@@ -310,9 +313,7 @@ unittest {
   tlWrap.multiline = true;
   const float wrapW = r.measureTextWithFont("Word one word two", font).x + 5.0f;
   auto linesWrap = layoutLines(
-    tlWrap.layoutCache, r, font, tlWrap.font,
-    tlWrap.caption, tlWrap.multiline, tlWrap.overflowEllipsis,
-    tlWrap.alignment, wrapW, 500.0f
+    tlWrap.layoutCache, r, font, keyFromLabel(tlWrap, wrapW, 500.0f)
   );
   assert(linesWrap.length >= 2);
   foreach (const ref l; linesWrap) {
@@ -327,9 +328,7 @@ unittest {
   // Fit exactly 2 lines
   float limitH = lineStep + firstLineH + 2.0f;
   auto linesVertTrunc = layoutLines(
-    tlMulti.layoutCache, r, font, tlMulti.font,
-    tlMulti.caption, tlMulti.multiline, tlMulti.overflowEllipsis,
-    tlMulti.alignment, 200.0f, limitH
+    tlMulti.layoutCache, r, font, keyFromLabel(tlMulti, 200.0f, limitH)
   );
   assert(linesVertTrunc.length == 2);
   assert(linesVertTrunc[1].text[$ - 3 .. $] == "...");
@@ -337,9 +336,7 @@ unittest {
   // Multiline: vertical truncation with overflowEllipsis == false
   tlMulti.overflowEllipsis = false;
   auto linesVertNoTrunc = layoutLines(
-    tlMulti.layoutCache, r, font, tlMulti.font,
-    tlMulti.caption, tlMulti.multiline, tlMulti.overflowEllipsis,
-    tlMulti.alignment, 200.0f, limitH
+    tlMulti.layoutCache, r, font, keyFromLabel(tlMulti, 200.0f, limitH)
   );
   assert(linesVertNoTrunc.length == 2);
   assert(linesVertNoTrunc[1].text == "Line 2");
@@ -347,23 +344,17 @@ unittest {
   // Test layoutLines caching
   auto tlCache = new TextLabel("Cached line", ColorF(1, 1, 1, 1));
   auto linesC1 = layoutLines(
-    tlCache.layoutCache, r, font, tlCache.font,
-    tlCache.caption, tlCache.multiline, tlCache.overflowEllipsis,
-    tlCache.alignment, 200.0f, 100.0f
+    tlCache.layoutCache, r, font, keyFromLabel(tlCache, 200.0f, 100.0f)
   );
   auto linesC2 = layoutLines(
-    tlCache.layoutCache, r, font, tlCache.font,
-    tlCache.caption, tlCache.multiline, tlCache.overflowEllipsis,
-    tlCache.alignment, 200.0f, 100.0f
+    tlCache.layoutCache, r, font, keyFromLabel(tlCache, 200.0f, 100.0f)
   );
   assert(linesC1.ptr == linesC2.ptr);
 
   // Changing caption invalidates cache
   tlCache.caption = "Updated line";
   auto linesC3 = layoutLines(
-    tlCache.layoutCache, r, font, tlCache.font,
-    tlCache.caption, tlCache.multiline, tlCache.overflowEllipsis,
-    tlCache.alignment, 200.0f, 100.0f
+    tlCache.layoutCache, r, font, keyFromLabel(tlCache, 200.0f, 100.0f)
   );
   assert(linesC3.length == 1);
   assert(linesC3[0].text == "Updated line");

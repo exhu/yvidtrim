@@ -86,6 +86,10 @@ package(yguilib):
    */
   static Texture borrowedFromInfo(in BorrowedTextureInfo info) {
     assert(info.id != 0, "borrowed texture id must not be 0");
+    assert(
+      info.width > 0 && info.height > 0,
+      "borrowed texture size must be positive"
+    );
     auto t = new Texture();
     t.fId = info.id;
     t.fWidth = info.width;

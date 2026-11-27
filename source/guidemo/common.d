@@ -24,9 +24,17 @@ import yguilib.widget.drawing_components : Background, Border,
  */
 struct PageControllerParams(P, T) {
   UiSystem ui;
-  ModelTracker!DemoModel demoTracker;
-  T trackers;
   P page;
+
+  /// Returns the shared demo model tracker (must be set via `withDemoTracker`).
+  @property ref ModelTracker!DemoModel demoTracker() return {
+    return fDemoTracker.get;
+  }
+
+  /// Returns the page tracker(s) (must be set via `withTrackers`).
+  @property ref T trackers() return {
+    return fTrackers.get;
+  }
 
   /// Sets the UI system.
   ref PageControllerParams withUi(UiSystem ui) return {
@@ -38,13 +46,13 @@ struct PageControllerParams(P, T) {
   ref PageControllerParams withDemoTracker(
     ref ModelTracker!DemoModel otherTracker
   ) return {
-    this.demoTracker = ModelTracker!DemoModel.from(otherTracker);
+    fDemoTracker = ModelTracker!DemoModel.from(otherTracker);
     return this;
   }
 
   /// Sets the page tracker(s), sharing models with `otherTrackers`.
   ref PageControllerParams withTrackers(ref T otherTrackers) return {
-    this.trackers = T.from(otherTrackers);
+    fTrackers = T.from(otherTrackers);
     return this;
   }
 
@@ -53,6 +61,12 @@ struct PageControllerParams(P, T) {
     this.page = page;
     return this;
   }
+
+private:
+  import std.typecons : Nullable;
+
+  Nullable!(ModelTracker!DemoModel) fDemoTracker;
+  Nullable!T fTrackers;
 }
 
 /// Returns true if `ev` matches `targetKey` (case-insensitive for ASCII
@@ -171,9 +185,9 @@ void syncPageShellView(
 }
 
 unittest {
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : makeHeadlessUiSystem;
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   auto demoModel = new DemoModel();
   auto tracker = ModelTracker!DemoModel(demoModel);
   auto pageRoot = new Widget(ui.nextWidgetId());

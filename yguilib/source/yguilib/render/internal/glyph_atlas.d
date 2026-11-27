@@ -16,6 +16,7 @@ module yguilib.render.internal.glyph_atlas;
 package(yguilib):
 
 import glad2.gles2;
+import yguilib.allochelpers : ReusableArray;
 import yguilib.clibs.sdl3_ttf;
 import yguilib.render.font : Font, invalidFontId;
 import yguilib.render.internal.gl_util;
@@ -93,6 +94,7 @@ final class GlyphAtlas {
   /// `maxSize` is typically `min(4096, maxTextureSize())`.
   this(int initialSize, int maxSize) {
     assert(initialSize > 0 && maxSize >= initialSize);
+    assert(maxSize <= short.max, "maxSize must fit in short");
     fSize = initialSize;
     fMaxSize = maxSize;
     fPacker.reset(initialSize);
@@ -134,6 +136,7 @@ final class GlyphAtlas {
    * `generation()`), which invalidates earlier slots.
    */
   GlyphLookup slotFor(Font f, int outlinePx, uint glyph) {
+    assert(f !is null, "font must not be null");
     assert(f.id != invalidFontId, "font is destroyed");
     const key = GlyphKey(f.id, f.scaledSize, outlinePx, glyph);
     if (auto hit = key in fSlots) {
@@ -144,15 +147,16 @@ final class GlyphAtlas {
 
   /// Drops the keys of font `fontId`; the space is reclaimed on clear.
   void removeFont(ulong fontId) {
-    GlyphKey[] doomed;
+    fRemoveScratch.clear();
     foreach (key, ref slot; fSlots) {
       if (key.fontId == fontId) {
-        doomed ~= key;
+        fRemoveScratch.push(key);
       }
     }
-    foreach (ref key; doomed) {
+    foreach (ref key; fRemoveScratch[]) {
       fSlots.remove(key);
     }
+    fRemoveScratch.clear();
   }
 
   /// Drops all keys, zeroes the texture and bumps `generation()`.
@@ -169,12 +173,14 @@ final class GlyphAtlas {
       fTexture = 0;
     }
     fSlots.clear();
+    fRemoveScratch.clear();
     fPacker.reset(fSize);
     fGeneration++;
   }
 
 private:
   GlyphLookup rasterize(Font f, const ref GlyphKey key) {
+    import std.algorithm.comparison : max;
     import std.logger : errorf;
 
     auto surf = yguilib_sdl3_ttf_render_glyph(f.handle, key.glyph);
@@ -191,7 +197,8 @@ private:
       fSlots[key] = GlyphSlot.init;
       return GlyphLookup(true, GlyphSlot.init);
     }
-    if (w + 2 > fMaxSize || h + 2 > fMaxSize) {
+    const int minDim = max(w, h) + 2;
+    if (minDim > fMaxSize) {
       errorf("GlyphAtlas: glyph %sx%s exceeds max atlas %s", w, h, fMaxSize);
       return GlyphLookup(false, GlyphSlot.init);
     }
@@ -200,7 +207,7 @@ private:
     }
     auto place = fPacker.pack(w, h);
     if (!place.ok) {
-      makeRoom();
+      makeRoom(minDim);
       place = fPacker.pack(w, h);
       if (!place.ok) {
         errorf("GlyphAtlas: glyph %sx%s does not fit", w, h);
@@ -217,12 +224,13 @@ private:
     return place;
   }
 
-  /// Doubles the texture when below the max size, else clears in place.
-  void makeRoom() {
+  /// Doubles the texture until `minDim` fits or `fMaxSize`, else clears.
+  void makeRoom(int minDim) {
     notifyBeforeReset();
     if (fSize < fMaxSize) {
-      const int grown = fSize * 2 < fMaxSize ? fSize * 2 : fMaxSize;
-      fSize = grown;
+      do {
+        fSize = fSize * 2 < fMaxSize ? fSize * 2 : fMaxSize;
+      } while (fSize < minDim && fSize < fMaxSize);
     }
     resetContents();
   }
@@ -244,6 +252,7 @@ private:
   }
 
   GlyphSlot[GlyphKey] fSlots;
+  ReusableArray!GlyphKey fRemoveScratch;
   ShelfPacker fPacker;
   GLuint fTexture;
   int fSize;
@@ -273,6 +282,10 @@ version (unittest) {
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev);
     GLuint fbo;
     glGenFramebuffers(1, &fbo);
+    scope(exit) {
+      glBindFramebuffer(GL_FRAMEBUFFER, prev);
+      glDeleteFramebuffers(1, &fbo);
+    }
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
     glFramebufferTexture2D(
       GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0
@@ -282,8 +295,6 @@ version (unittest) {
     );
     auto buf = new ubyte[w * h * 4];
     glReadPixels(x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, buf.ptr);
-    glBindFramebuffer(GL_FRAMEBUFFER, prev);
-    glDeleteFramebuffers(1, &fbo);
     return buf;
   }
 
@@ -576,4 +587,27 @@ unittest {
   atlas.clear();
   atlas.destroy();
   assert(events.length == 3);
+}
+
+unittest {
+  auto w = GlTestWindow("test_glyph_atlas_multi_double");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+
+  // Large glyph whose dim > 2 * initialSize (16 -> 32 -> 64+).
+  Font font = Font.fromMemory(
+    cast(const(void)[])defaultTtfFontData, 96.0f, 1.0f
+  );
+  scope(exit) font.destroy();
+
+  auto atlas = new GlyphAtlas(16, 256);
+  scope(exit) atlas.destroy();
+
+  const gW = glyphOf(font, "W");
+  const res = atlas.slotFor(font, 0, gW);
+  assert(res.ok);
+  assert(res.slot.w + 2 > 32);
+  assert(atlas.size() >= res.slot.w + 2);
+  assert(atlas.size() >= res.slot.h + 2);
+  assert(atlas.size() <= 256);
 }

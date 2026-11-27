@@ -21,9 +21,17 @@ import guidemo.view : DemoView, headerTabSwitchEvent;
 /// Parameters for constructing DemoController.
 struct DemoControllerParams {
   UiSystem ui;
-  ModelTracker!DemoModel tracker;
   DemoView view;
-  ModelTracker!TabsModel tabsTracker;
+
+  /// Returns the shared demo model tracker (must be set via `withTracker`).
+  @property ref ModelTracker!DemoModel tracker() return {
+    return fTracker.get;
+  }
+
+  /// Returns the header tab control model tracker.
+  @property ref ModelTracker!TabsModel tabsTracker() return {
+    return fTabsTracker.get;
+  }
 
   /// Sets the UI system.
   ref DemoControllerParams withUi(UiSystem ui) return {
@@ -35,7 +43,7 @@ struct DemoControllerParams {
   ref DemoControllerParams withTracker(
     ref ModelTracker!DemoModel otherTracker
   ) return {
-    this.tracker = ModelTracker!DemoModel.from(otherTracker);
+    fTracker = ModelTracker!DemoModel.from(otherTracker);
     return this;
   }
 
@@ -49,9 +57,15 @@ struct DemoControllerParams {
   ref DemoControllerParams withTabsTracker(
     ref ModelTracker!TabsModel otherTabsTracker
   ) return {
-    this.tabsTracker = ModelTracker!TabsModel.from(otherTabsTracker);
+    fTabsTracker = ModelTracker!TabsModel.from(otherTabsTracker);
     return this;
   }
+
+private:
+  import std.typecons : Nullable;
+
+  Nullable!(ModelTracker!DemoModel) fTracker;
+  Nullable!(ModelTracker!TabsModel) fTabsTracker;
 }
 
 /// Shared controller handling quit, F1 debug draw cycling, F12
@@ -226,19 +240,125 @@ unittest {
 
 unittest {
   import guidemo.view : createHeaderTabsModel;
+  import yguilib.controller : Controller;
   import yguilib.events.builder : ViewAppEventBuilder;
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.object_registry : ObjectRegistry;
+  import yguilib.timercontrol : TimerId;
+  import yguilib.timers : TimerMode;
+  import yguilib.uisystem : UiSystem, makeHeadlessUiSystem;
+  import yguilib.widget : Widget;
+  import yguilib.widget.system : WidgetSystem;
+  import yguilib.widget.widget_view : WidgetView, WidgetViewController;
+  import yguilib.window : Window;
 
   // Records screenshot requests instead of forwarding them to a window.
-  static final class RecordingUiSystem : UiSystemImpl {
+  static final class RecordingUiSystem : UiSystem {
     this() {
-      super(null);
+      inner = makeHeadlessUiSystem();
+    }
+
+    override @property ObjectRegistry!WidgetViewController
+    widgetViewControllers() {
+      return inner.widgetViewControllers;
+    }
+
+    override @property ObjectRegistry!WidgetView widgetViews() {
+      return inner.widgetViews;
+    }
+
+    override void popController() {
+      inner.popController();
+    }
+
+    override void pushController(Controller c) {
+      inner.pushController(c);
+    }
+
+    override void pushModalController(Controller c) {
+      inner.pushModalController(c);
+    }
+
+    override void popFocusRoot() {
+      inner.popFocusRoot();
+    }
+
+    override void pushFocusRoot(Widget w) {
+      inner.pushFocusRoot(w);
+    }
+
+    override void sendAppEvent(AppEvent ev) {
+      inner.sendAppEvent(ev);
+    }
+
+    override TimerId startControllerTimer(
+      Controller target, uint intervalMs, TimerMode mode
+    ) {
+      return inner.startControllerTimer(target, intervalMs, mode);
+    }
+
+    override TimerId startSystemTimer(
+      WidgetSystem target, uint intervalMs, TimerMode mode
+    ) {
+      return inner.startSystemTimer(target, intervalMs, mode);
+    }
+
+    override void stopTimer(TimerId id) {
+      inner.stopTimer(id);
+    }
+
+    override bool isTimerActive(TimerId id) const {
+      return inner.isTimerActive(id);
+    }
+
+    override void registerWidgetSystem(WidgetSystem system) {
+      inner.registerWidgetSystem(system);
+    }
+
+    override void unregisterWidgetSystem(WidgetSystem system) {
+      inner.unregisterWidgetSystem(system);
+    }
+
+    override WidgetSystem findWidgetSystemByType(TypeInfo_Class type) {
+      return null;
+    }
+
+    override @property Window mainWindow() {
+      return inner.mainWindow;
+    }
+
+    override void mainEventLoop() {
+      inner.mainEventLoop();
+    }
+
+    override uint nextWidgetId() {
+      return inner.nextWidgetId();
+    }
+
+    override Widget makeWidget() {
+      return inner.makeWidget();
+    }
+
+    override void releaseWidget(Widget w) {
+      inner.releaseWidget(w);
+    }
+
+    override @property void eventStatsEnabled(bool enabled) {
+      inner.eventStatsEnabled = enabled;
+    }
+
+    override @property bool eventStatsEnabled() const {
+      return inner.eventStatsEnabled;
     }
 
     override void requestScreenshot(string path) {
       paths ~= path;
     }
 
+    override string dumpInfo() {
+      return inner.dumpInfo();
+    }
+
+    UiSystem inner;
     string[] paths;
   }
 

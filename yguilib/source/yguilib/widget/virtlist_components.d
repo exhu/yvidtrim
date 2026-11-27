@@ -4,7 +4,7 @@ import std.math.traits : isFinite;
 import yguilib.allochelpers : ReusableArray;
 import yguilib.events : AppEvent;
 import yguilib.widget : Widget;
-import yguilib.widget.component : WidgetComponent;
+import yguilib.widget.component : AppEventViewValueMixin, WidgetComponent;
 import yguilib.widget.layout_components : FlexDirection;
 
 /// Provider interface supplying a single reusable item widget template and
@@ -49,10 +49,62 @@ package(yguilib) struct VirtListActiveItem {
 /// Virtualized list viewport component supporting vertical and horizontal
 /// scrolling with single-template widget recycling and variable item sizes.
 final class VirtListComponent : WidgetComponent {
+  /// Parameter struct for `AppEventViewValue.pack`.
+  struct PackParams {
+    float totalMainSize = 0.0f;
+    float viewportMainSize = 0.0f;
+    float mainOffset = 0.0f;
+    float maxCrossSize = 0.0f;
+    float viewportCrossSize = 0.0f;
+    float crossOffset = 0.0f;
+    uint firstVisibleIndex = 0;
+    uint visibleCount = 0;
+
+    PackParams* withTotalMainSize(float v) {
+      totalMainSize = v;
+      return &this;
+    }
+
+    PackParams* withViewportMainSize(float v) {
+      viewportMainSize = v;
+      return &this;
+    }
+
+    PackParams* withMainOffset(float v) {
+      mainOffset = v;
+      return &this;
+    }
+
+    PackParams* withMaxCrossSize(float v) {
+      maxCrossSize = v;
+      return &this;
+    }
+
+    PackParams* withViewportCrossSize(float v) {
+      viewportCrossSize = v;
+      return &this;
+    }
+
+    PackParams* withCrossOffset(float v) {
+      crossOffset = v;
+      return &this;
+    }
+
+    PackParams* withFirstVisibleIndex(uint v) {
+      firstVisibleIndex = v;
+      return &this;
+    }
+
+    PackParams* withVisibleCount(uint v) {
+      visibleCount = v;
+      return &this;
+    }
+  }
+
   /// Packed payload stored in `AppEvent.ViewData.value` when
   /// `metricsChangedEvent` is emitted.
   union AppEventViewValue {
-    ulong[AppEvent.ViewData.valueSize] raw;
+    mixin AppEventViewValueMixin!();
     struct {
       float totalMainSize;
       float viewportMainSize;
@@ -64,44 +116,21 @@ final class VirtListComponent : WidgetComponent {
       uint visibleCount;
     }
 
-    alias raw this;
-
-    static AppEventViewValue fromRaw(
-      in ulong[AppEvent.ViewData.valueSize] raw
-    ) {
-      AppEventViewValue val;
-      val.raw = raw;
-      return val;
-    }
-
-    static AppEventViewValue pack(
-      float totalMainSize,
-      float viewportMainSize,
-      float mainOffset,
-      float maxCrossSize,
-      float viewportCrossSize,
-      float crossOffset,
-      uint firstVisibleIndex,
-      uint visibleCount
-    ) {
+    /// Constructs from `PackParams`.
+    static AppEventViewValue pack(in PackParams p) {
       AppEventViewValue val;
       val.raw = 0;
-      val.totalMainSize = totalMainSize;
-      val.viewportMainSize = viewportMainSize;
-      val.mainOffset = mainOffset;
-      val.maxCrossSize = maxCrossSize;
-      val.viewportCrossSize = viewportCrossSize;
-      val.crossOffset = crossOffset;
-      val.firstVisibleIndex = firstVisibleIndex;
-      val.visibleCount = visibleCount;
+      val.totalMainSize = p.totalMainSize;
+      val.viewportMainSize = p.viewportMainSize;
+      val.mainOffset = p.mainOffset;
+      val.maxCrossSize = p.maxCrossSize;
+      val.viewportCrossSize = p.viewportCrossSize;
+      val.crossOffset = p.crossOffset;
+      val.firstVisibleIndex = p.firstVisibleIndex;
+      val.visibleCount = p.visibleCount;
       return val;
     }
   }
-
-  static assert(
-    AppEventViewValue.sizeof ==
-      (ulong[AppEvent.ViewData.valueSize]).sizeof
-  );
 
   this() {}
 
@@ -153,7 +182,9 @@ final class VirtListComponent : WidgetComponent {
     if (count == 0) {
       return;
     }
-    fPendingChanges ~= VirtListChange(VirtListChange.Kind.insert, index, count);
+    fPendingChanges.push(
+      VirtListChange(VirtListChange.Kind.insert, index, count)
+    );
   }
 
   /// Records removal of `count` items starting at `index`.
@@ -161,7 +192,9 @@ final class VirtListComponent : WidgetComponent {
     if (count == 0) {
       return;
     }
-    fPendingChanges ~= VirtListChange(VirtListChange.Kind.remove, index, count);
+    fPendingChanges.push(
+      VirtListChange(VirtListChange.Kind.remove, index, count)
+    );
   }
 
   /// Records content/size update for `count` items starting at `index`.
@@ -169,7 +202,9 @@ final class VirtListComponent : WidgetComponent {
     if (count == 0) {
       return;
     }
-    fPendingChanges ~= VirtListChange(VirtListChange.Kind.update, index, count);
+    fPendingChanges.push(
+      VirtListChange(VirtListChange.Kind.update, index, count)
+    );
   }
 
   /// Requests relative scroll along the main axis in logical points.
@@ -273,12 +308,13 @@ final class VirtListComponent : WidgetComponent {
   string metricsChangedEvent;
 
 package(yguilib):
-  VirtListActiveItem[] fActiveItems;
+  ReusableArray!VirtListActiveItem fActiveItems;
   ReusableArray!Widget fFreePool;
   float[size_t] fItemMainSizes;
   float[size_t] fItemCrossSizes;
   double fKnownMainSizesSum = 0.0;
-  VirtListChange[] fPendingChanges;
+  ReusableArray!VirtListChange fPendingChanges;
+  size_t fLastItemsCount = 0;
 
   float fPendingMainDelta = 0.0f;
   bool fHasTargetMainOffset = false;
@@ -328,6 +364,8 @@ unittest {
   vc.recordRemove(5, 1);
   vc.recordUpdate(1, 4);
   vc.recordInsert(0, 0);
+  vc.recordRemove(0, 0);
+  vc.recordUpdate(0, 0);
   assert(vc.fPendingChanges.length == 3);
   assert(vc.fPendingChanges[0].kind == VirtListChange.Kind.insert);
   assert(vc.fPendingChanges[0].index == 2);
@@ -339,9 +377,43 @@ unittest {
   assert(vc.fPendingChanges[2].index == 1);
   assert(vc.fPendingChanges[2].count == 4);
 
-  auto packed = VirtListComponent.AppEventViewValue.pack(
-    1200.5f, 300.0f, 140.25f, 450.0f, 200.0f, 32.5f, 17, 6
-  );
+  // Scroll & NaN/Inf guards
+  vc.scrollByMain(12.0f);
+  vc.scrollByMain(float.nan);
+  vc.scrollByMain(float.infinity);
+  vc.scrollByMain(-float.infinity);
+  assert(vc.fPendingMainDelta == 12.0f);
+
+  vc.scrollToMainOffset(float.nan);
+  assert(vc.fHasTargetMainOffset);
+  assert(vc.fTargetMainOffset == 0.0f);
+  assert(!vc.fHasTargetIndex);
+  assert(vc.fPendingMainDelta == 0.0f);
+
+  vc.scrollByMain(5.0f);
+  vc.scrollToIndex(7);
+  assert(vc.fHasTargetIndex);
+  assert(vc.fTargetIndex == 7);
+  assert(!vc.fHasTargetMainOffset);
+  assert(vc.fPendingMainDelta == 0.0f);
+
+  vc.requestCrossOffset(42.0f);
+  assert(vc.fCrossOffsetTarget == 42.0f);
+  vc.requestCrossOffset(float.nan);
+  assert(vc.fCrossOffsetTarget == 0.0f);
+  vc.requestCrossOffset(float.infinity);
+  assert(vc.fCrossOffsetTarget == 0.0f);
+
+  VirtListComponent.PackParams pp;
+  pp.withTotalMainSize(1200.5f)
+    .withViewportMainSize(300.0f)
+    .withMainOffset(140.25f)
+    .withMaxCrossSize(450.0f)
+    .withViewportCrossSize(200.0f)
+    .withCrossOffset(32.5f)
+    .withFirstVisibleIndex(17)
+    .withVisibleCount(6);
+  auto packed = VirtListComponent.AppEventViewValue.pack(pp);
   auto unpacked = VirtListComponent.AppEventViewValue.fromRaw(packed.raw);
   assert(unpacked.totalMainSize == 1200.5f);
   assert(unpacked.viewportMainSize == 300.0f);

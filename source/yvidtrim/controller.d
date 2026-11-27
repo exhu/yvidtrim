@@ -83,10 +83,10 @@ private:
 
 unittest {
   import yguilib.events.keyboard : Scancode;
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : makeHeadlessUiSystem;
   import yguilib.widget : Widget;
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   auto tracker = ModelTracker!MainModel(new MainModel());
   auto view = new MainView(ui, tracker);
   auto controller = new MainController(ui, tracker, view);

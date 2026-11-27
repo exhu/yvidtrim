@@ -7,35 +7,26 @@
  */
 module yguilib.controls.internal.button_support;
 
+import std.typecons : Nullable;
 import yguilib.allochelpers : ReusableArray;
-import yguilib.controls.common : ButtonFace, WidgetColors,
+import yguilib.controls.common : ButtonBaseConfig, ButtonFace, WidgetColors,
   applyButtonFaceStyle, orDefault;
 import yguilib.controls.tooltip : Tooltip;
 import yguilib.events.builder : ViewAppEventBuilder;
 import yguilib.render.render_types : ColorF, PointF, RectF;
+import yguilib.timercontrol : TimerId, invalidTimerId;
+import yguilib.timers : TimerIntervalMs, TimerMode;
 import yguilib.uisystem : UiSystem;
 import yguilib.widget : Widget, isEffectivelyVisible;
 import yguilib.widget.builder : WidgetBuilder;
 import yguilib.widget.component : WidgetComponent;
 import yguilib.widget.layout_components : Anchor, Insets, Size;
-import yguilib.widget.system : WidgetSystemContext;
-import yguilib.widget.visible : findTopmostWithComponent;
+import yguilib.widget.system : WidgetSystem, WidgetSystemContext,
+  WidgetSystemHost;
+import yguilib.widget.visible : VisibleWidget;
 import yguilib.widget.widget_view : passViewEvent;
 
 package(yguilib):
-
-/// Widget construction styling options shared by button builders.
-struct ButtonBaseConfig {
-  string text = "Button";
-  ColorF normalBg = ColorF(0.20f, 0.22f, 0.28f, 1.0f);
-  ColorF borderColor = ColorF(0.35f, 0.38f, 0.48f, 1.0f);
-  ColorF textColor = ColorF(0.95f, 0.95f, 0.95f, 1.0f);
-  float cornerRadius = 6.0f;
-  float borderWidth = 1.0f;
-  float fontSize = 13.0f;
-  Insets padding = Insets(6.0f, 14.0f, 6.0f, 14.0f);
-  string actionEvent = null;
-}
 
 /**
  * Fluent builder fields and setters shared by button builders.
@@ -45,22 +36,14 @@ struct ButtonBaseConfig {
  */
 mixin template ButtonBuilderCommon() {
   // Scoped imports: mixin bodies resolve names in the instantiating scope.
-  import yguilib.controls.common : orDefault;
-  import yguilib.controls.internal.button_support : ButtonBaseConfig,
-    applyButtonBaseFace;
+  import yguilib.controls.common : ButtonBaseConfig, orDefault;
+  import yguilib.controls.internal.button_support : applyButtonBaseFace;
   import yguilib.controls.tooltip : Tooltip;
   import yguilib.render.render_types : ColorF, RectF;
   import yguilib.uisystem : UiSystem;
   import yguilib.widget : Widget;
   import yguilib.widget.builder : WidgetBuilder;
   import yguilib.widget.layout_components : Anchor, Insets, Size;
-
-  ButtonBaseConfig config;
-  Size customSize = null;
-  Anchor customAnchor = null;
-  string widgetName = null;
-  bool hasTooltip = false;
-  string tooltipHint = null;
 
   /// Sets the widget name (a default is used when empty).
   ref typeof(this) name(string buttonName) return {
@@ -107,6 +90,7 @@ mixin template ButtonBuilderCommon() {
 
   /// Sets a custom `Size` component (`sz` must not be null).
   ref typeof(this) size(Size sz) return {
+    assert(sz !is null, "sz must not be null");
     customSize = sz;
     return this;
   }
@@ -125,6 +109,7 @@ mixin template ButtonBuilderCommon() {
 
   /// Sets a custom `Anchor` component (`a` must not be null).
   ref typeof(this) anchor(Anchor a) return {
+    assert(a !is null, "a must not be null");
     customAnchor = a;
     return this;
   }
@@ -142,6 +127,14 @@ mixin template ButtonBuilderCommon() {
     tooltipHint = hintText;
     return this;
   }
+
+private:
+  ButtonBaseConfig config;
+  Size customSize = null;
+  Anchor customAnchor = null;
+  string widgetName = null;
+  bool hasTooltip = false;
+  string tooltipHint = null;
 
   /**
    * Creates a `WidgetBuilder` with name, rect, size, anchor, padding, face
@@ -185,7 +178,7 @@ mixin template ButtonBuilderCommon() {
 }
 
 /// Applies background, border and caption label from `config` to `b`.
-void applyButtonBaseFace(ref WidgetBuilder b, in ButtonBaseConfig config) {
+void applyButtonBaseFace(WidgetBuilder b, in ButtonBaseConfig config) {
   ButtonFace face;
   face.colors = WidgetColors(
     config.normalBg,
@@ -243,8 +236,8 @@ struct ActiveWidgets {
     for (ptrdiff_t i = cast(ptrdiff_t) items.length - 1; i >= 0; --i) {
       Widget w = items[i];
       if (!isEffectivelyVisible(w)) {
-        onRemoved(w);
         items.removeAt(cast(size_t) i);
+        onRemoved(w);
       }
     }
   }
@@ -253,14 +246,108 @@ private:
   ReusableArray!Widget items;
 }
 
+/// Shared 60 FPS animation-timer lifecycle and active-button stepping driver.
+struct ButtonAnimDriver {
+  ActiveWidgets activeButtons;
+  TimerId animTimerId = invalidTimerId;
+
+  /// Returns true when no button is actively animating.
+  bool empty() const nothrow @safe {
+    return activeButtons.empty;
+  }
+
+  /// Adds `w` to the active set without starting the timer.
+  void track(Widget w) {
+    activeButtons.track(w);
+  }
+
+  /// Adds `w` and ensures the 60 FPS timer is running when `host` is non-null.
+  void trackAndStart(Widget w, WidgetSystem sys, WidgetSystemHost host) {
+    activeButtons.track(w);
+    ensureTimer(sys, host);
+  }
+
+  /// Removes `w` and stops the animation timer if no buttons remain active.
+  void remove(Widget w, WidgetSystemHost host) {
+    activeButtons.remove(w);
+    stopIfIdle(host);
+  }
+
+  /// Starts the 60 FPS repeat timer if buttons are active and not yet timed.
+  void ensureTimer(WidgetSystem sys, WidgetSystemHost host) {
+    assert(sys !is null, "sys must not be null");
+    if (animTimerId == invalidTimerId &&
+        !activeButtons.empty &&
+        host !is null) {
+      animTimerId = host.startSystemTimer(
+        sys, TimerIntervalMs.fps60, TimerMode.repeat
+      );
+    }
+  }
+
+  /// Stops the animation timer if running and resets `animTimerId`.
+  void stopTimer(WidgetSystemHost host) {
+    if (animTimerId != invalidTimerId && host !is null) {
+      host.stopTimer(animTimerId);
+    }
+    animTimerId = invalidTimerId;
+  }
+
+  /// Stops the animation timer when no active buttons remain.
+  void stopIfIdle(WidgetSystemHost host) {
+    if (activeButtons.empty) {
+      stopTimer(host);
+    }
+  }
+
+  /// Drops invisible active buttons, invokes `onRemoved`, and stops if idle.
+  void removeInvisible(
+    WidgetSystemHost host,
+    scope void delegate(Widget) onRemoved
+  ) {
+    activeButtons.removeInvisible(onRemoved);
+    stopIfIdle(host);
+  }
+
+  /// Steps active buttons in reverse order; removes settled ones and stops
+  /// the timer when idle.
+  void step(WidgetSystemHost host, scope bool delegate(Widget) stepWidget) {
+    assert(stepWidget !is null, "stepWidget must not be null");
+    for (ptrdiff_t i = cast(ptrdiff_t) activeButtons.length - 1; i >= 0; --i) {
+      Widget w = activeButtons[i];
+      if (!stepWidget(w)) {
+        activeButtons.removeAt(cast(size_t) i);
+      }
+    }
+    stopIfIdle(host);
+  }
+}
+
 /// Tracks the widget pressed by the primary mouse button until release.
 struct PressTracker(C : WidgetComponent) {
   /// Currently pressed widget, or null.
   Widget pressed = null;
 
-  /// Returns the topmost visible widget with component `C` at `p`, or null.
-  static Widget hitTest(ref WidgetSystemContext ctx, PointF p) {
-    return findTopmostWithComponent!C(ctx.visibleWidgets, p);
+  /// Returns the topmost visible `handleInput` widget at `p` if it carries
+  /// component `C`, or a null `Nullable!VisibleWidget` if none or occluded.
+  static Nullable!VisibleWidget hitTest(
+    ref WidgetSystemContext ctx,
+    PointF p
+  ) {
+    foreach_reverse (ref vw; ctx.visibleWidgets) {
+      if (vw.widget is null || vw.widget.released ||
+          !vw.widget.visible || !vw.widget.handleInput) {
+        continue;
+      }
+      if (!vw.containsPoint(p)) {
+        continue;
+      }
+      if (vw.widget.components.has!C()) {
+        return Nullable!VisibleWidget(vw);
+      }
+      return Nullable!VisibleWidget.init;
+    }
+    return Nullable!VisibleWidget.init;
   }
 
   /// Starts tracking `w` as pressed.
@@ -300,6 +387,7 @@ void emitButtonAction(
   Widget target,
   string actionEvent
 ) {
+  assert(target !is null, "target must not be null");
   if (ctx.host is null || actionEvent.length == 0) {
     return;
   }
@@ -388,14 +476,45 @@ unittest {
   active.removeAt(0);
   assert(active.empty);
 
-  // PressTracker begin/end/forget/forgetInvisible/hitTest
+  // Mixin .size(), .autoSize(), .anchor()
+  import yguilib.widget.layout_components : Anchor, Size;
+
+  TestBuilder tbSize;
+  auto customSz = Size.fixed(77.0f, 25.0f);
+  auto customAnchor = new Anchor();
+  auto sizedBtn = tbSize
+    .size(customSz)
+    .anchor(customAnchor)
+    .build(testUi, null, RectF.init);
+  assert(sizedBtn.components.size is customSz);
+  assert(sizedBtn.components.anchor is customAnchor);
+
+  TestBuilder tbAuto;
+  auto autoBtn = tbAuto
+    .autoSize()
+    .build(testUi, null, RectF.init);
+  assert(autoBtn.components.size !is null);
+
+  // PressTracker begin/end/forget/forgetInvisible/hitTest + occlusion
+  auto glassOverlay = testUi.makeWidget();
+  glassOverlay.handleInput = false;
+  auto modalOverlay = testUi.makeWidget();
+  modalOverlay.handleInput = true;
+
   WidgetSystemContext ctx;
   ctx.visibleWidgets = [
     VisibleWidget(btn, RectF(5, 5, 90, 30), false, RectF.init),
+    VisibleWidget(glassOverlay, RectF(5, 5, 90, 30), false, RectF.init),
   ];
   PressTracker!MarkerComponent press;
-  assert(press.hitTest(ctx, PointF(10, 10)) is btn);
-  assert(press.hitTest(ctx, PointF(0, 0)) is null);
+  auto hit = press.hitTest(ctx, PointF(10, 10));
+  assert(!hit.isNull && hit.get().widget is btn);
+  assert(press.hitTest(ctx, PointF(0, 0)).isNull);
+
+  ctx.visibleWidgets ~= VisibleWidget(
+    modalOverlay, RectF(5, 5, 90, 30), false, RectF.init
+  );
+  assert(press.hitTest(ctx, PointF(10, 10)).isNull);
   press.begin(btn);
   assert(press.pressed is btn);
   assert(press.end() is btn);

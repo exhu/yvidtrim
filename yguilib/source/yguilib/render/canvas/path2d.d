@@ -49,6 +49,7 @@ final class Path2d {
     fVerbs ~= PathVerb.moveTo;
     fPoints ~= p;
     fHasSubpath = true;
+    fClosed = false;
     fSubpathStart = p;
     fCurrent = p;
   }
@@ -277,7 +278,13 @@ final class Path2d {
 
   /// Appends `other` transformed by `t` (`other` may be `this`).
   void addPath(Path2d other, Transform2d t) nothrow @safe {
+    import std.math : isFinite;
+
     assert(other !is null);
+    if (!isFinite(t.a) || !isFinite(t.b) || !isFinite(t.c)
+      || !isFinite(t.d) || !isFinite(t.e) || !isFinite(t.f)) {
+      return;
+    }
     // slices taken before reserving stay valid when other is this (the
     // GC keeps the old buffer alive if reserve moves the data)
     const PathVerb[] srcVerbs = other.fVerbs[];
@@ -286,8 +293,16 @@ final class Path2d {
       return;
     }
     const bool otherClosed = other.fClosed;
-    const PointF otherStart = other.fSubpathStart;
-    const PointF otherCur = other.fCurrent;
+    const PointF newStart = t.apply(other.fSubpathStart);
+    const PointF newCur = t.apply(other.fCurrent);
+    if (!isFinitePoint(newStart) || !isFinitePoint(newCur)) {
+      return;
+    }
+    foreach (p; srcPoints) {
+      if (!isFinitePoint(t.apply(p))) {
+        return;
+      }
+    }
     fVerbs.reserve(fVerbs[].length + srcVerbs.length);
     fPoints.reserve(fPoints[].length + srcPoints.length);
     fVerbs.put(srcVerbs);
@@ -296,8 +311,8 @@ final class Path2d {
     }
     fHasSubpath = true;
     fClosed = otherClosed;
-    fSubpathStart = t.apply(otherStart);
-    fCurrent = t.apply(otherCur);
+    fSubpathStart = newStart;
+    fCurrent = newCur;
   }
 
   /// Creates a `Path2d` parsed from an SVG path data string `d`.

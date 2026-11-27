@@ -5,6 +5,7 @@ module yguilib.controls.testing;
 
 version (unittest):
 
+import yguilib.controller : Controller;
 import yguilib.events : AppEvent;
 import yguilib.internal.uisystem_impl : UiSystemImpl;
 import yguilib.object_registry : ObjectRegistry;
@@ -12,7 +13,7 @@ import yguilib.render.render_types : RectF;
 import yguilib.timercontrol : TimerId;
 import yguilib.timers : TimerMode;
 import yguilib.widget : Widget;
-import yguilib.widget.system : WidgetSystemHost;
+import yguilib.widget.system : WidgetSystem, WidgetSystemHost;
 import yguilib.widget.widget_view : WidgetView, WidgetViewController;
 
 /// Asserts that `w` and every descendant in its subtree have non-empty names.
@@ -28,13 +29,16 @@ void verifyAllNamed(const Widget w) {
 /// offsets up the parent chain.
 RectF calcAbsRect(const Widget w) {
   assert(w !is null, "Widget must not be null");
-  float x = w.rect.x;
-  float y = w.rect.y;
-  for (auto p = cast(Widget) w.parent; p !is null; p = p.parent) {
-    x += p.rect.x;
-    y += p.rect.y;
+  if (w.parent is null) {
+    return w.rect;
   }
-  return RectF(x, y, w.rect.width, w.rect.height);
+  const RectF parentAbs = calcAbsRect(w.parent);
+  return RectF(
+    parentAbs.x + w.rect.x,
+    parentAbs.y + w.rect.y,
+    w.rect.width,
+    w.rect.height
+  );
 }
 
 /// Headless `UiSystemImpl` subclass that records all `sendAppEvent` calls.
@@ -55,8 +59,14 @@ final class RecordingUiSystem : UiSystemImpl {
 /// Minimal `WidgetSystemHost` test double recording sent events and active
 /// timers without creating a window or event loop.
 class DummyWidgetSystemHost : WidgetSystemHost {
+  struct TimerRecord {
+    uint intervalMs;
+    TimerMode mode;
+  }
+
   AppEvent[] sentEvents;
   bool[TimerId] activeTimers;
+  TimerRecord[TimerId] timerMeta;
   TimerId nextTimerId = 1;
   ObjectRegistry!WidgetViewController dummyControllers;
   ObjectRegistry!WidgetView dummyViews;
@@ -76,13 +86,25 @@ class DummyWidgetSystemHost : WidgetSystemHost {
     sentEvents ~= ev;
   }
 
-  override TimerId startTimer(
-    Object owner,
+  override TimerId startControllerTimer(
+    Controller target,
     uint intervalMs,
     TimerMode mode
   ) {
     const TimerId id = nextTimerId++;
     activeTimers[id] = true;
+    timerMeta[id] = TimerRecord(intervalMs, mode);
+    return id;
+  }
+
+  override TimerId startSystemTimer(
+    WidgetSystem target,
+    uint intervalMs,
+    TimerMode mode
+  ) {
+    const TimerId id = nextTimerId++;
+    activeTimers[id] = true;
+    timerMeta[id] = TimerRecord(intervalMs, mode);
     return id;
   }
 
@@ -132,8 +154,12 @@ unittest {
   host.sendAppEvent(ev);
   assert(host.sentEvents.length == 1);
 
-  const TimerId tid = host.startTimer(host, 16, TimerMode.repeat);
+  class DummySystem : WidgetSystem {}
+  auto dummySys = new DummySystem();
+  const TimerId tid = host.startSystemTimer(dummySys, 16, TimerMode.repeat);
   assert(host.isTimerActive(tid));
+  assert(host.timerMeta[tid].intervalMs == 16);
+  assert(host.timerMeta[tid].mode == TimerMode.repeat);
   host.stopTimer(tid);
   assert(!host.isTimerActive(tid));
 }

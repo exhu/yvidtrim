@@ -47,27 +47,16 @@ struct AppEvent {
     appQuit,
   }
 
-  bool isWindowEvent() const {
-    switch (kind) {
-    case Kind.windowClose, Kind.windowMouseEnter, Kind.windowMouseLeave:
-      return true;
-    default:
-      return isWindowRedrawEvent();
-    }
+  bool isWindowEvent() const nothrow @safe {
+    return isWindowKind(fKind);
   }
 
-  bool isWindowRedrawEvent() const {
-    switch (kind) {
-      case Kind.windowDisplayScaleChanged, Kind.windowExposed,
-        Kind.windowRedraw, Kind.windowResized:
-        return true;
-      default:
-        return false;
-    }
+  bool isWindowRedrawEvent() const nothrow @safe {
+    return isWindowRedrawKind(fKind);
   }
 
-  bool isKeyboardEvent() const {
-    switch (kind) {
+  bool isKeyboardEvent() const nothrow @safe {
+    switch (fKind) {
       case Kind.keyDown, Kind.keyUp, Kind.textEditing, Kind.textInput:
         return true;
       default:
@@ -75,8 +64,8 @@ struct AppEvent {
     }
   }
 
-  bool isMouseEvent() const {
-    switch (kind) {
+  bool isMouseEvent() const nothrow @safe {
+    switch (fKind) {
       case Kind.mouseMotion, Kind.mouseButtonDown, Kind.mouseButtonUp,
         Kind.mouseWheel:
         return true;
@@ -102,7 +91,8 @@ struct AppEvent {
     int height = 0;
 
     /// Display scaling factor (e.g. 1.0, 2.0).
-    /// Valid when: Kind.windowResized or Kind.windowDisplayScaleChanged.
+    /// Valid when: Kind.windowResized, Kind.windowExposed,
+    /// or Kind.windowDisplayScaleChanged.
     float scale = 1.0f;
   }
 
@@ -124,8 +114,7 @@ struct AppEvent {
     float y = 0.0f;
 
     /// Bitmask of currently pressed mouse buttons (SDL_MouseButtonFlags).
-    /// Valid when: Kind.mouseMotion, Kind.mouseButtonDown,
-    /// or Kind.mouseButtonUp.
+    /// Valid when: Kind.mouseMotion (0 for button events).
     uint state = 0;
 
     /// Relative X motion since last mouse event.
@@ -232,29 +221,35 @@ struct AppEvent {
   /// User custom event payload.
   struct UserData {
     /// Custom event identifier.
-    /// Valid when: Kind.user or Kind.view.
+    /// Valid when: Kind.user.
     uint eventId = 0;
 
-    /// Custom user payload object.
-    /// Valid when: Kind.user or Kind.view.
+    /// Custom user payload object. Allowed to be null.
+    /// Valid when: Kind.user.
     Object data = null;
   }
 
+  /// View event payload.
   struct ViewData {
     enum valueSize = 4;
 
+    /// Event name identifying the view action. Allowed to be null.
     string eventName;
+    /// Originating widget. Allowed to be null.
     Widget widget;
+    /// Nearest view widget ancestor. Allowed to be null.
     Widget viewWidget;
-    /// opaque value to be used to manage
-    /// data either by integer or object instance, or both
+    /// Opaque value to be used to manage
+    /// data either by integer or object instance, or both.
     ulong[valueSize] value;
+    /// Custom user payload object. Allowed to be null.
     Object data;
-    void delegate(in ViewData) releaseData;
   }
 
   /// Event type discriminator. Valid for all events.
-  Kind kind;
+  @property Kind kind() const nothrow @safe {
+    return fKind;
+  }
 
   /// Do not push event if there's already the same in the queue
   @property bool noRepeat() inout {
@@ -266,16 +261,7 @@ struct AppEvent {
   /// Kind.windowDisplayScaleChanged, Kind.windowMouseEnter,
   /// Kind.windowMouseLeave, or Kind.windowRedraw.
   @property ref inout(WindowData) window() inout {
-    assert(
-      kind == Kind.windowClose ||
-      kind == Kind.windowResized ||
-      kind == Kind.windowExposed ||
-      kind == Kind.windowDisplayScaleChanged ||
-      kind == Kind.windowMouseEnter ||
-      kind == Kind.windowMouseLeave ||
-      kind == Kind.windowRedraw,
-      "AppEvent.window accessed for wrong Kind"
-    );
+    assert(isWindowEvent(), "AppEvent.window accessed for wrong Kind");
     return payload.window;
   }
 
@@ -284,9 +270,7 @@ struct AppEvent {
   /// or Kind.mouseButtonUp.
   @property ref inout(MouseData) mouse() inout {
     assert(
-      kind == Kind.mouseMotion ||
-      kind == Kind.mouseButtonDown ||
-      kind == Kind.mouseButtonUp,
+      isMousePointerKind(fKind),
       "AppEvent.mouse accessed for wrong Kind"
     );
     return payload.mouse;
@@ -322,8 +306,8 @@ struct AppEvent {
     return payload.textData;
   }
 
-  /// User and view event details.
-  /// Valid when: Kind.user or Kind.view.
+  /// User event details.
+  /// Valid when: Kind.user.
   @property ref inout(UserData) user() inout {
     assert(
       kind == Kind.user,
@@ -340,19 +324,9 @@ struct AppEvent {
     return payload.view;
   }
 
-  /// Destructor releasing custom view payload data if release delegate
-  /// was provided.
-  /// NOTE: AppEvent lacks a postblit or copy disabling, so struct copies with
-  /// releaseData may invoke cleanup multiple times. To be addressed later.
-  ~this() {
-    if (kind == Kind.view && payload.view.data !is null &&
-      payload.view.releaseData !is null)
-        payload.view.releaseData(payload.view);
-  }
-
   /// Constructs events with kind discriminator.
   this(Kind kind) {
-    this.kind = kind;
+    fKind = kind;
   }
 
   static AppEvent makeNoRepeat(Kind kind) {
@@ -363,15 +337,7 @@ struct AppEvent {
 
   /// Constructs window events with WindowData payload.
   static AppEvent windowEvent(Kind kind, WindowData data) {
-    assert(
-      kind == Kind.windowClose ||
-      kind == Kind.windowDisplayScaleChanged ||
-      kind == Kind.windowExposed ||
-      kind == Kind.windowMouseEnter ||
-      kind == Kind.windowMouseLeave ||
-      kind == Kind.windowRedraw ||
-      kind == Kind.windowResized
-    );
+    assert(isWindowKind(kind));
     auto ev = AppEvent(kind);
     ev.payload.window = data;
     return ev;
@@ -379,11 +345,7 @@ struct AppEvent {
 
   /// Constructs mouse events with MouseData payload.
   static AppEvent mouseEvent(Kind kind, MouseData data) {
-    assert(
-      kind == Kind.mouseMotion ||
-      kind == Kind.mouseButtonDown ||
-      kind == Kind.mouseButtonUp
-    );
+    assert(isMousePointerKind(kind));
     auto ev = AppEvent(kind);
     ev.payload.mouse = data;
     return ev;
@@ -433,9 +395,14 @@ package(yguilib):
     case Kind.update, Kind.appQuit:
       return true;
     case Kind.user:
-      return payload.user == other.payload.user;
+      return payload.user.eventId == other.payload.user.eventId &&
+        payload.user.data is other.payload.user.data;
     case Kind.view:
-      return payload.view == other.payload.view;
+      return payload.view.eventName == other.payload.view.eventName &&
+        payload.view.widget is other.payload.view.widget &&
+        payload.view.viewWidget is other.payload.view.viewWidget &&
+        payload.view.value == other.payload.view.value &&
+        payload.view.data is other.payload.view.data;
     case Kind.windowClose, Kind.windowResized, Kind.windowExposed,
         Kind.windowDisplayScaleChanged, Kind.windowMouseEnter,
         Kind.windowMouseLeave, Kind.windowRedraw:
@@ -452,6 +419,31 @@ package(yguilib):
   }
 
 private:
+  static bool isWindowKind(Kind k) nothrow @safe {
+    switch (k) {
+      case Kind.windowClose, Kind.windowMouseEnter, Kind.windowMouseLeave:
+        return true;
+      default:
+        return isWindowRedrawKind(k);
+    }
+  }
+
+  static bool isWindowRedrawKind(Kind k) nothrow @safe {
+    switch (k) {
+      case Kind.windowDisplayScaleChanged, Kind.windowExposed,
+        Kind.windowRedraw, Kind.windowResized:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  static bool isMousePointerKind(Kind k) nothrow @safe {
+    return k == Kind.mouseMotion ||
+      k == Kind.mouseButtonDown ||
+      k == Kind.mouseButtonUp;
+  }
+
   /// Compact C-style union storage for event variants.
   union Payload {
     WindowData window;
@@ -462,6 +454,7 @@ private:
     UserData user;
     ViewData view;
   }
+  Kind fKind;
   Payload payload;
   bool fnoRepeat = false;
 }
@@ -562,4 +555,34 @@ unittest {
   assert(leaveEv.isWindowEvent());
   assert(!leaveEv.isWindowRedrawEvent());
   assert(leaveEv.window.windowId == 7);
+
+  // makeNoRepeat sets noRepeat flag
+  AppEvent nrUpdate = AppEvent.makeNoRepeat(AppEvent.Kind.update);
+  assert(nrUpdate.kind == AppEvent.Kind.update);
+  assert(nrUpdate.noRepeat);
+  assert(!updateEv.noRepeat);
+
+  // equalsContent compares kind, value payloads, and object identity
+  assert(quitEv.equalsContent(AppEvent(AppEvent.Kind.appQuit)));
+  assert(!quitEv.equalsContent(updateEv));
+  assert(ev.equalsContent(AppEvent.windowEvent(
+    AppEvent.Kind.windowDisplayScaleChanged,
+    AppEvent.WindowData(1, 640, 480, 2.0f)
+  )));
+  assert(!ev.equalsContent(AppEvent.windowEvent(
+    AppEvent.Kind.windowDisplayScaleChanged,
+    AppEvent.WindowData(2, 640, 480, 2.0f)
+  )));
+  assert(mouseEv.equalsContent(mouseEv));
+  assert(wheelEv.equalsContent(wheelEv));
+  assert(keyEv.equalsContent(keyEv));
+  assert(textEv.equalsContent(textEv));
+
+  Object objA = new Object;
+  Object objB = new Object;
+  AppEvent uA1 = AppEvent.userEvent(AppEvent.UserData(10, objA));
+  AppEvent uA2 = AppEvent.userEvent(AppEvent.UserData(10, objA));
+  AppEvent uB = AppEvent.userEvent(AppEvent.UserData(10, objB));
+  assert(uA1.equalsContent(uA2));
+  assert(!uA1.equalsContent(uB));
 }

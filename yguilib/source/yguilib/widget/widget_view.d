@@ -33,7 +33,11 @@ abstract class WidgetViewControllerBase :
     super(uiSystem);
   }
   override void registerWidgetView(WidgetView view) {
-    views ~= view;
+    assert(view !is null, "view must not be null");
+    import std.algorithm.searching : canFind;
+    if (!canFind(views, view)) {
+      views ~= view;
+    }
   }
   override void unregisterWidgetView(WidgetView view) {
     import std.algorithm.mutation : remove;
@@ -112,7 +116,10 @@ void renameViewWidgetEvent(
 abstract class WidgetViewBase : WidgetView {
 public:
   override void registerViewWidget(Widget viewWidget) {
-    viewWidgets ~= viewWidget;
+    assert(viewWidget !is null, "viewWidget must not be null");
+    if (!isWidgetRegistered(viewWidget)) {
+      viewWidgets ~= viewWidget;
+    }
   }
   override void unregisterViewWidget(Widget viewWidget) {
     import std.algorithm.mutation : remove;
@@ -129,11 +136,22 @@ public:
     return objectName(fullName);
   }
 
-  override void translateEventForViewWidget(ref AppEvent sourceEvent,
-                                            Widget viewWidget) {
-    renameViewWidgetEvent(sourceEvent,
-      viewWidget.components.view.renameEvents[sourceEvent.view.eventName],
-      viewWidget);
+  override void translateEventForViewWidget(
+    ref AppEvent sourceEvent,
+    Widget viewWidget
+  ) {
+    assert(viewWidget !is null, "viewWidget must not be null");
+    auto view = viewWidget.components.view;
+    if (view is null) {
+      return;
+    }
+    if (auto pNewName = sourceEvent.view.eventName in view.renameEvents) {
+      renameViewWidgetEvent(sourceEvent, *pNewName, viewWidget);
+    }
+  }
+
+  override bool update() {
+    return false;
   }
 
 protected:
@@ -214,4 +232,85 @@ unittest {
 
   auto view = new SampleWidgetView();
   assert(view.widgetViewName() == "SampleWidgetView");
+  assert(!view.update());
+}
+
+unittest {
+  import yguilib.events.builder : ViewAppEventBuilder;
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.widget.test_fixture : MockWidgetSystemHost;
+
+  final class TestView : WidgetViewBase {
+    int updateCalls = 0;
+
+    override bool update() {
+      updateCalls++;
+      return true;
+    }
+  }
+
+  final class TestViewController : WidgetViewControllerBase {
+    this(UiSystem ui) {
+      super(ui);
+    }
+  }
+
+  auto ui = new UiSystemImpl(null);
+  auto ctrl = new TestViewController(ui);
+  auto view = new TestView();
+  assert(ctrl.controllerName() == "TestViewController");
+  assert(ctrl.update());
+
+  // Deduplicated registration on controller and view
+  ctrl.registerWidgetView(view);
+  ctrl.registerWidgetView(view);
+  assert(ctrl.updateView());
+  assert(view.updateCalls == 1);
+
+  auto w1 = ui.makeWidget();
+  w1.components.view = new ViewComponent();
+  w1.components.view.renameEvents["rawClick"] = "renamedClick";
+  w1.components.view.renameEvents["suppressed"] = "";
+  w1.components.view.widgetViewName = "TestView";
+
+  view.registerViewWidget(w1);
+  view.registerViewWidget(w1);
+  assert(view.isWidgetRegistered(w1));
+
+  // translateEventForViewWidget handles missing key and valid key
+  auto missingEv = ViewAppEventBuilder("unknown").widget(w1).build();
+  view.translateEventForViewWidget(missingEv, w1);
+  assert(missingEv.view.eventName == "unknown");
+
+  auto validEv = ViewAppEventBuilder("rawClick").widget(w1).build();
+  view.translateEventForViewWidget(validEv, w1);
+  assert(validEv.view.eventName == "renamedClick");
+  assert(validEv.view.viewWidget is w1);
+
+  // passViewEvent & applyViewRenaming: bubbles through parentView, suppresses
+  // "", and translates via host.widgetViews when widgetViewName is set.
+  auto host = new MockWidgetSystemHost();
+  host.widgetViews.register("TestView", view);
+
+  auto child = ui.makeWidget();
+  w1.addChild(child);
+  assert(child.parentView is w1);
+
+  auto ev1 = ViewAppEventBuilder("rawClick").widget(child).build();
+  passViewEvent(host, child, ev1);
+  assert(host.sentEvents.length == 1);
+  assert(host.sentEvents[0].view.eventName == "renamedClick");
+  assert(host.sentEvents[0].view.viewWidget is w1);
+
+  auto evSuppressed = ViewAppEventBuilder("suppressed").widget(child).build();
+  passViewEvent(host, child, evSuppressed);
+  assert(host.sentEvents.length == 1);
+
+  // onWidgetReleased unregisters view widget; unregisterWidgetView removes view
+  ctrl.onWidgetReleased(w1);
+  assert(!view.isWidgetRegistered(w1));
+
+  ctrl.unregisterWidgetView(view);
+  assert(!ctrl.updateView());
+  assert(view.updateCalls == 1);
 }

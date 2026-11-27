@@ -5,18 +5,16 @@ package(yguilib):
 import yguilib.allochelpers : ReusableArray;
 import yguilib.clibs.sdl3 : yguilib_sdl3_capture_mouse,
   yguilib_sdl3_set_relative_mouse_mode, yguilib_sdl3_warp_mouse_in_window;
-import yguilib.widget.internal.focus_system;
+import yguilib.events : AppEvent;
+import yguilib.events.builder : ViewAppEventBuilder;
+import yguilib.render.render_types : PointF, RectF;
+import yguilib.widget : Widget, isEffectivelyVisible;
+import yguilib.widget.input_components : CursorCapture, MouseEvent;
 import yguilib.widget.system : SystemEventResult, SystemPhase,
   WidgetSystem, WidgetSystemContext, WidgetSystemHost;
 import yguilib.widget.visible : VisibleWidget, VisibleWidgets;
-import yguilib.events;
-import yguilib.events.builder : ViewAppEventBuilder;
-import yguilib.render.render_types;
-import yguilib.widget : Widget, ViewComponent, WidgetUpdateScope;
-import yguilib.widget.input_components : CursorCapture, MouseEvent;
-import yguilib.widget.widget_view : WidgetView, renameViewWidgetEvent,
-  passViewEvent;
-import std.logger;
+import yguilib.widget.widget_view : passViewEvent;
+import yguilib.window : Window;
 
 enum maxMouseButtons = 8;
 
@@ -29,14 +27,11 @@ struct HoverEntry {
 final class InputSystem : WidgetSystem {
   this(WidgetSystemHost host) {
     assert(host !is null);
-    priority(inputSystemPriority);
     this.host = host;
-    this.focusSystem = new FocusSystem;
   }
 
-  invariant {
-    assert(host !is null);
-    assert(focusSystem !is null);
+  override @property int priority() const nothrow @safe {
+    return inputSystemPriority;
   }
 
   override @property SystemPhase phases() const nothrow @safe {
@@ -45,8 +40,17 @@ final class InputSystem : WidgetSystem {
 
   override void onRegister(WidgetSystemHost newHost) {
     if (newHost !is null) {
-      host = newHost;
+      super.onRegister(newHost);
     }
+  }
+
+  override void onUnregister() {
+    clearInputState();
+    super.onUnregister();
+  }
+
+  override void onWindowClosed(Window window) {
+    clearInputState();
   }
 
   override SystemEventResult handleEvent(
@@ -61,6 +65,7 @@ final class InputSystem : WidgetSystem {
   }
 
   override void postLayout(ref WidgetSystemContext ctx) {
+    syncCursorCapture();
     refreshHover(ctx.visibleWidgets);
   }
 
@@ -126,7 +131,7 @@ final class InputSystem : WidgetSystem {
   /// Dispatches mouseEnter and mouseLeave events when hover targets shift
   /// without triggering mouseMove.
   void refreshHover(VisibleWidgets widgets) {
-    if (!hasLastMousePos)
+    if (hasCursorLock || !hasLastMousePos)
       return;
     updateHoverState(lastMousePos, widgets, false);
   }
@@ -144,8 +149,10 @@ private:
   }
 
   void handleMouseDown(PointF p, ubyte btn, VisibleWidgets widgets) {
+    if (hasCursorLock)
+      return;
     foreach_reverse (ref VisibleWidget vw; widgets) {
-      if (!isHit(vw, p))
+      if (!vw.containsPoint(p))
         continue;
 
       Widget w = vw.widget;
@@ -166,7 +173,7 @@ private:
           const float lx = p.x - vw.absRect.x;
           const float ly = p.y - vw.absRect.y;
           auto val = MouseEvent.AppEventViewValue.pack(
-            lx, ly, btn, true, 0.0f, 0.0f, p.x, p.y
+            MouseEvent.PackParams(lx, ly, btn, true, 0.0f, 0.0f, p.x, p.y)
           );
           sendMouseEvent(w, w.components.mouseEvent.mouseDown, val);
         }
@@ -186,7 +193,8 @@ private:
     pressedWidgets[btn] = null;
     syncCursorCapture();
 
-    if (!target.inputEnabled)
+    if (target.released || !target.inputEnabled ||
+        !isEffectivelyVisible(target))
       return;
 
     if (target.components.mouseEvent is null ||
@@ -198,7 +206,7 @@ private:
     const float lx = p.x - hit.targetRect.x;
     const float ly = p.y - hit.targetRect.y;
     auto val = MouseEvent.AppEventViewValue.pack(
-      lx, ly, btn, hit.inside, 0.0f, 0.0f, p.x, p.y
+      MouseEvent.PackParams(lx, ly, btn, hit.inside, 0.0f, 0.0f, p.x, p.y)
     );
     sendMouseEvent(target, target.components.mouseEvent.mouseUp, val);
   }
@@ -229,11 +237,13 @@ private:
     VisibleWidgets widgets
   ) {
     bool hasStale = false;
-    foreach (size_t i, Widget target; pressedWidgets) {
+    foreach (size_t i, ref Widget target; pressedWidgets) {
       if (target is null) {
         continue;
       }
-      if (target.released || !target.inputEnabled) {
+      if (target.released || !target.inputEnabled ||
+          !isEffectivelyVisible(target)) {
+        target = null;
         hasStale = true;
         continue;
       }
@@ -247,7 +257,9 @@ private:
       const float lx = p.x - hit.targetRect.x;
       const float ly = p.y - hit.targetRect.y;
       auto val = MouseEvent.AppEventViewValue.pack(
-        lx, ly, cast(ubyte) i, hit.inside, rel.x, rel.y, p.x, p.y
+        MouseEvent.PackParams(
+          lx, ly, cast(ubyte) i, hit.inside, rel.x, rel.y, p.x, p.y
+        )
       );
       sendMouseEvent(target, me.mouseDrag, val);
     }
@@ -269,7 +281,9 @@ private:
   ) {
     const idx = findVisibleWidgetIndex(widgets, target);
     if (idx >= 0) {
-      return WidgetHitInfo(widgets[idx].absRect, isHit(widgets[idx], p));
+      return WidgetHitInfo(
+        widgets[idx].absRect, widgets[idx].containsPoint(p)
+      );
     }
     const RectF targetRect = computeWidgetAbsRect(target);
     return WidgetHitInfo(targetRect, targetRect.contains(p));
@@ -279,9 +293,15 @@ private:
   // widgets. SDL return values are ignored (they fail in headless tests).
   void syncCursorCapture() {
     CursorCapture wanted = CursorCapture.none;
-    foreach (pw; pressedWidgets) {
-      if (pw !is null && !pw.released && pw.inputEnabled &&
-          pw.components.mouseEvent !is null &&
+    foreach (ref pw; pressedWidgets) {
+      if (pw is null) {
+        continue;
+      }
+      if (pw.released || !pw.inputEnabled || !isEffectivelyVisible(pw)) {
+        pw = null;
+        continue;
+      }
+      if (pw.components.mouseEvent !is null &&
           pw.components.mouseEvent.cursorCapture > wanted) {
         wanted = pw.components.mouseEvent.cursorCapture;
       }
@@ -337,7 +357,7 @@ private:
     foreach_reverse (i; 0 .. topIdx + 1) {
       if (widgets[i].widget !is want)
         continue;
-      if (isHit(widgets[i], p)) {
+      if (want.handleInput && widgets[i].containsPoint(p)) {
         if (want.inputEnabled && want.components.mouseEvent !is null) {
           hoverScratch.push(HoverEntry(want, widgets[i].absRect));
         }
@@ -351,12 +371,13 @@ private:
   void notifyDepartedWidgets(PointF p) {
     foreach (ref entry; hoveredWidgets[]) {
       if (!containsWidget(hoverScratch[], entry.widget)) {
-        if (entry.widget.components.mouseEvent !is null &&
+        if (entry.widget.inputEnabled && !entry.widget.released &&
+            entry.widget.components.mouseEvent !is null &&
             entry.widget.components.mouseEvent.mouseLeave.length > 0) {
           const float lx = p.x - entry.absRect.x;
           const float ly = p.y - entry.absRect.y;
           auto val = MouseEvent.AppEventViewValue.pack(
-            lx, ly, 0, false, 0.0f, 0.0f, p.x, p.y
+            MouseEvent.PackParams(lx, ly, 0, false, 0.0f, 0.0f, p.x, p.y)
           );
           sendMouseEvent(
             entry.widget, entry.widget.components.mouseEvent.mouseLeave, val
@@ -375,7 +396,7 @@ private:
       const float lx = p.x - entry.absRect.x;
       const float ly = p.y - entry.absRect.y;
       auto val = MouseEvent.AppEventViewValue.pack(
-        lx, ly, 0, true, 0.0f, 0.0f, p.x, p.y
+        MouseEvent.PackParams(lx, ly, 0, true, 0.0f, 0.0f, p.x, p.y)
       );
 
       if (!wasHovered &&
@@ -398,13 +419,21 @@ private:
     string eventName,
     in MouseEvent.AppEventViewValue val
   ) {
-    if (eventName.length == 0)
+    if (eventName.length == 0 || host is null)
       return;
     auto ev = ViewAppEventBuilder(eventName)
       .widget(w)
       .valueArray(val)
       .build();
     passViewEvent(host, w, ev);
+  }
+
+  void clearInputState() {
+    hoveredWidgets.clear();
+    hoverScratch.clear();
+    pressedWidgets[] = null;
+    hasLastMousePos = false;
+    syncCursorCapture();
   }
 
   ReusableArray!HoverEntry hoveredWidgets;
@@ -418,15 +447,9 @@ private:
   uint lastWindowId = 0;
   PointF lastMousePos;
   bool hasLastMousePos = false;
-  FocusSystem focusSystem;
-  WidgetSystemHost host;
 }
 
 private:
-
-bool isHit(in VisibleWidget vw, PointF p) {
-  return vw.absRect.contains(p) && (!vw.hasClip || vw.clipRect.contains(p));
-}
 
 bool containsWidget(in HoverEntry[] list, Widget w) {
   foreach (ref entry; list) {
@@ -446,7 +469,7 @@ ptrdiff_t findVisibleWidgetIndex(VisibleWidgets widgets, Widget w) {
 
 ptrdiff_t findHoverTargetIndex(VisibleWidgets widgets, PointF p) {
   foreach_reverse (idx, ref VisibleWidget vw; widgets) {
-    if (!isHit(vw, p))
+    if (!vw.containsPoint(p))
       continue;
     if (vw.widget.handleInput)
       return idx;
@@ -467,48 +490,8 @@ RectF computeWidgetAbsRect(Widget w) {
 }
 
 version (unittest) {
-  import yguilib.object_registry : ObjectRegistry;
-  import yguilib.timercontrol : TimerId, invalidTimerId;
-  import yguilib.timers : TimerMode;
-  import yguilib.widget.widget_view : WidgetViewController;
-
-  class TestUiSystem : WidgetSystemHost {
-    AppEvent[] sentEvents;
-    ObjectRegistry!WidgetViewController dummyControllers;
-    ObjectRegistry!WidgetView dummyViews;
-
-    this() {
-      dummyControllers = new ObjectRegistry!WidgetViewController();
-      dummyViews = new ObjectRegistry!WidgetView();
-    }
-
-    override void sendAppEvent(AppEvent ev) {
-      sentEvents ~= ev;
-    }
-
-    override TimerId startTimer(
-      Object owner,
-      uint intervalMs,
-      TimerMode mode
-    ) {
-      return invalidTimerId;
-    }
-
-    override void stopTimer(TimerId id) {}
-
-    override bool isTimerActive(TimerId id) const {
-      return false;
-    }
-
-    override @property
-    ObjectRegistry!WidgetViewController widgetViewControllers() {
-      return dummyControllers;
-    }
-
-    override @property ObjectRegistry!WidgetView widgetViews() {
-      return dummyViews;
-    }
-  }
+  import yguilib.widget : ViewComponent, WidgetUpdateScope;
+  import yguilib.widget.test_fixture : MockWidgetSystemHost, WidgetFixture;
 }
 
 // Tests 1-3: Direct passthrough, single view renaming, and event suppression.
@@ -516,7 +499,7 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto testUi = new TestUiSystem;
+  auto testUi = new MockWidgetSystemHost;
   auto inputSys = new InputSystem(testUi);
 
   auto rootNoView = fix.makeRootWithRect(RectF(0, 0, 200, 200));
@@ -561,7 +544,7 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto testUi = new TestUiSystem;
+  auto testUi = new MockWidgetSystemHost;
   auto inputSys = new InputSystem(testUi);
 
   auto outerView = fix.makeRootWithRect(RectF(0, 0, 400, 400));
@@ -610,7 +593,7 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto testUi = new TestUiSystem;
+  auto testUi = new MockWidgetSystemHost;
   auto inputSys = new InputSystem(testUi);
 
   auto btnWidget = fix.makeRootWithRect(RectF(10, 10, 100, 50));
@@ -666,7 +649,7 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto testUi = new TestUiSystem;
+  auto testUi = new MockWidgetSystemHost;
   auto inputSys = new InputSystem(testUi);
 
   auto hoverWidget = fix.makeRootWithRect(RectF(50, 50, 100, 100));
@@ -725,7 +708,7 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto testUi = new TestUiSystem;
+  auto testUi = new MockWidgetSystemHost;
   auto inputSys = new InputSystem(testUi);
 
   auto parentBox = fix.makeRootWithRect(RectF(0, 0, 200, 200));
@@ -780,7 +763,7 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto testUi = new TestUiSystem;
+  auto testUi = new MockWidgetSystemHost;
   auto inputSys = new InputSystem(testUi);
 
   auto clippedWidget = fix.makeRootWithRect(RectF(0, 0, 100, 100));
@@ -806,7 +789,7 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto testUi = new TestUiSystem;
+  auto testUi = new MockWidgetSystemHost;
   auto inputSys = new InputSystem(testUi);
 
   auto underBtn = fix.makeRootWithRect(RectF(0, 0, 100, 50));
@@ -891,7 +874,7 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto testUi = new TestUiSystem;
+  auto testUi = new MockWidgetSystemHost;
   auto inputSys = new InputSystem(testUi);
 
   auto underBtn = fix.makeRootWithRect(RectF(0, 0, 100, 50));
@@ -940,7 +923,7 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto testUi = new TestUiSystem;
+  auto testUi = new MockWidgetSystemHost;
   auto inputSys = new InputSystem(testUi);
 
   auto underBtn = fix.makeRootWithRect(RectF(0, 0, 100, 50));
@@ -987,7 +970,7 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto testUi = new TestUiSystem;
+  auto testUi = new MockWidgetSystemHost;
   auto inputSys = new InputSystem(testUi);
 
   auto btnA = fix.makeRootWithRect(RectF(0, 0, 50, 50));
@@ -1058,7 +1041,7 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto testUi = new TestUiSystem;
+  auto testUi = new MockWidgetSystemHost;
   auto inputSys = new InputSystem(testUi);
 
   auto movingBtn = fix.makeRootWithRect(RectF(0, 0, 100, 100));
@@ -1126,7 +1109,7 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto testUi = new TestUiSystem;
+  auto testUi = new MockWidgetSystemHost;
   auto inputSys = new InputSystem(testUi);
 
   assert(inputSys.priority == WidgetSystem.inputSystemPriority);
@@ -1158,7 +1141,7 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto testUi = new TestUiSystem;
+  auto testUi = new MockWidgetSystemHost;
   auto inputSys = new InputSystem(testUi);
 
   auto parentBox = fix.makeRootWithRect(RectF(0, 0, 200, 200));
@@ -1228,7 +1211,7 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto testUi = new TestUiSystem;
+  auto testUi = new MockWidgetSystemHost;
   auto inputSys = new InputSystem(testUi);
 
   auto dragBox = fix.makeRootWithRect(RectF(20, 30, 80, 40));
@@ -1305,7 +1288,7 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto testUi = new TestUiSystem;
+  auto testUi = new MockWidgetSystemHost;
   auto inputSys = new InputSystem(testUi);
 
   auto knob = fix.makeRootWithRect(RectF(20, 30, 80, 40));
@@ -1400,7 +1383,7 @@ unittest {
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
-  auto testUi = new TestUiSystem;
+  auto testUi = new MockWidgetSystemHost;
   auto inputSys = new InputSystem(testUi);
 
   auto knob = fix.makeRootWithRect(RectF(0, 0, 50, 50));
@@ -1430,6 +1413,270 @@ unittest {
     vis
   );
   assert(testUi.sentEvents.length == 0);
+  assert(!inputSys.isCursorLocked);
+  assert(!inputSys.isCursorCaptured);
+}
+
+// Verifies disable-while-hovered suppresses mouseLeave, and collectHovered
+// does not bubble hover to ancestors with handleInput == false.
+unittest {
+  auto fix = new WidgetFixture();
+  auto testUi = new MockWidgetSystemHost;
+  auto inputSys = new InputSystem(testUi);
+
+  auto parent = fix.makeRootWithRect(RectF(0, 0, 200, 200));
+  // parent.handleInput is false by default
+  parent.components.mouseEvent = new MouseEvent;
+  parent.components.mouseEvent.mouseEnter = "parentEnter";
+  parent.components.mouseEvent.mouseLeave = "parentLeave";
+
+  auto child = fix.makeChildWithRect(parent, RectF(10, 10, 50, 50));
+  child.handleInput = true;
+  child.components.mouseEvent = new MouseEvent;
+  child.components.mouseEvent.mouseEnter = "childEnter";
+  child.components.mouseEvent.mouseLeave = "childLeave";
+
+  VisibleWidgets vis = [
+    VisibleWidget(parent, RectF(0, 0, 200, 200), false, RectF.init),
+    VisibleWidget(child, RectF(10, 10, 50, 50), false, RectF.init)
+  ];
+
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseMotion,
+      AppEvent.MouseData(1, 20.0f, 20.0f, 0, 0, 0, 0, false, 0)
+    ),
+    vis
+  );
+  assert(testUi.sentEvents.length == 1);
+  assert(testUi.sentEvents[0].view.eventName == "childEnter");
+
+  // Disable child while hovered, then move mouse out -> no mouseLeave
+  child.inputEnabled = false;
+  testUi.sentEvents = null;
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseMotion,
+      AppEvent.MouseData(1, 300.0f, 300.0f, 0, 0, 0, 0, false, 0)
+    ),
+    vis
+  );
+  assert(testUi.sentEvents.length == 0);
+}
+
+// Verifies hiding a captured/locked widget or its ancestor releases capture
+// and lock, and re-enabling/re-showing does not revive the aborted press.
+unittest {
+  auto fix = new WidgetFixture();
+  auto testUi = new MockWidgetSystemHost;
+  auto inputSys = new InputSystem(testUi);
+
+  auto dialog = fix.makeRootWithRect(RectF(0, 0, 200, 200));
+  auto slider = fix.makeChildWithRect(dialog, RectF(10, 10, 80, 30));
+  slider.handleInput = true;
+  slider.components.mouseEvent = new MouseEvent;
+  slider.components.mouseEvent.mouseDown = "sliderDown";
+  slider.components.mouseEvent.mouseDrag = "sliderDrag";
+  slider.components.mouseEvent.mouseUp = "sliderUp";
+  slider.components.mouseEvent.cursorCapture = CursorCapture.lock;
+
+  VisibleWidgets vis = [
+    VisibleWidget(dialog, RectF(0, 0, 200, 200), false, RectF.init),
+    VisibleWidget(slider, RectF(10, 10, 80, 30), false, RectF.init)
+  ];
+
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseButtonDown,
+      AppEvent.MouseData(1, 20.0f, 20.0f, 0, 0, 0, 1, true, 1)
+    ),
+    vis
+  );
+  assert(inputSys.isCursorCaptured);
+  assert(inputSys.isCursorLocked);
+
+  // Hide ancestor dialog mid-drag -> motion drops lock and clears press
+  dialog.visible = false;
+  testUi.sentEvents = null;
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseMotion,
+      AppEvent.MouseData(1, 20.0f, 20.0f, 1, 5.0f, 0.0f, 0, false, 0)
+    ),
+    vis
+  );
+  assert(testUi.sentEvents.length == 0);
+  assert(!inputSys.isCursorLocked);
+  assert(!inputSys.isCursorCaptured);
+
+  // Re-showing dialog does not revive the aborted press
+  dialog.visible = true;
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseButtonUp,
+      AppEvent.MouseData(1, 20.0f, 20.0f, 0, 0, 0, 1, false, 1)
+    ),
+    vis
+  );
+  assert(testUi.sentEvents.length == 0);
+
+  // Same for CursorCapture.capture + postLayout when hidden while stationary
+  slider.components.mouseEvent.cursorCapture = CursorCapture.capture;
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseButtonDown,
+      AppEvent.MouseData(1, 20.0f, 20.0f, 0, 0, 0, 1, true, 1)
+    ),
+    vis
+  );
+  assert(inputSys.isCursorCaptured);
+  slider.visible = false;
+  WidgetSystemContext ctx;
+  ctx.host = testUi;
+  ctx.visibleWidgets = vis;
+  inputSys.postLayout(ctx);
+  assert(!inputSys.isCursorCaptured);
+}
+
+// Verifies postLayout freezes hover while locked, releases lock if disabled
+// while stationary, and secondary mouseDown is ignored while locked.
+unittest {
+  auto fix = new WidgetFixture();
+  auto testUi = new MockWidgetSystemHost;
+  auto inputSys = new InputSystem(testUi);
+
+  auto knob = fix.makeRootWithRect(RectF(0, 0, 50, 50));
+  knob.handleInput = true;
+  knob.components.mouseEvent = new MouseEvent;
+  knob.components.mouseEvent.mouseDown = "knobDown";
+  knob.components.mouseEvent.mouseUp = "knobUp";
+  knob.components.mouseEvent.mouseLeave = "knobLeave";
+  knob.components.mouseEvent.cursorCapture = CursorCapture.lock;
+
+  auto other = fix.makeRootWithRect(RectF(100, 100, 50, 50));
+  other.handleInput = true;
+  other.components.mouseEvent = new MouseEvent;
+  other.components.mouseEvent.mouseEnter = "otherEnter";
+  other.components.mouseEvent.mouseDown = "otherDown";
+
+  VisibleWidgets vis = [
+    VisibleWidget(knob, RectF(0, 0, 50, 50), false, RectF.init),
+    VisibleWidget(other, RectF(100, 100, 50, 50), false, RectF.init)
+  ];
+
+  // Hover knob, then press to lock
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseMotion,
+      AppEvent.MouseData(1, 25.0f, 25.0f, 0, 0, 0, 0, false, 0)
+    ),
+    vis
+  );
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseButtonDown,
+      AppEvent.MouseData(1, 25.0f, 25.0f, 0, 0, 0, 1, true, 1)
+    ),
+    vis
+  );
+  assert(inputSys.isCursorLocked);
+
+  // postLayout while locked with shifted geometry does not fire hover events
+  testUi.sentEvents = null;
+  WidgetSystemContext ctx;
+  ctx.host = testUi;
+  ctx.visibleWidgets = [
+    VisibleWidget(other, RectF(0, 0, 50, 50), false, RectF.init)
+  ];
+  inputSys.postLayout(ctx);
+  assert(testUi.sentEvents.length == 0);
+  assert(inputSys.isCursorLocked);
+
+  // Secondary mouseDown while locked does not hit-test or overwrite origin
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseButtonDown,
+      AppEvent.MouseData(1, 10.0f, 10.0f, 0, 0, 0, 2, true, 1)
+    ),
+    ctx.visibleWidgets
+  );
+  assert(testUi.sentEvents.length == 0);
+
+  // Release button 1 still reports lockOrigin (25, 25)
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseButtonUp,
+      AppEvent.MouseData(1, 900.0f, 900.0f, 0, 0, 0, 1, false, 1)
+    ),
+    vis
+  );
+  assert(testUi.sentEvents.length == 1);
+  assert(testUi.sentEvents[0].view.eventName == "knobUp");
+  auto upVal = MouseEvent.AppEventViewValue.fromRaw(
+    testUi.sentEvents[0].view.value
+  );
+  assert(upVal.windowX == 25.0f && upVal.windowY == 25.0f);
+
+  // Disabling locked widget while stationary -> postLayout releases lock
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseButtonDown,
+      AppEvent.MouseData(1, 25.0f, 25.0f, 0, 0, 0, 1, true, 1)
+    ),
+    vis
+  );
+  assert(inputSys.isCursorLocked);
+  knob.inputEnabled = false;
+  ctx.visibleWidgets = vis;
+  inputSys.postLayout(ctx);
+  assert(!inputSys.isCursorLocked);
+  assert(!inputSys.isCursorCaptured);
+}
+
+// Verifies onWindowClosed and onUnregister clear pressed/hovered state and
+// release cursor capture/lock.
+unittest {
+  auto fix = new WidgetFixture();
+  auto testUi = new MockWidgetSystemHost;
+  auto inputSys = new InputSystem(testUi);
+
+  auto knob = fix.makeRootWithRect(RectF(0, 0, 50, 50));
+  knob.handleInput = true;
+  knob.components.mouseEvent = new MouseEvent;
+  knob.components.mouseEvent.mouseUp = "knobUp";
+  knob.components.mouseEvent.cursorCapture = CursorCapture.lock;
+
+  VisibleWidgets vis = [
+    VisibleWidget(knob, RectF(0, 0, 50, 50), false, RectF.init)
+  ];
+
+  auto downEv = AppEvent.mouseEvent(
+    AppEvent.Kind.mouseButtonDown,
+    AppEvent.MouseData(1, 10.0f, 10.0f, 0, 0, 0, 1, true, 1)
+  );
+  inputSys.handleEventAndUpdateView(downEv, vis);
+  assert(inputSys.isCursorLocked);
+  assert(inputSys.isCursorCaptured);
+
+  inputSys.onWindowClosed(null);
+  assert(!inputSys.isCursorLocked);
+  assert(!inputSys.isCursorCaptured);
+
+  testUi.sentEvents = null;
+  inputSys.handleEventAndUpdateView(
+    AppEvent.mouseEvent(
+      AppEvent.Kind.mouseButtonUp,
+      AppEvent.MouseData(1, 10.0f, 10.0f, 0, 0, 0, 1, false, 1)
+    ),
+    vis
+  );
+  assert(testUi.sentEvents.length == 0);
+
+  // onUnregister also releases capture/lock cleanly
+  inputSys.handleEventAndUpdateView(downEv, vis);
+  assert(inputSys.isCursorLocked);
+  assert(inputSys.isCursorCaptured);
+  inputSys.onUnregister();
   assert(!inputSys.isCursorLocked);
   assert(!inputSys.isCursorCaptured);
 }

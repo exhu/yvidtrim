@@ -68,9 +68,9 @@ private:
 }
 
 unittest {
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : makeHeadlessUiSystem;
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   auto tracker = ModelTracker!MainModel(new MainModel());
   auto view = new MainView(ui, tracker);
 

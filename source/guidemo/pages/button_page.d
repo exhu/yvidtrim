@@ -584,9 +584,9 @@ private:
 
 unittest {
   import yguilib.controls.tooltip : Tooltip;
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : makeHeadlessUiSystem;
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   auto parent = new Widget(ui.nextWidgetId());
   auto pageTracker = ModelTracker!ButtonPageModel(new ButtonPageModel());
   auto page = new ButtonPage(ui, parent, pageTracker);

@@ -25,12 +25,13 @@ struct OffscreenTarget {
   int height;
 
   /**
-   * Grows the attachments to hold at least `w` x `h` pixels. Returns
-   * false, keeping the current allocation, when `w` or `h` is not
-   * positive or over `maxSize()`; returns false and frees the GL objects
-   * (the next call retries) when the framebuffer is incomplete.
+   * Grows the attachments to hold at least `w` x `h` pixels, keeping
+   * `currentFbo` bound afterwards. Returns false, keeping the current
+   * allocation, when `w` or `h` is not positive or over `maxSize()`;
+   * returns false and frees the GL objects (the next call retries) when
+   * the framebuffer is incomplete.
    */
-  bool ensureSize(int w, int h) {
+  bool ensureSize(int w, int h, GLuint currentFbo) {
     if (w <= 0 || h <= 0 || w > maxSize() || h > maxSize()) {
       return false;
     }
@@ -47,7 +48,7 @@ struct OffscreenTarget {
     allocateTargetTexture(texture, nw, nh);
     allocateRenderbuffer(depthStencil, GL_DEPTH24_STENCIL8, 0, nw, nh);
     if (!attachAndCheck(AttachmentIds(fbo, texture, 0, depthStencil),
-      "Offscreen")) {
+      currentFbo, "Offscreen")) {
       destroyObjects();
       return false;
     }
@@ -226,13 +227,11 @@ struct AttachmentIds {
 }
 
 /**
- * Attaches `ids` to `ids.fbo` and checks completeness, keeping the
- * current framebuffer binding. Logs an error prefixed with `what` when
+ * Attaches `ids` to `ids.fbo` and checks completeness, rebinding
+ * `currentFbo` afterwards. Logs an error prefixed with `what` when
  * incomplete. Returns: true if the framebuffer is complete.
  */
-bool attachAndCheck(in AttachmentIds ids, string what) {
-  GLint prevFbo = 0;
-  glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFbo);
+bool attachAndCheck(in AttachmentIds ids, GLuint currentFbo, string what) {
   glBindFramebuffer(GL_FRAMEBUFFER, ids.fbo);
   if (ids.colorTexture != 0) {
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
@@ -246,7 +245,7 @@ bool attachAndCheck(in AttachmentIds ids, string what) {
       GL_RENDERBUFFER, ids.depthStencil);
   }
   const GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-  glBindFramebuffer(GL_FRAMEBUFFER, cast(GLuint)prevFbo);
+  glBindFramebuffer(GL_FRAMEBUFFER, currentFbo);
   if (status != GL_FRAMEBUFFER_COMPLETE) {
     import std.logger : errorf;
 

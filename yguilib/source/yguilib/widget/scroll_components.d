@@ -2,7 +2,7 @@ module yguilib.widget.scroll_components;
 
 import yguilib.events : AppEvent;
 import yguilib.render.render_types : PointF;
-import yguilib.widget.component : WidgetComponent;
+import yguilib.widget.component : AppEventViewValueMixin, WidgetComponent;
 
 /// Component enabling a widget to scroll its first child inside its clipped
 /// content area.
@@ -10,7 +10,7 @@ final class ScrollableArea : WidgetComponent {
   /// Packed payload stored in `AppEvent.ViewData.value` when
   /// `scrollChangedEvent` is emitted.
   union AppEventViewValue {
-    ulong[AppEvent.ViewData.valueSize] raw;
+    mixin AppEventViewValueMixin!();
     struct {
       /// Size of the first child widget after layout.
       PointF contentSize;
@@ -18,16 +18,6 @@ final class ScrollableArea : WidgetComponent {
       PointF viewportSize;
       /// Effective scroll offset applied to the first child.
       PointF offset;
-    }
-
-    alias raw this;
-
-    static AppEventViewValue fromRaw(
-      in ulong[AppEvent.ViewData.valueSize] raw
-    ) {
-      AppEventViewValue val;
-      val.raw = raw;
-      return val;
     }
 
     static AppEventViewValue pack(
@@ -43,11 +33,6 @@ final class ScrollableArea : WidgetComponent {
       return val;
     }
   }
-
-  static assert(
-    AppEventViewValue.sizeof ==
-      (ulong[AppEvent.ViewData.valueSize]).sizeof
-  );
 
   this() {}
 

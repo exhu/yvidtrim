@@ -2,7 +2,7 @@ module yguilib.widget.internal.layout_axis;
 
 package(yguilib):
 import yguilib.widget : Widget;
-import yguilib.widget.layout_components : Insets, Size;
+import yguilib.widget.layout_components : Size;
 
 /// Returns child's size on main axis (width for row, height for column).
 float mainSize(const Widget w, bool isRow) {
@@ -102,6 +102,7 @@ float crossOuterSize(const Widget w, bool isRow) {
 
 unittest {
   import yguilib.render.render_types : RectF;
+  import yguilib.widget.layout_components : Insets;
 
   auto w = new Widget(1);
   w.rect = RectF(10, 20, 30, 40);

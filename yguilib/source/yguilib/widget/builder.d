@@ -408,6 +408,7 @@ final class WidgetBuilder {
   }
 
   /// Sets the background corner radius.
+  /// Only takes effect when `bgStyle` is `Background.Style.round`.
   WidgetBuilder bgRadius(float cornerRadius) {
     ensureBg(Background.Style.rect, 0.0f).cornerRadius = cornerRadius;
     return this;
@@ -447,6 +448,8 @@ final class WidgetBuilder {
   }
 
   /// Sets the border corner radius.
+  /// Only takes effect when `borderStyle` is `Border.Style.round` or
+  /// `Border.Style.roundDashed`.
   WidgetBuilder borderRadius(float cornerRadius) {
     ensureBorder(Border.Style.rect, 0.0f).cornerRadius = cornerRadius;
     return this;
@@ -768,6 +771,7 @@ final class WidgetBuilder {
   }
 
   /// Configures and attaches a child widget using this builder's UiSystem.
+  /// `config` is allowed to be null.
   WidgetBuilder child(scope void delegate(WidgetBuilder) config) {
     auto cb = new WidgetBuilder(fUi).parent(fWidget);
     if (config !is null) {
@@ -896,6 +900,7 @@ private:
   }
 
   VirtListComponent ensureVirtList() {
+    fWidget.clipChildren = true;
     if (fWidget.components.virtList is null) {
       fWidget.components.virtList = new VirtListComponent();
     }

@@ -78,20 +78,20 @@ ph06 (render core) -> ph07 (render font/text) -> ph08 (canvas)    ph09 (widget)
 ```
   phase  status   notes
   -----  -------  ---------------------------------------------------------
-  ph01   pending  clibs bindings & C wrappers
-  ph02   pending  events lifecycle & MessageBus
-  ph03   pending  controller stack & DefaultController
-  ph04   pending  core runtime, Window & TimerControl split
-  ph05   pending  core utilities & makeHeadlessUiSystem
-  ph06   pending  render core, GL state, targets & package_test
-  ph07   pending  render font, GlyphAtlas & TextRunCache
-  ph08   pending  render/canvas shadows, paths & zero-GC
-  ph09   pending  widget core, pipeline, collector & painter
-  ph10   pending  widget InputSystem reliability
-  ph11   pending  widget layout, text cache & ScrollSystem
-  ph12   pending  widget VirtListSystem & components
-  ph13   pending  controls buttons, hover, support & tooltip
-  ph14   pending  controls composites, ARCHITECTURE.md & TODO.md
+  ph01   done     clibs nothrow/@nogc, ABI asserts, NULL docs, pruned unused
+  ph02   done     events ~this() removed, wake retry, read-only kind, tests
+  ph03   done     controller stack snapshot, modal/reentrancy, encap, tests
+  ph04   done     Window ~this(), bottom sysCtrl, TimerControl split, memstats
+  ph05   done     makeHeadlessUiSystem, allochelpers, ModelTracker, serhelpers
+  ph06   done     render package_test, allocRgba zero, viewport/RT, GL cache
+  ph07   done     RunGlyph int, Font fMemoryData, atlas grow, cache/tests
+  ph08   done     canvas GL_MAX shadow, zero-GC grad, Path2d/stroker/tests
+  ph09   done     widget dual collector, subtreeDirty, painter, test_fixture
+  ph10   done     InputSystem lock/disable/hide/cleanup, regression tests
+  ph11   done     text cache key/valid, flex margins, ellipsis, layout_sys
+  ph12   done     VirtList wheel gate, O(cached) offset, ReusableArray, tests
+  ph13   done     PressTracker occlusion, Button preLayout, Hover/Tooltip fix
+  ph14   done     Tab/Scrollbar/VirtList fixes, ARCHITECTURE.md & TODO.md
 ```
 
 ## Rules for Every Phase

@@ -139,6 +139,10 @@ void uploadAndDrawDynamic(
     glBufferData(GL_ARRAY_BUFFER, cast(GLsizeiptr)cap, null,
       GL_DYNAMIC_DRAW);
     va.capacity = cap;
+  } else {
+    // Orphan so in-flight draws do not stall the upload.
+    glBufferData(GL_ARRAY_BUFFER, cast(GLsizeiptr)va.capacity, null,
+      GL_DYNAMIC_DRAW);
   }
   glBufferSubData(GL_ARRAY_BUFFER, 0, cast(GLsizeiptr)bytes, vertices.ptr);
   glDrawArrays(mode, 0, count);
@@ -190,8 +194,8 @@ struct IndexedQuadArray {
 
 /**
  * Creates a VAO for interleaved `TextVertex` data (vec2 position at 0,
- * vec2 texCoord at 1, normalized ubyte[4] color at 2) with an attached EBO. Leaves no
- * VAO or buffer bound.
+ * vec2 texCoord at 1, normalized ubyte[4] color at 2) with an attached EBO.
+ * Leaves no VAO or buffer bound.
  */
 IndexedQuadArray createTextQuadArray() {
   IndexedQuadArray h;
@@ -247,8 +251,7 @@ void uploadAndDrawIndexedQuads(
       GL_ARRAY_BUFFER, cast(GLsizeiptr)cap, null, GL_DYNAMIC_DRAW
     );
     qa.vboCapacity = cap;
-  }
-  else {
+  } else {
     // Orphan so in-flight draws of earlier flushes do not stall the upload.
     glBufferData(
       GL_ARRAY_BUFFER, cast(GLsizeiptr)qa.vboCapacity, null, GL_DYNAMIC_DRAW
@@ -260,11 +263,16 @@ void uploadAndDrawIndexedQuads(
 
   if (qa.eboQuadCapacity == 0) {
     // Built once at full capacity from a temporary malloc buffer.
+    import core.exception : onOutOfMemoryError;
     import core.stdc.stdlib : free, malloc;
 
     enum size_t count = maxIndexedQuads * 6;
-    auto indices = (cast(ushort*)malloc(count * ushort.sizeof))[0 .. count];
-    scope(exit) free(indices.ptr);
+    ushort* ptr = cast(ushort*)malloc(count * ushort.sizeof);
+    if (ptr is null) {
+      onOutOfMemoryError();
+    }
+    scope(exit) free(ptr);
+    auto indices = ptr[0 .. count];
     fillQuadIndices(indices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, qa.ebo);
     glBufferData(
@@ -332,7 +340,9 @@ struct ProgramTracker {
    */
   void invalidate() {
     fCurrent = 0;
-    ++fEpoch;
+    if (++fEpoch == 0) {
+      fEpoch = 1;
+    }
   }
 
   /// Uniform cache epoch (never 0, so `.init` caches are stale).
@@ -509,7 +519,6 @@ GLuint uploadRgbaTexture(const(void)* pixels, int w, int h, int pitch) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glBindTexture(GL_TEXTURE_2D, 0);
   replaceRgbaTextureImage(texId, pixels, w, h, pitch);
   return texId;
 }
@@ -527,6 +536,7 @@ void replaceRgbaTextureImage(
   int h,
   int pitch
 ) {
+  assert(pitch >= w * 4 && pitch % 4 == 0);
   glBindTexture(GL_TEXTURE_2D, texId);
   glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
   glPixelStorei(GL_UNPACK_ROW_LENGTH, pitch != w * 4 ? pitch / 4 : 0);
@@ -559,6 +569,17 @@ int maxTextureSize() {
  * bound. Returns the texture id.
  */
 GLuint allocRgbaTexture(int size) {
+  import core.exception : onOutOfMemoryError;
+  import core.stdc.stdlib : calloc, free;
+
+  assert(size > 0);
+  const size_t pixelCount = cast(size_t)size * cast(size_t)size;
+  void* zeros = calloc(pixelCount, 4);
+  if (zeros is null) {
+    onOutOfMemoryError();
+  }
+  scope(exit) free(zeros);
+
   GLuint texId;
   glGenTextures(1, &texId);
   glBindTexture(GL_TEXTURE_2D, texId);
@@ -566,10 +587,11 @@ GLuint allocRgbaTexture(int size) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
   glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
   glTexImage2D(
     GL_TEXTURE_2D, 0, GL_RGBA, size, size, 0,
-    GL_RGBA, GL_UNSIGNED_BYTE, null
+    GL_RGBA, GL_UNSIGNED_BYTE, zeros
   );
   telemetryTextureAlloc(texId, size, size);
   glBindTexture(GL_TEXTURE_2D, 0);
@@ -592,6 +614,7 @@ struct RgbaSubImage {
  * leaves no texture bound.
  */
 void uploadRgbaSubImage(GLuint texId, const ref RgbaSubImage img) {
+  assert(img.pitch >= img.w * 4 && img.pitch % 4 == 0);
   glBindTexture(GL_TEXTURE_2D, texId);
   glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
   const int rowLen = img.pitch != img.w * 4 ? img.pitch / 4 : 0;

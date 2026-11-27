@@ -2,7 +2,7 @@ module yguilib.widget.internal.layout_text;
 
 package(yguilib):
 import std.array : replace;
-import std.string : splitLines, stripRight;
+import std.string : indexOfAny, splitLines, stripRight;
 import std.utf : stride;
 
 import yguilib.render : Renderer;
@@ -23,8 +23,47 @@ enum TextAlignment {
   right,
 }
 
+/// Parameters for `layoutTextLines` and `measureTextContentSize`.
+struct TextLayoutParams {
+  string caption;
+  bool multiline;
+  bool overflowEllipsis;
+  TextAlignment alignment = TextAlignment.left;
+  float availableWidth = 0.0f;
+  float availableHeight = 0.0f;
+
+  ref TextLayoutParams withCaption(string caption) return {
+    this.caption = caption;
+    return this;
+  }
+
+  ref TextLayoutParams withMultiline(bool multiline) return {
+    this.multiline = multiline;
+    return this;
+  }
+
+  ref TextLayoutParams withEllipsis(bool overflowEllipsis) return {
+    this.overflowEllipsis = overflowEllipsis;
+    return this;
+  }
+
+  ref TextLayoutParams withAlignment(TextAlignment alignment) return {
+    this.alignment = alignment;
+    return this;
+  }
+
+  ref TextLayoutParams withAvailableSize(float width, float height) return {
+    this.availableWidth = width;
+    this.availableHeight = height;
+    return this;
+  }
+}
+
 /// Normalizes newlines ('\r\n', '\r', '\n') to spaces.
 string sanitizeSingleLine(string text) {
+  if (text.indexOfAny("\r\n") < 0) {
+    return text;
+  }
   return text.replace("\r\n", " ").replace("\r", " ").replace("\n", " ");
 }
 
@@ -35,60 +74,18 @@ string truncateWithEllipsis(
   string text,
   float availableWidth
 ) {
-  if (availableWidth <= 0.0f || text.length == 0) {
-    return "";
-  }
-  if (r is null || font is null) {
-    return text;
-  }
-  if (r.measureTextWithFont(text, font).x <= availableWidth) {
-    return text;
-  }
+  return truncateWithEllipsisImpl(r, font, text, availableWidth, false);
+}
 
-  const float ellipsisW = r.measureTextWithFont("...", font).x;
-  if (ellipsisW > availableWidth) {
-    if (r.measureTextWithFont("..", font).x <= availableWidth) {
-      return "..";
-    }
-    if (r.measureTextWithFont(".", font).x <= availableWidth) {
-      return ".";
-    }
-    return "";
-  }
-
-  size_t[] boundaries;
-  size_t idx = 0;
-  while (idx < text.length) {
-    boundaries ~= idx;
-    idx += stride(text, idx);
-  }
-  boundaries ~= text.length;
-
-  size_t low = 0;
-  size_t high = boundaries.length - 1;
-  size_t bestIdx = 0;
-
-  while (low <= high) {
-    const size_t mid = low + (high - low) / 2;
-    const size_t byteIdx = boundaries[mid];
-    const string candidate = text[0 .. byteIdx] ~ "...";
-    if (r.measureTextWithFont(candidate, font).x <= availableWidth) {
-      bestIdx = byteIdx;
-      low = mid + 1;
-    } else {
-      if (mid == 0) {
-        break;
-      }
-      high = mid - 1;
-    }
-  }
-
-  if (bestIdx == 0) {
-    return "...";
-  }
-
-  const string prefix = stripRight(text[0 .. bestIdx]);
-  return prefix ~ "...";
+/// Truncates text and always appends ellipsis ("...", "..", ".") even if
+/// `text` alone fits within `availableWidth`.
+string truncateForceEllipsis(
+  Renderer r,
+  Font font,
+  string text,
+  float availableWidth
+) {
+  return truncateWithEllipsisImpl(r, font, text, availableWidth, true);
 }
 
 /// Breaks a single line of text into wrapped lines fitting availableWidth.
@@ -98,28 +95,40 @@ string[] wrapLine(
   string line,
   float availableWidth
 ) {
-  if (availableWidth <= 0.0f || r is null || font is null || line.length == 0) {
+  if (!(availableWidth > 0.0f) || r is null || font is null ||
+      line.length == 0) {
     return [line];
   }
   if (r.measureTextWithFont(line, font).x <= availableWidth) {
     return [line];
   }
 
+  size_t indentEnd = 0;
+  while (indentEnd < line.length &&
+      (line[indentEnd] == ' ' || line[indentEnd] == '\t')) {
+    indentEnd++;
+  }
+  if (indentEnd == line.length) {
+    return [line];
+  }
+  const string leadingIndent = line[0 .. indentEnd];
+
   string[] words;
-  size_t start = 0;
+  size_t start = indentEnd;
   bool inWord = false;
-  foreach (size_t i, dchar c; line) {
-    if (c == ' ' || c == '\t') {
+  for (size_t i = indentEnd; i < line.length;) {
+    const size_t charLen = stride(line, i);
+    const char ch = line[i];
+    if (ch == ' ' || ch == '\t') {
       if (inWord) {
         words ~= line[start .. i];
         inWord = false;
       }
-    } else {
-      if (!inWord) {
-        start = i;
-        inWord = true;
-      }
+    } else if (!inWord) {
+      start = i;
+      inWord = true;
     }
+    i += charLen;
   }
   if (inWord) {
     words ~= line[start .. $];
@@ -127,6 +136,9 @@ string[] wrapLine(
 
   if (words.length == 0) {
     return [line];
+  }
+  if (leadingIndent.length > 0) {
+    words[0] = leadingIndent ~ words[0];
   }
 
   string[] lines;
@@ -136,22 +148,34 @@ string[] wrapLine(
     size_t wIdx = 0;
     while (wIdx < word.length) {
       const size_t nextStart = wIdx;
-      size_t lastFit = wIdx;
-      while (wIdx < word.length) {
-        const size_t charLen = stride(word, wIdx);
-        const string chunk = word[nextStart .. wIdx + charLen];
-        if (r.measureTextWithFont(chunk, font).x <= availableWidth) {
-          lastFit = wIdx + charLen;
-          wIdx += charLen;
+      size_t low = nextStart;
+      size_t high = word.length;
+      size_t lastFit = nextStart;
+
+      while (low < high) {
+        size_t mid = low + (high - low + 1) / 2;
+        while (mid > low && (word[mid] & 0xC0) == 0x80) {
+          mid--;
+        }
+        if (mid == low) {
+          mid = high;
+        }
+        if (r.measureTextWithFont(word[nextStart .. mid], font).x <=
+            availableWidth) {
+          lastFit = mid;
+          low = mid;
         } else {
-          break;
+          high = mid - 1;
+          while (high > low && (word[high] & 0xC0) == 0x80) {
+            high--;
+          }
         }
       }
+
       if (lastFit == nextStart) {
-        const size_t charLen = stride(word, nextStart);
-        lastFit = nextStart + charLen;
-        wIdx = lastFit;
+        lastFit = nextStart + stride(word, nextStart);
       }
+      wIdx = lastFit;
       const string linePart = word[nextStart .. lastFit];
       if (wIdx < word.length) {
         lines ~= linePart;
@@ -218,36 +242,30 @@ float firstLineHeightFromFont(Renderer r, Font font, float lineStep) {
 FormattedTextLine[] layoutTextLines(
   Renderer r,
   Font font,
-  string caption,
-  bool multiline,
-  bool overflowEllipsis,
-  TextAlignment alignment,
-  float availableWidth,
-  float availableHeight
+  in TextLayoutParams params
 ) {
-  if (r is null || font is null || caption.length == 0) {
+  if (r is null || font is null || params.caption.length == 0) {
     return [];
   }
 
-  string[] rawLines = buildRawLines(
-    r, font, caption, multiline, overflowEllipsis,
-    availableWidth, availableHeight
-  );
+  string[] rawLines = buildRawLines(r, font, params);
 
   FormattedTextLine[] result;
   result.reserve(rawLines.length);
   foreach (lineStr; rawLines) {
     const float w = r.measureTextWithFont(lineStr, font).x;
     float xOff = 0.0f;
-    final switch (alignment) {
+    final switch (params.alignment) {
       case TextAlignment.left:
         xOff = 0.0f;
         break;
       case TextAlignment.center:
-        xOff = availableWidth > 0.0f ? (availableWidth - w) * 0.5f : 0.0f;
+        xOff = params.availableWidth > 0.0f
+          ? (params.availableWidth - w) * 0.5f : 0.0f;
         break;
       case TextAlignment.right:
-        xOff = availableWidth > 0.0f ? availableWidth - w : 0.0f;
+        xOff = params.availableWidth > 0.0f
+          ? params.availableWidth - w : 0.0f;
         break;
     }
     result ~= FormattedTextLine(lineStr, w, xOff);
@@ -255,36 +273,143 @@ FormattedTextLine[] layoutTextLines(
   return result;
 }
 
-private string[] buildRawLines(
+/// Measures the bounding content size for given text layout parameters.
+PointF measureTextContentSize(
   Renderer r,
   Font font,
-  string caption,
-  bool multiline,
-  bool overflowEllipsis,
-  float availableWidth,
-  float availableHeight
+  in TextLayoutParams params
 ) {
-  if (!multiline) {
-    string single = sanitizeSingleLine(caption);
-    if (overflowEllipsis && availableWidth > 0.0f) {
-      single = truncateWithEllipsis(r, font, single, availableWidth);
+  if (r is null || font is null || params.caption.length == 0) {
+    return PointF(0.0f, 0.0f);
+  }
+
+  const string[] rawLines = buildRawLines(r, font, params);
+  if (rawLines.length == 0) {
+    return PointF(0.0f, 0.0f);
+  }
+
+  float maxW = 0.0f;
+  foreach (lineStr; rawLines) {
+    const float w = r.measureTextWithFont(lineStr, font).x;
+    if (w > maxW) {
+      maxW = w;
+    }
+  }
+
+  const float lineStep = lineStepFromFont(r, font);
+  const float firstLineH = firstLineHeightFromFont(r, font, lineStep);
+
+  const float totalH = rawLines.length > 1
+    ? (cast(float)(rawLines.length - 1)) * lineStep + firstLineH
+    : firstLineH;
+
+  import std.algorithm.comparison : max;
+  return PointF(max(0.0f, maxW), max(0.0f, totalH));
+}
+
+private:
+
+string truncateWithEllipsisImpl(
+  Renderer r,
+  Font font,
+  string text,
+  float availableWidth,
+  bool forceEllipsis
+) {
+  if (!(availableWidth > 0.0f) || text.length == 0) {
+    return "";
+  }
+  if (r is null || font is null) {
+    return text;
+  }
+  if (!forceEllipsis &&
+      r.measureTextWithFont(text, font).x <= availableWidth) {
+    return text;
+  }
+
+  const float ellipsisW = r.measureTextWithFont("...", font).x;
+  if (ellipsisW > availableWidth) {
+    if (r.measureTextWithFont("..", font).x <= availableWidth) {
+      return "..";
+    }
+    if (r.measureTextWithFont(".", font).x <= availableWidth) {
+      return ".";
+    }
+    return "";
+  }
+
+  char[256] stackBuf = void;
+  bool fitsWithEllipsis(size_t byteIdx) {
+    const size_t totalLen = byteIdx + 3;
+    if (totalLen <= stackBuf.length) {
+      stackBuf[0 .. byteIdx] = text[0 .. byteIdx];
+      stackBuf[byteIdx .. totalLen] = "...";
+      return r.measureTextWithFont(
+        cast(string)stackBuf[0 .. totalLen], font
+      ).x <= availableWidth;
+    }
+    return r.measureTextWithFont(
+      text[0 .. byteIdx] ~ "...", font
+    ).x <= availableWidth;
+  }
+
+  size_t low = 0;
+  size_t high = text.length;
+  size_t bestIdx = 0;
+
+  while (low < high) {
+    size_t mid = low + (high - low + 1) / 2;
+    while (mid > low && (text[mid] & 0xC0) == 0x80) {
+      mid--;
+    }
+    if (mid == low) {
+      mid = high;
+    }
+    if (fitsWithEllipsis(mid)) {
+      bestIdx = mid;
+      low = mid;
+    } else {
+      high = mid - 1;
+      while (high > low && (text[high] & 0xC0) == 0x80) {
+        high--;
+      }
+    }
+  }
+
+  if (bestIdx == 0) {
+    return "...";
+  }
+
+  const string prefix = stripRight(text[0 .. bestIdx]);
+  return prefix ~ "...";
+}
+
+string[] buildRawLines(
+  Renderer r,
+  Font font,
+  in TextLayoutParams params
+) {
+  if (!params.multiline) {
+    string single = sanitizeSingleLine(params.caption);
+    if (params.overflowEllipsis && params.availableWidth > 0.0f) {
+      single = truncateWithEllipsis(r, font, single, params.availableWidth);
     }
     return [single];
   }
 
-  string[] paragraphs = splitLines(caption);
+  string[] paragraphs = splitLines(params.caption);
   if (paragraphs.length == 0) {
     paragraphs = [""];
   }
   string[] rawLines;
   foreach (para; paragraphs) {
-    if (availableWidth > 0.0f) {
-      rawLines ~= wrapLine(r, font, para, availableWidth);
+    if (params.availableWidth > 0.0f) {
+      rawLines ~= wrapLine(r, font, para, params.availableWidth);
     } else {
       rawLines ~= para;
     }
   }
-  if (availableHeight <= 0.0f || rawLines.length == 0) {
+  if (!(params.availableHeight > 0.0f) || rawLines.length == 0) {
     return rawLines;
   }
 
@@ -292,7 +417,7 @@ private string[] buildRawLines(
   const float firstLineH = firstLineHeightFromFont(r, font, lineStep);
   size_t fitCount = 0;
   for (size_t i = 0; i < rawLines.length; i++) {
-    if (cast(float)i * lineStep + firstLineH <= availableHeight) {
+    if (cast(float)i * lineStep + firstLineH <= params.availableHeight) {
       fitCount = i + 1;
     } else {
       break;
@@ -304,63 +429,20 @@ private string[] buildRawLines(
   if (fitCount == 0) {
     return [];
   }
-  if (overflowEllipsis) {
+  if (params.overflowEllipsis) {
     const string last = rawLines[fitCount - 1];
-    const float availW = availableWidth > 0.0f
-      ? availableWidth : float.infinity;
-    rawLines[fitCount - 1] =
-      (r.measureTextWithFont(last ~ "...", font).x <= availW)
-      ? last ~ "..."
-      : truncateWithEllipsis(r, font, last, availW);
-  }
-  return rawLines[0 .. fitCount];
-}
-
-/// Measures the bounding content size for given text layout parameters.
-PointF measureTextContentSize(
-  Renderer r,
-  Font font,
-  string caption,
-  bool multiline,
-  bool overflowEllipsis,
-  float availableWidth,
-  float availableHeight
-) {
-  if (r is null || font is null || caption.length == 0) {
-    return PointF(0.0f, 0.0f);
-  }
-
-  const FormattedTextLine[] lines = layoutTextLines(
-    r,
-    font,
-    caption,
-    multiline,
-    overflowEllipsis,
-    TextAlignment.left,
-    availableWidth,
-    availableHeight
-  );
-
-  if (lines.length == 0) {
-    return PointF(0.0f, 0.0f);
-  }
-
-  float maxW = 0.0f;
-  foreach (const ref line; lines) {
-    if (line.width > maxW) {
-      maxW = line.width;
+    if (!(params.availableWidth > 0.0f)) {
+      rawLines[fitCount - 1] = last ~ "...";
+    } else if (r.measureTextWithFont(last ~ "...", font).x <=
+        params.availableWidth) {
+      rawLines[fitCount - 1] = last ~ "...";
+    } else {
+      rawLines[fitCount - 1] = truncateForceEllipsis(
+        r, font, last, params.availableWidth
+      );
     }
   }
-
-  const float lineStep = lineStepFromFont(r, font);
-  const float firstLineH = firstLineHeightFromFont(r, font, lineStep);
-
-  const float totalH = lines.length > 1
-    ? (cast(float)(lines.length - 1)) * lineStep + firstLineH
-    : firstLineH;
-
-    import std.algorithm.comparison : max;
-  return PointF(max(0.0f, maxW), max(0.0f, totalH));
+  return rawLines[0 .. fitCount];
 }
 
 unittest {
@@ -384,9 +466,27 @@ unittest {
   auto font = r.defaultFont();
   assert(font !is null);
 
+  TextLayoutParams makeParams(
+    string cap,
+    bool multi,
+    bool ell,
+    TextAlignment al,
+    float w,
+    float h
+  ) {
+    TextLayoutParams p;
+    p.withCaption(cap)
+      .withMultiline(multi)
+      .withEllipsis(ell)
+      .withAlignment(al)
+      .withAvailableSize(w, h);
+    return p;
+  }
+
   // Single line without overflow
   auto lines1 = layoutTextLines(
-    r, font, "Hello", false, true, TextAlignment.left, 200.0f, 100.0f
+    r, font,
+    makeParams("Hello", false, true, TextAlignment.left, 200.0f, 100.0f)
   );
   assert(lines1.length == 1);
   assert(lines1[0].text == "Hello");
@@ -394,7 +494,10 @@ unittest {
 
   // Single line with newlines when multiline is false
   auto linesNewlines = layoutTextLines(
-    r, font, "Hello\r\nWorld", false, true, TextAlignment.left, 200.0f, 100.0f
+    r, font,
+    makeParams(
+      "Hello\r\nWorld", false, true, TextAlignment.left, 200.0f, 100.0f
+    )
   );
   assert(linesNewlines.length == 1);
   assert(linesNewlines[0].text == "Hello World");
@@ -404,8 +507,11 @@ unittest {
     "Long text that should overflow", font
   ).x;
   auto linesOverflow = layoutTextLines(
-    r, font, "Long text that should overflow", false, true,
-    TextAlignment.left, fullW * 0.5f, 100.0f
+    r, font,
+    makeParams(
+      "Long text that should overflow", false, true,
+      TextAlignment.left, fullW * 0.5f, 100.0f
+    )
   );
   assert(linesOverflow.length == 1);
   assert(linesOverflow[0].text.length >= 3);
@@ -414,22 +520,27 @@ unittest {
 
   // Single line with overflowEllipsis == false
   auto linesNoEllipsis = layoutTextLines(
-    r, font, "Long text that should overflow", false, false,
-    TextAlignment.left, fullW * 0.5f, 100.0f
+    r, font,
+    makeParams(
+      "Long text that should overflow", false, false,
+      TextAlignment.left, fullW * 0.5f, 100.0f
+    )
   );
   assert(linesNoEllipsis.length == 1);
   assert(linesNoEllipsis[0].text == "Long text that should overflow");
 
   // Alignment: left, center, right
   auto linesCenter = layoutTextLines(
-    r, font, "Centered", false, true, TextAlignment.center, 200.0f, 100.0f
+    r, font,
+    makeParams("Centered", false, true, TextAlignment.center, 200.0f, 100.0f)
   );
   assert(linesCenter.length == 1);
   const float expectedCenter = (200.0f - linesCenter[0].width) * 0.5f;
   assert(linesCenter[0].xOffset == expectedCenter);
 
   auto linesRight = layoutTextLines(
-    r, font, "Right", false, true, TextAlignment.right, 200.0f, 100.0f
+    r, font,
+    makeParams("Right", false, true, TextAlignment.right, 200.0f, 100.0f)
   );
   assert(linesRight.length == 1);
   const float expectedRight = 200.0f - linesRight[0].width;
@@ -437,8 +548,11 @@ unittest {
 
   // Multiline: explicit breaks
   auto linesMulti = layoutTextLines(
-    r, font, "Line 1\nLine 2\r\nLine 3", true, true, TextAlignment.left,
-    200.0f, 100.0f
+    r, font,
+    makeParams(
+      "Line 1\nLine 2\r\nLine 3", true, true,
+      TextAlignment.left, 200.0f, 100.0f
+    )
   );
   assert(linesMulti.length == 3);
   assert(linesMulti[0].text == "Line 1");
@@ -448,8 +562,11 @@ unittest {
   // Multiline: word wrapping
   const float wrapW = r.measureTextWithFont("Word one word two", font).x + 5.0f;
   auto linesWrap = layoutTextLines(
-    r, font, "Word one word two word three word four", true, true,
-    TextAlignment.left, wrapW, 500.0f
+    r, font,
+    makeParams(
+      "Word one word two word three word four", true, true,
+      TextAlignment.left, wrapW, 500.0f
+    )
   );
   assert(linesWrap.length >= 2);
   foreach (const ref l; linesWrap) {
@@ -461,37 +578,90 @@ unittest {
   const float firstLineH = firstLineHeightFromFont(r, font, lineStep);
   const float limitH = lineStep + firstLineH + 2.0f;
   auto linesVertTrunc = layoutTextLines(
-    r, font, "Line 1\nLine 2\r\nLine 3", true, true, TextAlignment.left,
-    200.0f, limitH
+    r, font,
+    makeParams(
+      "Line 1\nLine 2\r\nLine 3", true, true,
+      TextAlignment.left, 200.0f, limitH
+    )
   );
   assert(linesVertTrunc.length == 2);
   assert(linesVertTrunc[1].text[$ - 3 .. $] == "...");
 
+  // Multiline: vertical overflow when last visible line is near availW
+  const float nearW = r.measureTextWithFont("Line 2", font).x + 1.0f;
+  auto linesNearTrunc = layoutTextLines(
+    r, font,
+    makeParams(
+      "Line 1\nLine 2\nLine 3", true, true,
+      TextAlignment.left, nearW, limitH
+    )
+  );
+  assert(linesNearTrunc.length == 2);
+  assert(linesNearTrunc[1].text.length >= 3);
+  assert(linesNearTrunc[1].text[$ - 3 .. $] == "...");
+  assert(linesNearTrunc[1].width <= nearW);
+
   // Multiline: vertical truncation with overflowEllipsis == false
   auto linesVertNoTrunc = layoutTextLines(
-    r, font, "Line 1\nLine 2\r\nLine 3", true, false, TextAlignment.left,
-    200.0f, limitH
+    r, font,
+    makeParams(
+      "Line 1\nLine 2\r\nLine 3", true, false,
+      TextAlignment.left, 200.0f, limitH
+    )
   );
   assert(linesVertNoTrunc.length == 2);
   assert(linesVertNoTrunc[1].text == "Line 2");
 
+  // NaN width guards
+  assert(truncateWithEllipsis(r, font, "Hello", float.nan) == "");
+  assert(wrapLine(r, font, "Hello", float.nan) == ["Hello"]);
+
+  // Leading indentation & whitespace-only lines preserved in wrapLine
+  const float narrowW = r.measureTextWithFont("  hello", font).x + 2.0f;
+  auto indented = wrapLine(r, font, "  hello world", narrowW);
+  assert(indented.length >= 2);
+  assert(indented[0][0 .. 2] == "  ");
+  assert(wrapLine(r, font, "    ", 10.0f) == ["    "]);
+
+  // UTF-8 multibyte truncation & long-word breaking
+  const string utf8 = "Привет мир тест";
+  const float utf8HalfW = r.measureTextWithFont(utf8, font).x * 0.5f;
+  const string utf8Trunc = truncateWithEllipsis(r, font, utf8, utf8HalfW);
+  assert(utf8Trunc.length >= 3 && utf8Trunc[$ - 3 .. $] == "...");
+  import std.utf : validate;
+  validate(utf8Trunc);
+  auto utf8Broken = wrapLine(r, font, "ПриветМирДлинноеСлово", utf8HalfW);
+  assert(utf8Broken.length >= 2);
+  foreach (part; utf8Broken) {
+    validate(part);
+  }
+
   // measureTextContentSize tests
   const PointF sizeSingle = measureTextContentSize(
-    r, font, "Hello World", false, false, 0.0f, 0.0f
+    r, font,
+    makeParams("Hello World", false, false, TextAlignment.left, 0.0f, 0.0f)
   );
   assert(sizeSingle.x == r.measureTextWithFont("Hello World", font).x);
   assert(sizeSingle.y == firstLineH);
 
   // measureTextContentSize with ellipsis
   const PointF sizeTrunc = measureTextContentSize(
-    r, font, "Long text that should overflow", false, true, fullW * 0.5f, 0.0f
+    r, font,
+    makeParams(
+      "Long text that should overflow", false, true,
+      TextAlignment.left, fullW * 0.5f, 0.0f
+    )
   );
   assert(sizeTrunc.x <= fullW * 0.5f);
   assert(sizeTrunc.y == firstLineH);
 
   // measureTextContentSize with multiline wrapping
   const PointF sizeMultiWrap = measureTextContentSize(
-    r, font, "Word one word two word three word four", true, true, wrapW, 0.0f
+    r, font,
+    makeParams(
+      "Word one word two word three word four", true, true,
+      TextAlignment.left, wrapW, 0.0f
+    )
   );
   assert(sizeMultiWrap.x <= wrapW);
   assert(sizeMultiWrap.y > firstLineH);

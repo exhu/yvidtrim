@@ -21,7 +21,7 @@ import std.array : Appender;
 import yguilib.render : Renderer;
 import yguilib.render.canvas.path2d : Path2d;
 import yguilib.render.font : Font;
-import yguilib.render.internal.text_cache : TextRun;
+import yguilib.render.internal.text_cache : RunGlyph, TextRun;
 import yguilib.render.canvas.types;
 import yguilib.render.internal.offscreen : SavedTargetState;
 import yguilib.render.internal.path_flatten : Contours;
@@ -335,7 +335,6 @@ final class Canvas {
     fStack.shrinkTo(n - 1);
     assert(st.clipCount <= fClips[].length);
     if (st.clipCount < fClips[].length) {
-      fRenderer.flush();
       fClipTris.shrinkTo(fClips[][st.clipCount].triStart);
       fClips.shrinkTo(st.clipCount);
       rebuildClip();
@@ -548,10 +547,11 @@ package(yguilib.render):
    * copied while it holds buffers (the copy would share them).
    */
   struct FrameState {
-    private State st;
-    private Appender!(State[]) stack;
-    private Appender!(ClipEntry[]) clips;
-    private Appender!(float[]) clipTris;
+  private:
+    State st;
+    Appender!(State[]) stack;
+    Appender!(ClipEntry[]) clips;
+    Appender!(float[]) clipTris;
   }
 
   /**
@@ -789,7 +789,7 @@ private:
   static GradientUniforms gradientUniforms(
     in FillStyle s,
     in Transform2d invXf
-  ) {
+  ) nothrow @safe @nogc {
     const bool linear = s.kind == FillStyle.Kind.linearGradient;
     GradientUniforms u;
     u.invXf = [invXf.a, invXf.b, 0, invXf.c, invXf.d, 0, invXf.e,
@@ -811,8 +811,11 @@ private:
     static assert(GradientUniforms.maxStops == maxGradientStops);
     foreach (i, ref stop; items) {
       u.stopOffsets[i] = stop.offset;
-      u.stopColors[i * 4 .. i * 4 + 4] = [stop.color.r, stop.color.g,
-        stop.color.b, stop.color.a];
+      const size_t base = i * 4;
+      u.stopColors[base + 0] = stop.color.r;
+      u.stopColors[base + 1] = stop.color.g;
+      u.stopColors[base + 2] = stop.color.b;
+      u.stopColors[base + 3] = stop.color.a;
     }
     u.stopCount = cast(int)items.length;
     return u;
@@ -978,18 +981,42 @@ private:
    * shadow alpha = shadow color alpha * image alpha * tint alpha.
    */
   void drawImageShadow(GLuint texId, float alpha) {
+    const pass = beginImageShadowPass();
+    if (pass.isNull) {
+      return;
+    }
+    drawImageShadowMask(texId, alpha, pass.get.box, pass.get.scale);
+    endShadowPass(pass.get);
+  }
+
+  /**
+   * Shadow of the `fImageVerts` glyph quads masked by `atlasTex` and
+   * painted with `paint` (solid color alpha or gradient/pattern alpha).
+   */
+  void drawTextShadow(GLuint atlasTex, in FillStyle paint) {
+    const pass = beginImageShadowPass();
+    if (pass.isNull) {
+      return;
+    }
+    const PixelBox b = pass.get.box;
+    const float scale = pass.get.scale;
+    if (paint.kind == FillStyle.Kind.color) {
+      drawImageShadowMask(atlasTex, paint.color.a, b, scale);
+    } else {
+      drawMaskedShadowMask(atlasTex, paint, b, scale);
+    }
+    endShadowPass(pass.get);
+  }
+
+  /// Copies `fImageVerts` xy into `fVerts` and begins a shadow pass.
+  auto beginImageShadowPass() {
     const(float)[] xyuv = fImageVerts[];
     fVerts.clear();
     for (size_t i = 0; i + 3 < xyuv.length; i += 4) {
       fVerts.put(xyuv[i]);
       fVerts.put(xyuv[i + 1]);
     }
-    const pass = beginShadowPass();
-    if (pass.isNull) {
-      return;
-    }
-    drawImageShadowMask(texId, alpha, pass.get.box, pass.get.scale);
-    endShadowPass(pass.get);
+    return beginShadowPass();
   }
 
   /**
@@ -1028,8 +1055,9 @@ private:
     const PixelBox b = box.get;
     OffscreenTarget* a = &fRenderer.offscreenTargetRef(0);
     OffscreenTarget* t = &fRenderer.offscreenTargetRef(1);
-    if (!a.ensureSize(b.width, b.height)
-      || (blur.sigma > 0 && !t.ensureSize(b.width, b.height))) {
+    const GLuint curFbo = fRenderer.currentFramebuffer();
+    if (!a.ensureSize(b.width, b.height, curFbo)
+      || (blur.sigma > 0 && !t.ensureSize(b.width, b.height, curFbo))) {
       return res;
     }
     fRenderer.flush();
@@ -1074,10 +1102,18 @@ private:
     const float vy0 = vis.y * scale - offY;
     const float vx1 = (vis.x + vis.width) * scale - offX;
     const float vy1 = (vis.y + vis.height) * scale - offY;
-    const float x0 = max(floor(r.x * scale), floor(vx0)) - pad;
-    const float y0 = max(floor(r.y * scale), floor(vy0)) - pad;
-    const float x1 = min(ceil((r.x + r.width) * scale), ceil(vx1)) + pad;
-    const float y1 = min(ceil((r.y + r.height) * scale), ceil(vy1)) + pad;
+    const float rx0 = r.x * scale;
+    const float ry0 = r.y * scale;
+    const float rx1 = (r.x + r.width) * scale;
+    const float ry1 = (r.y + r.height) * scale;
+    if (rx0 - pad >= vx1 || rx1 + pad <= vx0
+      || ry0 - pad >= vy1 || ry1 + pad <= vy0) {
+      return res;
+    }
+    const float x0 = max(floor(rx0), floor(vx0)) - pad;
+    const float y0 = max(floor(ry0), floor(vy0)) - pad;
+    const float x1 = min(ceil(rx1), ceil(vx1)) + pad;
+    const float y1 = min(ceil(ry1), ceil(vy1)) + pad;
     if (x1 > x0 && y1 > y0) {
       res = PixelBox(cast(int)x0, cast(int)y0, cast(int)(x1 - x0),
         cast(int)(y1 - y0));
@@ -1181,19 +1217,8 @@ private:
     }
   }
 
-  /**
-   * Draws the `fImageVerts` triangles shifted to the origin of box `b`
-   * into the bound offscreen region with blending disabled, writing the
-   * texture alpha * `alpha` (`TextureMode.alphaMask`).
-   */
-  void drawImageShadowMask(
-    GLuint texId,
-    float alpha,
-    in PixelBox b,
-    float scale
-  ) {
-    import glad2.gles2 : GL_BLEND, glDisable;
-
+  /// Shifts `fImageVerts` to the origin of box `b` into `fShadowVerts`.
+  void fillShadowVertsFromImageVerts(in PixelBox b, float scale) {
     const float ox = b.x / scale;
     const float oy = b.y / scale;
     const(float)[] xyuv = fImageVerts[];
@@ -1203,12 +1228,76 @@ private:
         xyuv[i + 3]];
       fShadowVerts.put(v[]);
     }
-    glDisable(GL_BLEND);
-    // the next draw re-enables blending via setupAlphaBlendState
+  }
+
+  /**
+   * Draws the `fImageVerts` triangles shifted to the origin of box `b`
+   * into the bound offscreen region with `GL_MAX` blending so overlapping
+   * glyph quads do not erase neighbor masks or double-darken alpha,
+   * writing the texture alpha * `alpha` (`TextureMode.alphaMask`).
+   */
+  void drawImageShadowMask(
+    GLuint texId,
+    float alpha,
+    in PixelBox b,
+    float scale
+  ) {
+    import glad2.gles2 : GL_BLEND, GL_FUNC_ADD, GL_MAX, glBlendEquation,
+      glEnable;
+
+    fillShadowVertsFromImageVerts(b, scale);
+    glEnable(GL_BLEND);
+    glBlendEquation(GL_MAX);
     fRenderer.texturePipelineRef().drawTexturedTrianglesWithCurrentState(
       texId, fShadowVerts[], ColorF(1, 1, 1, alpha), TextureMode.alphaMask,
       maskViewport(b, scale)
     );
+    glBlendEquation(GL_FUNC_ADD);
+  }
+
+  /**
+   * Draws `fImageVerts` shifted to the origin of box `b` using a
+   * glyph-masked gradient/pattern pass into the bound offscreen region
+   * with `GL_MAX` blending so stop/pattern alphas control shadow opacity.
+   */
+  void drawMaskedShadowMask(
+    GLuint maskTex,
+    in FillStyle style,
+    in PixelBox b,
+    float scale
+  ) {
+    import glad2.gles2 : GL_FUNC_ADD, GL_MAX, glBlendEquation;
+
+    fillShadowVertsFromImageVerts(b, scale);
+    const PointF origin = PointF(b.x / scale, b.y / scale);
+    const Viewport mask = maskViewport(b, scale);
+    glBlendEquation(GL_MAX);
+    final switch (style.kind) {
+    case FillStyle.Kind.color:
+      assert(false);
+    case FillStyle.Kind.linearGradient:
+    case FillStyle.Kind.radialGradient:
+      const Transform2d inv =
+        st.xf.inverse() * Transform2d.translation(origin);
+      GradientUniforms u = gradientUniforms(style, inv);
+      // the composite tints the mask RGB too: keep only the stop alphas
+      foreach (i; 0 .. u.stopCount) {
+        u.stopColors[i * 4 .. i * 4 + 3] = 1.0f;
+      }
+      fRenderer.gradientPipelineRef().drawMasked(
+        fShadowVerts[], maskTex, u, mask
+      );
+      break;
+    case FillStyle.Kind.pattern:
+      const PatternUniforms u = patternUniformsFor(
+        style, Transform2d.translation(origin), TextureMode.alphaMask
+      );
+      fRenderer.patternPipelineRef().drawMasked(
+        fShadowVerts[], maskTex, u, mask
+      );
+      break;
+    }
+    glBlendEquation(GL_FUNC_ADD);
   }
 
   /**
@@ -1354,6 +1443,33 @@ private:
     );
   }
 
+  /// Local logic rect and normalized atlas UV rect of one laid-out glyph.
+  struct GlyphQuadRect {
+    RectF dest;
+    RectF uv;
+  }
+
+  /// Computes the local quad rect and atlas UV rect for `g` under `p`.
+  static GlyphQuadRect glyphQuadRect(
+    in RunGlyph g,
+    in TextPlacement p
+  ) nothrow @safe @nogc {
+    return GlyphQuadRect(
+      RectF(
+        p.ox + g.dx / p.q * p.sx,
+        p.oy + g.dy / p.q,
+        g.dw / p.q * p.sx,
+        g.dh / p.q
+      ),
+      RectF(
+        (g.slot.x + g.srcX) * p.invAtlas,
+        (g.slot.y + g.srcY) * p.invAtlas,
+        g.srcW * p.invAtlas,
+        g.srcH * p.invAtlas
+      )
+    );
+  }
+
   /**
    * Queues transformed glyph quads of `run` painted with solid `color`
    * into the renderer's shared text batch.
@@ -1370,18 +1486,19 @@ private:
       if (g.slot.w <= 0) {
         continue;
       }
-      const float gx0 = p.ox + g.dx / p.q * p.sx;
-      const float gy0 = p.oy + g.dy / p.q;
-      const float gx1 = gx0 + g.dw / p.q * p.sx;
-      const float gy1 = gy0 + g.dh / p.q;
+      const GlyphQuadRect r = glyphQuadRect(g, p);
+      const float gx0 = r.dest.x;
+      const float gy0 = r.dest.y;
+      const float gx1 = gx0 + r.dest.width;
+      const float gy1 = gy0 + r.dest.height;
       const PointF p0 = st.xf.apply(PointF(gx0, gy0));
       const PointF p1 = st.xf.apply(PointF(gx1, gy0));
       const PointF p2 = st.xf.apply(PointF(gx0, gy1));
       const PointF p3 = st.xf.apply(PointF(gx1, gy1));
-      const float u0 = (g.slot.x + g.srcX) * p.invAtlas;
-      const float v0 = (g.slot.y + g.srcY) * p.invAtlas;
-      const float u1 = (g.slot.x + g.srcX + g.srcW) * p.invAtlas;
-      const float v1 = (g.slot.y + g.srcY + g.srcH) * p.invAtlas;
+      const float u0 = r.uv.x;
+      const float v0 = r.uv.y;
+      const float u1 = u0 + r.uv.width;
+      const float v1 = v0 + r.uv.height;
       const TextVertex[4] quad = [
         TextVertex(p0.x, p0.y, u0, v0, packed),
         TextVertex(p1.x, p1.y, u1, v0, packed),
@@ -1432,8 +1549,11 @@ private:
       return;
     }
     buildTextVerts(*run, p);
+    if (fImageVerts[].length == 0) {
+      return;
+    }
     if (st.shadow.isVisible()) {
-      drawImageShadow(atlasTex, solid ? paint.color.a : 1.0f);
+      drawTextShadow(atlasTex, paint);
     }
     if (solid) {
       queueTransformedTextRun(atlasTex, *run, p, paint.color);
@@ -1455,20 +1575,8 @@ private:
       if (g.slot.w <= 0) {
         continue;
       }
-      appendImageVerts(
-        RectF(
-          (g.slot.x + g.srcX) * p.invAtlas,
-          (g.slot.y + g.srcY) * p.invAtlas,
-          g.srcW * p.invAtlas,
-          g.srcH * p.invAtlas
-        ),
-        RectF(
-          p.ox + g.dx / p.q * p.sx,
-          p.oy + g.dy / p.q,
-          g.dw / p.q * p.sx,
-          g.dh / p.q
-        )
-      );
+      const GlyphQuadRect r = glyphQuadRect(g, p);
+      appendImageVerts(r.uv, r.dest);
     }
   }
 

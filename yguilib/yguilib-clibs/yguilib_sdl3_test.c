@@ -1,17 +1,102 @@
 #include "yguilib_sdl3.h"
+#include <SDL3/SDL.h>
 #include <assert.h>
 #include <stddef.h>
 #include <string.h>
 
-int main(void) {
-  assert(yguilib_sdl3_hello() == 0);
+_Static_assert(sizeof(yguilib_sdl3_Rect) == 16, "Rect size");
+_Static_assert(offsetof(yguilib_sdl3_Rect, h) == 12, "Rect.h offset");
+_Static_assert(sizeof(yguilib_sdl3_WindowEvent) == 20, "WindowEvent size");
+_Static_assert(
+  offsetof(yguilib_sdl3_WindowEvent, scale) == 16,
+  "WindowEvent.scale offset"
+);
+_Static_assert(
+  sizeof(yguilib_sdl3_MouseMotionEvent) == 28,
+  "MouseMotionEvent size"
+);
+_Static_assert(
+  offsetof(yguilib_sdl3_MouseMotionEvent, yrel) == 24,
+  "MouseMotionEvent.yrel offset"
+);
+_Static_assert(
+  sizeof(yguilib_sdl3_MouseButtonEvent) == 20,
+  "MouseButtonEvent size"
+);
+_Static_assert(
+  offsetof(yguilib_sdl3_MouseButtonEvent, padding) == 19,
+  "MouseButtonEvent.padding offset"
+);
+_Static_assert(
+  sizeof(yguilib_sdl3_MouseWheelEvent) == 36,
+  "MouseWheelEvent size"
+);
+_Static_assert(
+  offsetof(yguilib_sdl3_MouseWheelEvent, integer_y) == 32,
+  "MouseWheelEvent.integer_y offset"
+);
+_Static_assert(sizeof(yguilib_sdl3_KeyEvent) == 20, "KeyEvent size");
+_Static_assert(
+  offsetof(yguilib_sdl3_KeyEvent, padding) == 19,
+  "KeyEvent.padding offset"
+);
+_Static_assert(
+  sizeof(yguilib_sdl3_TextEditingEvent) == (sizeof(void *) == 8 ? 24 : 20),
+  "TextEditingEvent size"
+);
+_Static_assert(
+  offsetof(yguilib_sdl3_TextEditingEvent, text) == 8,
+  "TextEditingEvent.text offset"
+);
+_Static_assert(
+  sizeof(yguilib_sdl3_TextInputEvent) == (sizeof(void *) == 8 ? 16 : 12),
+  "TextInputEvent size"
+);
+_Static_assert(
+  offsetof(yguilib_sdl3_TextInputEvent, text) == 8,
+  "TextInputEvent.text offset"
+);
+_Static_assert(
+  sizeof(yguilib_sdl3_Event) == (sizeof(void *) == 8 ? 40 : 36),
+  "Event union size"
+);
 
+/* Boundary SDL3 enum checks matching sdl3.d. */
+_Static_assert(SDL_SCANCODE_UNKNOWN == 0, "Scancode.unknown");
+_Static_assert(SDL_SCANCODE_A == 4, "Scancode.a");
+_Static_assert(SDL_SCANCODE_RETURN == 40, "Scancode.return_");
+_Static_assert(SDL_SCANCODE_SPACE == 44, "Scancode.space");
+_Static_assert(SDL_SCANCODE_ENDCALL == 290, "Scancode.endcall");
+_Static_assert(SDL_SCANCODE_RESERVED == 400, "Scancode.reserved");
+_Static_assert(SDL_SCANCODE_COUNT == 512, "Scancode.count");
+
+_Static_assert(SDLK_UNKNOWN == 0, "Keycode.unknown");
+_Static_assert(SDLK_RETURN == 13, "Keycode.return_");
+_Static_assert(SDLK_ESCAPE == 27, "Keycode.escape");
+_Static_assert(SDLK_A == 'a', "Keycode.a");
+_Static_assert(SDLK_F1 == 0x4000003au, "Keycode.f1");
+_Static_assert(SDLK_ENDCALL == 0x40000122u, "Keycode.endcall");
+_Static_assert(SDLK_RHYPER == 0x20000007u, "Keycode.rhyper");
+
+_Static_assert(SDL_KMOD_NONE == 0x0000u, "Keymod.none");
+_Static_assert(SDL_KMOD_LSHIFT == 0x0001u, "Keymod.lshift");
+_Static_assert(SDL_KMOD_RSHIFT == 0x0002u, "Keymod.rshift");
+_Static_assert(SDL_KMOD_LCTRL == 0x0040u, "Keymod.lctrl");
+_Static_assert(SDL_KMOD_RCTRL == 0x0080u, "Keymod.rctrl");
+_Static_assert(SDL_KMOD_SCROLL == 0x8000u, "Keymod.scroll");
+_Static_assert(
+  SDL_KMOD_CTRL == (SDL_KMOD_LCTRL | SDL_KMOD_RCTRL),
+  "Keymod.ctrl"
+);
+_Static_assert(
+  SDL_KMOD_SHIFT == (SDL_KMOD_LSHIFT | SDL_KMOD_RSHIFT),
+  "Keymod.shift"
+);
+
+int main(void) {
   int init_res = yguilib_sdl3_init();
   assert(init_res == 0);
   assert(YGUILIB_SDL3_EVENT_WINDOW_EXPOSED > 0);
-
-  uint32_t wake_type = yguilib_sdl3_register_wake_event();
-  assert(wake_type > 0);
 
   yguilib_sdl3_Event ev;
   // Drain any startup device events (e.g. SDL_EVENT_MOUSE_ADDED).
@@ -63,7 +148,6 @@ int main(void) {
 
   float display_scale = yguilib_sdl3_get_window_display_scale(win);
   assert(display_scale > 0.0f);
-  assert(sizeof(yguilib_sdl3_Event) == 40);
   assert(YGUILIB_SDL3_EVENT_WINDOW_MOUSE_ENTER > 0);
   assert(YGUILIB_SDL3_EVENT_WINDOW_MOUSE_LEAVE > 0);
   assert(YGUILIB_SDL3_EVENT_MOUSE_WHEEL > 0);
@@ -96,22 +180,12 @@ int main(void) {
   yguilib_sdl3_gl_destroy_context(ctx);
   yguilib_sdl3_destroy_window(win);
 
-  uint32_t scancode_a = yguilib_sdl3_get_scancode_from_name("A");
-  assert(scancode_a == 4);
-
-  const char *scancode_name = yguilib_sdl3_get_scancode_name(4);
-  assert(scancode_name != NULL && strcmp(scancode_name, "A") == 0);
-
-  uint32_t key_a = yguilib_sdl3_get_key_from_scancode(4, 0, 0);
-  assert(key_a == 'a');
-
   const char *key_name = yguilib_sdl3_get_key_name('a');
   assert(key_name != NULL && strcmp(key_name, "A") == 0);
 
   uint32_t key_ret = yguilib_sdl3_get_key_from_name("Return");
   assert(key_ret == 13);
 
-  yguilib_sdl3_log("Testing yguilib_sdl3_log output");
   yguilib_sdl3_log_priority(
     YGUILIB_SDL3_LOG_PRIORITY_INFO,
     "Testing yguilib_sdl3_log_priority info"

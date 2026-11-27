@@ -55,7 +55,10 @@ private:
     }
 
     if (shouldUpdateWidgets) {
-      for (size_t i = 0; i < c.itemsCount; ++i) {
+      const size_t updateCount = c.itemsCount < w.children.length
+        ? c.itemsCount
+        : w.children.length;
+      for (size_t i = 0; i < updateCount; ++i) {
         c.provider.updateWidgetAt(w.children[i], i);
       }
       c.modelChanged = false;
@@ -64,10 +67,11 @@ private:
 }
 
 version (unittest) {
+private:
   import yguilib.render.render_types : RectF;
   import yguilib.widget.visible : VisibleWidget;
 
-  private final class MockWidgetArrayProvider : WidgetArrayProvider {
+  final class MockWidgetArrayProvider : WidgetArrayProvider {
     size_t addWidgetCalls;
     size_t updateWidgetCalls;
     size_t[] updatedIndices;
@@ -289,5 +293,34 @@ unittest {
   assert(cont2.children.length == 1);
   assert(prov2.addWidgetCalls == 1);
   assert(prov2.updateWidgetCalls == 1);
+}
+
+unittest {
+  // Verifies layoutDirty flags on DataSystem updates and bounds safety when
+  // provider.addWidget does not add a child.
+  final class NoOpAddProvider : WidgetArrayProvider {
+    size_t updateCalls = 0;
+    override void addWidget(Widget parent) {}
+    override void updateWidgetAt(Widget w, size_t index) {
+      updateCalls++;
+    }
+  }
+
+  auto ds = new DataSystem();
+  auto container = new Widget(1);
+  container.rect = RectF(0, 0, 100, 100);
+  container.layoutDirty = false;
+  auto comp = new WidgetArrayComponent();
+  auto noOpProv = new NoOpAddProvider();
+  comp.provider = noOpProv;
+  comp.itemsCount = 3;
+  container.components.widgetArray = comp;
+
+  WidgetSystemContext ctx;
+  ctx.visibleWidgets = [VisibleWidget(container, RectF(0, 0, 100, 100))];
+  ds.preLayout(ctx);
+  assert(container.children.length == 0);
+  assert(noOpProv.updateCalls == 0);
+  assert(container.layoutDirty);
 }
 

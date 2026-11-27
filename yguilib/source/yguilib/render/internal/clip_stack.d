@@ -48,6 +48,9 @@ struct ClipStack {
   }
 
   void reset() {
+    if (isEmpty()) {
+      return;
+    }
     stack.clear();
     glDisable(GL_SCISSOR_TEST);
   }
@@ -199,7 +202,13 @@ struct ClipStack {
     float scale
   ) nothrow @safe @nogc {
     import std.algorithm : max, min;
-    import std.math : ceil, floor;
+    import std.math : ceil, floor, isFinite;
+
+    if (!isFinite(rect.x) || !isFinite(rect.y)
+        || !isFinite(rect.width) || !isFinite(rect.height)
+        || !isFinite(scale)) {
+      return [0, 0, 0, 0];
+    }
 
     const float px = rect.x * scale;
     const float py = rect.y * scale;

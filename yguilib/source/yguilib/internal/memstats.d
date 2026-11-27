@@ -28,6 +28,7 @@ version (MemTelemetry) {
 
     /// Records creation of texture `id` or re-specification of its image.
     void onAlloc(uint id, int w, int h) {
+      assert(w >= 0 && h >= 0, "texture dimensions must be >= 0");
       if (auto p = id in live) {
         curBytes -= bytesOf(*p);
       }
@@ -59,6 +60,9 @@ version (MemTelemetry) {
     }
 
     static ulong bytesOf(Dim d) {
+      if (d.w <= 0 || d.h <= 0) {
+        return 0;
+      }
       return cast(ulong) d.w * d.h * 4;
     }
   }
@@ -68,9 +72,12 @@ version (MemTelemetry) {
     ulong maxGcUsed;
     ulong maxGcTotal;
     ulong maxCUsed;
+    long lastSampleNs = 0;
+    bool hasSampled = false;
 
     void sample() {
       import core.memory : GC;
+      import core.time : MonoTime, ticksToNSecs;
       const s = GC.stats();
       if (s.usedSize > maxGcUsed) {
         maxGcUsed = s.usedSize;
@@ -82,30 +89,19 @@ version (MemTelemetry) {
       if (c > maxCUsed) {
         maxCUsed = c;
       }
+      lastSampleNs = ticksToNSecs(MonoTime.currTime.ticks);
+      hasSampled = true;
     }
-  }
 
-  version (CRuntime_Glibc) {
-    private extern (C) {
-      struct MallInfo2 {
-        size_t arena, ordblks, smblks, hblks, hblkhd, usmblks, fsmblks;
-        size_t uordblks, fordblks, keepcost;
+    void sampleThrottled(long minIntervalNs) {
+      import core.time : MonoTime, ticksToNSecs;
+      const long nowNs = ticksToNSecs(MonoTime.currTime.ticks);
+      if (hasSampled && (nowNs - lastSampleNs) < minIntervalNs) {
+        return;
       }
-      MallInfo2 mallinfo2() nothrow @nogc;
-    }
-
-    private ulong cHeapUsed() {
-      const m = mallinfo2();
-      return m.uordblks + m.hblkhd;
-    }
-  } else {
-    private ulong cHeapUsed() {
-      return 0;
+      sample();
     }
   }
-
-  private __gshared TextureStats gTextures;
-  private __gshared HeapStats gHeap;
 
   void telemetryTextureAlloc(uint id, int w, int h) {
     gTextures.onAlloc(id, w, h);
@@ -116,7 +112,8 @@ version (MemTelemetry) {
   }
 
   void telemetrySampleHeap() {
-    gHeap.sample();
+    enum long heapSampleIntervalNs = 250_000_000L;
+    gHeap.sampleThrottled(heapSampleIntervalNs);
   }
 
   /// Logs the peaks collected so far at info level.
@@ -139,6 +136,31 @@ version (MemTelemetry) {
       formatBytes(gHeap.maxCUsed)
     );
   }
+
+private:
+  version (CRuntime_Glibc) {
+    extern (C) {
+      struct MallInfo2 {
+        size_t arena, ordblks, smblks, hblks, hblkhd, usmblks, fsmblks;
+        size_t uordblks, fordblks, keepcost;
+      }
+      MallInfo2 mallinfo2() nothrow @nogc;
+    }
+
+    ulong cHeapUsed() {
+      const m = mallinfo2();
+      return m.uordblks + m.hblkhd;
+    }
+  } else {
+    ulong cHeapUsed() {
+      return 0;
+    }
+  }
+
+  __gshared TextureStats gTextures;
+  __gshared HeapStats gHeap;
+
+package(yguilib):
 
   unittest {
     TextureStats t;

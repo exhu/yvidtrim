@@ -33,8 +33,8 @@ yvidtrim/
 │   ├── source/yguilib/
 │   │   ├── allochelpers.d # SmallBuffer, RingBuffer, ReusableArray containers
 │   │   ├── app.d          # Application wrapper running event loop
-│   │   ├── window.d       # Window, OpenGL context, display scaling
-│   │   ├── uisystem.d     # UiSystem, ControllerStack, EventControl interfaces
+│   │   ├── window.d       # Window (deterministic destroy()), GL, scaling
+│   │   ├── uisystem.d     # UiSystem, makeHeadlessUiSystem(), TimerControl
 │   │   ├── serhelpers.d, texthelpers.d # JSON reflection; byte formatting
 │   │   ├── model.d        # VersionedModel and ModelTracker state tracking
 │   │   ├── clibs/         # extern(C) D bindings for yguilib-clibs
@@ -51,7 +51,7 @@ yvidtrim/
 │   │   │   ├── tooltip.d             # Tooltip component, overlay & system
 │   │   │   └── virtlist.d            # Composite VirtList widget & view
 │   │   ├── events/        # AppEvent, builder, and thread-safe MessageBus
-│   │   ├── render/        # Hardware Renderer, FontManager, shader pipelines
+│   │   ├── render/        # Hardware Renderer, FontManager, package_test.d
 │   │   │   ├── canvas/    # Canvas, path2d, types, package_test (GL tests)
 │   │   │   ├── image.d, texture.d, render_target.d # Image/Texture/RenderTarget
 │   │   │   └── internal/  # pipelines, path_*, svg_path_parser,
@@ -103,7 +103,7 @@ yvidtrim/
   │
   ▼ (wait_event if idle, then drain SDL via poll_event -> MessageBus)
 Phase 1: UiSystemImpl.drainMessageBus()
-  │ (top-to-bottom through ControllerStack; bounded batch, no rendering)
+  │ (top-to-bottom through ControllerStack; UiSystemController at bottom)
   ├─► User Controllers (e.g. DemoController, MainController)
   │     └─► handleEvent() ──► collects dirtyViews & needModelUpdate
   │
@@ -120,7 +120,7 @@ Phase 1: UiSystemImpl.drainMessageBus()
 `UiSystemImpl`) driving every `ButtonComponent` widget made by `ButtonBuilder`:
 plain buttons, TabControl tabs/arrows and Scrollbar arrows.
 `ButtonTrigger.release` (default) or `.press` picks when `actionEvent` fires;
-`postLayout` sets normal/disabled colours from `inputEnabled` (assign it +
+`preLayout` sets normal/disabled colours from `inputEnabled` (assign it +
 `update(visuals)`). `ButtonRepeat` (press trigger) re-sends `actionEvent`
 while held: delay then interval timer, stopped on release/disable/hide.
 

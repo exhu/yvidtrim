@@ -37,6 +37,11 @@ struct ScaledFontKey {
   int scaleEighths;
 }
 
+struct CachedFont {
+  Font font;
+  ulong lastUse;
+}
+
 package(yguilib):
 
 /**
@@ -59,8 +64,8 @@ final class FontManager {
    * The `onFontDestroyed` callback runs for every destroyed font.
    */
   void destroy() {
-    foreach (font; cache) {
-      destroyFont(font);
+    foreach (entry; cache) {
+      destroyFont(entry.font);
     }
     cache.clear();
     destroyScaledFonts();
@@ -89,6 +94,7 @@ final class FontManager {
    */
   void registerFontFromMemory(string fontName, const(void)[] fontData) {
     assert(fontName.length > 0, "fontName must not be empty");
+    assert(fontName != "default", "fontName must not be \"default\"");
     assert(fontData.length > 0, "fontData must not be empty");
     dropFace(fontName);
     registry[fontName] = FontSource(
@@ -110,6 +116,7 @@ final class FontManager {
    */
   void registerFontFromFile(string fontName, string filePath) {
     assert(fontName.length > 0, "fontName must not be empty");
+    assert(fontName != "default", "fontName must not be \"default\"");
     assert(filePath.length > 0, "filePath must not be empty");
     dropFace(fontName);
     registry[fontName] = FontSource(
@@ -146,7 +153,7 @@ final class FontManager {
    * cache entries, so registering that name later takes effect.
    *
    * Non-positive, infinite, or NaN `ptSize` values automatically fall back
-   * to `defaultFontPtSize`.
+   * to `defaultFontPtSize`; sizes above `maxFontPtSize` are clamped.
    *
    * Params:
    *   ptSize = Logical point size in user space.
@@ -163,12 +170,16 @@ final class FontManager {
     const ResolvedFace face = resolveSource(fontName);
     const FontKey key = FontKey(face.name, sizeMilliOf(size));
     auto p = key in cache;
-    if (p !is null && *p !is null) {
-      return *p;
+    if (p !is null && p.font !is null) {
+      p.lastUse = ++fTick;
+      return p.font;
+    }
+    if (cache.length >= maxUnscaledFonts) {
+      evictOldestFromCache(cache, maxUnscaledFonts / 4);
     }
 
     Font font = openFont(face.source, size, totalScale);
-    cache[key] = font;
+    cache[key] = CachedFont(font, ++fTick);
     return font;
   }
 
@@ -191,15 +202,16 @@ final class FontManager {
     const ScaledFontKey key =
       ScaledFontKey(face.name, sizeMilliOf(size), eighths);
     auto p = key in scaledCache;
-    if (p !is null && *p !is null) {
-      return *p;
+    if (p !is null && p.font !is null) {
+      p.lastUse = ++fTick;
+      return p.font;
     }
     if (scaledCache.length >= maxScaledFonts) {
-      destroyScaledFonts();
+      evictOldestFromCache(scaledCache, maxScaledFonts / 4);
     }
 
     Font font = openFont(face.source, size, eighths / 8.0f);
-    scaledCache[key] = font;
+    scaledCache[key] = CachedFont(font, ++fTick);
     return font;
   }
 
@@ -213,34 +225,36 @@ final class FontManager {
    *   totalScale = New raster scaling multiplier.
    */
   void scaling(float totalScale) {
-    foreach (font; cache) {
-      if (font !is null) {
-        font.scale(totalScale);
+    foreach (entry; cache) {
+      if (entry.font !is null) {
+        entry.font.scale(totalScale);
       }
     }
   }
 
   version (unittest) {
     /// Number of cached fonts (both caches) for the resolved face `name`.
-    package(yguilib) size_t countForFace(string name) const {
+    size_t countForFace(string name) const {
       size_t n = 0;
-      foreach (key, font; cache) {
+      foreach (key, entry; cache) {
         n += key.faceName == name ? 1 : 0;
       }
-      foreach (key, font; scaledCache) {
+      foreach (key, entry; scaledCache) {
         n += key.faceName == name ? 1 : 0;
       }
       return n;
     }
 
     /// Number of fonts in the scaled cache.
-    package(yguilib) size_t scaledCount() const {
+    size_t scaledCount() const {
       return scaledCache.length;
     }
   }
 
 private:
+  enum size_t maxUnscaledFonts = 256;
   enum size_t maxScaledFonts = 64;
+  enum float maxFontPtSize = 4096.0f;
 
   /// Registered face name to look up, and its source.
   static struct ResolvedFace {
@@ -249,11 +263,31 @@ private:
   }
 
   static float sanitizeSize(float ptSize) {
-    return (isFinite(ptSize) && ptSize > 0.0f) ? ptSize : defaultFontPtSize;
+    if (!isFinite(ptSize) || ptSize <= 0.0f) {
+      return defaultFontPtSize;
+    }
+    return ptSize > maxFontPtSize ? maxFontPtSize : ptSize;
   }
 
   static int sizeMilliOf(float size) {
     return cast(int)(size * 1000.0f + 0.5f);
+  }
+
+  /**
+   * Raster scale in 1/8 steps, clamped to [1/8, 16] and so that the pixel
+   * size `ptSize * scale` stays at most 1024.
+   */
+  static int quantizeScaleEighths(float scale, float ptSize)
+    nothrow @safe @nogc pure {
+    import std.algorithm.comparison : max, min;
+    import std.math : round;
+
+    const float s = min(
+      (isFinite(scale) && scale > 0.0f) ? scale : 1.0f,
+      16.0f,
+      1024.0f / ptSize
+    );
+    return max(1, cast(int)round(s * 8.0f));
   }
 
   /**
@@ -297,57 +331,62 @@ private:
   }
 
   void destroyScaledFonts() {
-    foreach (font; scaledCache) {
-      destroyFont(font);
+    foreach (entry; scaledCache) {
+      destroyFont(entry.font);
     }
     scaledCache.clear();
+  }
+
+  void evictOldestFromCache(K)(ref CachedFont[K] map, size_t count) {
+    import std.algorithm.comparison : min;
+    import std.algorithm.sorting : sort;
+
+    static struct Candidate {
+      ulong lastUse;
+      K key;
+    }
+    Candidate[] cands;
+    cands.reserve(map.length);
+    foreach (key, entry; map) {
+      cands ~= Candidate(entry.lastUse, key);
+    }
+    sort!((a, b) => a.lastUse < b.lastUse)(cands);
+    const size_t n = min(count, cands.length);
+    foreach (ref c; cands[0 .. n]) {
+      destroyFont(map[c.key].font);
+      map.remove(c.key);
+    }
   }
 
   /// Destroys and removes every cached font of the face `faceName`.
   void dropFace(string faceName) {
     FontKey[] keys;
-    foreach (key, font; cache) {
+    foreach (key, entry; cache) {
       if (key.faceName == faceName) {
         keys ~= key;
       }
     }
     foreach (key; keys) {
-      destroyFont(cache[key]);
+      destroyFont(cache[key].font);
       cache.remove(key);
     }
     ScaledFontKey[] scaledKeys;
-    foreach (key, font; scaledCache) {
+    foreach (key, entry; scaledCache) {
       if (key.faceName == faceName) {
         scaledKeys ~= key;
       }
     }
     foreach (key; scaledKeys) {
-      destroyFont(scaledCache[key]);
+      destroyFont(scaledCache[key].font);
       scaledCache.remove(key);
     }
   }
 
   FontSource[string] registry;
-  Font[FontKey] cache;
-  Font[ScaledFontKey] scaledCache;
+  CachedFont[FontKey] cache;
+  CachedFont[ScaledFontKey] scaledCache;
+  ulong fTick;
   void delegate(ulong fontId) fOnFontDestroyed;
-}
-
-/**
- * Raster scale in 1/8 steps, clamped to [1/8, 16] and so that the pixel
- * size `ptSize * scale` stays at most 1024.
- */
-int quantizeScaleEighths(float scale, float ptSize)
-  nothrow @safe @nogc pure {
-  import std.algorithm.comparison : max, min;
-  import std.math : isFinite, round;
-
-  const float s = min(
-    (isFinite(scale) && scale > 0.0f) ? scale : 1.0f,
-    16.0f,
-    1024.0f / ptSize
-  );
-  return max(1, cast(int)round(s * 8.0f));
 }
 
 unittest {
@@ -391,10 +430,51 @@ unittest {
   assert(fm.fontAtScale(10.0f, null, 2.0f) !is s15);
   fm.scaling(3.0f);
   assert(s15.scaledSize == 15.0f);
-  assert(quantizeScaleEighths(float.nan, 10.0f) == 8);
-  assert(quantizeScaleEighths(0.0f, 10.0f) == 8);
-  assert(quantizeScaleEighths(100.0f, 10.0f) == 128);
-  assert(quantizeScaleEighths(1e-6f, 10.0f) == 1);
+  assert(FontManager.quantizeScaleEighths(float.nan, 10.0f) == 8);
+  assert(FontManager.quantizeScaleEighths(0.0f, 10.0f) == 8);
+  assert(FontManager.quantizeScaleEighths(100.0f, 10.0f) == 128);
+  assert(FontManager.quantizeScaleEighths(1e-6f, 10.0f) == 1);
+  // 1024 px cap: 512 * 2 = 1024 (16 eighths); 2048 * 0.5 = 1024 (4 eighths).
+  assert(FontManager.quantizeScaleEighths(10.0f, 512.0f) == 16);
+  assert(FontManager.quantizeScaleEighths(10.0f, 2048.0f) == 4);
+  assert(fm.fontWithSize(1e10f, null, 1.0f).size == 4096.0f);
+
+  // hasFont checks default, registered, and unregistered names.
+  assert(fm.hasFont(""));
+  assert(fm.hasFont("default"));
+  assert(!fm.hasFont("MissingFace"));
+  fm.registerFontFromMemory(
+    "CustomFace", cast(const(void)[])defaultTtfFontData
+  );
+  assert(fm.hasFont("CustomFace"));
+}
+
+// scaledCache partial eviction preserves recent fonts and fires callbacks.
+unittest {
+  import yguilib.clibs.sdl3;
+
+  yguilib_sdl3_init();
+  scope(exit) yguilib_sdl3_quit();
+
+  auto fm = new FontManager();
+  scope(exit) fm.destroy();
+  ulong[] destroyed;
+  fm.onFontDestroyed((ulong id) { destroyed ~= id; });
+
+  Font first = fm.fontAtScale(8.0f, null, 1.0f);
+  foreach (i; 1 .. 64) {
+    assert(fm.fontAtScale(8.0f + i * 0.5f, null, 1.0f) !is null);
+  }
+  assert(fm.scaledCount() == 64);
+  assert(destroyed.length == 0);
+
+  // Adding a 65th scaled font evicts an oldest subset (16), not all 64.
+  Font newest = fm.fontAtScale(50.0f, null, 1.0f);
+  assert(newest !is null);
+  assert(destroyed.length == 16);
+  assert(fm.scaledCount() == 64 - 16 + 1);
+  assert(first.id == invalidFontId);
+  assert(newest.id != invalidFontId);
 }
 
 // Registration invalidates cached fonts of that face (review 2.2).

@@ -2,25 +2,16 @@ module yguilib.widget.internal.widget_painter;
 
 package(yguilib):
 
-import std.array : Appender;
-import std.math : isFinite;
 import yguilib.render : Renderer;
-import yguilib.render.font : Font, defaultFontPtSize;
-import yguilib.render.render_types : DashPattern, PointF, RectF,
-  intersectRects;
+import yguilib.render.font : Font;
+import yguilib.render.render_types : DashPattern, PointF, RectF;
 import yguilib.widget.drawing_components : Background, Border, TextLabel;
 import yguilib.widget : Widget;
 import yguilib.widget.system : SystemPhase, WidgetSystem,
   WidgetSystemContext;
 import yguilib.widget.visible : VisibleWidgets;
 import yguilib.widget.internal.layout_text : lineStepFromFont;
-import yguilib.widget.internal.text_label_cache : layoutLines;
-
-interface CustomWidgetPainter {
-  void drawBackground(Widget w, in RectF absRect, Renderer r);
-  void drawContent(Widget w, in RectF absContentRect, Renderer r);
-  void drawBorder(Widget w, in RectF absRect, Renderer r);
-}
+import yguilib.widget.internal.text_label_cache : layoutLines, TextLayoutKey;
 
 /**
  * System responsible for rendering visible widgets.
@@ -33,10 +24,12 @@ interface CustomWidgetPainter {
  * Widget.rect is parent-relative; the absolute screen rect is resolved by
  * collectVisible and passed to drawWidgets via VisibleWidget.absRect.
  */
-/// TODO support CustomWidgetPainter
 final class WidgetPainterSystem : WidgetSystem {
   this() nothrow @safe {
-    priority(painterSystemPriority);
+  }
+
+  override @property int priority() const nothrow @safe {
+    return painterSystemPriority;
   }
 
   override @property SystemPhase phases() const nothrow @safe {
@@ -93,8 +86,6 @@ private:
       drawBackground(w, absRect, r);
     }
 
-    // TODO CustomWidgetPainter.drawBackground
-
     const RectF contentArea = w.contentArea();
     const RectF absContentRect = RectF(
       absRect.x + contentArea.x,
@@ -106,22 +97,20 @@ private:
     if (w.clipContents) {
       r.pushClipRect(absContentRect);
     }
+    scope(exit) {
+      if (w.clipContents) {
+        r.popClipRect();
+      }
+    }
 
     if (w.components.textLabel !is null) {
       drawTextLabel(w, absContentRect, r);
     }
-    // TODO CustomWidgetPainter.drawContent
     drawCustom(w, absContentRect, r);
-
-    if (w.clipContents) {
-      r.popClipRect();
-    }
 
     if (w.components.border !is null) {
       drawBorder(w, absRect, r);
     }
-
-    // TODO CustomWidgetPainter.drawBorder
   }
 
   /**
@@ -140,9 +129,9 @@ private:
       return;
     }
     c.save();
+    scope(exit) c.restore();
     c.translate(PointF(absContentRect.x, absContentRect.y));
     cd.drawFunc(r, w);
-    c.restore();
   }
 
   static void drawBackground(Widget w, in RectF absRect, Renderer r) {
@@ -188,16 +177,23 @@ private:
     if (comp is null || comp.caption.length == 0 || r is null) {
       return;
     }
+    if (absContentRect.width <= 0.0f || absContentRect.height <= 0.0f) {
+      return;
+    }
     Font font = r.font(comp.fontSize, comp.font);
     if (font is null) {
       return;
     }
 
-    auto lines = layoutLines(
-      comp.layoutCache, r, font, comp.font,
-      comp.caption, comp.multiline, comp.overflowEllipsis,
-      comp.alignment, absContentRect.width, absContentRect.height
-    );
+    TextLayoutKey key;
+    key.withSize(absContentRect.width, absContentRect.height)
+      .withCaption(comp.caption)
+      .withFont(font)
+      .withMultiline(comp.multiline)
+      .withEllipsis(comp.overflowEllipsis)
+      .withAlignment(comp.alignment);
+
+    auto lines = layoutLines(comp.layoutCache, r, font, key);
 
     const float lineStep = lineStepFromFont(r, font);
 
@@ -398,4 +394,53 @@ unittest {
   painter.drawTree(clippedWidgets, renderer);
   assert(renderer.textBatchStats().flushes == 1);
   assert(renderer.textBatchStats().flushedQuads > 0);
+
+  // Rounded background and border styles (round, dashed, roundDashed)
+  auto styledW = new Widget(20);
+  styledW.rect = RectF(0, 0, 80, 40);
+  styledW.components.background = Background.round(ColorF(0.2f, 0.3f, 0.4f, 1),
+    6.0f);
+  styledW.components.border = Border.roundDashed(ColorF(1, 1, 1, 1), 6.0f,
+    2.0f);
+  painter.drawTree(
+    collector.collectVisibleWithViewport(styledW, 320.0f, 240.0f, false),
+    renderer
+  );
+  styledW.components.border = Border.dashed(ColorF(1, 1, 1, 1), 1.5f, 4.0f,
+    2.0f);
+  painter.drawTree(
+    collector.collectVisibleWithViewport(styledW, 320.0f, 240.0f, false),
+    renderer
+  );
+
+  // Zero-sized absContentRect skips drawTextLabel safely
+  auto zeroContentW = new Widget(21);
+  zeroContentW.rect = RectF(0, 0, 0, 0);
+  zeroContentW.components.textLabel = new TextLabel("Hidden", ColorF(1, 1, 1,
+    1));
+  painter.drawTree(
+    collector.collectVisibleWithViewport(zeroContentW, 320.0f, 240.0f, false),
+    renderer
+  );
+
+  // Exception in CustomDraw restores Canvas state and Renderer clip stack
+  auto throwW = new Widget(22);
+  throwW.rect = RectF(10, 10, 50, 50);
+  throwW.clipContents = true;
+  auto throwCd = new CustomDraw();
+  throwCd.drawFunc = (Renderer rr, in Widget ww) {
+    throw new Exception("custom draw failure");
+  };
+  throwW.components.customDraw = throwCd;
+  bool caught = false;
+  try {
+    painter.drawTree(
+      collector.collectVisibleWithViewport(throwW, 320.0f, 240.0f, false),
+      renderer
+    );
+  } catch (Exception) {
+    caught = true;
+  }
+  assert(caught);
+  assert(renderer.canvas().transform().isIdentity());
 }

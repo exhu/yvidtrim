@@ -134,6 +134,9 @@ struct DashPhase {
     if (phase < 0) {
       phase += period;
     }
+    if (phase >= period) {
+      phase = 0;
+    }
     size_t idx = 0;
     while (phase >= seg(idx) && phase > 0) {
       phase -= seg(idx);

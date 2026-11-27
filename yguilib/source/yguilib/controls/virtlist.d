@@ -4,6 +4,7 @@
  */
 module yguilib.controls.virtlist;
 
+import std.algorithm.comparison : clamp, max, min;
 import std.math.rounding : round;
 import std.typecons : Nullable;
 import yguilib.controller : HandleResult;
@@ -15,7 +16,7 @@ import yguilib.controls.composite_view : bindCompositeModel,
   assignBuilderTracker, updateCompositeEntries;
 import yguilib.controls.internal.axis : Axis;
 import yguilib.controls.scrollbars : ScrollbarBuilder, ScrollbarModel,
-  ScrollbarStyle;
+  ScrollbarStyle, ScrollbarWidgetView, scrollbarWidgetViewName;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker, VersionedModel;
 import yguilib.render.render_types : ColorF, RectF;
@@ -73,15 +74,16 @@ final class VirtListModel : VersionedModel {
   this() {
   }
 
-  /// Constructs a `VirtListModel` with `initialItemsCount` items.
-  this(size_t initialItemsCount) {
-    this.itemsCount = initialItemsCount;
+  /// Returns a `VirtListModel` initialized with `initialItemsCount` items.
+  static VirtListModel withCount(size_t initialItemsCount) {
+    auto m = new VirtListModel();
+    m.itemsCount = initialItemsCount;
+    return m;
   }
 
   /// Inserts `count` items at `index` (clamped to `itemsCount`) and records an
   /// incremental insert change.
   void insertItems(size_t index, size_t count) {
-    import std.algorithm.comparison : min;
     if (count == 0) {
       return;
     }
@@ -95,7 +97,6 @@ final class VirtListModel : VersionedModel {
   /// Removes up to `count` items starting at `index` and records an
   /// incremental remove change.
   void removeItems(size_t index, size_t count) {
-    import std.algorithm.comparison : min;
     if (count == 0 || index >= itemsCount) {
       return;
     }
@@ -109,7 +110,6 @@ final class VirtListModel : VersionedModel {
   /// Marks up to `count` existing items starting at `index` dirty for re-bind
   /// and dynamic re-measurement.
   void updateItems(size_t index, size_t count) {
-    import std.algorithm.comparison : min;
     if (count == 0 || index >= itemsCount) {
       return;
     }
@@ -126,11 +126,19 @@ final class VirtListModel : VersionedModel {
 
   /// Requests scrolling so `index` becomes the first visible item.
   void requestScrollToIndex(size_t index) {
-    hasPendingScrollIndex = true;
+    fHasPendingScrollIndex = true;
     pendingScrollIndex = index;
   }
 
 package(yguilib):
+  bool hasPendingChanges() const nothrow @safe @nogc {
+    return pendingChanges.length > 0;
+  }
+
+  bool hasPendingScrollIndex() const nothrow @safe @nogc {
+    return fHasPendingScrollIndex;
+  }
+
   VirtListChange[] takePendingChanges() {
     VirtListChange[] res = pendingChanges;
     pendingChanges = null;
@@ -138,17 +146,17 @@ package(yguilib):
   }
 
   Nullable!size_t takePendingScrollIndex() {
-    if (!hasPendingScrollIndex) {
+    if (!fHasPendingScrollIndex) {
       return Nullable!size_t.init;
     }
     const size_t index = pendingScrollIndex;
-    hasPendingScrollIndex = false;
+    fHasPendingScrollIndex = false;
     return Nullable!size_t(index);
   }
 
 private:
   VirtListChange[] pendingChanges;
-  bool hasPendingScrollIndex = false;
+  bool fHasPendingScrollIndex = false;
   size_t pendingScrollIndex = 0;
 }
 
@@ -167,8 +175,62 @@ struct VirtListStyle {
   ScrollbarStyle scrollbarStyle;
 }
 
+/// Main and cross scrollbar trackers passed when registering a `VirtList`.
+struct VirtListScrollTrackers {
+  ModelTracker!ScrollbarModel main;
+  ModelTracker!ScrollbarModel cross;
+}
+
+/// Parameters for registering a constructed `VirtList` with
+/// `VirtListWidgetView`. `mainScrollbar`, `crossScrollbar`, and `cornerBox`
+/// may be null in minimal test configurations.
+struct VirtListRegistration {
+  Widget viewport = null;
+  Widget mainScrollbar = null;
+  Widget crossScrollbar = null;
+  Widget cornerBox = null;
+  FlexDirection direction = FlexDirection.column;
+  string eventName = defaultVirtListEventName;
+
+  /// Sets the viewport widget.
+  ref VirtListRegistration withViewport(Widget vp) return {
+    viewport = vp;
+    return this;
+  }
+
+  /// Sets the main-axis scrollbar widget.
+  ref VirtListRegistration withMainScrollbar(Widget sb) return {
+    mainScrollbar = sb;
+    return this;
+  }
+
+  /// Sets the cross-axis scrollbar widget.
+  ref VirtListRegistration withCrossScrollbar(Widget sb) return {
+    crossScrollbar = sb;
+    return this;
+  }
+
+  /// Sets the corner box widget.
+  ref VirtListRegistration withCornerBox(Widget cb) return {
+    cornerBox = cb;
+    return this;
+  }
+
+  /// Sets the main-axis layout direction.
+  ref VirtListRegistration withDirection(FlexDirection dir) return {
+    direction = dir;
+    return this;
+  }
+
+  /// Sets the emitted position-change event name.
+  ref VirtListRegistration withEventName(string name) return {
+    eventName = name;
+    return this;
+  }
+}
+
 /// Internal bookkeeping entry tracking one composite `VirtList` instance.
-final class VirtListEntry {
+private final class VirtListEntry {
   ModelTracker!VirtListModel tracker;
   ModelTracker!ScrollbarModel mainScrollTracker;
   ModelTracker!ScrollbarModel crossScrollTracker;
@@ -202,32 +264,24 @@ final class VirtListEntry {
  */
 final class VirtListWidgetView : WidgetViewBase {
   /// Registers a fully constructed `VirtList` composite and its subparts.
-  /// `mainScrollbar`, `crossScrollbar`, and `cornerBox` are allowed to be null
-  /// in minimal test configurations.
   void registerVirtList(
     Widget viewWidget,
     ref ModelTracker!VirtListModel tracker,
-    ref ModelTracker!ScrollbarModel mainScrollTracker,
-    ref ModelTracker!ScrollbarModel crossScrollTracker,
-    Widget viewport,
-    Widget mainScrollbar,
-    Widget crossScrollbar,
-    Widget cornerBox,
-    FlexDirection direction,
-    string eventName
+    ref VirtListScrollTrackers scrollTrackers,
+    in VirtListRegistration reg
   ) {
     assert(viewWidget !is null, "viewWidget must not be null");
     ensureViewWidgetRegistered(this, viewWidget);
     removeScrollbarMappings(viewWidget);
     auto entry = new VirtListEntry(
-      tracker, mainScrollTracker, crossScrollTracker
+      tracker, scrollTrackers.main, scrollTrackers.cross
     );
-    entry.viewport = viewport;
-    entry.mainScrollbar = mainScrollbar;
-    entry.crossScrollbar = crossScrollbar;
-    entry.cornerBox = cornerBox;
-    entry.direction = direction;
-    entry.eventName = orDefault(eventName, defaultVirtListEventName);
+    entry.viewport = cast(Widget) reg.viewport;
+    entry.mainScrollbar = cast(Widget) reg.mainScrollbar;
+    entry.crossScrollbar = cast(Widget) reg.crossScrollbar;
+    entry.cornerBox = cast(Widget) reg.cornerBox;
+    entry.direction = reg.direction;
+    entry.eventName = orDefault(reg.eventName, defaultVirtListEventName);
     entries[viewWidget] = entry;
     addScrollbarMappings(viewWidget, entry);
     syncModelToViewport(entry);
@@ -347,6 +401,9 @@ final class VirtListWidgetView : WidgetViewBase {
     });
   }
 
+package(yguilib):
+  UiRegistry registry = null;
+
 private:
   struct VirtListParts {
     Widget viewport;
@@ -404,11 +461,25 @@ private:
     auto parts = findVirtListParts(viewWidget);
     auto mainTracker = ModelTracker!ScrollbarModel(new ScrollbarModel());
     auto crossTracker = ModelTracker!ScrollbarModel(new ScrollbarModel());
-    registerVirtList(
-      viewWidget, tracker, mainTracker, crossTracker,
-      parts.viewport, parts.mainScrollbar, parts.crossScrollbar,
-      parts.cornerBox, parts.dir, defaultVirtListEventName
-    );
+    if (auto sbv = findWidgetView!ScrollbarWidgetView(
+        registry, scrollbarWidgetViewName
+      )) {
+      if (parts.mainScrollbar !is null) {
+        sbv.bindModel(parts.mainScrollbar, mainTracker);
+      }
+      if (parts.crossScrollbar !is null) {
+        sbv.bindModel(parts.crossScrollbar, crossTracker);
+      }
+    }
+    auto scrollTrackers = VirtListScrollTrackers(mainTracker, crossTracker);
+    auto reg = VirtListRegistration()
+      .withViewport(parts.viewport)
+      .withMainScrollbar(parts.mainScrollbar)
+      .withCrossScrollbar(parts.crossScrollbar)
+      .withCornerBox(parts.cornerBox)
+      .withDirection(parts.dir)
+      .withEventName(defaultVirtListEventName);
+    registerVirtList(viewWidget, tracker, scrollTrackers, reg);
   }
 
   static float defaultItemMainSize(VirtListEntry entry) {
@@ -426,7 +497,6 @@ private:
     float offset,
     float stepFloat
   ) {
-    import std.algorithm.comparison : clamp, max;
     const long newMax = max(
       0L, cast(long) round(contentExtent - viewportExtent)
     );
@@ -476,20 +546,30 @@ private:
       return false;
     }
     auto vc = entry.viewport.components.virtList;
-    auto mutModel = cast(VirtListModel) entry.tracker.model;
-    VirtListChange[] changes = mutModel.takePendingChanges();
-    const auto scrollIdx = mutModel.takePendingScrollIndex();
-    const bool countChanged = (vc.itemsCount != mutModel.itemsCount);
+    const auto m = entry.tracker.model;
+    const bool hasChanges = m.hasPendingChanges();
+    const bool hasScroll = m.hasPendingScrollIndex();
+    const size_t targetCount = m.itemsCount;
+    const bool countChanged = (vc.itemsCount != targetCount);
+    if (!hasChanges && !hasScroll && !countChanged) {
+      return false;
+    }
 
-    applyChangesToComponent(vc, changes, mutModel.itemsCount, countChanged);
+    VirtListChange[] changes = null;
+    Nullable!size_t scrollIdx;
+    if (hasChanges || hasScroll) {
+      auto mutModel = entry.tracker.edit();
+      changes = mutModel.takePendingChanges();
+      scrollIdx = mutModel.takePendingScrollIndex();
+      entry.tracker.commit(mutModel);
+    }
+
+    applyChangesToComponent(vc, changes, targetCount, countChanged);
     if (!scrollIdx.isNull) {
       vc.scrollToIndex(scrollIdx.get());
     }
-    if (changes.length > 0 || countChanged || !scrollIdx.isNull) {
-      entry.viewport.update(WidgetUpdateScope.layout);
-      return true;
-    }
-    return false;
+    entry.viewport.update(WidgetUpdateScope.layout);
+    return true;
   }
 
   static void applyChangesToComponent(
@@ -529,7 +609,7 @@ private:
     Widget rightBar = (topRow.children.length >= 2)
       ? topRow.children[1]
       : null;
-    Widget leftBar = (bottomRow.children.length >= 2)
+    Widget bottomBar = (bottomRow.children.length >= 1)
       ? bottomRow.children[0]
       : null;
     parts.viewport = (topRow.children.length >= 1) ? topRow.children[0] : null;
@@ -541,9 +621,9 @@ private:
       parts.dir = parts.viewport.components.virtList.direction;
     }
     parts.mainScrollbar =
-      (parts.dir == FlexDirection.column) ? rightBar : leftBar;
+      (parts.dir == FlexDirection.column) ? rightBar : bottomBar;
     parts.crossScrollbar =
-      (parts.dir == FlexDirection.column) ? leftBar : rightBar;
+      (parts.dir == FlexDirection.column) ? bottomBar : rightBar;
     return parts;
   }
 }
@@ -729,7 +809,7 @@ struct VirtListBuilder {
 
     const string rootName = orDefault(widgetName, "virtList");
     const string targetEvent = orDefault(eventName, defaultVirtListEventName);
-    const string[string] renameMap = [
+    string[string] renameMap = [
       virtListMetricsChangedEvent: virtListMetricsChangedEvent,
       virtListMainScrollEvent: virtListMainScrollEvent,
       virtListCrossScrollEvent: virtListCrossScrollEvent,
@@ -743,37 +823,58 @@ struct VirtListBuilder {
       .gap(cfg.scrollbarGap)
       .justify(JustifyContent.start)
       .alignItems(AlignItems.stretch)
-      .viewEvents(renameMap.dup)
+      .viewEvents(renameMap)
       .viewName(virtListWidgetViewName)
       .build();
 
-    buildAndRegisterParts(ui, registry, root, rootName, rect, targetEvent);
+    buildAndRegisterParts(BuildPartsParams(
+      ui, registry, root, rootName, rect, targetEvent
+    ));
     return root;
   }
 
 private:
+  struct BuildPartsParams {
+    UiSystem ui;
+    UiRegistry registry;
+    Widget root;
+    string rootName;
+    RectF rect;
+    string targetEvent;
+  }
+
+  struct RowSpec {
+    string suffix;
+    float width;
+    float height;
+    float gap;
+    bool fixedHeightMode = false;
+  }
+
+  struct ScrollbarSpec {
+    string name;
+    FlexDirection dir;
+    float thickness;
+    float mainLen;
+    string eventName;
+  }
+
   float effItemSize() const {
     return (customDefaultItemSize > 0.0f)
       ? customDefaultItemSize
       : cfg.defaultItemMainSize;
   }
 
-  void buildAndRegisterParts(
-    UiSystem ui,
-    UiRegistry registry,
-    Widget root,
-    string rootName,
-    RectF rect,
-    string targetEvent
-  ) {
-    import std.algorithm.comparison : max;
+  void buildAndRegisterParts(BuildPartsParams p) {
     const float thickness = max(4.0f, cfg.scrollbarThickness);
     const float sbGap = max(0.0f, cfg.scrollbarGap);
-    const float topH = max(1.0f, rect.height - thickness - sbGap);
-    const float vpW = max(1.0f, rect.width - thickness - sbGap);
+    const float topH = max(1.0f, p.rect.height - thickness - sbGap);
+    const float vpW = max(1.0f, p.rect.width - thickness - sbGap);
 
-    Widget topRow = buildTopRow(ui, root, rootName, rect.width, topH, sbGap);
-    Widget viewport = buildViewport(ui, topRow, rootName, vpW, topH);
+    Widget topRow = buildRow(p.ui, p.root, p.rootName, RowSpec(
+      "TopRow", p.rect.width, topH, sbGap, false
+    ));
+    Widget viewport = buildViewport(p.ui, topRow, p.rootName, vpW, topH);
 
     const long mainStep = max(1L, cast(long) round(effItemSize()));
     auto mainTracker = makeScrollTracker(mainStep);
@@ -781,49 +882,58 @@ private:
     const bool isColumn = (listDirection == FlexDirection.column);
 
     Widget rightBar = buildScrollbar(
-      ui, registry, topRow, rootName ~ "VScroll",
-      FlexDirection.column, thickness, topH,
+      p.ui, p.registry, topRow,
       isColumn ? mainTracker : crossTracker,
-      isColumn ? virtListMainScrollEvent : virtListCrossScrollEvent
+      ScrollbarSpec(
+        p.rootName ~ "VScroll", FlexDirection.column, thickness, topH,
+        isColumn ? virtListMainScrollEvent : virtListCrossScrollEvent
+      )
     );
-    Widget bottomRow = buildBottomRow(
-      ui, root, rootName, rect.width, thickness, sbGap
-    );
+    Widget bottomRow = buildRow(p.ui, p.root, p.rootName, RowSpec(
+      "BottomRow", p.rect.width, thickness, sbGap, true
+    ));
     Widget bottomBar = buildScrollbar(
-      ui, registry, bottomRow, rootName ~ "HScroll",
-      FlexDirection.row, thickness, vpW,
+      p.ui, p.registry, bottomRow,
       isColumn ? crossTracker : mainTracker,
-      isColumn ? virtListCrossScrollEvent : virtListMainScrollEvent
+      ScrollbarSpec(
+        p.rootName ~ "HScroll", FlexDirection.row, thickness, vpW,
+        isColumn ? virtListCrossScrollEvent : virtListMainScrollEvent
+      )
     );
-    Widget cornerBox = buildCornerBox(ui, bottomRow, rootName, thickness);
+    Widget cornerBox = buildCornerBox(p.ui, bottomRow, p.rootName, thickness);
 
-    root.update(WidgetUpdateScope.parentView);
-    Widget mainSb = isColumn ? rightBar : bottomBar;
-    Widget crossSb = isColumn ? bottomBar : rightBar;
-    registerBuiltVirtList(
-      registry, root, mainTracker, crossTracker,
-      viewport, mainSb, crossSb, cornerBox, targetEvent
-    );
+    p.root.update(WidgetUpdateScope.parentView);
+    auto scrollTrackers = VirtListScrollTrackers(mainTracker, crossTracker);
+    auto reg = VirtListRegistration()
+      .withViewport(viewport)
+      .withMainScrollbar(isColumn ? rightBar : bottomBar)
+      .withCrossScrollbar(isColumn ? bottomBar : rightBar)
+      .withCornerBox(cornerBox)
+      .withDirection(listDirection)
+      .withEventName(p.targetEvent);
+    registerBuiltVirtList(p.registry, p.root, scrollTrackers, reg);
   }
 
-  Widget buildTopRow(
+  Widget buildRow(
     UiSystem ui,
     Widget root,
     string rootName,
-    float w,
-    float h,
-    float sbGap
+    in RowSpec spec
   ) {
-    return WidgetBuilder.make(ui)
+    auto b = WidgetBuilder.make(ui)
       .parent(root)
-      .name(rootName ~ "TopRow")
-      .rect(RectF(0, 0, w, h))
+      .name(rootName ~ spec.suffix)
+      .rect(RectF(0, 0, spec.width, spec.height))
       .fractionWidth(1.0f)
-      .fractionHeight(1.0f)
-      .minWidth(1.0f)
-      .minHeight(1.0f)
+      .minWidth(1.0f);
+    if (spec.fixedHeightMode) {
+      b.fixedHeight(spec.height);
+    } else {
+      b.fractionHeight(1.0f).minHeight(1.0f);
+    }
+    return b
       .flexRow()
-      .gap(sbGap)
+      .gap(spec.gap)
       .justify(JustifyContent.start)
       .alignItems(AlignItems.stretch)
       .build();
@@ -851,7 +961,7 @@ private:
       .border(cfg.viewportBorder)
       .borderWidth(1.0f)
       .virtList(listProvider)
-      .virtListCount(listTracker.model.itemsCount)
+      .virtListCount(listTracker.get.model.itemsCount)
       .virtListDirection(listDirection)
       .virtListGap(effGap)
       .virtListStretchCross(stretchCross)
@@ -861,53 +971,27 @@ private:
     return vp;
   }
 
-  Widget buildBottomRow(
-    UiSystem ui,
-    Widget root,
-    string rootName,
-    float w,
-    float thickness,
-    float sbGap
-  ) {
-    return WidgetBuilder.make(ui)
-      .parent(root)
-      .name(rootName ~ "BottomRow")
-      .rect(RectF(0, 0, w, thickness))
-      .fractionWidth(1.0f)
-      .fixedHeight(thickness)
-      .minWidth(1.0f)
-      .flexRow()
-      .gap(sbGap)
-      .justify(JustifyContent.start)
-      .alignItems(AlignItems.stretch)
-      .build();
-  }
-
   Widget buildScrollbar(
     UiSystem ui,
     UiRegistry registry,
     Widget parent,
-    string name,
-    FlexDirection dir,
-    float thickness,
-    float mainLen,
     ref ModelTracker!ScrollbarModel tracker,
-    string sbEvent
+    in ScrollbarSpec spec
   ) {
-    const Axis ax = Axis.of(dir);
+    const Axis ax = Axis.of(spec.dir);
     const RectF sbRect = ax.isRow
-      ? RectF(0, 0, mainLen, thickness)
-      : RectF(0, 0, thickness, mainLen);
+      ? RectF(0, 0, spec.mainLen, spec.thickness)
+      : RectF(0, 0, spec.thickness, spec.mainLen);
     ScrollbarBuilder sb;
     Widget bar = sb
-      .name(name)
+      .name(spec.name)
       .modelTracker(tracker)
-      .event(sbEvent)
-      .direction(dir)
-      .thickness(thickness)
+      .event(spec.eventName)
+      .direction(spec.dir)
+      .thickness(spec.thickness)
       .style(cfg.scrollbarStyle)
       .build(ui, parent, sbRect, registry);
-    auto sz = ax.fillMainFixedCross(thickness);
+    auto sz = ax.fillMainFixedCross(spec.thickness);
     if (ax.isRow) {
       sz.minWidth = 1.0f;
     } else {
@@ -947,25 +1031,17 @@ private:
   void registerBuiltVirtList(
     UiRegistry registry,
     Widget root,
-    ref ModelTracker!ScrollbarModel mainTracker,
-    ref ModelTracker!ScrollbarModel crossTracker,
-    Widget viewport,
-    Widget mainSb,
-    Widget crossSb,
-    Widget cornerBox,
-    string targetEvent
+    ref VirtListScrollTrackers scrollTrackers,
+    VirtListRegistration reg
   ) {
     if (auto vlv = findWidgetView!VirtListWidgetView(
         registry, virtListWidgetViewName
       )) {
-      vlv.registerVirtList(
-        root, listTracker, mainTracker, crossTracker,
-        viewport, mainSb, crossSb, cornerBox, listDirection, targetEvent
-      );
+      vlv.registerVirtList(root, listTracker.get, scrollTrackers, reg);
     }
   }
 
-  ModelTracker!VirtListModel listTracker;
+  Nullable!(ModelTracker!VirtListModel) listTracker;
   VirtListProvider listProvider = null;
   string eventName = defaultVirtListEventName;
   FlexDirection listDirection = FlexDirection.column;
@@ -982,10 +1058,16 @@ private:
  */
 VirtListWidgetViewController registerVirtList(UiSystem ui) {
   assert(ui !is null, "ui must not be null");
-  return registerWidgetViewPair!(
+  auto ctrl = registerWidgetViewPair!(
     VirtListWidgetView,
     VirtListWidgetViewController
   )(ui);
+  if (auto vlv = findWidgetView!VirtListWidgetView(
+      ui, virtListWidgetViewName
+    )) {
+    vlv.registry = ui;
+  }
+  return ctrl;
 }
 
 version (unittest) {
@@ -1071,7 +1153,7 @@ private:
       ui.widgetViews.findByName("ScrollbarWidgetView");
     assert(vlView !is null && sbView !is null);
 
-    auto model = new VirtListModel(10000);
+    auto model = VirtListModel.withCount(10000);
     auto tracker = ModelTracker!VirtListModel(model);
     auto provider = new DemoTestRowProvider(ui);
     provider.crossOverrides[0] = 600.0f;
@@ -1094,14 +1176,13 @@ private:
     Widget crossSb = vlView.crossScrollbar(vlRoot);
     assert(vp !is null && mainSb !is null && crossSb !is null);
 
-    auto testCtrl = new PipelineTestController(ui);
+    auto testCtrl = new PipelineTestController(ui, tracker);
     testCtrl.vlView = vlView;
     testCtrl.sbView = sbView;
     testCtrl.vlRoot = vlRoot;
     testCtrl.vp = vp;
     testCtrl.mainSb = mainSb;
     testCtrl.crossSb = crossSb;
-    testCtrl.tracker = ModelTracker!VirtListModel.from(tracker);
     testCtrl.provider = provider;
     ui.pushController(testCtrl);
     app.run();
@@ -1125,9 +1206,10 @@ private:
     size_t externalEvents = 0;
     TimerId timerId = invalidTimerId;
 
-    this(UiSystem ui) {
+    this(UiSystem ui, ref ModelTracker!VirtListModel tracker) {
       assert(ui !is null, "ui must not be null");
       super(ui);
+      this.tracker = ModelTracker!VirtListModel.from(tracker);
     }
 
     override HandleResult handleEvent(AppEvent ev) {
@@ -1250,7 +1332,7 @@ unittest {
       is ctrl
   );
 
-  auto vModel = new VirtListModel(50);
+  auto vModel = VirtListModel.withCount(50);
   auto vTracker = ModelTracker!VirtListModel(vModel);
   auto vProvider = new DemoTestRowProvider(ui);
 
@@ -1273,7 +1355,7 @@ unittest {
   assert(vlView.viewport(vList).components.virtList.stretchCrossAxis);
 
   // Horizontal mode places cross scrollbar in topRow and main in bottomRow
-  auto hModel = new VirtListModel(30);
+  auto hModel = VirtListModel.withCount(30);
   auto hProvider = new DemoTestRowProvider(ui);
   VirtListBuilder hb;
   Widget hList = hb
@@ -1318,4 +1400,77 @@ unittest {
 // scrollbar click, and incremental insert/remove/update reflow.
 unittest {
   runVirtListPipelineTest();
+}
+
+// Covers bindModel on existing and unregistered trees, VirtListModel boundary
+// mutations, and controller super.handleEvent fallback.
+unittest {
+  auto ui = new UiSystemImpl(null);
+  auto sbCtrl = registerScrollbars(ui);
+  auto vlCtrl = registerVirtList(ui);
+  auto vlView = cast(VirtListWidgetView)
+    ui.widgetViews.findByName(virtListWidgetViewName);
+  auto sbView = cast(ScrollbarWidgetView)
+    ui.widgetViews.findByName(scrollbarWidgetViewName);
+  assert(vlView !is null && sbView !is null);
+
+  // 1. VirtListModel boundary mutations
+  auto bm = VirtListModel.withCount(5);
+  bm.insertItems(100, 2); // clamps index to 5 -> count 7
+  assert(bm.itemsCount == 7);
+  bm.insertItems(0, 0); // no-op
+  assert(bm.itemsCount == 7);
+  bm.removeItems(10, 3); // out of bounds -> no-op
+  assert(bm.itemsCount == 7);
+  bm.removeItems(5, 10); // clamps to 2 removed -> count 5
+  assert(bm.itemsCount == 5);
+  bm.updateItems(10, 2); // out of bounds -> no-op
+  bm.updateItems(3, 10); // clamps to 2
+  assert(bm.hasPendingChanges());
+
+  // 2. Controller super.handleEvent fallback for unrecognized view event
+  VirtListBuilder b;
+  Widget listRoot = b
+    .name("boundList")
+    .model(VirtListModel.withCount(10))
+    .build(ui, null, RectF(0, 0, 320, 240), null);
+  auto unknownEv = ViewAppEventBuilder("unrelatedListEvent")
+    .widget(listRoot)
+    .viewWidget(listRoot)
+    .build();
+  auto hr = vlCtrl.handleEvent(unknownEv);
+  assert(hr.result == HandleResult.Result.nothing);
+  assert(!hr.consume);
+
+  // 3. Rebinding existing registered VirtList syncs new model count
+  auto reboundModel = VirtListModel.withCount(42);
+  auto reboundTracker = ModelTracker!VirtListModel(reboundModel);
+  vlView.bindModel(listRoot, reboundTracker);
+  assert(vlView.viewport(listRoot).components.virtList.itemsCount == 42);
+
+  // 4. Unregistered tree bindModel binds scrollbar trackers to ScrollbarView
+  vlView.unregisterViewWidget(listRoot);
+  assert(!vlView.isWidgetRegistered(listRoot));
+  auto treeModel = VirtListModel.withCount(25);
+  auto treeTracker = ModelTracker!VirtListModel(treeModel);
+  vlView.bindModel(listRoot, treeTracker);
+  assert(vlView.isWidgetRegistered(listRoot));
+  assert(vlView.viewport(listRoot).components.virtList.itemsCount == 25);
+
+  Widget mainSb = vlView.mainScrollbar(listRoot);
+  assert(mainSb !is null);
+  // Metrics feedback updates the newly bound main scrollbar model & arrow state
+  auto metricsEv = ViewAppEventBuilder(virtListMetricsChangedEvent)
+    .widget(listRoot)
+    .viewWidget(listRoot)
+    .valueArray(VirtListComponent.AppEventViewValue.pack(
+      VirtListComponent.PackParams(1000.0f, 200.0f, 0.0f, 100.0f, 100.0f,
+        0.0f, 0, 5)
+    ).raw)
+    .build();
+  vlCtrl.handleEvent(metricsEv);
+  assert(sbCtrl.updateView());
+  assert(sbView.incButton(mainSb).inputEnabled);
+
+  ui.releaseWidget(listRoot);
 }

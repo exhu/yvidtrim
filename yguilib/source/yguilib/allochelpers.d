@@ -8,7 +8,7 @@ module yguilib.allochelpers;
 import core.bitop : bsr;
 import core.lifetime : move;
 import std.traits : CopyTypeQualifiers, hasElaborateDestructor,
-  hasIndirections, isPointer, Unqual;
+  hasIndirections, isFunctionPointer, isPointer, Unqual;
 import std.typecons : Nullable;
 
 /// Inline stack-backed buffer of up to `stackCap` elements that transparently
@@ -85,7 +85,7 @@ struct SmallBuffer(T, size_t stackCap) {
 
   /// Replaces contents with a copy of `src`, using stack storage when
   /// `src.length <= stackCap`. `src` must not overlap this buffer's storage.
-  void assignSlice(T[] src) {
+  void assignSlice(AssignSliceSrc!T src) {
     assert(
       !slicesOverlap(src, stackBuf[]) && !slicesOverlap(src, heapBuf),
       "SmallBuffer assignSlice source must not overlap buffer storage"
@@ -181,14 +181,9 @@ private:
       stackCap <= size_t.max / 2,
       "SmallBuffer heap capacity overflow"
     );
-    size_t newCap = heapBuf.length == 0 ? stackCap * 2 : heapBuf.length;
-    while (newCap < minCap) {
-      assert(
-        newCap <= size_t.max / 2,
-        "SmallBuffer heap capacity overflow"
-      );
-      newCap *= 2;
-    }
+    const size_t newCap = growCapacity(
+      heapBuf.length, minCap, stackCap * 2
+    );
     const size_t activeCount = usingHeap ? count : 0;
     reallocateSlice(heapBuf, activeCount, newCap);
   }
@@ -248,6 +243,11 @@ struct RingBuffer(T) {
     return count == 0;
   }
 
+  /// Destroys all remaining queued elements.
+  ~this() {
+    clear();
+  }
+
   /// Current allocated slot capacity (0 before first allocation, otherwise a
   /// power of two).
   @property size_t capacity() const nothrow @safe {
@@ -269,14 +269,11 @@ struct RingBuffer(T) {
 
   /// Appends `item` to the back of the queue, growing if full.
   void push(T item) {
-    if (buffer.length == 0) {
-      reallocate(defaultInitialCapacity);
-    } else if (count == buffer.length) {
-      assert(
-        buffer.length <= size_t.max / 2,
-        "RingBuffer capacity overflow"
+    if (count == buffer.length) {
+      const size_t newCap = growCapacity(
+        buffer.length, count + 1, defaultInitialCapacity
       );
-      reallocate(buffer.length * 2);
+      reallocate(newCap);
     }
     const size_t tailIdx = (head + count) & (buffer.length - 1);
     buffer[tailIdx] = move(item);
@@ -289,7 +286,9 @@ struct RingBuffer(T) {
       return Nullable!T.init;
     }
     T item = move(buffer[head]);
-    clearSlot(buffer[head]);
+    static if (hasIndirections!T && !hasElaborateDestructor!T) {
+      clearSlot(buffer[head]);
+    }
     head = (head + 1) & (buffer.length - 1);
     count--;
     return Nullable!T(move(item));
@@ -349,7 +348,9 @@ private:
       foreach (i; 0 .. count) {
         const size_t srcIdx = (head + i) & mask;
         newBuf[i] = move(buffer[srcIdx]);
-        clearSlot(buffer[srcIdx]);
+        static if (hasIndirections!T && !hasElaborateDestructor!T) {
+          clearSlot(buffer[srcIdx]);
+        }
       }
     }
     buffer = newBuf;
@@ -493,7 +494,8 @@ struct ReusableArray(T) {
   void compact(Pred)(scope Pred keep)
     if (is(Unqual!(typeof(keep(buf[0]))) == bool)) {
     static if (
-      is(Pred == delegate) || isPointer!Pred || is(Pred == class)
+      is(Pred == delegate) || isPointer!Pred || is(Pred == class) ||
+      isFunctionPointer!Pred || is(Pred == interface)
     ) {
       assert(
         keep !is null,
@@ -552,19 +554,22 @@ private:
     if (count < buf.length) {
       return;
     }
-    size_t newCap = initialCapacity;
-    if (buf.length > 0) {
-      assert(
-        buf.length <= size_t.max / 2,
-        "ReusableArray capacity overflow"
-      );
-      newCap = buf.length * 2;
-    }
+    const size_t newCap = growCapacity(
+      buf.length, count + 1, initialCapacity
+    );
     reallocateSlice(buf, count, newCap);
   }
 }
 
 private:
+
+template AssignSliceSrc(T) {
+  static if (is(const(T) : T)) {
+    alias AssignSliceSrc = const(T)[];
+  } else {
+    alias AssignSliceSrc = T[];
+  }
+}
 
 bool sameItem(T)(const ref T a, const ref T b) {
   static if (is(T == class) || is(T == interface) || isPointer!T) {
@@ -605,11 +610,28 @@ void reallocateSlice(T)(ref T[] slice, size_t activeCount, size_t newCap) {
   slice = newBuf;
 }
 
+size_t growCapacity(
+  size_t currentCap,
+  size_t minCap,
+  size_t initialCap
+) nothrow @safe pure {
+  size_t newCap = currentCap == 0 ? initialCap : currentCap;
+  while (newCap < minCap) {
+    assert(newCap <= size_t.max / 2, "Buffer capacity overflow");
+    newCap *= 2;
+  }
+  return newCap;
+}
+
 bool slicesOverlap(T)(const(T)[] a, const(T)[] b) nothrow @trusted pure {
   if (a.length == 0 || b.length == 0) {
     return false;
   }
-  return a.ptr < b.ptr + b.length && b.ptr < a.ptr + a.length;
+  const size_t aStart = cast(size_t) a.ptr;
+  const size_t aEnd = cast(size_t) (a.ptr + a.length);
+  const size_t bStart = cast(size_t) b.ptr;
+  const size_t bEnd = cast(size_t) (b.ptr + b.length);
+  return aStart < bEnd && bStart < aEnd;
 }
 
 void clearSlot(T)(ref T slot) {

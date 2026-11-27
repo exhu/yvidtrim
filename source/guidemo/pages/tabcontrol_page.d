@@ -47,20 +47,20 @@ struct TabControlPageTrackers {
 
   /// Creates trackers with default models.
   static TabControlPageTrackers make() {
-    TabControlPageTrackers t;
-    t.page = ModelTracker!TabControlPageModel(new TabControlPageModel());
-    t.dynamicTabs = ModelTracker!TabsModel(
-      new TabsModel(defaultDynamicTabNames(), 0)
+    return TabControlPageTrackers(
+      ModelTracker!TabControlPageModel(new TabControlPageModel()),
+      ModelTracker!TabsModel(
+        new TabsModel(defaultDynamicTabNames(), 0)
+      )
     );
-    return t;
   }
 
   /// Copies `other` with independent per-holder versions.
   static TabControlPageTrackers from(ref TabControlPageTrackers other) {
-    TabControlPageTrackers t;
-    t.page = ModelTracker!TabControlPageModel.from(other.page);
-    t.dynamicTabs = ModelTracker!TabsModel.from(other.dynamicTabs);
-    return t;
+    return TabControlPageTrackers(
+      ModelTracker!TabControlPageModel.from(other.page),
+      ModelTracker!TabsModel.from(other.dynamicTabs)
+    );
   }
 }
 
@@ -692,7 +692,7 @@ private:
 unittest {
   import yguilib.controls.tabcontrol : registerTabControl;
   import yguilib.controls.tooltip : Tooltip;
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : makeHeadlessUiSystem;
 
   Widget findByName(Widget node, string targetName) {
     if (node is null) {
@@ -724,7 +724,7 @@ unittest {
     return null;
   }
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   registerTabControl(ui);
   auto parent = new Widget(ui.nextWidgetId());
   parent.rect = RectF(0, 0, 1280, 720);

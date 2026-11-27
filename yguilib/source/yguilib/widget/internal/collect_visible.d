@@ -1,7 +1,7 @@
 module yguilib.widget.internal.collect_visible;
 
 package(yguilib):
-import std.array : Appender;
+import yguilib.allochelpers : ReusableArray;
 import yguilib.render;
 import yguilib.render.render_types;
 import yguilib.widget;
@@ -31,45 +31,69 @@ final class VisibleWidgetsCollector {
     bool ignoreClipChildren
   ) {
     assert(root !is null);
-    visibleBuf.clear();
-    collectVisiblePrivate(
-      root, 0.0f, 0.0f, vw, vh, ignoreClipChildren, false, RectF.init
-    );
-    return visibleBuf[];
+    ReusableArray!VisibleWidget* buf = ignoreClipChildren
+      ? &unclippedBuf
+      : &clippedBuf;
+    buf.clear();
+    CollectContext ctx = CollectContext(vw, vh, ignoreClipChildren, buf);
+    collectVisiblePrivate(root, ctx, ParentCollectState.init);
+    return (*buf)[];
   }
 
   /// Clears internal buffers when widgets are released.
   void clearBuffer() {
-    visibleBuf.clear();
+    unclippedBuf.clear();
+    clippedBuf.clear();
   }
 
 private:
+  struct CollectContext {
+    float vw;
+    float vh;
+    bool ignoreClipChildren;
+    ReusableArray!VisibleWidget* buf;
+  }
+
+  struct ParentCollectState {
+    float x = 0.0f;
+    float y = 0.0f;
+    bool hasClip = false;
+    RectF clipRect;
+  }
+
   void collectVisiblePrivate(
     Widget w,
-    float parentX,
-    float parentY,
-    float vw,
-    float vh,
-    bool ignoreClipChildren,
-    bool parentHasClip,
-    RectF parentClipRect
+    ref CollectContext ctx,
+    in ParentCollectState parent
   ) {
     if (!w.visible) {
       return;
     }
-    const float absX = parentX + w.rect.x;
-    const float absY = parentY + w.rect.y;
+    const float absX = parent.x + w.rect.x;
+    const float absY = parent.y + w.rect.y;
     const RectF absRect = RectF(absX, absY, w.rect.width, w.rect.height);
-    if (!ignoreClipChildren &&
-      !Renderer.isOnScreenWithViewport(absRect, vw, vh)) {
-      return;
+    if (!ctx.ignoreClipChildren) {
+      if (!Renderer.isOnScreenWithViewport(absRect, ctx.vw, ctx.vh)) {
+        return;
+      }
+      if (parent.hasClip) {
+        const RectF inter = intersectRects(absRect, parent.clipRect);
+        if (inter.width <= 0.0f || inter.height <= 0.0f) {
+          return;
+        }
+      }
     }
 
-    visibleBuf ~= VisibleWidget(w, absRect, parentHasClip, parentClipRect);
+    ctx.buf.push(
+      VisibleWidget(w, absRect, parent.hasClip, parent.clipRect)
+    );
 
-    bool childHasClip = parentHasClip;
-    RectF childClipRect = parentClipRect;
-    if (!ignoreClipChildren && w.clipChildren) {
+    ParentCollectState childState;
+    childState.x = absX;
+    childState.y = absY;
+    childState.hasClip = parent.hasClip;
+    childState.clipRect = parent.clipRect;
+    if (!ctx.ignoreClipChildren && w.clipChildren) {
       const RectF contentArea = w.contentArea();
       const RectF absContentRect = RectF(
         absX + contentArea.x,
@@ -77,26 +101,19 @@ private:
         contentArea.width,
         contentArea.height
       );
-      childClipRect = parentHasClip
-        ? intersectRects(parentClipRect, absContentRect)
+      childState.clipRect = parent.hasClip
+        ? intersectRects(parent.clipRect, absContentRect)
         : absContentRect;
-      childHasClip = true;
+      childState.hasClip = true;
     }
 
     foreach (child; w.children) {
-      collectVisiblePrivate(
-        child,
-        absX,
-        absY,
-        vw,
-        vh,
-        ignoreClipChildren,
-        childHasClip,
-        childClipRect
-      );
+      collectVisiblePrivate(child, ctx, childState);
     }
   }
-  Appender!(VisibleWidget[]) visibleBuf;
+
+  ReusableArray!VisibleWidget unclippedBuf;
+  ReusableArray!VisibleWidget clippedBuf;
 }
 
 // Verifies collectVisible culling of off-screen parents and their children.
@@ -193,4 +210,23 @@ unittest {
   foreach (vw; collectedIgnored) {
     assert(!vw.hasClip);
   }
+
+  // Dual buffers: collecting unclipped then clipped does not alias/clobber
+  // the unclipped slice, and clearBuffer() clears both.
+  assert(collected.length == 5);
+  assert(collected[2].hasClip);
+  assert(collectedIgnored.length == 5);
+  assert(!collectedIgnored[2].hasClip);
+
+  // Scrolled-out / outside-clipRect child is culled when parentHasClip.
+  auto culledChild = fix.makeChildWithRect(parent, RectF(300, 0, 50, 50));
+  auto collectedAfterCull = collector.collectVisibleWithViewport(
+    root, 640.0f, 480.0f, false
+  );
+  assert(collectedAfterCull.length == 5);
+  foreach (vw; collectedAfterCull) {
+    assert(vw.widget !is culledChild);
+  }
+
+  collector.clearBuffer();
 }

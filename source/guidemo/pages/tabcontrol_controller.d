@@ -222,11 +222,11 @@ private:
 
 unittest {
   import yguilib.events.builder : ViewAppEventBuilder;
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : UiSystem, makeHeadlessUiSystem;
   import yguilib.widget : Widget;
 
   TabControlPageController makeController(
-    UiSystemImpl ui,
+    UiSystem ui,
     Widget root,
     ref ModelTracker!DemoModel demoTracker,
     ref TabControlPageTrackers trackers
@@ -240,7 +240,7 @@ unittest {
     return new TabControlPageController(params);
   }
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   auto root = new Widget(ui.nextWidgetId());
   auto demoTracker = ModelTracker!DemoModel(new DemoModel());
   auto trackers = TabControlPageTrackers.make();

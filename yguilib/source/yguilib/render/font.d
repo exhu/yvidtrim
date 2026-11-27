@@ -8,9 +8,9 @@
  */
 module yguilib.render.font;
 
+import std.math.traits : isFinite;
 import yguilib.clibs.sdl3_ttf;
 import yguilib.render.render_types : PointF;
-import yguilib.assets : defaultTtfFontData;
 
 final class Font {
   /**
@@ -20,10 +20,14 @@ final class Font {
    * Scaling (`scale = displayScaling * unitsScaling`) is an internal renderer
    * detail used to rasterize glyphs at native display resolution.
    *
+   * For GC-allocated slices, `Font` retains a reference until `destroy()`.
+   * Non-GC buffers (such as C/malloc memory) must remain valid until
+   * `destroy()`.
+   *
    * Params:
    *   fontData = TTF binary data in memory.
    *   ptSize = Unscaled logical point size in user space.
-   *   scale = Rendering scaling factor (defaults to 1.0f).
+   *   scale = Rendering scaling factor (<= 0 or non-finite falls back to 1.0f).
    */
   static Font fromMemory(
     const(void)[] fontData,
@@ -31,17 +35,23 @@ final class Font {
     float scale
   ) {
     assert(fontData.length > 0, "fontData must not be empty");
-    assert(ptSize > 0.0f, "ptSize must be positive");
-    const float effectiveScale = scale > 0.0f ? scale : 1.0f;
+    assert(
+      isFinite(ptSize) && ptSize > 0.0f,
+      "ptSize must be finite and positive"
+    );
+    const float effectiveScale =
+      (isFinite(scale) && scale > 0.0f) ? scale : 1.0f;
     auto h = yguilib_sdl3_ttf_open_font_from_mem(
       fontData.ptr,
       fontData.length,
       ptSize * effectiveScale
     );
     if (!h) {
-      throw new Exception("Failed to load font from memory");
+      throw new Exception("Failed to load font from memory: " ~ lastError());
     }
-    return new Font(h, ptSize, effectiveScale);
+    auto font = new Font(h, ptSize, effectiveScale);
+    font.fMemoryData = fontData;
+    return font;
   }
 
   /**
@@ -54,7 +64,7 @@ final class Font {
    * Params:
    *   filePath = Path to the TTF font file.
    *   ptSize = Unscaled logical point size in user space.
-   *   scale = Rendering scaling factor (defaults to 1.0f).
+   *   scale = Rendering scaling factor (<= 0 or non-finite falls back to 1.0f).
    */
   static Font fromFile(
     string filePath,
@@ -62,15 +72,21 @@ final class Font {
     float scale
   ) {
     assert(filePath.length > 0, "filePath must not be empty");
-    assert(ptSize > 0.0f, "ptSize must be positive");
-    const float effectiveScale = scale > 0.0f ? scale : 1.0f;
+    assert(
+      isFinite(ptSize) && ptSize > 0.0f,
+      "ptSize must be finite and positive"
+    );
+    const float effectiveScale =
+      (isFinite(scale) && scale > 0.0f) ? scale : 1.0f;
     import std.string : toStringz;
     auto h = yguilib_sdl3_ttf_open_font(
       filePath.toStringz(),
       ptSize * effectiveScale
     );
     if (!h) {
-      throw new Exception("Failed to load font from file: " ~ filePath);
+      throw new Exception(
+        "Failed to load font from file: " ~ filePath ~ ": " ~ lastError()
+      );
     }
     return new Font(h, ptSize, effectiveScale);
   }
@@ -81,10 +97,11 @@ final class Font {
    * this explicit call on the main thread; an undestroyed font leaks.
    */
   void destroy() {
-    if (handle !is null) {
-      yguilib_sdl3_ttf_close_font(handle);
-      handle = null;
+    if (fHandle !is null) {
+      yguilib_sdl3_ttf_close_font(fHandle);
+      fHandle = null;
     }
+    fMemoryData = null;
     fId = invalidFontId;
   }
 
@@ -102,30 +119,35 @@ final class Font {
     return logicalPtSize * currentScale;
   }
 
+  /// Total font height in raster pixels at `scaledSize`.
   int height() const {
-    return handle ? yguilib_sdl3_ttf_get_font_height(handle) : 0;
+    return fHandle ? yguilib_sdl3_ttf_get_font_height(fHandle) : 0;
   }
 
+  /// Font ascent above baseline in raster pixels at `scaledSize`.
   int ascent() const {
-    return handle ? yguilib_sdl3_ttf_get_font_ascent(handle) : 0;
+    return fHandle ? yguilib_sdl3_ttf_get_font_ascent(fHandle) : 0;
   }
 
+  /// Font descent below baseline in raster pixels at `scaledSize`.
   int descent() const {
-    return handle ? yguilib_sdl3_ttf_get_font_descent(handle) : 0;
+    return fHandle ? yguilib_sdl3_ttf_get_font_descent(fHandle) : 0;
   }
 
+  /// Recommended line spacing in raster pixels at `scaledSize`.
   int lineSkip() const {
-    return handle ? yguilib_sdl3_ttf_get_font_line_skip(handle) : 0;
+    return fHandle ? yguilib_sdl3_ttf_get_font_line_skip(fHandle) : 0;
   }
 
+  /// Measures `text` in raster pixels at `scaledSize`.
   PointF measureText(string text) const {
-    if (!handle || text.length == 0) {
+    if (!fHandle || text.length == 0) {
       return PointF(0.0f, 0.0f);
     }
     int w = 0;
     int h = 0;
     if (yguilib_sdl3_ttf_get_text_size(
-      handle,
+      fHandle,
       text.ptr,
       text.length,
       &w,
@@ -160,13 +182,14 @@ package(yguilib):
   void scale(float newScale) {
     import std.logger : errorf;
 
-    if (!handle) {
+    if (!fHandle) {
       errorf("Font.scale: font already destroyed");
       return;
     }
-    const float effectiveScale = newScale > 0.0f ? newScale : 1.0f;
+    const float effectiveScale =
+      (isFinite(newScale) && newScale > 0.0f) ? newScale : 1.0f;
     const float targetSize = logicalPtSize * effectiveScale;
-    if (yguilib_sdl3_ttf_set_font_size(handle, targetSize) != 0) {
+    if (yguilib_sdl3_ttf_set_font_size(fHandle, targetSize) != 0) {
       errorf(
         "Font.scale(%s) failed: %s",
         targetSize,
@@ -177,7 +200,11 @@ package(yguilib):
     currentScale = effectiveScale;
   }
 
-  yguilib_sdl3_ttf_Font* handle;
+  /// Underlying SDL_ttf font handle (null when destroyed).
+  @property inout(yguilib_sdl3_ttf_Font)* handle()
+    inout nothrow @safe @nogc pure {
+    return fHandle;
+  }
 
 private:
   static string lastError() {
@@ -192,13 +219,18 @@ private:
     float scale
   ) {
     assert(handle !is null);
-    assert(ptSize > 0.0f, "ptSize must be positive");
-    this.handle = handle;
+    assert(
+      isFinite(ptSize) && ptSize > 0.0f,
+      "ptSize must be finite and positive"
+    );
+    this.fHandle = handle;
     this.logicalPtSize = ptSize;
-    this.currentScale = scale > 0.0f ? scale : 1.0f;
+    this.currentScale = (isFinite(scale) && scale > 0.0f) ? scale : 1.0f;
     this.fId = ++nextFontId;
   }
 
+  yguilib_sdl3_ttf_Font* fHandle;
+  const(void)[] fMemoryData;
   ulong fId = invalidFontId;
   float logicalPtSize;
   float currentScale = 1.0f;
@@ -212,6 +244,11 @@ private:
 ulong nextFontId = invalidFontId;
 
 unittest {
+  import std.file : remove, tempDir, write;
+  import std.path : buildPath;
+  import std.process : thisProcessID;
+  import std.conv : to;
+  import yguilib.assets : defaultTtfFontData;
   import yguilib.clibs.sdl3;
 
   yguilib_sdl3_init();
@@ -222,6 +259,55 @@ unittest {
   );
   scope(exit) f1.destroy();
   assert(f1.id != invalidFontId);
+  assert(f1.size == 12.0f);
+  assert(f1.scaledSize == 12.0f);
+
+  // Metrics and measureText at 1x scale.
+  assert(f1.height() > 0);
+  assert(f1.ascent() > 0);
+  assert(f1.lineSkip() > 0);
+  assert(f1.descent() <= 0 || f1.descent() > 0);
+  const PointF m1 = f1.measureText("Hello");
+  assert(m1.x > 0.0f && m1.y > 0.0f);
+  assert(f1.measureText("") == PointF(0.0f, 0.0f));
+
+  // scale() updates scaledSize and falls back to 1.0f for non-finite/<=0.
+  f1.scale(2.0f);
+  assert(f1.scaledSize == 24.0f);
+  const PointF m2 = f1.measureText("Hello");
+  assert(m2.x > m1.x && m2.y > m1.y);
+  foreach (const float bad; [0.0f, -1.0f, float.nan, float.infinity]) {
+    f1.scale(bad);
+    assert(f1.scaledSize == 12.0f);
+  }
+
+  // Non-finite / <= 0 scale in fromMemory falls back to 1.0f.
+  Font fBadScale = Font.fromMemory(
+    cast(const(void)[])defaultTtfFontData, 10.0f, float.infinity
+  );
+  scope(exit) fBadScale.destroy();
+  assert(fBadScale.scaledSize == 10.0f);
+
+  // fromFile succeeds for a valid TTF file and throws with error on missing.
+  const string tmpPath = buildPath(
+    tempDir(),
+    "yguilib-font-test-" ~ thisProcessID().to!string ~ ".ttf"
+  );
+  write(tmpPath, defaultTtfFontData);
+  scope(exit) remove(tmpPath);
+  Font fFile = Font.fromFile(tmpPath, 16.0f, 1.5f);
+  scope(exit) fFile.destroy();
+  assert(fFile.id != invalidFontId);
+  assert(fFile.scaledSize == 24.0f);
+  assert(fFile.height() > 0);
+
+  bool threw = false;
+  try {
+    Font.fromFile("/nonexistent/yguilib-missing-font.ttf", 12.0f, 1.0f);
+  } catch (Exception e) {
+    threw = e.msg.length > 0;
+  }
+  assert(threw);
 
   Font f2 = Font.fromMemory(
     cast(const(void)[])defaultTtfFontData, 14.0f, 1.0f
@@ -232,4 +318,10 @@ unittest {
 
   f2.destroy();
   assert(f2.id == invalidFontId);
+  assert(f2.handle is null);
+  assert(f2.height() == 0);
+  assert(f2.ascent() == 0);
+  assert(f2.descent() == 0);
+  assert(f2.lineSkip() == 0);
+  assert(f2.measureText("Hello") == PointF(0.0f, 0.0f));
 }

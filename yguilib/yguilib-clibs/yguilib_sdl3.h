@@ -123,13 +123,6 @@ int yguilib_sdl3_init(void);
 void yguilib_sdl3_quit(void);
 
 /**
- * Registers a custom SDL event type for waking the event loop.
- *
- * @return The registered 32-bit SDL event type ID, or 0 on failure.
- */
-uint32_t yguilib_sdl3_register_wake_event(void);
-
-/**
  * Pushes a custom wake event to the SDL event queue.
  * Safe to call from any thread.
  *
@@ -282,8 +275,6 @@ typedef void (*yguilib_sdl3_GLProc)(void);
  */
 yguilib_sdl3_GLProc yguilib_sdl3_gl_get_proc_address(const char *proc);
 
-int yguilib_sdl3_hello(void);
-
 typedef enum yguilib_sdl3_LogPriority {
   YGUILIB_SDL3_LOG_PRIORITY_VERBOSE = 1,
   YGUILIB_SDL3_LOG_PRIORITY_DEBUG = 2,
@@ -292,13 +283,6 @@ typedef enum yguilib_sdl3_LogPriority {
   YGUILIB_SDL3_LOG_PRIORITY_ERROR = 5,
   YGUILIB_SDL3_LOG_PRIORITY_CRITICAL = 6,
 } yguilib_sdl3_LogPriority;
-
-/**
- * Logs a message using SDL_Log.
- *
- * @param message Null-terminated UTF-8 message (NULL is ignored).
- */
-void yguilib_sdl3_log(const char *message);
 
 /**
  * Logs a message with specified priority using SDL_LogMessage.
@@ -343,20 +327,6 @@ int yguilib_sdl3_set_text_input_area(
 );
 
 /**
- * Gets the key code corresponding to the given scancode and modifier state.
- *
- * @param scancode SDL scancode value.
- * @param modstate Modifier state.
- * @param key_event Non-zero if the keycode will be used in key events.
- * @return The keycode value, or 0 on failure.
- */
-uint32_t yguilib_sdl3_get_key_from_scancode(
-  uint32_t scancode,
-  uint16_t modstate,
-  int key_event
-);
-
-/**
  * Gets a human-readable name for a key.
  *
  * @param key The keycode value.
@@ -371,22 +341,6 @@ const char *yguilib_sdl3_get_key_name(uint32_t key);
  * @return Key code, or 0 if not recognized.
  */
 uint32_t yguilib_sdl3_get_key_from_name(const char *name);
-
-/**
- * Gets a scancode from a human-readable name.
- *
- * @param name UTF-8 scancode name (must not be NULL).
- * @return Scancode value, or 0 if not recognized.
- */
-uint32_t yguilib_sdl3_get_scancode_from_name(const char *name);
-
-/**
- * Gets a human-readable name for a scancode.
- *
- * @param scancode Scancode value.
- * @return Pointer to UTF-8 name string, or "" if not found.
- */
-const char *yguilib_sdl3_get_scancode_name(uint32_t scancode);
 
 /**
  * Enables or disables mouse capture for the current window to track mouse

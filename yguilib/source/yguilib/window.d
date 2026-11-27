@@ -1,5 +1,7 @@
 module yguilib.window;
 
+import std.math : isFinite;
+
 import glad2.gles2;
 import yguilib.clibs.sdl3;
 import yguilib.events : AppEvent;
@@ -10,6 +12,7 @@ import yguilib.widget : Widget, WidgetUpdateScope;
 // TODO support minimum width and height based on view's Size component.
 class Window {
   this(int width, int height, string title) {
+    assert(width > 0 && height > 0, "window dimensions must be > 0");
     this.width = width;
     this.height = height;
     this.pixelWidth = width;
@@ -32,6 +35,10 @@ class Window {
    * zooming in/out UI for user preferences). Defaults to 1.0.
    */
   void unitsScaling(float scaling) {
+    assert(
+      scaling > 0.0f && isFinite(scaling),
+      "scaling must be finite and > 0"
+    );
     fUnitsScaling = scaling;
     if (renderer !is null) {
       renderer.unitsScaling(scaling);
@@ -59,6 +66,7 @@ class Window {
   }
 
   void resize(int newWidth, int newHeight) {
+    assert(newWidth > 0 && newHeight > 0, "window dimensions must be > 0");
     if (handle !is null) {
       yguilib_sdl3_set_window_size(handle, newWidth, newHeight);
       int pw = newWidth;
@@ -68,10 +76,6 @@ class Window {
     } else {
       onResize(newWidth, newHeight);
     }
-  }
-
-  ~this() {
-    destroy();
   }
 
   /// The view widget must have a non-null View component.
@@ -120,6 +124,7 @@ package(yguilib):
     if (handle !is null) {
       return;
     }
+    scope (failure) destroy();
     import std.string : toStringz;
 
     handle = yguilib_sdl3_create_window(fTitle.toStringz, width, height);
@@ -128,7 +133,6 @@ package(yguilib):
     }
     glContext = yguilib_sdl3_gl_create_context(handle);
     if (glContext is null) {
-      destroy();
       throw new Exception(
         "Failed to create OpenGL ES 3.0 context for window: " ~ title
       );
@@ -137,7 +141,6 @@ package(yguilib):
     id = yguilib_sdl3_get_window_id(handle);
     makeCurrent();
     if (!gladLoadGLES2(&yguilib_sdl3_gl_get_proc_address)) {
-      destroy();
       throw new Exception(
         "Failed to load OpenGL ES functions via glad for window: " ~ title
       );
@@ -224,6 +227,10 @@ package(yguilib):
   }
 
   void displayScaling(float scaling) {
+    assert(
+      scaling > 0.0f && isFinite(scaling),
+      "scaling must be finite and > 0"
+    );
     onDisplayScaleChanged(scaling);
   }
 
@@ -233,18 +240,6 @@ package(yguilib):
   int height;
 
 private:
-  // TODO should it draw widgets?
-  void redraw() {
-    makeCurrent();
-    if (rootWidget !is null && rootWidget.components.background !is null &&
-        renderer !is null) {
-      renderer.clearFrame(rootWidget.components.background.color);
-    } else {
-      clearWithColor(0.15f, 0.15f, 0.18f, 1.0f);
-    }
-    swapBuffers();
-  }
-
   void clearWithColor(float r, float g, float b, float a) {
     if (handle !is null && glContext !is null) {
       if (renderer !is null) {
@@ -294,6 +289,9 @@ private:
   }
 
   void onDisplayScaleChanged(float newScale) {
+    if (!(newScale > 0.0f && isFinite(newScale))) {
+      return;
+    }
     if (renderer !is null) {
       renderer.displayScaling(newScale);
       this.width = renderer.viewportWidth();
@@ -363,5 +361,50 @@ unittest {
   assert(window.width == cast(int)(640.0f / (1.5f * 2.0f)));
   assert(window.height == cast(int)(480.0f / (1.5f * 2.0f)));
 
-  window.redraw();
+  // Screenshot request/take/cancel lifecycle.
+  assert(!window.hasPendingScreenshot());
+  window.requestScreenshot("/tmp/test.png");
+  assert(window.hasPendingScreenshot());
+  assert(window.takePendingScreenshotPath() == "/tmp/test.png");
+  assert(!window.hasPendingScreenshot());
+  assert(window.takePendingScreenshotPath() is null);
+
+  // updateViewRect() updates rootWidget.rect when attached.
+  auto root = new Widget(1);
+  window.rootWidget = root;
+  window.resize(400, 300);
+  assert(root.rect.width == window.renderer.logicWidth());
+  assert(root.rect.height == window.renderer.logicHeight());
+
+  // handleWindowEvent covers windowResized, windowExposed, and scale change.
+  window.handleWindowEvent(AppEvent.windowEvent(
+    AppEvent.Kind.windowResized,
+    AppEvent.WindowData(window.id, 800, 600, 2.0f)
+  ));
+  assert(window.displayScaling() == 2.0f);
+  assert(window.pixelWidth == 800);
+  assert(window.pixelHeight == 600);
+
+  window.handleWindowEvent(AppEvent.windowEvent(
+    AppEvent.Kind.windowExposed,
+    AppEvent.WindowData(window.id, 900, 700, 0.0f)
+  ));
+  assert(window.pixelWidth == 900);
+  assert(window.pixelHeight == 700);
+
+  window.handleWindowEvent(AppEvent.windowEvent(
+    AppEvent.Kind.windowDisplayScaleChanged,
+    AppEvent.WindowData(window.id, 900, 700, 1.0f)
+  ));
+  assert(window.displayScaling() == 1.0f);
+
+  // Invalid dimensions and scaling are rejected by assertions.
+  import core.exception : AssertError;
+  import std.exception : assertThrown;
+
+  assertThrown!AssertError(new Window(0, 100, "bad"));
+  assertThrown!AssertError(new Window(100, -5, "bad"));
+  assertThrown!AssertError(window.resize(0, 100));
+  assertThrown!AssertError(window.unitsScaling(0.0f));
+  assertThrown!AssertError(window.unitsScaling(float.nan));
 }

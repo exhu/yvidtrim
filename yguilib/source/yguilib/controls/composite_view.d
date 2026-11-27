@@ -4,6 +4,7 @@
  */
 module yguilib.controls.composite_view;
 
+import std.typecons : Nullable;
 import yguilib.model : ModelTracker, VersionedModel;
 import yguilib.uisystem : UiRegistry, UiSystem;
 import yguilib.widget : Widget;
@@ -115,7 +116,7 @@ UiRegistry resolveBuilderRegistry(UiSystem ui, UiRegistry registry) {
 
 /// Stores `model` into builder `tracker`.
 void assignBuilderModel(M : VersionedModel)(
-  ref ModelTracker!M tracker,
+  ref Nullable!(ModelTracker!M) tracker,
   M model
 ) {
   assert(model !is null, "model must not be null");
@@ -126,7 +127,7 @@ void assignBuilderModel(M : VersionedModel)(
 /// (`src.model !is null`). Resets `lastSeenVersion` so the next `update()`
 /// reports a change.
 void assignBuilderTracker(M : VersionedModel)(
-  ref ModelTracker!M tracker,
+  ref Nullable!(ModelTracker!M) tracker,
   ref ModelTracker!M src
 ) {
   assert(src.model !is null, "src must be initialized");
@@ -134,12 +135,12 @@ void assignBuilderTracker(M : VersionedModel)(
 }
 
 /// Ensures builder `tracker` has a model when uninitialized by calling
-/// `makeDefault`. `makeDefault` is required only when `tracker.model is null`.
+/// `makeDefault`. `makeDefault` is required only when `tracker.isNull`.
 void ensureDefaultModelTracker(M : VersionedModel)(
-  ref ModelTracker!M tracker,
+  ref Nullable!(ModelTracker!M) tracker,
   scope M delegate() makeDefault
 ) {
-  if (tracker.model is null) {
+  if (tracker.isNull) {
     assert(makeDefault !is null, "makeDefault must not be null");
     tracker = ModelTracker!M(makeDefault());
   }
@@ -334,24 +335,24 @@ unittest {
   assert(resolveBuilderRegistry(ui, null) is ui);
   assert(resolveBuilderRegistry(ui, customReg) is customReg);
 
-  ModelTracker!SampleModel tracker;
-  assert(tracker.model is null);
+  Nullable!(ModelTracker!SampleModel) tracker;
+  assert(tracker.isNull);
 
   ensureDefaultModelTracker(tracker, () {
     auto m = new SampleModel();
     m.id = 99;
     return m;
   });
-  assert(tracker.model !is null && tracker.model.id == 99);
+  assert(!tracker.isNull && tracker.get.model.id == 99);
 
   // Calling again when already initialized must not invoke delegate
   ensureDefaultModelTracker(tracker, null);
-  assert(tracker.model.id == 99);
+  assert(tracker.get.model.id == 99);
 
   auto m2 = new SampleModel();
   m2.id = 123;
   assignBuilderModel(tracker, m2);
-  assert(tracker.model is m2);
+  assert(tracker.get.model is m2);
 
   auto m3 = new SampleModel();
   m3.id = 456;
@@ -359,7 +360,7 @@ unittest {
   assert(srcTracker.update());
   assert(!srcTracker.update());
   assignBuilderTracker(tracker, srcTracker);
-  assert(tracker.model is m3);
-  assert(tracker.update());
-  assert(!tracker.update());
+  assert(tracker.get.model is m3);
+  assert(tracker.get.update());
+  assert(!tracker.get.update());
 }

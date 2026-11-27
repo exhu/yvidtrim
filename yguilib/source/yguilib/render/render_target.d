@@ -110,7 +110,7 @@ package(yguilib.render):
    *
    * Returns: true on success; on failure the target is invalid.
    */
-  bool allocate(int pw, int ph) {
+  bool allocate(int pw, int ph, GLuint currentFbo) {
     import yguilib.render.internal.offscreen : AttachmentIds,
       allocateRenderbuffer, allocateTargetTexture, attachAndCheck;
 
@@ -121,24 +121,31 @@ package(yguilib.render):
     allocateTargetTexture(colorTex, pw, ph);
     bool ok;
     if (isMsaa()) {
-      ok = attachAndCheck(AttachmentIds(resolveFbo, colorTex, 0, 0),
-        "Render target resolve");
-      glGenFramebuffers(1, &msaaFbo);
-      glGenRenderbuffers(1, &msaaColorRb);
-      glGenRenderbuffers(1, &depthStencilRb);
-      allocateRenderbuffer(msaaColorRb, GL_RGBA8, fSamples, pw, ph);
-      allocateRenderbuffer(
-        depthStencilRb, GL_DEPTH24_STENCIL8, fSamples, pw, ph
-      );
       ok = attachAndCheck(
-        AttachmentIds(msaaFbo, 0, msaaColorRb, depthStencilRb),
-        "Render target MSAA"
-      ) && ok;
+        AttachmentIds(resolveFbo, colorTex, 0, 0),
+        currentFbo,
+        "Render target resolve"
+      );
+      if (ok) {
+        glGenFramebuffers(1, &msaaFbo);
+        glGenRenderbuffers(1, &msaaColorRb);
+        glGenRenderbuffers(1, &depthStencilRb);
+        allocateRenderbuffer(msaaColorRb, GL_RGBA8, fSamples, pw, ph);
+        allocateRenderbuffer(
+          depthStencilRb, GL_DEPTH24_STENCIL8, fSamples, pw, ph
+        );
+        ok = attachAndCheck(
+          AttachmentIds(msaaFbo, 0, msaaColorRb, depthStencilRb),
+          currentFbo,
+          "Render target MSAA"
+        );
+      }
     } else {
       glGenRenderbuffers(1, &depthStencilRb);
       allocateRenderbuffer(depthStencilRb, GL_DEPTH24_STENCIL8, 0, pw, ph);
       ok = attachAndCheck(
         AttachmentIds(resolveFbo, colorTex, 0, depthStencilRb),
+        currentFbo,
         "Render target"
       );
     }
@@ -169,14 +176,14 @@ package(yguilib.render):
   }
 
   /**
-   * Blits the MSAA color into the color texture (scissor off), then
-   * binds `currentFbo` (read and draw) again and re-enables the scissor
-   * when `scissorEnabled`. Both describe the current GL state, as tracked
-   * by `Renderer` (no GL queries). No-op without MSAA.
+   * Blits the MSAA color into the color texture (scissor off when
+   * `scissorEnabled`), then binds `restoredFbo` (read and draw). Caller
+   * restores the scissor state. Returns: true if it ran (MSAA), false if
+   * no-op (caller must bind `restoredFbo`).
    */
-  void resolve(GLuint currentFbo, bool scissorEnabled) {
+  bool resolve(GLuint restoredFbo, bool scissorEnabled) {
     if (!isMsaa() || !isValid()) {
-      return;
+      return false;
     }
     if (scissorEnabled) {
       glDisable(GL_SCISSOR_TEST);
@@ -185,10 +192,8 @@ package(yguilib.render):
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, resolveFbo);
     glBlitFramebuffer(0, 0, fPixelWidth, fPixelHeight, 0, 0, fPixelWidth,
       fPixelHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-    glBindFramebuffer(GL_FRAMEBUFFER, currentFbo);
-    if (scissorEnabled) {
-      glEnable(GL_SCISSOR_TEST);
-    }
+    glBindFramebuffer(GL_FRAMEBUFFER, restoredFbo);
+    return true;
   }
 
 private:
@@ -279,29 +284,18 @@ unittest {
 // blitting onto the window and resizing (needs a GL window).
 unittest {
   import std.math : abs;
-  import yguilib.clibs.sdl3;
   import yguilib.render : Renderer;
   import yguilib.render.canvas.path2d : Path2d;
   import yguilib.render.canvas.types : FillStyle;
   import yguilib.render.internal.clip_stack : ClipStack;
+  import yguilib.render.internal.gl_test_util : GlTestWindow, readAt,
+    rectPath;
   import yguilib.render.render_types : ColorF, PointF, RectF;
-  import yguilib.window : Window;
 
-  yguilib_sdl3_init();
-  scope(exit) yguilib_sdl3_quit();
-
-  auto win = new Window(320, 240, "test_render_target");
-  win.create();
-  scope(exit) win.destroy();
-  win.displayScaling(1.0f);
-  Renderer r = win.renderer;
-  r.viewport(320, 240);
-
-  ubyte[4] windowAt(int x, int y) {
-    ubyte[4] p;
-    glReadPixels(x, 240 - 1 - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, p.ptr);
-    return p;
-  }
+  auto w = GlTestWindow("test_render_target");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+  Renderer r = w.renderer();
 
   bool near4(in ubyte[] px, int cr, int cg, int cb, int ca) {
     return abs(px[0] - cr) <= 3 && abs(px[1] - cg) <= 3
@@ -311,12 +305,6 @@ unittest {
   const(ubyte)[] imageAt(in Image img, int x, int y) {
     const size_t o = (cast(size_t)y * img.width() + x) * 4;
     return img.pixels[o .. o + 4];
-  }
-
-  Path2d rectPath(RectF rc) {
-    auto p = new Path2d();
-    p.rect(rc);
-    return p;
   }
 
   // 1. Half-alpha red in the top half reads back straight, row 0 = top.
@@ -330,11 +318,7 @@ unittest {
   assert(ms !is null && ms.isValid());
   scope(exit) ms.destroy();
   // On a failed assert close open targets before destroying them.
-  scope(exit) {
-    while (r.inTarget()) {
-      r.endTarget();
-    }
-  }
+  scope(exit) w.endTargets();
   assert(rt.pixelWidth() == 40 && rt.pixelHeight() == 30);
   assert(rt.texture().premultiplied() && rt.texture().bottomUp());
   assert(rt.texture().width() == 40 && rt.texture().height() == 30);
@@ -376,8 +360,8 @@ unittest {
   glGetFloatv(GL_COLOR_CLEAR_VALUE, cc.ptr);
   assert(cc == [0, 0, 0, 1]);
   r.drawFillRect(RectF(0, 0, 320, 240), ColorF(1, 1, 1, 1));
-  assert(near4(windowAt(20, 20), 255, 255, 255, 255));
-  assert(near4(windowAt(100, 100), 0, 0, 0, 255));
+  assert(near4(readAt(20, 20), 255, 255, 255, 255));
+  assert(near4(readAt(100, 100), 0, 0, 0, 255));
   r.popClipRect();
   img = rt.toImage();
   assert(near4(imageAt(img, 0, 0), 0, 255, 0, 255));
@@ -398,8 +382,8 @@ unittest {
   r.endTarget();
   assert(cv.fillStyle().color == blue.color);
   cv.fill(rectPath(RectF(0, 0, 320, 240)));
-  assert(near4(windowAt(10, 10), 0, 0, 255, 255));
-  assert(near4(windowAt(100, 100), 0, 0, 0, 255));
+  assert(near4(readAt(10, 10), 0, 0, 255, 255));
+  assert(near4(readAt(100, 100), 0, 0, 0, 255));
   cv.restore();
   img = rt.toImage();
   assert(near4(imageAt(img, 35, 25), 0, 255, 0, 255));
@@ -462,23 +446,23 @@ unittest {
   r.endTarget();
   r.clearFrame(ColorF(0, 0, 0, 1));
   r.drawImage(rt.texture(), RectF(100, 100, 40, 30), ColorF(1, 1, 1, 1));
-  assert(near4(windowAt(110, 115), 128, 128, 128, 255));
-  assert(near4(windowAt(130, 115), 128, 0, 0, 255));
+  assert(near4(readAt(110, 115), 128, 128, 128, 255));
+  assert(near4(readAt(130, 115), 128, 0, 0, 255));
   // A half tint halves the premultiplied color.
   r.clearFrame(ColorF(0, 0, 0, 1));
   r.drawImage(rt.texture(), RectF(100, 100, 40, 30),
     ColorF(1, 1, 1, 0.5f));
-  assert(near4(windowAt(110, 115), 64, 64, 64, 255));
+  assert(near4(readAt(110, 115), 64, 64, 64, 255));
 
   // 7. Resize only on a pixel size change; destroy is idempotent.
   Texture before = rt.texture();
-  r.resizeRenderTarget(rt, 39.5f, 29.2f);
+  assert(r.resizeRenderTarget(rt, 39.5f, 29.2f));
   assert(rt.texture() is before && rt.pixelWidth() == 40);
-  r.resizeRenderTarget(rt, 64, 48);
+  assert(r.resizeRenderTarget(rt, 64, 48));
   assert(rt.pixelWidth() == 64 && rt.pixelHeight() == 48);
   assert(!before.isValid() && rt.texture().isValid());
   assert(rt.texture().width() == 64);
-  r.resizeRenderTarget(rt, float.nan, 10);
+  assert(!r.resizeRenderTarget(rt, float.nan, 10));
   assert(rt.pixelWidth() == 64);
   assert(r.createRenderTarget(0, 10, true) is null);
   assert(r.createRenderTarget(float.infinity, 10, true) is null);

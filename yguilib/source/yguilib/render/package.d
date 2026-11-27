@@ -81,6 +81,7 @@ final class Renderer {
     }
     fTextBatch.releaseMemory();
     clearTextCache();
+    textCache = null;
     if (fontManager !is null) {
       fontManager.onFontDestroyed(null);
       fontManager.destroy();
@@ -120,12 +121,18 @@ final class Renderer {
   }
 
   void viewport(int pixelWidth, int pixelHeight) {
+    assert(!inTarget(), "viewport() called while a render target is active");
     flush();
     viewportPixelWidth = pixelWidth;
     viewportPixelHeight = pixelHeight;
     glViewport(0, 0, pixelWidth, pixelHeight);
     fViewport = [0, 0, pixelWidth, pixelHeight];
     fPrograms.invalidate();
+    if (initialized && !clipStack.isEmpty()) {
+      clipStack.reapply(
+        viewportPixelWidth, viewportPixelHeight, totalScaling()
+      );
+    }
   }
 
   /**
@@ -255,15 +262,18 @@ final class Renderer {
       && (rect.y + rect.height) > 0.0f;
   }
 
+  /// Converts mouse coordinates in `event` (window points) to logic units.
   PointF coordinatesFromEvent(in AppEvent event) const {
     return coordinatesFromCoords(event.mouse.x, event.mouse.y);
   }
 
+  /// Converts (`x`, `y`) in window points to logic units.
   PointF coordinatesFromCoords(float x, float y) const {
     const float factor = fUnitsScaling > 0.0f ? (1.0f / fUnitsScaling) : 1.0f;
     return PointF(x * factor, y * factor);
   }
 
+  /// Converts `point` in window points to logic units.
   PointF coordinatesFromPoint(in PointF point) const {
     return coordinatesFromCoords(point.x, point.y);
   }
@@ -277,6 +287,9 @@ final class Renderer {
    * (`TextRunCache.beginFrame`), protecting this frame's strings.
    */
   void clearFrame(ColorF color) {
+    if (!initialized) {
+      return;
+    }
     flush();
     clearColor(color);
     glStencilMask(0xFF);
@@ -556,6 +569,15 @@ final class Renderer {
   }
 
   /**
+   * Assigns the default font (null restores the managed one). The font
+   * stays caller owned; on a display or units scaling change the renderer
+   * resizes it in place (`Font.scale`) to the new total scaling.
+   */
+  void defaultFont(Font font) {
+    fDefaultFont = font;
+  }
+
+  /**
    * Registers a custom font face from in-memory TTF binary data.
    *
    * Registered fonts can subsequently be resolved by name in font,
@@ -630,32 +652,11 @@ final class Renderer {
     return Font.fromFile(filePath, ptSize, totalScaling());
   }
 
-  /**
-   * Assigns the default font (null restores the managed one). The font
-   * stays caller owned; on a display or units scaling change the renderer
-   * resizes it in place (`Font.scale`) to the new total scaling.
-   */
-  void defaultFont(Font font) {
-    fDefaultFont = font;
-  }
-
   void clearTextCache() {
     flush();
     if (textCache !is null) {
       textCache.clear();
     }
-  }
-
-  void drawTexture(GLuint texId, RectF destRect, ColorF color) {
-    if (!initialized) {
-      return;
-    }
-    flush();
-    // a whole straight-alpha texture stretched to destRect
-    texPipeline.drawTexturedQuad(
-      texId, TexturedQuad(destRect, RectF(0, 0, 1, 1), color),
-      logicViewport(), TextureMode.straight
-    );
   }
 
   /**
@@ -770,21 +771,24 @@ final class Renderer {
    * size is not finite and positive, or the framebuffer is incomplete.
    */
   RenderTarget createRenderTarget(float logicW, float logicH, bool msaa) {
-    if (!initialized || !isValidTargetSize(logicW, logicH)) {
+    if (!initialized) {
       return null;
     }
     const int pw = targetPixelsFromLogic(logicW);
     const int ph = targetPixelsFromLogic(logicH);
+    if (pw <= 0 || ph <= 0) {
+      return null;
+    }
     const int samples = msaa ? targetSampleCount() : 0;
     auto rt = new RenderTarget(samples);
-    if (rt.allocate(pw, ph)) {
+    if (rt.allocate(pw, ph, fFramebuffer)) {
       return rt;
     }
     if (samples == 0) {
       return null;
     }
     rt = new RenderTarget(0);
-    return rt.allocate(pw, ph) ? rt : null;
+    return rt.allocate(pw, ph, fFramebuffer) ? rt : null;
   }
 
   /**
@@ -792,20 +796,27 @@ final class Renderer {
    * `createRenderTarget`). Reallocates only if the pixel size changes or
    * `rt` is invalid (e.g. destroyed); the content is undefined after a
    * reallocation and `rt.texture()` returns a new texture. A size that
-   * is not finite and positive is ignored. `rt` must not be active.
+   * is not finite and positive, or exceeds the GL limit, is ignored.
+   * `rt` must not be active.
+   *
+   * Returns: true if `rt` is valid at the requested size, false on invalid
+   * size or allocation failure.
    */
-  void resizeRenderTarget(RenderTarget rt, float logicW, float logicH) {
+  bool resizeRenderTarget(RenderTarget rt, float logicW, float logicH) {
     assert(rt !is null);
     assert(rt.active == 0, "resizeRenderTarget() on an active target");
-    if (!initialized || !isValidTargetSize(logicW, logicH)) {
-      return;
+    if (!initialized) {
+      return false;
     }
     const int pw = targetPixelsFromLogic(logicW);
     const int ph = targetPixelsFromLogic(logicH);
-    if (rt.isValid() && rt.pixelWidth() == pw && rt.pixelHeight() == ph) {
-      return;
+    if (pw <= 0 || ph <= 0) {
+      return false;
     }
-    rt.allocate(pw, ph);
+    if (rt.isValid() && rt.pixelWidth() == pw && rt.pixelHeight() == ph) {
+      return true;
+    }
+    return rt.allocate(pw, ph, fFramebuffer);
   }
 
   /**
@@ -816,6 +827,7 @@ final class Renderer {
    * With `clear` the color is cleared to transparent and stencil to 0.
    */
   void beginTarget(RenderTarget rt, bool clear) {
+    assert(initialized, "beginTarget() on uninitialized Renderer");
     assert(rt !is null && rt.isValid());
     import std.algorithm.mutation : swap;
 
@@ -869,14 +881,22 @@ final class Renderer {
     flush();
     --fTargetDepth;
     TargetFrame* f = &targetFrames[fTargetDepth];
-    f.target.resolve(fFramebuffer, !clipStack.isEmpty());
+    const bool resolved = f.target.resolve(
+      cast(GLuint)f.saved.framebuffer, !clipStack.isEmpty()
+    );
     f.target.active--;
     f.target = null;
 
-    f.saved.restore();
     fFramebuffer = cast(GLuint)f.saved.framebuffer;
+    if (!resolved) {
+      glBindFramebuffer(GL_FRAMEBUFFER, fFramebuffer);
+    }
     fViewport = f.saved.viewport;
+    glViewport(fViewport[0], fViewport[1], fViewport[2], fViewport[3]);
     fClearColor = f.saved.clearColor;
+    glClearColor(
+      fClearColor[0], fClearColor[1], fClearColor[2], fClearColor[3]
+    );
     fPrograms.invalidate();
     viewportPixelWidth = f.pixelWidth;
     viewportPixelHeight = f.pixelHeight;
@@ -1015,6 +1035,37 @@ package(yguilib):
   }
 
 package(yguilib.render):
+  /// Tracked GL framebuffer currently bound for rendering.
+  GLuint currentFramebuffer() const {
+    return fFramebuffer;
+  }
+
+  void drawTexture(GLuint texId, RectF destRect, ColorF color) {
+    if (!initialized) {
+      return;
+    }
+    flush();
+    // a whole straight-alpha texture stretched to destRect
+    texPipeline.drawTexturedQuad(
+      texId, TexturedQuad(destRect, RectF(0, 0, 1, 1), color),
+      logicViewport(), TextureMode.straight
+    );
+  }
+
+  version (unittest) {
+    FontManager fontManagerRef() {
+      return fontManager;
+    }
+
+    TextRunCache textCacheRef() {
+      return textCache;
+    }
+
+    int maxTargetSizeForTest() {
+      return maxTargetSize();
+    }
+  }
+
   /**
    * The current framebuffer, viewport, scissor and clear color from the
    * tracked state (no GL queries; debug builds check it against GL). The
@@ -1220,6 +1271,8 @@ private:
     fontManager = new FontManager();
     fontManager.onFontDestroyed(&onFontDestroyed);
     fCanvas = new Canvas(this);
+    fMaxTargetSize = queryMaxTargetSize();
+    fMaxSamples = queryMaxSamples();
 
     initialized = true;
   }
@@ -1291,26 +1344,53 @@ private:
     Canvas.FrameState canvasState;
   }
 
-  static bool isValidTargetSize(float logicW, float logicH) {
-    import std.math : isFinite;
-
-    return isFinite(logicW) && isFinite(logicH)
-      && logicW > 0.0f && logicH > 0.0f;
+  /// Largest render-target dimension supported by the GL context.
+  int maxTargetSize() {
+    if (fMaxTargetSize <= 0) {
+      fMaxTargetSize = queryMaxTargetSize();
+    }
+    return fMaxTargetSize;
   }
 
-  /// Target pixels for `logic` units: max(1, ceil(logic * scaling)).
-  int targetPixelsFromLogic(float logic) const {
-    import std.math : ceil;
+  static int queryMaxTargetSize() {
+    GLint maxTex = 0;
+    GLint maxRb = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTex);
+    glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, &maxRb);
+    const int m = maxTex < maxRb ? maxTex : maxRb;
+    return m > 0 ? m : int.max;
+  }
 
-    const float px = ceil(logic * totalScaling());
-    return px < 1.0f ? 1 : cast(int)px;
+  static int queryMaxSamples() {
+    GLint n = 0;
+    glGetIntegerv(GL_MAX_SAMPLES, &n);
+    return n >= 0 ? n : 0;
+  }
+
+  /**
+   * Target pixels for `logic` units: max(1, ceil(logic * scaling)), or
+   * 0 when `logic` is non-finite, non-positive, or exceeds `maxTargetSize`.
+   */
+  int targetPixelsFromLogic(float logic) {
+    import std.math : ceil, isFinite;
+
+    if (!isFinite(logic) || logic <= 0.0f) {
+      return 0;
+    }
+    const double px = ceil(cast(double)logic * cast(double)totalScaling());
+    const int limit = maxTargetSize();
+    if (!isFinite(px) || px > cast(double)limit) {
+      return 0;
+    }
+    return px < 1.0 ? 1 : cast(int)px;
   }
 
   /// min(4, GL_MAX_SAMPLES), or 0 when fewer than 2 are supported.
-  static int targetSampleCount() {
-    GLint maxSamples = 0;
-    glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
-    const int n = maxSamples < 4 ? maxSamples : 4;
+  int targetSampleCount() {
+    if (fMaxSamples < 0) {
+      fMaxSamples = queryMaxSamples();
+    }
+    const int n = fMaxSamples < 4 ? fMaxSamples : 4;
     return n >= 2 ? n : 0;
   }
 
@@ -1376,6 +1456,8 @@ private:
   TextBatch fTextBatch;
   FontManager fontManager;
   Font fDefaultFont;
+  int fMaxTargetSize;
+  int fMaxSamples = -1;
   bool initialized;
   Canvas fCanvas;
 }
@@ -1404,1284 +1486,4 @@ unittest {
   assert(!Renderer.isOnScreenWithViewport(RectF(10, 10, 0, 100), vw, vh));
   assert(!Renderer.isOnScreenWithViewport(RectF(10, 10, 100, 0), vw, vh));
   assert(!Renderer.isOnScreenWithViewport(RectF(10, 10, -10, 100), vw, vh));
-}
-
-unittest {
-  import yguilib.render.internal.gl_test_util : GlTestWindow;
-
-  auto w = GlTestWindow("test_renderer");
-  scope(exit) w.destroy();
-  scope(exit) w.endTargets();
-  auto win = w.window();
-
-  auto renderer = w.renderer();
-  assert(renderer !is null);
-
-  assert(renderer.viewportWidth() == 320);
-  assert(renderer.viewportHeight() == 240);
-  assert(renderer.isOnScreen(RectF(10, 10, 100, 100)));
-  assert(!renderer.isOnScreen(RectF(700, 10, 100, 100)));
-
-  // 1. Clear canvas red
-  renderer.clearFrame(ColorF(1.0f, 0.0f, 0.0f, 1.0f));
-  ubyte[4] pixel;
-  // Center pixel (160, 120)
-  glReadPixels(160, 120, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 255 && pixel[1] == 0 && pixel[2] == 0 && pixel[3] == 255);
-
-  // 2. Draw filled rect green at (10, 10, 30, 30)
-  renderer.drawFillRect(RectF(10, 10, 30, 30), ColorF(0.0f, 1.0f, 0.0f, 1.0f));
-  // Inside rect: screen (20, 20) -> GL y = 240 - 20 = 220
-  glReadPixels(20, 220, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 0 && pixel[1] == 255 && pixel[2] == 0 && pixel[3] == 255);
-  // Outside rect: screen (100, 100) -> GL y = 240 - 100 = 140
-  glReadPixels(100, 140, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 255 && pixel[1] == 0 && pixel[2] == 0 && pixel[3] == 255);
-
-  // 3. Alpha blending: draw 50% white over black canvas
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawFillRect(
-    RectF(0, 0, 320, 240),
-    ColorF(1.0f, 1.0f, 1.0f, 0.5f)
-  );
-  glReadPixels(160, 120, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] >= 126 && pixel[0] <= 129);
-  assert(pixel[1] >= 126 && pixel[1] <= 129);
-  assert(pixel[2] >= 126 && pixel[2] <= 129);
-
-  // 4. Clipping rectangle
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.pushClipRect(RectF(50, 50, 50, 50));
-  renderer.drawFillRect(
-    RectF(0, 0, 320, 240),
-    ColorF(0.0f, 0.0f, 1.0f, 1.0f)
-  );
-  renderer.popClipRect();
-
-  // Inside clip rect: screen (60, 60) -> GL y = 240 - 60 = 180 (blue)
-  glReadPixels(60, 180, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 255 && pixel[3] == 255);
-  // Outside clip rect: screen (10, 10) -> GL y = 240 - 10 = 230 (black)
-  glReadPixels(10, 230, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0 && pixel[3] == 255);
-
-  // 5. Draw line and outline rect
-  renderer.drawThinLineWithPoints(
-    PointF(0.0f, 0.0f),
-    PointF(319.0f, 239.0f),
-    ColorF(1.0f, 1.0f, 0.0f, 1.0f)
-  );
-  renderer.drawRect(
-    RectF(150, 100, 40, 40),
-    ColorF(0.0f, 1.0f, 1.0f, 1.0f)
-  );
-
-  assert(glGetError() == GL_NO_ERROR);
-
-  // 6. Test units scaling and pixel conversions
-  assert(renderer.defaultScaling() == 1.0f);
-  assert(renderer.displayScaling() == 1.0f);
-  assert(renderer.unitsScaling() == 1.0f);
-  assert(renderer.pixelsFromLogicFloat(10.0f) == 10.0f);
-  assert(renderer.logicFromPixelsFloat(10.0f) == 10.0f);
-
-  renderer.unitsScaling(2.0f);
-  assert(renderer.unitsScaling() == 2.0f);
-  assert(renderer.pixelsFromLogicFloat(10.0f) == 20.0f);
-  assert(renderer.logicFromPixelsFloat(20.0f) == 10.0f);
-  assert(renderer.pixelsFromLogicFloat(15.0f) == 30.0f);
-  assert(renderer.logicFromPixelsFloat(30.0f) == 15.0f);
-
-  PointF lp = PointF(10.0f, 20.0f);
-  PointF pp = renderer.pixelsFromLogicPoint(lp);
-  assert(pp.x == 20.0f && pp.y == 40.0f);
-  PointF backLp = renderer.logicFromPixelsPoint(pp);
-  assert(backLp.x == 10.0f && backLp.y == 20.0f);
-
-  RectF lr = RectF(5.0f, 10.0f, 50.0f, 60.0f);
-  RectF pr = renderer.pixelsFromLogicRect(lr);
-  assert(
-    pr.x == 10.0f && pr.y == 20.0f &&
-    pr.width == 100.0f && pr.height == 120.0f
-  );
-  RectF backLr = renderer.logicFromPixelsRect(pr);
-  assert(
-    backLr.x == 5.0f && backLr.y == 10.0f &&
-    backLr.width == 50.0f && backLr.height == 60.0f
-  );
-
-  assert(renderer.pixelWidth() == 320);
-  assert(renderer.pixelHeight() == 240);
-  assert(renderer.viewportWidth() == 160);
-  assert(renderer.viewportHeight() == 120);
-
-  // Combined scaling: displayScaling = 2.0f, unitsScaling = 1.5f
-  // (effective scale = 3.0f)
-  renderer.displayScaling(2.0f);
-  renderer.unitsScaling(1.5f);
-  assert(renderer.displayScaling() == 2.0f);
-  assert(renderer.unitsScaling() == 1.5f);
-  assert(renderer.pixelsFromLogicFloat(10.0f) == 30.0f);
-  assert(renderer.logicFromPixelsFloat(30.0f) == 10.0f);
-  assert(renderer.viewportWidth() == 106);
-  assert(renderer.viewportHeight() == 80);
-
-  // 7. Test coordinatesFromEvent
-  // Case A: 200% display scale, zoom = 1.0 (1:1 window points to logic)
-  renderer.displayScaling(2.0f);
-  renderer.unitsScaling(1.0f);
-  assert(renderer.defaultScaling() == 2.0f);
-  assert(renderer.unitsScaling() == 1.0f);
-
-  AppEvent evMotion = AppEvent.mouseEvent(
-    AppEvent.Kind.mouseMotion,
-    AppEvent.MouseData(win.id, 100.0f, 50.0f)
-  );
-  PointF converted = renderer.coordinatesFromEvent(evMotion);
-  assert(converted.x == 100.0f);
-  assert(converted.y == 50.0f);
-
-  PointF fromFloat = renderer.coordinatesFromCoords(100.0f, 50.0f);
-  assert(fromFloat.x == 100.0f);
-  assert(fromFloat.y == 50.0f);
-
-  // Case B: 200% display scale, zoom = 2.0 (logic coords halved)
-  renderer.unitsScaling(2.0f);
-  converted = renderer.coordinatesFromEvent(evMotion);
-  assert(converted.x == 50.0f);
-  assert(converted.y == 25.0f);
-
-  // Case C: 100% display scale, zoom = 0.5 (logic coords doubled)
-  renderer.displayScaling(1.0f);
-  renderer.unitsScaling(0.5f);
-  converted = renderer.coordinatesFromEvent(evMotion);
-  assert(converted.x == 200.0f);
-  assert(converted.y == 100.0f);
-
-  // 8. Scaled drawing test: unitsScaling = 2.0
-  renderer.displayScaling(1.0f);
-  renderer.unitsScaling(2.0f);
-  // Drawing rect (0, 0, 160, 120) logic units covers all 320x240 pixels.
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawFillRect(
-    RectF(0.0f, 0.0f, 160.0f, 120.0f),
-    ColorF(0.0f, 1.0f, 0.0f, 1.0f)
-  );
-  // Center pixel (160, 120) should be green
-  glReadPixels(160, 120, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 0 && pixel[1] == 255 && pixel[2] == 0 && pixel[3] == 255);
-  // Near top-right corner pixel (318, 238) should be green
-  glReadPixels(318, 238, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 0 && pixel[1] == 255 && pixel[2] == 0 && pixel[3] == 255);
-
-  // 9. Font loading, metrics, text measurement, and rendering tests
-  renderer.unitsScaling(1.0f);
-  renderer.displayScaling(1.0f);
-
-  Font customFont = Font.fromMemory(
-    cast(const(void)[])defaultTtfFontData,
-    16.0f,
-    1.0f
-  );
-  scope(exit) customFont.destroy();
-
-  assert(customFont.size == 16.0f);
-  assert(customFont.height > 0);
-  assert(customFont.ascent > 0);
-  assert(customFont.lineSkip > 0);
-
-  PointF mEmpty = renderer.measureTextWithFont("", customFont);
-  assert(mEmpty.x == 0.0f && mEmpty.y == 0.0f);
-
-  PointF mShort = renderer.measureTextWithFont("Hi", customFont);
-  assert(mShort.x > 0.0f && mShort.y > 0.0f);
-
-  PointF mLong = renderer.measureTextWithFont("Hello World!", customFont);
-  assert(mLong.x > mShort.x);
-
-  PointF mBySize = renderer.measureTextWithFontName("Hi", 16.0f, null);
-  assert(mBySize.x == mShort.x && mBySize.y == mShort.y);
-
-  // Render text blended in white on black background
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawTextWithFont(
-    "ABC",
-    PointF(20.0f, 30.0f),
-    ColorF(1.0f, 1.0f, 1.0f, 1.0f),
-    customFont
-  );
-  renderer.flush();
-
-  import std.algorithm : min;
-
-  int litCount = 0;
-  int checkW = min(cast(int)mLong.x, 50);
-  int checkH = min(customFont.height, 30);
-  foreach (x; 20 .. 20 + checkW) {
-    foreach (y; 30 .. 30 + checkH) {
-      glReadPixels(x, 240 - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-      if (pixel[0] > 100 && pixel[1] > 100 && pixel[2] > 100) {
-        litCount++;
-      }
-    }
-  }
-  assert(litCount > 0);
-
-  // Render text in green color
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawTextWithFont(
-    "ABC",
-    PointF(20.0f, 30.0f),
-    ColorF(0.0f, 1.0f, 0.0f, 1.0f),
-    customFont
-  );
-  renderer.flush();
-  litCount = 0;
-  foreach (x; 20 .. 20 + checkW) {
-    foreach (y; 30 .. 30 + checkH) {
-      glReadPixels(x, 240 - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-      if (pixel[1] > 100 && pixel[0] == 0 && pixel[2] == 0) {
-        litCount++;
-      }
-    }
-  }
-  assert(litCount > 0);
-
-  // Render using default font (embedded defaultTtfFontData)
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawTextWithFont(
-    "DefaultFont",
-    PointF(10.0f, 10.0f),
-    ColorF(1.0f, 1.0f, 1.0f, 1.0f),
-    null
-  );
-  assert(renderer.defaultFont() !is null);
-  assert(renderer.defaultFont().height > 0);
-
-  // Text clipped outside clip rect
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.pushClipRect(RectF(0.0f, 0.0f, 10.0f, 10.0f));
-  renderer.drawTextWithFont(
-    "Clipped",
-    PointF(50.0f, 50.0f),
-    ColorF(1.0f, 1.0f, 1.0f, 1.0f),
-    customFont
-  );
-  renderer.popClipRect();
-
-  // (50..80, 50..70) should have stayed black because it was clipped
-  foreach (x; 50 .. 80) {
-    foreach (y; 50 .. 70) {
-      glReadPixels(x, 240 - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-      assert(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0);
-    }
-  }
-
-  // Scaled text drawing test: unitsScaling = 2.0
-  renderer.displayScaling(1.0f);
-  renderer.unitsScaling(2.0f);
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawTextWithFont(
-    "ABC",
-    PointF(10.0f, 10.0f),
-    ColorF(1.0f, 1.0f, 1.0f, 1.0f),
-    null
-  );
-  renderer.flush();
-  litCount = 0;
-  foreach (x; 20 .. 80) {
-    foreach (y; 20 .. 60) {
-      glReadPixels(x, 240 - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-      if (pixel[0] > 100 && pixel[1] > 100 && pixel[2] > 100) {
-        litCount++;
-      }
-    }
-  }
-  assert(litCount > 0);
-  renderer.unitsScaling(1.0f);
-
-  // Scaled text drawing test: displayScaling = 1.5
-  renderer.displayScaling(1.5f);
-  renderer.unitsScaling(1.0f);
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawTextWithFont(
-    "ABC",
-    PointF(35.0f, 45.0f),
-    ColorF(1.0f, 1.0f, 1.0f, 1.0f),
-    null
-  );
-  renderer.flush();
-  litCount = 0;
-  // 35 * 1.5 = 52.5 -> snapped to 53
-  // 45 * 1.5 = 67.5 -> snapped to 68
-  foreach (x; 53 .. 120) {
-    foreach (y; 68 .. 100) {
-      glReadPixels(x, 240 - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-      if (pixel[0] > 100 && pixel[1] > 100 && pixel[2] > 100) {
-        litCount++;
-      }
-    }
-  }
-  assert(litCount > 0);
-  renderer.displayScaling(1.0f);
-
-  // In-place dynamic resizing & unscaled user-space size tests
-  Font defaultF = renderer.defaultFont();
-  assert(defaultF !is null);
-  assert(defaultF.size == defaultFontPtSize);
-  assert(defaultF.scaledSize == defaultFontPtSize);
-  int initialH = defaultF.height;
-
-  // Scale display: defaultFont instance is preserved and resized in place
-  renderer.displayScaling(2.0f);
-  assert(renderer.defaultFont() is defaultF);
-  assert(defaultF.size == defaultFontPtSize);
-  assert(defaultF.scaledSize == defaultFontPtSize * 2.0f);
-  assert(defaultF.height > initialH);
-
-  // Scale units: defaultFont instance is preserved and resized in place
-  renderer.unitsScaling(1.5f);
-  assert(renderer.defaultFont() is defaultF);
-  assert(defaultF.size == defaultFontPtSize);
-  assert(defaultF.scaledSize == defaultFontPtSize * 3.0f);
-
-  renderer.displayScaling(1.0f);
-  renderer.unitsScaling(1.0f);
-  assert(defaultF.size == defaultFontPtSize);
-  assert(defaultF.scaledSize == defaultFontPtSize);
-
-  // Factory createFont automatically applies renderer's current scaling
-  renderer.displayScaling(2.0f);
-  Font factoryFont = renderer.createFontFromMemory(
-    cast(const(void)[])defaultTtfFontData,
-    14.0f
-  );
-  scope(exit) factoryFont.destroy();
-  assert(factoryFont.size == 14.0f);
-  assert(factoryFont.scaledSize == 28.0f);
-  assert(factoryFont.height > 0);
-
-  // In-place scale() updates raster size while preserving unscaled size
-  factoryFont.scale(1.0f);
-  assert(factoryFont.size == 14.0f);
-  assert(factoryFont.scaledSize == 14.0f);
-
-  // A user-assigned default font is kept and resized on scaling changes
-  renderer.defaultFont(factoryFont);
-  renderer.unitsScaling(1.5f);
-  assert(renderer.defaultFont() is factoryFont);
-  assert(factoryFont.scaledSize == 14.0f * 3.0f);
-  renderer.unitsScaling(1.0f);
-  assert(factoryFont.scaledSize == 28.0f);
-  renderer.defaultFont(null);
-  assert(renderer.defaultFont() !is factoryFont);
-
-  // A scaling change re-applies the clip scissor (rects in logic units)
-  {
-    renderer.pushClipRect(RectF(10, 10, 20, 20));
-    scope(exit) renderer.popClipRect();
-    GLint[4] sb;
-    glGetIntegerv(GL_SCISSOR_BOX, sb.ptr);
-    assert(sb[0] == 20 && sb[2] == 40);
-    renderer.unitsScaling(1.5f);
-    glGetIntegerv(GL_SCISSOR_BOX, sb.ptr);
-    assert(sb[0] == 30 && sb[2] == 60);
-    renderer.unitsScaling(1.0f);
-  }
-
-  // Managed fonts via font: distinct instances per size, cached on reuse
-  Font f14 = renderer.font(14.0f, null);
-  Font f20 = renderer.font(20.0f, null);
-  assert(f14 !is null);
-  assert(f20 !is null);
-  assert(f14.size == 14.0f);
-  assert(f20.size == 20.0f);
-  assert(renderer.font(14.0f, null) is f14);
-  assert(renderer.font(20.0f, null) is f20);
-  assert(f14 !is f20);
-
-  renderer.displayScaling(1.0f);
-  renderer.unitsScaling(1.0f);
-
-  assert(glGetError() == GL_NO_ERROR);
-
-  // 10. Rounded rectangle drawing tests (fill, outline, dashed, clamping,
-  // scaling)
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-
-  // Test fill mode: draw green filled round rect at (20, 20, 60, 40)
-  // with radius 10
-  renderer.drawFillRoundRect(
-    RectF(20.0f, 20.0f, 60.0f, 40.0f),
-    10.0f,
-    ColorF(0.0f, 1.0f, 0.0f, 1.0f)
-  );
-  // Center pixel (50, 40) -> GL y = 240 - 40 = 200 should be green
-  glReadPixels(50, 200, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 0 && pixel[1] == 255 && pixel[2] == 0 && pixel[3] == 255);
-  // Outside corner pixel (21, 21) -> GL y = 240 - 21 = 219 should be black
-  // (clipped by corner radius)
-  glReadPixels(21, 219, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0);
-  // Far outside pixel (5, 5) -> GL y = 235 should be black
-  glReadPixels(5, 235, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0);
-
-  // Test outline mode: draw blue outline at (100, 100, 80, 60), radius 8,
-  // line width 4
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawRoundRect(
-    RectF(100.0f, 100.0f, 80.0f, 60.0f),
-    8.0f,
-    4.0f,
-    ColorF(0.0f, 0.0f, 1.0f, 1.0f)
-  );
-  // Center of outline rect (140, 130) -> GL y = 240 - 130 = 110 should be
-  // hollow (black)
-  glReadPixels(140, 110, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0);
-  // On top edge border: (140, 101) -> GL y = 240 - 101 = 139 should be blue
-  glReadPixels(140, 139, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[2] > 100);
-
-  // Test dashed mode: draw dashed round rect, verify border has colored pixels
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawRoundRectDashed(
-    RectF(50.0f, 50.0f, 100.0f, 60.0f),
-    10.0f,
-    3.0f,
-    DashPattern(8.0f, 6.0f),
-    ColorF(1.0f, 1.0f, 0.0f, 1.0f)
-  );
-  // Center (100, 80) -> GL y = 160 should be hollow (black)
-  glReadPixels(100, 160, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0);
-  // Along top edge, some pixels should be yellow
-  int yellowPixels = 0;
-  foreach (x; 60 .. 140) {
-    glReadPixels(x, 240 - 51, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-    if (pixel[0] > 100 && pixel[1] > 100) {
-      yellowPixels++;
-    }
-  }
-  assert(yellowPixels > 0);
-
-  // Test radius clamping: radius larger than half dimensions does not crash
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawFillRoundRect(
-    RectF(10.0f, 10.0f, 40.0f, 40.0f),
-    100.0f, // excess radius clamped to 20
-    ColorF(1.0f, 0.0f, 0.0f, 1.0f)
-  );
-  // Center (30, 30) -> GL y = 210 should be red
-  glReadPixels(30, 210, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 255 && pixel[1] == 0 && pixel[2] == 0 && pixel[3] == 255);
-
-  // Test units scaling with rounded rect
-  renderer.unitsScaling(2.0f);
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  // Logic (10, 10, 50, 50) maps to screen (20, 20, 100, 100)
-  renderer.drawFillRoundRect(
-    RectF(10.0f, 10.0f, 50.0f, 50.0f),
-    5.0f,
-    ColorF(0.0f, 1.0f, 1.0f, 1.0f)
-  );
-  // Screen center of rect is (70, 70) -> GL y = 240 - 70 = 170
-  glReadPixels(70, 170, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[1] == 255 && pixel[2] == 255);
-  renderer.unitsScaling(1.0f);
-
-  // 11. drawRect with lineWidth, drawRectDashed, and small drawRoundRectDashed
-  // A. drawRectWithWidth with lineWidth = 4 growing inside
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawRectWithWidth(
-    RectF(100.0f, 50.0f, 60.0f, 40.0f),
-    4.0f,
-    ColorF(0.0f, 1.0f, 0.0f, 1.0f)
-  );
-  // Outside rect (99, 50) -> black
-  glReadPixels(99, 240 - 50, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[1] == 0);
-  // Outside rect (161, 50) -> black
-  glReadPixels(161, 240 - 50, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[1] == 0);
-  // Top-left border inside rect: (101, 51) -> green
-  glReadPixels(101, 240 - 51, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[1] == 255);
-  // Center of rect (130, 70) -> hollow (black)
-  glReadPixels(130, 240 - 70, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[1] == 0);
-
-  // B. drawRectDashed: rect at (50, 50, 100, 60), lw = 3,
-  // dashLen = 8, gapLen = 6
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawRectDashed(
-    RectF(50.0f, 50.0f, 100.0f, 60.0f),
-    3.0f,
-    DashPattern(8.0f, 6.0f),
-    ColorF(1.0f, 1.0f, 0.0f, 1.0f)
-  );
-  // Center (100, 80) -> hollow (black)
-  glReadPixels(100, 240 - 80, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0);
-  // Outside rect (48, 50) -> black
-  glReadPixels(48, 240 - 50, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0);
-  // Top edge border has dashes and gaps
-  int dashedYellow = 0;
-  int dashedBlack = 0;
-  foreach (x; 60 .. 140) {
-    glReadPixels(x, 240 - 51, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-    if (pixel[0] > 100 && pixel[1] > 100) {
-      dashedYellow++;
-    } else if (pixel[0] == 0 && pixel[1] == 0) {
-      dashedBlack++;
-    }
-  }
-  assert(dashedYellow > 0 && dashedBlack > 0);
-
-  // C. Small drawRoundRectDashed: (20, 20, 30, 20), radius 4, lw 2,
-  // dash 4, gap 3
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawRoundRectDashed(
-    RectF(20.0f, 20.0f, 30.0f, 20.0f),
-    4.0f,
-    2.0f,
-    DashPattern(4.0f, 3.0f),
-    ColorF(0.0f, 0.0f, 1.0f, 1.0f)
-  );
-  // Center (35, 30) -> hollow (black)
-  glReadPixels(35, 240 - 30, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[2] == 0);
-  // Blue pixels present on the small rect border
-  int smallBlue = 0;
-  foreach (x; 20 .. 50) {
-    glReadPixels(x, 240 - 21, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-    if (pixel[2] > 100) {
-      smallBlue++;
-    }
-  }
-  assert(smallBlue > 0);
-
-  // 12. drawLine* variants: thick solid line and dashed line
-  // A. Solid thick line: horizontal from (50, 100) to (150, 100), width = 6
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawLineWithPoints(
-    PointF(50.0f, 100.0f),
-    PointF(150.0f, 100.0f),
-    6.0f,
-    ColorF(1.0f, 0.0f, 0.0f, 1.0f)
-  );
-  // Center of line (100, 100) -> red
-  glReadPixels(100, 240 - 100, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 255 && pixel[1] == 0 && pixel[2] == 0);
-  // Inside thickness: (100, 98) and (100, 102) -> red
-  glReadPixels(100, 240 - 98, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 255);
-  glReadPixels(100, 240 - 102, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 255);
-  // Outside thickness: (100, 95) and (100, 105) -> black
-  glReadPixels(100, 240 - 95, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 0);
-  glReadPixels(100, 240 - 105, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 0);
-  // Beyond endpoints: (45, 100) and (155, 100) -> black
-  glReadPixels(45, 240 - 100, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 0);
-  glReadPixels(155, 240 - 100, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[0] == 0);
-
-  // B. Dashed line: (50, 150) to (200, 150), width = 4, dash = 10, gap = 10
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawLineDashed(
-    PointF(50.0f, 150.0f),
-    PointF(200.0f, 150.0f),
-    4.0f,
-    DashPattern(10.0f, 10.0f),
-    ColorF(0.0f, 1.0f, 0.0f, 1.0f)
-  );
-  // First dash: (55, 150) -> green
-  glReadPixels(55, 240 - 150, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[1] == 255);
-  // First gap: (65, 150) -> black
-  glReadPixels(65, 240 - 150, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[1] == 0);
-  // Second dash: (75, 150) -> green
-  glReadPixels(75, 240 - 150, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[1] == 255);
-
-  // C. drawLineDashed alias
-  renderer.clearFrame(ColorF(0.0f, 0.0f, 0.0f, 1.0f));
-  renderer.drawLineDashed(
-    PointF(50.0f, 150.0f),
-    PointF(200.0f, 150.0f),
-    4.0f,
-    DashPattern(10.0f, 10.0f),
-    ColorF(0.0f, 0.0f, 1.0f, 1.0f)
-  );
-  glReadPixels(55, 240 - 150, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[2] == 255);
-  glReadPixels(65, 240 - 150, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.ptr);
-  assert(pixel[2] == 0);
-
-  // D. Degenerate and zero/negative width edge cases
-  renderer.drawLineWithPoints(
-    PointF(10, 10), PointF(10, 10), 5.0f, ColorF(1, 1, 1, 1)
-  );
-  renderer.drawLineWithPoints(
-    PointF(10, 10), PointF(50, 50), 0.0f, ColorF(1, 1, 1, 1)
-  );
-  renderer.drawLineWithPoints(
-    PointF(10, 10), PointF(50, 50), -2.0f, ColorF(1, 1, 1, 1)
-  );
-
-  assert(glGetError() == GL_NO_ERROR);
-}
-
-// Verifies createTexture, drawImage, drawImageRegion, tint and update.
-unittest {
-  import yguilib.render.internal.gl_test_util : GlTestWindow, nearPixel,
-    readAt;
-
-  auto w = GlTestWindow("test_renderer_image");
-  scope(exit) w.destroy();
-  scope(exit) w.endTargets();
-
-  auto renderer = w.renderer();
-
-  // 2x2: red, green / blue, white (top-down rows).
-  auto img = new Image(2, 2);
-  img.pixels[] = [
-    255, 0, 0, 255,  0, 255, 0, 255,
-    0, 0, 255, 255,  255, 255, 255, 255,
-  ];
-
-  assert(renderer.createTexture(null) is null);
-  assert(renderer.createTexture(new Image(0, 0)) is null);
-  Texture tex = renderer.createTexture(img);
-  assert(tex !is null && tex.isValid());
-  scope(exit) tex.destroy();
-  assert(tex.width() == 2 && tex.height() == 2);
-
-  bool near(ubyte[4] px, int r, int g, int b) {
-    // Linear filtering bleeds a few levels from neighboring texels.
-    return nearPixel(px, r, g, b, 8);
-  }
-
-  const ColorF opaque = ColorF(1, 1, 1, 1);
-
-  // 1. Whole image: colors and orientation at quadrant centers.
-  renderer.clearFrame(ColorF(0, 0, 0, 1));
-  renderer.drawImage(tex, RectF(0, 0, 100, 100), opaque);
-  assert(near(readAt(25, 25), 255, 0, 0));
-  assert(near(readAt(75, 25), 0, 255, 0));
-  assert(near(readAt(25, 75), 0, 0, 255));
-  assert(near(readAt(75, 75), 255, 255, 255));
-  // Outside dest stays black.
-  assert(near(readAt(150, 150), 0, 0, 0));
-
-  // 2. Source sub-rect: only the blue texel.
-  renderer.clearFrame(ColorF(0, 0, 0, 1));
-  renderer.drawImageRegion(
-    tex, RectF(0, 0, 100, 100), RectF(0, 1, 1, 1), opaque
-  );
-  assert(near(readAt(50, 50), 0, 0, 255));
-  assert(near(readAt(10, 90), 0, 0, 255));
-
-  // 3. 50% alpha tint over black.
-  renderer.clearFrame(ColorF(0, 0, 0, 1));
-  renderer.drawImage(tex, RectF(0, 0, 100, 100), ColorF(1, 1, 1, 0.5f));
-  assert(near(readAt(25, 25), 128, 0, 0));
-  assert(near(readAt(75, 75), 128, 128, 128));
-
-  // 4. update() re-uploads and resizes.
-  auto green = new Image(1, 1);
-  green.pixels[] = [0, 255, 0, 255];
-  tex.update(green);
-  assert(tex.width() == 1 && tex.height() == 1);
-  renderer.clearFrame(ColorF(0, 0, 0, 1));
-  renderer.drawImage(tex, RectF(0, 0, 100, 100), opaque);
-  assert(near(readAt(25, 25), 0, 255, 0));
-  assert(near(readAt(75, 75), 0, 255, 0));
-
-  // 5. Null and destroyed textures are no-ops; destroy is idempotent.
-  renderer.clearFrame(ColorF(0, 0, 0, 1));
-  renderer.drawImage(null, RectF(0, 0, 100, 100), opaque);
-  tex.destroy();
-  tex.destroy();
-  assert(!tex.isValid() && tex.width() == 0);
-  renderer.drawImage(tex, RectF(0, 0, 100, 100), opaque);
-  assert(near(readAt(50, 50), 0, 0, 0));
-
-  assert(glGetError() == GL_NO_ERROR);
-}
-
-// Verifies the blend on a transparent target (alpha a, not a * a) and
-// that premultiplied + bottom-up textures draw like straight ones.
-unittest {
-  import yguilib.render.internal.gl_test_util : GlTestWindow,
-    nearPixelRgba, readAt;
-  import yguilib.render.internal.gl_util : uploadRgbaTexture;
-  import yguilib.render.internal.offscreen : SavedTargetState;
-  import yguilib.render.texture : BorrowedTextureInfo;
-
-  auto w = GlTestWindow("test_renderer_blend_premultiplied");
-  scope(exit) w.destroy();
-  scope(exit) w.endTargets();
-
-  auto renderer = w.renderer();
-
-  bool near4(ubyte[4] px, int r, int g, int b, int a) {
-    return nearPixelRgba(px, r, g, b, a, 3);
-  }
-
-  // Offscreen RGBA target cleared to transparent.
-  OffscreenTarget fb;
-  scope(exit) fb.destroy();
-  // over the GL size limit (or not positive): rejected, nothing allocated
-  assert(!fb.ensureSize(fb.maxSize() + 1, 1));
-  assert(!fb.ensureSize(0, 10));
-  assert(fb.fbo == 0 && fb.width == 0);
-  assert(fb.ensureSize(320, 240));
-  const SavedTargetState saved = SavedTargetState.capture();
-  fb.bindRegion(320, 240, true);
-
-  // 1. Semi-transparent over transparent: premultiplied (128, 0, 0, 128).
-  renderer.drawFillRect(RectF(0, 0, 50, 50), ColorF(1, 0, 0, 0.5f));
-  assert(near4(readAt(25, 25), 128, 0, 0, 128));
-  // Opaque results are unchanged.
-  renderer.drawFillRect(RectF(60, 0, 50, 50), ColorF(0, 1, 0, 1));
-  assert(near4(readAt(85, 25), 0, 255, 0, 255));
-  renderer.drawFillRect(RectF(60, 0, 50, 50), ColorF(1, 0, 0, 0.5f));
-  assert(near4(readAt(85, 25), 128, 128, 0, 255));
-  assert(near4(readAt(200, 200), 0, 0, 0, 0));
-
-  // 2. Straight top-down image and its premultiplied bottom-up twin.
-  // 2x2: red a=128, green / blue, white a=64 (top-down rows).
-  auto img = new Image(2, 2);
-  img.pixels[] = [
-    255, 0, 0, 128,  0, 255, 0, 255,
-    0, 0, 255, 255,  255, 255, 255, 64,
-  ];
-  Texture straight = renderer.createTexture(img);
-  scope(exit) straight.destroy();
-  assert(!straight.premultiplied() && !straight.bottomUp());
-  assert(!straight.borrowed());
-
-  // Bottom row first, rgb multiplied by alpha.
-  ubyte[16] pre = [
-    0, 0, 255, 255,  64, 64, 64, 64,
-    128, 0, 0, 128,  0, 255, 0, 255,
-  ];
-  BorrowedTextureInfo info;
-  info.id = uploadRgbaTexture(pre.ptr, 2, 2, 8);
-  info.width = 2;
-  info.height = 2;
-  info.premultiplied = true;
-  info.bottomUp = true;
-  scope(exit) glDeleteTextures(1, &info.id);
-  Texture borrowed = Texture.borrowedFromInfo(info);
-  scope(exit) borrowed.releaseBorrowed();
-
-  // uv of a bottom-up texture is flipped.
-  const RectF uvAll = Renderer.textureUv(borrowed, RectF(0, 0, 2, 2));
-  assert(uvAll == RectF(0, 1, 1, -1));
-  const RectF uvPlain = Renderer.textureUv(straight, RectF(0, 1, 1, 1));
-  assert(uvPlain == RectF(0, 0.5f, 0.5f, 0.5f));
-
-  const int[2][4] centers = [[25, 25], [75, 25], [25, 75], [75, 75]];
-  void compareAt(ColorF tint, ColorF clear) {
-    renderer.clearFrame(clear);
-    renderer.drawImage(straight, RectF(0, 0, 100, 100), tint);
-    renderer.drawImage(borrowed, RectF(100, 0, 100, 100), tint);
-    foreach (c; centers) {
-      const ubyte[4] a = readAt(c[0], c[1]);
-      const ubyte[4] b = readAt(c[0] + 100, c[1]);
-      assert(near4(b, a[0], a[1], a[2], a[3]));
-    }
-  }
-
-  const ColorF opaque = ColorF(1, 1, 1, 1);
-  const ColorF halfTint = ColorF(1, 0.5f, 1, 0.5f);
-  compareAt(opaque, ColorF(0, 0, 0, 0));
-  compareAt(halfTint, ColorF(0, 0, 0, 0));
-  // Over transparent the straight red texel gives premultiplied alpha.
-  compareAt(opaque, ColorF(0, 0, 0, 0));
-  assert(near4(readAt(25, 25), 128, 0, 0, 128));
-  compareAt(opaque, ColorF(0.2f, 0.4f, 0.6f, 1));
-  compareAt(halfTint, ColorF(0.2f, 0.4f, 0.6f, 1));
-
-  // 3. Region of a bottom-up texture uses top-left source pixels: blue.
-  renderer.clearFrame(ColorF(0, 0, 0, 1));
-  renderer.drawImageRegion(
-    borrowed, RectF(0, 0, 100, 100), RectF(0, 1, 1, 1), opaque
-  );
-  assert(near4(readAt(50, 50), 0, 0, 255, 255));
-
-  saved.restore();
-  assert(glGetError() == GL_NO_ERROR);
-}
-
-// Verifies readPixels/captureFrame orientation, clamping and empty rects.
-unittest {
-  import yguilib.render.internal.gl_test_util : GlTestWindow;
-
-  auto w = GlTestWindow("test_renderer_read_pixels");
-  scope(exit) w.destroy();
-  scope(exit) w.endTargets();
-
-  auto renderer = w.renderer();
-
-  renderer.clearFrame(ColorF(0, 0, 0, 1));
-  renderer.drawFillRect(RectF(0, 0, 10, 10), ColorF(1, 0, 0, 1));
-
-  Image frame = renderer.captureFrame();
-  assert(frame !is null);
-  assert(frame.width() == 320 && frame.height() == 240);
-  // Top-left pixel is red: rows are top-down.
-  assert(frame.pixels[0 .. 4] == [255, 0, 0, 255]);
-  // Bottom-right pixel is black.
-  assert(frame.pixels[$ - 4 .. $] == [0, 0, 0, 255]);
-
-  // Sub-rect straddling the red square's corner, clamped at the origin.
-  Image part = renderer.readPixels(-5, -5, 20, 20);
-  assert(part !is null);
-  assert(part.width() == 15 && part.height() == 15);
-  assert(part.pixels[0 .. 4] == [255, 0, 0, 255]);
-  const size_t offs = cast(size_t)(12 * part.width() + 12) * 4;
-  assert(part.pixels[offs .. offs + 4] == [0, 0, 0, 255]);
-
-  // Rect at the bottom-right edge is clamped to the viewport.
-  Image edge = renderer.readPixels(310, 230, 50, 50);
-  assert(edge !is null);
-  assert(edge.width() == 10 && edge.height() == 10);
-
-  // Empty or fully outside rects give null.
-  assert(renderer.readPixels(0, 0, 0, 10) is null);
-  assert(renderer.readPixels(400, 0, 10, 10) is null);
-  assert(renderer.readPixels(0, -20, 10, 10) is null);
-
-  assert(glGetError() == GL_NO_ERROR);
-}
-
-// Destroyed fonts take their text runs with them (review 2.4).
-unittest {
-  import yguilib.render.internal.gl_test_util : GlTestWindow;
-
-  import yguilib.render.font : invalidFontId;
-
-  auto w = GlTestWindow("test_renderer_font_textures");
-  scope(exit) w.destroy();
-  scope(exit) w.endTargets();
-
-  auto r = w.renderer();
-  FontManager fm = r.fontManager;
-  TextRunCache tc = r.textCache;
-  assert(fm.scaledCount() == 0);
-
-  // Fill the scaled cache up to the flush threshold.
-  ulong[] ids;
-  foreach (i; 0 .. 64) {
-    Font f = r.fontAtScale(10.0f, null, 1.0f + i / 8.0f);
-    assert(r.textRunFor(f, "x", 0) !is null);
-    ids ~= f.id;
-  }
-  assert(fm.scaledCount() == 64);
-  foreach (id; ids) {
-    assert(tc.countForFont(id) == 1);
-  }
-  const size_t texts = tc.length;
-
-  // One more scaled font flushes the cache and its textures.
-  Font next = r.fontAtScale(10.0f, null, 12.0f);
-  assert(fm.scaledCount() == 1);
-  foreach (id; ids) {
-    assert(tc.countForFont(id) == 0);
-  }
-  assert(tc.length == texts - 64);
-  assert(r.textRunFor(next, "x", 0) !is null);
-
-  // Re-registering a face drops the textures of its fonts.
-  const(void)[] data = cast(const(void)[])defaultTtfFontData;
-  r.registerFontFromMemory("Foo", data);
-  Font foo = r.font(12.0f, "Foo");
-  const ulong fooId = foo.id;
-  assert(r.textRunFor(foo, "foo", 0) !is null);
-  assert(r.textRunFor(foo, "foo", 2) !is null);
-  assert(tc.countForFont(fooId) == 2);
-  r.registerFontFromMemory("Foo", data);
-  assert(tc.countForFont(fooId) == 0);
-  assert(foo.id == invalidFontId);
-  assert(r.font(12.0f, "Foo").id != fooId);
-}
-
-// Glyph quads match the blended whole-string bitmap, and 600 distinct
-// strings in one frame all draw from one atlas texture.
-unittest {
-  import std.conv : to;
-  import yguilib.clibs.sdl3_ttf;
-  import yguilib.render.internal.gl_test_util : GlTestWindow;
-  import yguilib.render.internal.gl_util : uploadRgbaTexture;
-
-  auto w = GlTestWindow("test_renderer_text_oracle");
-  scope(exit) w.destroy();
-  scope(exit) w.endTargets();
-
-  auto r = w.renderer();
-  Font f = r.fontAtScale(14.0f, null, 1.0f);
-  const string text = "Hello, Ag";
-  const ColorF white = ColorF(1, 1, 1, 1);
-
-  r.clearFrame(ColorF(0, 0, 0, 1));
-  r.drawTextWithFont(text, PointF(10, 10), white, f);
-  Image glyphs = r.readPixels(0, 0, 160, 60);
-  assert(glyphs !is null);
-
-  auto surf = yguilib_sdl3_ttf_render_text_blended(
-    f.handle, text.ptr, text.length, 255, 255, 255, 255
-  );
-  assert(surf !is null);
-  scope(exit) yguilib_sdl3_ttf_destroy_surface(surf);
-  int sw = 0;
-  int sh = 0;
-  yguilib_sdl3_ttf_get_surface_size(surf, &sw, &sh);
-  GLuint tex = uploadRgbaTexture(
-    yguilib_sdl3_ttf_get_surface_pixels(surf), sw, sh,
-    yguilib_sdl3_ttf_get_surface_pitch(surf)
-  );
-  scope(exit) glDeleteTextures(1, &tex);
-  r.clearFrame(ColorF(0, 0, 0, 1));
-  r.drawTexture(tex, RectF(10, 10, sw, sh), white);
-  Image whole = r.readPixels(0, 0, 160, 60);
-  assert(whole !is null);
-
-  int maxDiff = 0;
-  int lit = 0;
-  foreach (i; 0 .. glyphs.pixels.length) {
-    const int d = glyphs.pixels[i] > whole.pixels[i]
-      ? glyphs.pixels[i] - whole.pixels[i]
-      : whole.pixels[i] - glyphs.pixels[i];
-    maxDiff = d > maxDiff ? d : maxDiff;
-    lit += (i % 4 == 0 && glyphs.pixels[i] > 60) ? 1 : 0;
-  }
-  assert(lit > 50);
-  assert(maxDiff <= 2, "max channel difference " ~ maxDiff.to!string);
-
-  // 600 distinct strings in one frame, one atlas texture.
-  r.clearFrame(ColorF(0, 0, 0, 1));
-  const GLuint atlasTex = r.glyphAtlasTexture();
-  assert(atlasTex != 0);
-  foreach (i; 0 .. 600) {
-    const string s = "str" ~ i.to!string;
-    assert(r.textRunFor(f, s, 0) !is null);
-    r.drawTextWithFont(s, PointF(i % 20 * 15, i / 20 * 7), white, f);
-    assert(r.glyphAtlasTexture() == atlasTex || i > 0);
-  }
-  assert(r.glyphAtlasSize() >= 512);
-  assert(glGetError() == GL_NO_ERROR);
-}
-
-// Multi-font, multi-size, multi-color consecutive text calls share 1 flush.
-unittest {
-  import yguilib.render.internal.gl_test_util : GlTestWindow;
-
-  auto w = GlTestWindow("test_renderer_text_batch_multi");
-  scope(exit) w.destroy();
-  scope(exit) w.endTargets();
-
-  auto r = w.renderer();
-  r.registerFontFromMemory("Alt", cast(const(void)[])defaultTtfFontData);
-  Font f1 = r.font(11.0f, null);
-  Font f2 = r.font(18.0f, null);
-  Font f3 = r.font(24.0f, "Alt");
-
-  r.clearFrame(ColorF(0, 0, 0, 1));
-  r.resetTextBatchStats();
-
-  r.drawTextWithFont("Red", PointF(10, 10), ColorF(1, 0, 0, 1), f1);
-  r.drawTextWithFont("Green", PointF(10, 40), ColorF(0, 1, 0, 1), f2);
-  r.drawTextWithFont("Blue", PointF(10, 80), ColorF(0, 0, 1, 1), f3);
-  assert(r.textBatchStats().flushes == 0);
-
-  r.flush();
-  assert(r.textBatchStats().flushes == 1);
-  assert(r.textBatchStats().flushedQuads > 0);
-
-  int countChannel(int x0, int y0, int bw, int bh, int ch) {
-    Image part = r.readPixels(x0, y0, bw, bh);
-    assert(part !is null);
-    int n = 0;
-    for (size_t i = 0; i < part.pixels.length; i += 4) {
-      if (part.pixels[i + ch] > 120
-          && part.pixels[i + ((ch + 1) % 3)] < 20
-          && part.pixels[i + ((ch + 2) % 3)] < 20) {
-        ++n;
-      }
-    }
-    return n;
-  }
-
-  assert(countChannel(10, 10, 80, 25, 0) > 0);
-  assert(countChannel(10, 40, 100, 35, 1) > 0);
-  assert(countChannel(10, 80, 100, 40, 2) > 0);
-  assert(glGetError() == GL_NO_ERROR);
-}
-
-// Interleaved non-text draws auto-flush and preserve z-order.
-unittest {
-  import yguilib.render.internal.gl_test_util : GlTestWindow;
-
-  auto w = GlTestWindow("test_renderer_text_batch_zorder");
-  scope(exit) w.destroy();
-  scope(exit) w.endTargets();
-
-  auto r = w.renderer();
-  Font f = r.font(18.0f, null);
-  r.clearFrame(ColorF(0, 0, 0, 1));
-  r.resetTextBatchStats();
-
-  r.drawTextWithFont("HHHH", PointF(10, 20), ColorF(1, 1, 1, 1), f);
-  assert(r.textBatchStats().flushes == 0);
-
-  r.drawFillRect(RectF(10, 20, 100, 35), ColorF(1, 0, 0, 1));
-  assert(r.textBatchStats().flushes == 1);
-
-  r.drawTextWithFont("IIII", PointF(10, 20), ColorF(0, 1, 0, 1), f);
-  assert(r.textBatchStats().flushes == 1);
-
-  r.flush();
-  assert(r.textBatchStats().flushes == 2);
-
-  Image part = r.readPixels(10, 20, 100, 35);
-  assert(part !is null);
-  int greenOnTop = 0;
-  int whiteLeaked = 0;
-  for (size_t i = 0; i < part.pixels.length; i += 4) {
-    if (part.pixels[i + 1] > 150 && part.pixels[i] < 100) {
-      ++greenOnTop;
-    }
-    if (part.pixels[i] > 180 && part.pixels[i + 2] > 180) {
-      ++whiteLeaked;
-    }
-  }
-  assert(greenOnTop > 0);
-  assert(whiteLeaked == 0);
-  assert(glGetError() == GL_NO_ERROR);
-}
-
-// Scissor changes flush; redundant identical clip rects do not.
-unittest {
-  import yguilib.render.internal.gl_test_util : GlTestWindow;
-
-  auto w = GlTestWindow("test_renderer_text_batch_scissor");
-  scope(exit) w.destroy();
-  scope(exit) w.endTargets();
-
-  auto r = w.renderer();
-  r.clearFrame(ColorF(0, 0, 0, 1));
-  r.resetTextBatchStats();
-
-  r.pushClipRect(RectF(0, 0, 200, 200));
-  r.drawTextWithFont("A", PointF(10, 10), ColorF(1, 1, 1, 1), null);
-  assert(r.textBatchStats().flushes == 0);
-
-  // Intersects to (0, 0, 200, 200): identical scissor box, no flush.
-  r.pushClipRect(RectF(0, 0, 250, 250));
-  r.drawTextWithFont("B", PointF(30, 10), ColorF(1, 1, 1, 1), null);
-  assert(r.textBatchStats().flushes == 0);
-
-  // Popping back to (0, 0, 200, 200) keeps the same scissor box, no flush.
-  r.popClipRect();
-  r.drawTextWithFont("C", PointF(50, 10), ColorF(1, 1, 1, 1), null);
-  assert(r.textBatchStats().flushes == 0);
-
-  // Narrower clip changes the scissor box and flushes prior queued text.
-  r.pushClipRect(RectF(10, 10, 100, 100));
-  assert(r.textBatchStats().flushes == 1);
-  r.drawTextWithFont("D", PointF(20, 40), ColorF(1, 1, 1, 1), null);
-
-  // Popping back to (0, 0, 200, 200) changes the scissor box and flushes.
-  r.popClipRect();
-  assert(r.textBatchStats().flushes == 2);
-  r.drawTextWithFont("E", PointF(70, 10), ColorF(1, 1, 1, 1), null);
-
-  // Final pop disables scissor and flushes.
-  r.popClipRect();
-  assert(r.textBatchStats().flushes == 3);
-  assert(glGetError() == GL_NO_ERROR);
-}
-
-// Mid-batch atlas growth and clear flush queued labels before reallocating.
-unittest {
-  import std.conv : to;
-  import yguilib.render.internal.gl_test_util : GlTestWindow;
-
-  auto w = GlTestWindow("test_renderer_text_batch_atlas_reset");
-  scope(exit) w.destroy();
-  scope(exit) w.endTargets();
-
-  auto r = w.renderer();
-  Font smallF = r.font(16.0f, null);
-  Font bigF = r.font(64.0f, null);
-
-  // Trigger initial atlas allocation, then test mid-batch growth.
-  r.clearFrame(ColorF(0, 0, 0, 1));
-  r.drawTextWithFont("Init", PointF(0, 0), ColorF(0, 0, 0, 1), smallF);
-  r.flush();
-
-  r.clearFrame(ColorF(0, 0, 0, 1));
-  r.resetTextBatchStats();
-  const int oldAtlasSize = r.glyphAtlasSize();
-
-  r.drawTextWithFont("ABC", PointF(10, 10), ColorF(1, 1, 1, 1), smallF);
-  assert(r.textBatchStats().flushes == 0);
-
-  // Fill 512x512 atlas until it grows (or clear if already at max size).
-  bool grew = false;
-  foreach (i; 0 .. 40) {
-    const string s = "G" ~ i.to!string ~ "WXYZQMRK";
-    r.drawTextWithFont(s, PointF(10, 90), ColorF(0, 1, 0, 1), bigF);
-    if (r.glyphAtlasSize() > oldAtlasSize) {
-      grew = true;
-      break;
-    }
-  }
-  if (!grew) {
-    r.textCache.atlas().clear();
-  }
-  assert(r.textBatchStats().flushes >= 1);
-
-  Image topImg = r.readPixels(10, 10, 60, 30);
-  assert(topImg !is null);
-  int whiteLit = 0;
-  for (size_t i = 0; i < topImg.pixels.length; i += 4) {
-    if (topImg.pixels[i] > 120
-        && topImg.pixels[i + 1] > 120
-        && topImg.pixels[i + 2] > 120) {
-      ++whiteLit;
-    }
-  }
-  assert(whiteLit > 0);
-
-  // Explicit mid-batch atlas clear also flushes queued labels intact.
-  r.clearFrame(ColorF(0, 0, 0, 1));
-  r.resetTextBatchStats();
-  r.drawTextWithFont("DEF", PointF(10, 10), ColorF(1, 1, 1, 1), smallF);
-  assert(r.textBatchStats().flushes == 0);
-  r.textCache.atlas().clear();
-  assert(r.textBatchStats().flushes == 1);
-  Image clearImg = r.readPixels(10, 10, 60, 30);
-  assert(clearImg !is null);
-  int clearLit = 0;
-  for (size_t i = 0; i < clearImg.pixels.length; i += 4) {
-    if (clearImg.pixels[i] > 120 && clearImg.pixels[i + 1] > 120) {
-      ++clearLit;
-    }
-  }
-  assert(clearLit > 0);
-  assert(glGetError() == GL_NO_ERROR);
-}
-
-// beginTarget/endTarget and readPixels/captureFrame auto-flush.
-unittest {
-  import yguilib.render.internal.gl_test_util : GlTestWindow;
-
-  auto w = GlTestWindow("test_renderer_text_batch_targets");
-  scope(exit) w.destroy();
-  scope(exit) w.endTargets();
-
-  auto r = w.renderer();
-  RenderTarget rt = r.createRenderTarget(160, 120, false);
-  assert(rt !is null);
-  scope(exit) rt.destroy();
-
-  Font f = r.font(16.0f, null);
-  r.clearFrame(ColorF(0, 0, 0, 1));
-  r.resetTextBatchStats();
-
-  r.drawTextWithFont("Main", PointF(10, 10), ColorF(1, 1, 1, 1), f);
-  assert(r.textBatchStats().flushes == 0);
-
-  r.beginTarget(rt, true);
-  assert(r.textBatchStats().flushes == 1);
-  r.drawTextWithFont("RT1", PointF(10, 10), ColorF(0, 1, 0, 1), f);
-  assert(r.textBatchStats().flushes == 1);
-
-  Image rtCap = r.captureFrame();
-  assert(rtCap !is null);
-  assert(r.textBatchStats().flushes == 2);
-  int rtGreen = 0;
-  for (size_t i = 0; i < rtCap.pixels.length; i += 4) {
-    if (rtCap.pixels[i + 1] > 120) {
-      ++rtGreen;
-    }
-  }
-  assert(rtGreen > 0);
-
-  r.drawTextWithFont("RT2", PointF(10, 40), ColorF(0, 0, 1, 1), f);
-  assert(r.textBatchStats().flushes == 2);
-
-  r.endTarget();
-  assert(r.textBatchStats().flushes == 3);
-
-  Image mainPart = r.readPixels(10, 10, 80, 30);
-  assert(mainPart !is null);
-  int mainWhite = 0;
-  for (size_t i = 0; i < mainPart.pixels.length; i += 4) {
-    if (mainPart.pixels[i] > 120
-        && mainPart.pixels[i + 1] > 120
-        && mainPart.pixels[i + 2] > 120) {
-      ++mainWhite;
-    }
-  }
-  assert(mainWhite > 0);
-
-  r.clearFrame(ColorF(0, 0, 0, 1));
-  r.drawImage(rt.texture(), RectF(0, 0, 160, 120), ColorF(1, 1, 1, 1));
-  Image comp = r.readPixels(0, 0, 160, 120);
-  assert(comp !is null);
-  int compBlue = 0;
-  for (size_t i = 0; i < comp.pixels.length; i += 4) {
-    if (comp.pixels[i + 2] > 120 && comp.pixels[i + 1] < 20) {
-      ++compBlue;
-    }
-  }
-  assert(compBlue > 0);
-  assert(glGetError() == GL_NO_ERROR);
-}
-
-// Steady-state batched text frames allocate zero GC memory.
-unittest {
-  import core.memory : GC;
-  import yguilib.render.internal.gl_test_util : GlTestWindow;
-
-  auto w = GlTestWindow("test_renderer_text_batch_zero_gc");
-  scope(exit) w.destroy();
-  scope(exit) w.endTargets();
-
-  auto r = w.renderer();
-  Font f1 = r.font(12.0f, null);
-  Font f2 = r.font(18.0f, null);
-
-  void drawBatchedFrame() {
-    r.clearFrame(ColorF(0, 0, 0, 1));
-    r.drawTextWithFont("Label One", PointF(10, 10), ColorF(1, 1, 1, 1), f1);
-    r.drawTextWithFont("Label Two", PointF(10, 35), ColorF(1, 0, 0, 1), f2);
-    r.drawTextWithFont("Label Three", PointF(10, 65), ColorF(0, 1, 0, 1), f1);
-    r.drawTextWithFont("Label Four", PointF(10, 90), ColorF(0, 0, 1, 1), f2);
-    r.flush();
-  }
-
-  foreach (_; 0 .. 5) {
-    drawBatchedFrame();
-  }
-
-  GC.collect();
-  const before = GC.stats();
-  foreach (_; 0 .. 50) {
-    drawBatchedFrame();
-  }
-  const after = GC.stats();
-  assert(after.allocatedInCurrentThread == before.allocatedInCurrentThread);
-  assert(glGetError() == GL_NO_ERROR);
 }

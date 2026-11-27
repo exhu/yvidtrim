@@ -1,7 +1,6 @@
 module yguilib.uisystem;
 import yguilib.controller : Controller;
 import yguilib.events : AppEvent;
-import yguilib.timercontrol;
 import yguilib.widget : Widget;
 import yguilib.widget.widget_view : WidgetViewController, WidgetView;
 import yguilib.widget.system : WidgetSystem, WidgetSystemHost;
@@ -32,24 +31,27 @@ interface EventControl {
 interface WidgetSystemControl {
   void registerWidgetSystem(WidgetSystem system);
   void unregisterWidgetSystem(WidgetSystem system);
+  /// May return null if no system of type `T` is registered.
   T findWidgetSystem(T : WidgetSystem)() {
     return cast(T) findWidgetSystemByType(typeid(T));
   }
 
 protected:
+  /// May return null if no system matching `type` is registered.
   WidgetSystem findWidgetSystemByType(TypeInfo_Class type);
 }
 
 /// Manages Controllers, Messaging, Windows, and WidgetSystems.
 interface UiSystem : ControllerStack, WidgetSystemHost, FocusControl,
   WidgetSystemControl, UiRegistry {
+  /// May return null in headless mode.
   @property Window mainWindow();
   void mainEventLoop();
   uint nextWidgetId();
   Widget makeWidget();
   void releaseWidget(Widget w);
   @property void eventStatsEnabled(bool enabled);
-  @property bool eventStatsEnabled();
+  @property bool eventStatsEnabled() const;
 
   /**
    * Requests a PNG screenshot of the main window saved to `path` after the
@@ -64,4 +66,11 @@ interface UiSystem : ControllerStack, WidgetSystemHost, FocusControl,
   /// `{type, fields}` schema. Main-thread only; reads UI state without
   /// locking.
   string dumpInfo();
+}
+
+/// Creates a headless `UiSystem` instance (with no main window) for
+/// unit tests and offscreen use.
+UiSystem makeHeadlessUiSystem() {
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  return new UiSystemImpl(null);
 }

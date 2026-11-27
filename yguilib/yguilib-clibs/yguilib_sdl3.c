@@ -161,7 +161,7 @@ static int convert_sdl_event(const SDL_Event *src, yguilib_sdl3_Event *dst) {
   return 1;
 }
 
-uint32_t yguilib_sdl3_register_wake_event(void) {
+static uint32_t register_wake_event(void) {
   if (g_wake_event_type != 0 && g_wake_event_type != (uint32_t)-1) {
     return g_wake_event_type;
   }
@@ -178,7 +178,7 @@ int yguilib_sdl3_init(void) {
     if (!SDL_Init(SDL_INIT_EVENTS | SDL_INIT_VIDEO)) {
       return -1;
     }
-    if (yguilib_sdl3_register_wake_event() == 0) {
+    if (register_wake_event() == 0) {
       SDL_Quit();
       return -1;
     }
@@ -233,10 +233,6 @@ int yguilib_sdl3_poll_event(yguilib_sdl3_Event *event) {
     return 0;
   }
   return convert_sdl_event(&sdl_event, event);
-}
-
-int yguilib_sdl3_hello(void) {
-  return 0;
 }
 
 static const SDL_WindowFlags window_flags =
@@ -418,12 +414,6 @@ yguilib_sdl3_GLProc yguilib_sdl3_gl_get_proc_address(const char *proc) {
   return (yguilib_sdl3_GLProc)SDL_GL_GetProcAddress(proc);
 }
 
-void yguilib_sdl3_log(const char *message) {
-  if (message) {
-    SDL_Log("%s", message);
-  }
-}
-
 void yguilib_sdl3_log_priority(
   yguilib_sdl3_LogPriority priority,
   const char *message
@@ -472,18 +462,6 @@ int yguilib_sdl3_set_text_input_area(
   return SDL_SetTextInputArea(window->handle, p_sdl_rect, cursor) ? 0 : -1;
 }
 
-uint32_t yguilib_sdl3_get_key_from_scancode(
-  uint32_t scancode,
-  uint16_t modstate,
-  int key_event
-) {
-  return (uint32_t)SDL_GetKeyFromScancode(
-    (SDL_Scancode)scancode,
-    (SDL_Keymod)modstate,
-    key_event != 0
-  );
-}
-
 const char *yguilib_sdl3_get_key_name(uint32_t key) {
   return SDL_GetKeyName((SDL_Keycode)key);
 }
@@ -493,17 +471,6 @@ uint32_t yguilib_sdl3_get_key_from_name(const char *name) {
     return 0;
   }
   return (uint32_t)SDL_GetKeyFromName(name);
-}
-
-uint32_t yguilib_sdl3_get_scancode_from_name(const char *name) {
-  if (!name) {
-    return 0;
-  }
-  return (uint32_t)SDL_GetScancodeFromName(name);
-}
-
-const char *yguilib_sdl3_get_scancode_name(uint32_t scancode) {
-  return SDL_GetScancodeName((SDL_Scancode)scancode);
 }
 
 int yguilib_sdl3_capture_mouse(int enabled) {

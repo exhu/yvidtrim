@@ -369,7 +369,7 @@ unittest {
   import yguilib.controls.scrollbars : registerScrollbars;
   import yguilib.controls.virtlist : registerVirtList;
   import yguilib.events.builder : ViewAppEventBuilder;
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : makeHeadlessUiSystem;
   import yguilib.widget : Widget;
 
   VirtListPageController makeController(
@@ -387,7 +387,7 @@ unittest {
     return new VirtListPageController(params);
   }
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   ui.pushController(registerScrollbars(ui));
   auto vlCtrl = registerVirtList(ui);
   ui.pushController(vlCtrl);

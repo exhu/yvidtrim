@@ -3,32 +3,27 @@ module yguilib.widget.internal.layout_system;
 package(yguilib):
 import std.array : Appender;
 import yguilib.render : Renderer;
-import yguilib.render.render_types : ColorF, PointF, RectF;
+import yguilib.render.render_types : PointF, RectF;
 import yguilib.widget;
 import yguilib.widget.layout_components;
-import yguilib.widget.drawing_components;
 import yguilib.widget.system : SystemPhase, TwoPassWidgetSystem,
   WidgetSystem, WidgetSystemContext;
 import yguilib.widget.visible : VisibleWidget, VisibleWidgets;
-import yguilib.widget.internal.layout_dimension : computeDimension;
+import yguilib.widget.internal.layout_dimension : computeDimension,
+  DimensionParams;
 import yguilib.widget.internal.layout_content_size : calcContentSize,
   calcPaddingAndBorder;
 import yguilib.widget.internal.layout_flex : alignChildCrossAxis,
   arrangeMainAxis, calcContentRect, computeJustifyOffsets, JustifyOffsets,
-  resolveFractionSizes, updateFlexChildTextHeight;
+  JustifyParams, resolveFractionSizes, updateFlexChildTextHeight;
 import yguilib.widget.internal.layout_anchor : handleAnchorComp;
-
-// TODO move to public module, allow to register in LayoutSystem
-interface CustomLayout {
-  /// initial size, position computation
-  void handleLeafToRoot(VisibleWidget vw, Renderer r);
-  /// final size, position computation
-  void handleRootToLeaf(VisibleWidget vw, Renderer r);
-}
 
 final class LayoutSystem : TwoPassWidgetSystem {
   this() nothrow @safe {
-    priority(layoutSystemPriority);
+  }
+
+  override @property int priority() const nothrow @safe {
+    return layoutSystemPriority;
   }
 
   override @property SystemPhase phases() const nothrow @safe {
@@ -41,20 +36,52 @@ final class LayoutSystem : TwoPassWidgetSystem {
       return;
     }
     runTwoPass(ctx.unclippedWidgets, ctx);
+
+    // Re-measure auto-height flex parents after wrapped text changes child
+    // heights during root-to-leaf flex layout.
+    foreach_reverse (ref vw; ctx.unclippedWidgets) {
+      Widget w = vw.widget;
+      if (w is null || w.components.flexContainer is null ||
+          hasVirtListAncestor(w)) {
+        continue;
+      }
+      const Size szComp = w.components.size;
+      if (szComp is null || szComp.height.mode != SizingMode.auto_) {
+        continue;
+      }
+      const PointF contentSize = calcContentSize(w, ctx.renderer);
+      const PointF padBorder = calcPaddingAndBorder(
+        szComp, w.components.border
+      );
+      DimensionParams hp;
+      hp.withDim(szComp.height)
+        .withCurrentVal(w.rect.height)
+        .withContentDim(contentSize.y)
+        .withPadBorder(padBorder.y)
+        .withMinVal(szComp.minHeight)
+        .withMaxVal(szComp.maxHeight);
+      w.rect.height = computeDimension(hp);
+    }
   }
 
   override void processLeafToRoot(
     ref VisibleWidget vw,
     ref WidgetSystemContext ctx
   ) {
-    handleSizeComp(vw, ctx.renderer);
+    if (hasVirtListAncestor(vw.widget)) {
+      return;
+    }
+    handleSizeCompForVisible(vw, ctx.renderer);
   }
 
   override void processRootToLeaf(
     ref VisibleWidget vw,
     ref WidgetSystemContext ctx
   ) {
-    handleAnchorComp(vw);
+    if (hasVirtListAncestor(vw.widget)) {
+      return;
+    }
+    handleAnchorCompForVisible(vw);
     handleFlexContainerCompForVisible(vw, ctx.renderer);
   }
 
@@ -89,19 +116,13 @@ final class LayoutSystem : TwoPassWidgetSystem {
     }
     root.layoutDirty = false;
   }
-private:
 
-  Appender!(Widget[]) childBuf;
-  Appender!(RectF[]) oldRectBuf;
-
-  package(yguilib) static void handleSizeComp(
-    VisibleWidget vw,
-    Renderer r = null
-  ) {
+package(yguilib):
+  static void handleSizeCompForVisible(VisibleWidget vw, Renderer r) {
     handleSizeComp(vw.widget, r);
   }
 
-  package(yguilib) static void handleSizeComp(Widget w, Renderer r = null) {
+  static void handleSizeComp(Widget w, Renderer r) {
     Size szComp = w.components.size;
     if (szComp is null) {
       return;
@@ -115,29 +136,30 @@ private:
 
     const PointF padBorder = calcPaddingAndBorder(szComp, w.components.border);
 
-    w.rect.width = computeDimension(
-      szComp.width,
-      w.rect.width,
-      contentSize.x,
-      padBorder.x,
-      szComp.minWidth,
-      szComp.maxWidth
-    );
-    w.rect.height = computeDimension(
-      szComp.height,
-      w.rect.height,
-      contentSize.y,
-      padBorder.y,
-      szComp.minHeight,
-      szComp.maxHeight
-    );
+    DimensionParams wp;
+    wp.withDim(szComp.width)
+      .withCurrentVal(w.rect.width)
+      .withContentDim(contentSize.x)
+      .withPadBorder(padBorder.x)
+      .withMinVal(szComp.minWidth)
+      .withMaxVal(szComp.maxWidth);
+    w.rect.width = computeDimension(wp);
+
+    DimensionParams hp;
+    hp.withDim(szComp.height)
+      .withCurrentVal(w.rect.height)
+      .withContentDim(contentSize.y)
+      .withPadBorder(padBorder.y)
+      .withMinVal(szComp.minHeight)
+      .withMaxVal(szComp.maxHeight);
+    w.rect.height = computeDimension(hp);
   }
 
-  package(yguilib) static void handleAnchorComp(VisibleWidget vw) {
+  static void handleAnchorCompForVisible(VisibleWidget vw) {
     handleAnchorComp(vw.widget);
   }
 
-  package(yguilib) static void handleAnchorComp(Widget w) {
+  static void handleAnchorComp(Widget w) {
     .handleAnchorComp(w);
   }
 
@@ -147,7 +169,7 @@ private:
   }
 
   /// Arranges children of a flex container widget according to flexbox rules.
-  package(yguilib) void handleFlexContainerComp(Widget w, Renderer r) {
+  void handleFlexContainerComp(Widget w, Renderer r) {
     if (w is null) {
       return;
     }
@@ -158,6 +180,7 @@ private:
 
     Widget[] visibleChildren = collectVisibleFlexChildren(w);
     if (visibleChildren.length == 0) {
+      clearChildBuf();
       return;
     }
 
@@ -176,30 +199,76 @@ private:
       contentMainExtent,
       flexComp.gap
     );
-    updateFlexChildrenCrossAndText(
-      visibleChildren, isRow, flexComp.alignItems,
-      contentCrossPos, contentCrossExtent, r
-    );
 
-    const JustifyOffsets offsets = computeJustifyOffsets(
-      flexComp.justify, visibleChildren, isRow, contentMainPos,
-      contentMainExtent, flexComp.gap
-    );
+    FlexCrossParams crossParams;
+    crossParams.withIsRow(isRow)
+      .withAlignItems(flexComp.alignItems)
+      .withCrossBounds(contentCrossPos, contentCrossExtent);
+    updateFlexChildrenCrossAndText(visibleChildren, crossParams, r);
+
+    JustifyParams jp;
+    jp.withJustify(flexComp.justify)
+      .withChildren(visibleChildren)
+      .withIsRow(isRow)
+      .withMainBounds(contentMainPos, contentMainExtent)
+      .withGap(flexComp.gap);
+    const JustifyOffsets offsets = computeJustifyOffsets(jp);
 
     arrangeMainAxis(
       visibleChildren, isRow, offsets.startOffset, offsets.gapBetween
     );
 
-    foreach (child; visibleChildren) {
-      alignChildCrossAxis(
-        child, isRow, flexComp.alignItems, contentCrossPos, contentCrossExtent
-      );
+    // Column with AlignItems.stretch already aligned cross axis above.
+    if (isRow || flexComp.alignItems != AlignItems.stretch) {
+      foreach (child; visibleChildren) {
+        alignChildCrossAxis(
+          child, isRow, flexComp.alignItems, contentCrossPos, contentCrossExtent
+        );
+      }
     }
+    clearChildBuf();
   }
 
 private:
+  static bool hasVirtListAncestor(Widget w) nothrow @safe {
+    Widget p = w is null ? null : w.parent;
+    while (p !is null) {
+      if (p.components.virtList !is null) {
+        return true;
+      }
+      p = p.parent;
+    }
+    return false;
+  }
+
+  Appender!(Widget[]) childBuf;
+  Appender!(RectF[]) oldRectBuf;
+
+  struct FlexCrossParams {
+    bool isRow;
+    AlignItems alignItems = AlignItems.stretch;
+    float contentCrossPos = 0.0f;
+    float contentCrossExtent = 0.0f;
+
+    ref FlexCrossParams withIsRow(bool isRow) return {
+      this.isRow = isRow;
+      return this;
+    }
+
+    ref FlexCrossParams withAlignItems(AlignItems alignItems) return {
+      this.alignItems = alignItems;
+      return this;
+    }
+
+    ref FlexCrossParams withCrossBounds(float pos, float extent) return {
+      this.contentCrossPos = pos;
+      this.contentCrossExtent = extent;
+      return this;
+    }
+  }
+
   Widget[] collectVisibleFlexChildren(Widget w) {
-    childBuf.clear();
+    clearChildBuf();
     foreach (child; w.children) {
       if (child.visible && child.components.anchor is null) {
         childBuf ~= child;
@@ -208,24 +277,32 @@ private:
     return childBuf[];
   }
 
+  void clearChildBuf() {
+    foreach (ref elem; childBuf.data) {
+      elem = null;
+    }
+    childBuf.clear();
+  }
+
   static void updateFlexChildrenCrossAndText(
     Widget[] visibleChildren,
-    bool isRow,
-    AlignItems alignItems,
-    float contentCrossPos,
-    float contentCrossExtent,
+    in FlexCrossParams params,
     Renderer r
   ) {
-    if (isRow) {
+    if (params.isRow) {
       if (r !is null) {
         foreach (child; visibleChildren) {
-          updateFlexChildTextHeight(child, r);
+          const Size sz = child.components.size;
+          if (sz !is null && sz.width.mode == SizingMode.fraction) {
+            updateFlexChildTextHeight(child, r);
+          }
         }
       }
-    } else if (alignItems == AlignItems.stretch) {
+    } else if (params.alignItems == AlignItems.stretch) {
       foreach (child; visibleChildren) {
         alignChildCrossAxis(
-          child, isRow, alignItems, contentCrossPos, contentCrossExtent
+          child, params.isRow, params.alignItems,
+          params.contentCrossPos, params.contentCrossExtent
         );
         if (r !is null) {
           updateFlexChildTextHeight(child, r);
@@ -244,7 +321,7 @@ unittest {
   auto w = fix.makeRootWithRect(RectF(10, 10, 50, 50));
 
   // No Size component -> rect remains untouched
-  ls.handleSizeComp(w);
+  ls.handleSizeComp(w, null);
   assert(w.rect.width == 50);
   assert(w.rect.height == 50);
 
@@ -254,13 +331,15 @@ unittest {
   sz.height = Dimension(80, SizingMode.fixed);
   w.components.size = sz;
 
-  ls.handleSizeComp(w);
+  ls.handleSizeComp(w, null);
   assert(w.rect.width == 120);
   assert(w.rect.height == 80);
 }
 
 // Auto sizing with padding and border
 unittest {
+  import yguilib.render.render_types : ColorF;
+  import yguilib.widget.drawing_components : Border;
   import yguilib.widget.test_fixture : WidgetFixture;
 
   auto fix = new WidgetFixture();
@@ -278,13 +357,13 @@ unittest {
 
   // Horizontal: padding (20+10) + border (3*2) = 36
   // Vertical: padding (5+15) + border (3*2) = 26
-  ls.handleSizeComp(w);
+  ls.handleSizeComp(w, null);
   assert(w.rect.width == 36);
   assert(w.rect.height == 26);
 
   // Border.Style.none should not contribute to size
   border.style = Border.Style.none;
-  ls.handleSizeComp(w);
+  ls.handleSizeComp(w, null);
   assert(w.rect.width == 30);
   assert(w.rect.height == 20);
 }
@@ -307,7 +386,7 @@ unittest {
   w.components.size = sz;
 
   // Clamped by minWidth (20 -> 50) and maxHeight (200 -> 100)
-  ls.handleSizeComp(w);
+  ls.handleSizeComp(w, null);
   assert(w.rect.width == 50);
   assert(w.rect.height == 100);
 
@@ -318,7 +397,7 @@ unittest {
   sz.minHeight = 60;
   sz.maxWidth = 200;
   sz.maxHeight = 200;
-  ls.handleSizeComp(w);
+  ls.handleSizeComp(w, null);
   assert(w.rect.width == 40);
   assert(w.rect.height == 60);
 
@@ -326,7 +405,7 @@ unittest {
   sz.width = Dimension(80, SizingMode.fixed);
   sz.minWidth = 120;
   sz.maxWidth = 100;
-  ls.handleSizeComp(w);
+  ls.handleSizeComp(w, null);
   assert(w.rect.width == 120);
 }
 
@@ -354,13 +433,13 @@ unittest {
   cHidden.visible = false;
 
   // Row: width = 40 + 60 + 10 = 110, height = max(25, 35) = 35
-  ls.handleSizeComp(parent);
+  ls.handleSizeComp(parent, null);
   assert(parent.rect.width == 110);
   assert(parent.rect.height == 35);
 
   // Column: width = max(40, 60) = 60, height = 25 + 35 + 10 = 70
   flex.direction = FlexDirection.column;
-  ls.handleSizeComp(parent);
+  ls.handleSizeComp(parent, null);
   assert(parent.rect.width == 60);
   assert(parent.rect.height == 70);
 }
@@ -383,7 +462,7 @@ unittest {
   // right=80, bottom=45
   auto c2 = fix.makeChildWithRect(parent, RectF(20, 15, 60, 30));
 
-  ls.handleSizeComp(parent);
+  ls.handleSizeComp(parent, null);
   assert(parent.rect.width == 80);
   assert(parent.rect.height == 45);
 }
@@ -391,6 +470,8 @@ unittest {
 // TextLabel measurement and layoutTree bottom-up flow
 unittest {
   import yguilib.clibs.sdl3 : yguilib_sdl3_init, yguilib_sdl3_quit;
+  import yguilib.render.render_types : ColorF;
+  import yguilib.widget.drawing_components : TextLabel;
   import yguilib.window : Window;
   import yguilib.widget.internal.collect_visible : VisibleWidgetsCollector;
   import yguilib.widget.test_fixture : WidgetFixture;
@@ -492,6 +573,8 @@ unittest {
 // Multiline TextLabel auto-height layout
 unittest {
   import yguilib.clibs.sdl3 : yguilib_sdl3_init, yguilib_sdl3_quit;
+  import yguilib.render.render_types : ColorF;
+  import yguilib.widget.drawing_components : TextLabel;
   import yguilib.window : Window;
   import yguilib.widget.internal.collect_visible : VisibleWidgetsCollector;
   import yguilib.widget.test_fixture : WidgetFixture;
@@ -564,6 +647,8 @@ unittest {
 // TextLabel with Size.maxWidth under SizingMode.auto_ and flex column stretch
 unittest {
   import yguilib.clibs.sdl3 : yguilib_sdl3_init, yguilib_sdl3_quit;
+  import yguilib.render.render_types : ColorF;
+  import yguilib.widget.drawing_components : TextLabel;
   import yguilib.window : Window;
   import yguilib.widget.internal.collect_visible : VisibleWidgetsCollector;
   import yguilib.widget.test_fixture : WidgetFixture;

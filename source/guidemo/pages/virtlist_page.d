@@ -56,32 +56,28 @@ struct VirtListPageTrackers {
 
   /// Creates trackers with default models.
   static VirtListPageTrackers make() {
-    VirtListPageTrackers t;
-    t.page = ModelTracker!VirtListPageModel(new VirtListPageModel());
-    t.vList = ModelTracker!VirtListModel(
-      new VirtListModel(vListDefaultCount)
-    );
-    t.hList = ModelTracker!VirtListModel(
-      new VirtListModel(hListDefaultCount)
-    );
     auto vItems = new VerticalItemsModel();
     vItems.resetItems(vListDefaultCount);
-    t.vItems = ModelTracker!VerticalItemsModel(vItems);
     auto hItems = new HorizontalItemsModel();
     hItems.resetItems(hListDefaultCount);
-    t.hItems = ModelTracker!HorizontalItemsModel(hItems);
-    return t;
+    return VirtListPageTrackers(
+      ModelTracker!VirtListPageModel(new VirtListPageModel()),
+      ModelTracker!VirtListModel(VirtListModel.withCount(vListDefaultCount)),
+      ModelTracker!VirtListModel(VirtListModel.withCount(hListDefaultCount)),
+      ModelTracker!VerticalItemsModel(vItems),
+      ModelTracker!HorizontalItemsModel(hItems)
+    );
   }
 
   /// Copies `other` with independent per-holder versions.
   static VirtListPageTrackers from(ref VirtListPageTrackers other) {
-    VirtListPageTrackers t;
-    t.page = ModelTracker!VirtListPageModel.from(other.page);
-    t.vList = ModelTracker!VirtListModel.from(other.vList);
-    t.hList = ModelTracker!VirtListModel.from(other.hList);
-    t.vItems = ModelTracker!VerticalItemsModel.from(other.vItems);
-    t.hItems = ModelTracker!HorizontalItemsModel.from(other.hItems);
-    return t;
+    return VirtListPageTrackers(
+      ModelTracker!VirtListPageModel.from(other.page),
+      ModelTracker!VirtListModel.from(other.vList),
+      ModelTracker!VirtListModel.from(other.hList),
+      ModelTracker!VerticalItemsModel.from(other.vItems),
+      ModelTracker!HorizontalItemsModel.from(other.hItems)
+    );
   }
 }
 

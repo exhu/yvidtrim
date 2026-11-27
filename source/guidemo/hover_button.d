@@ -651,8 +651,17 @@ unittest {
     override void sendAppEvent(AppEvent ev) {
       sentEvents ~= ev;
     }
-    override TimerId startTimer(
-      Object owner,
+    override TimerId startControllerTimer(
+      Controller target,
+      uint intervalMs,
+      TimerMode mode
+    ) {
+      const TimerId id = nextTimerId++;
+      activeTimers[id] = true;
+      return id;
+    }
+    override TimerId startSystemTimer(
+      WidgetSystem target,
       uint intervalMs,
       TimerMode mode
     ) {
@@ -700,7 +709,7 @@ unittest {
       }
     }
     override @property void eventStatsEnabled(bool enabled) {}
-    override @property bool eventStatsEnabled() {
+    override @property bool eventStatsEnabled() const {
       return false;
     }
     override string dumpInfo() {

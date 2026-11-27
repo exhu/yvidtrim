@@ -15,8 +15,11 @@ import yguilib.widget.widget_view : passViewEvent;
 final class ScrollSystem : WidgetSystem {
   /// Constructs ScrollSystem. `host` is allowed to be null in isolated tests.
   this(WidgetSystemHost host) nothrow @safe {
-    priority(scrollSystemPriority);
     this.host = host;
+  }
+
+  override @property int priority() const nothrow @safe {
+    return scrollSystemPriority;
   }
 
   override @property SystemPhase phases() const nothrow @safe {
@@ -73,8 +76,15 @@ private:
     if (child !is null) {
       sa.fContentSize = PointF(child.rect.width, child.rect.height);
 
+      if (!isFinite(sa.offset.x)) {
+        sa.offset.x = 0.0f;
+      }
+      if (!isFinite(sa.offset.y)) {
+        sa.offset.y = 0.0f;
+      }
+
       if (sa.clampOffset) {
-                import std.algorithm.comparison : max;
+        import std.algorithm.comparison : max;
         const float maxScrollX = max(
           0.0f,
           sa.fContentSize.x - sa.fViewportSize.x
@@ -84,13 +94,13 @@ private:
           sa.fContentSize.y - sa.fViewportSize.y
         );
 
-        if (!isFinite(sa.offset.x) || sa.offset.x < 0.0f) {
+        if (sa.offset.x < 0.0f) {
           sa.offset.x = 0.0f;
         } else if (sa.offset.x > maxScrollX) {
           sa.offset.x = maxScrollX;
         }
 
-        if (!isFinite(sa.offset.y) || sa.offset.y < 0.0f) {
+        if (sa.offset.y < 0.0f) {
           sa.offset.y = 0.0f;
         } else if (sa.offset.y > maxScrollY) {
           sa.offset.y = maxScrollY;
@@ -145,55 +155,11 @@ private:
   WidgetSystemHost host;
 }
 
-version (unittest) {
-  import yguilib.events : AppEvent;
-  import yguilib.object_registry : ObjectRegistry;
-  import yguilib.timercontrol : TimerId, invalidTimerId;
-  import yguilib.timers : TimerMode;
-  import yguilib.widget.layout_components : Insets, Size;
-  import yguilib.widget.widget_view : WidgetView, WidgetViewController;
-
-  private final class TestScrollHost : WidgetSystemHost {
-    AppEvent[] sentEvents;
-    ObjectRegistry!WidgetViewController dummyControllers;
-    ObjectRegistry!WidgetView dummyViews;
-
-    this() {
-      dummyControllers = new ObjectRegistry!WidgetViewController();
-      dummyViews = new ObjectRegistry!WidgetView();
-    }
-
-    override void sendAppEvent(AppEvent ev) {
-      sentEvents ~= ev;
-    }
-
-    override TimerId startTimer(
-      Object owner,
-      uint intervalMs,
-      TimerMode mode
-    ) {
-      return invalidTimerId;
-    }
-
-    override void stopTimer(TimerId id) {}
-
-    override bool isTimerActive(TimerId id) const {
-      return false;
-    }
-
-    override @property
-    ObjectRegistry!WidgetViewController widgetViewControllers() {
-      return dummyControllers;
-    }
-
-    override @property ObjectRegistry!WidgetView widgetViews() {
-      return dummyViews;
-    }
-  }
-}
-
 unittest {
-  auto host = new TestScrollHost();
+  import yguilib.widget.layout_components : Anchor, Insets, Size;
+  import yguilib.widget.test_fixture : MockWidgetSystemHost;
+
+  auto host = new MockWidgetSystemHost();
   auto scrollSys = new ScrollSystem(host);
   assert(scrollSys.priority == WidgetSystem.scrollSystemPriority);
   assert(
@@ -269,13 +235,19 @@ unittest {
   assert(child.rect.x == 0.0f);
   assert(child.rect.y == 0.0f);
 
-  // Test unconstrained offset when clampOffset = false
+  // Test unconstrained offset when clampOffset = false, including NaN guard
   sa.clampOffset = false;
   sa.offset = PointF(-20, 500);
   scrollSys.layout(ctx);
   assert(sa.offset == PointF(-20, 500));
   assert(child.rect.x == 20.0f);
   assert(child.rect.y == -500.0f);
+
+  sa.offset = PointF(float.nan, float.infinity);
+  scrollSys.layout(ctx);
+  assert(sa.offset == PointF(0.0f, 0.0f));
+  assert(child.rect.x == 0.0f);
+  assert(child.rect.y == 0.0f);
 
   // Test padding offsets viewport origin
   sa.clampOffset = true;
@@ -287,4 +259,29 @@ unittest {
   assert(sa.viewportSize == PointF(90, 90));
   assert(child.rect.x == -5.0f); // contentArea.x (5) - offset.x (10)
   assert(child.rect.y == -5.0f); // contentArea.y (5) - offset.y (10)
+
+  // Empty scroll area (no non-anchored visible children) resets contentSize
+  auto emptyParent = new Widget(3);
+  emptyParent.rect = RectF(0, 0, 80, 60);
+  auto emptySa = new ScrollableArea().withOffset(PointF(15, 25));
+  emptyParent.components.scrollableArea = emptySa;
+
+  auto anchoredChild = new Widget(4);
+  anchoredChild.rect = RectF(0, 0, 200, 200);
+  anchoredChild.components.anchor = new Anchor();
+  emptyParent.addChild(anchoredChild);
+
+  VisibleWidget[] emptyUnclipped = [
+    VisibleWidget(emptyParent, RectF(0, 0, 80, 60)),
+    VisibleWidget(anchoredChild, RectF(0, 0, 200, 200)),
+  ];
+  WidgetSystemContext emptyCtx;
+  emptyCtx.host = host;
+  emptyCtx.root = emptyParent;
+  emptyCtx.unclippedWidgets = emptyUnclipped;
+  scrollSys.layout(emptyCtx);
+  assert(emptySa.contentSize == PointF(0.0f, 0.0f));
+  assert(emptySa.offset == PointF(0.0f, 0.0f));
+  assert(anchoredChild.rect.x == 0.0f);
+  assert(anchoredChild.rect.y == 0.0f);
 }

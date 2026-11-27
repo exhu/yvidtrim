@@ -66,12 +66,13 @@ struct Transform2d {
     return a * d - b * c;
   }
 
-  /// True when the determinant is finite and its magnitude >= 1e-12.
+  /// True when the determinant is finite and its magnitude >= 1e-12
+  /// and the translation components are finite.
   bool isInvertible() const nothrow @safe @nogc pure {
     import std.math : abs, isFinite;
 
     const float det = determinant();
-    return isFinite(det) && abs(det) >= 1e-12f;
+    return isFinite(det) && isFinite(e) && isFinite(f) && abs(det) >= 1e-12f;
   }
 
   /// Inverse transform; returns identity when the matrix is singular.
@@ -190,6 +191,9 @@ struct LineDash {
       res.fSegs[i] = src[i % src.length];
       sum += res.fSegs[i];
     }
+    if (!isFinite(sum)) {
+      return LineDash.init;
+    }
     res.fCount = cast(ubyte) len;
     res.fPeriod = sum;
     return res;
@@ -262,9 +266,6 @@ enum maxGradientStops = 8;
 
 /// Fixed-capacity sorted color stops shared by gradients.
 struct GradientStops {
-  GradientStop[maxGradientStops] stops;
-  ubyte count;
-
   /**
    * Inserts a stop keeping offsets sorted (stable: equal offsets keep
    * insertion order). Offset is clamped to [0, 1]; non-finite offsets and
@@ -273,23 +274,32 @@ struct GradientStops {
   void add(float offset, ColorF c) nothrow @safe @nogc {
     import std.math : isFinite;
 
-    if (!isFinite(offset) || count >= maxGradientStops) {
+    if (!isFinite(offset) || fCount >= maxGradientStops) {
       return;
     }
     const float o = offset < 0 ? 0 : (offset > 1 ? 1 : offset);
-    size_t pos = count;
-    while (pos > 0 && stops[pos - 1].offset > o) {
-      stops[pos] = stops[pos - 1];
+    size_t pos = fCount;
+    while (pos > 0 && fStops[pos - 1].offset > o) {
+      fStops[pos] = fStops[pos - 1];
       --pos;
     }
-    stops[pos] = GradientStop(o, c);
-    ++count;
+    fStops[pos] = GradientStop(o, c);
+    ++fCount;
+  }
+
+  /// Number of stored stops.
+  size_t count() const nothrow @safe @nogc {
+    return fCount;
   }
 
   /// Used stops in offset order.
   const(GradientStop)[] items() const return nothrow @safe @nogc {
-    return stops[0 .. count];
+    return fStops[0 .. fCount];
   }
+
+private:
+  GradientStop[maxGradientStops] fStops;
+  ubyte fCount;
 }
 
 /// Linear gradient from `p0` to `p1`.
@@ -341,7 +351,7 @@ unittest {
   foreach (i; 0 .. maxGradientStops + 3) {
     r.addColorStop(1.0f - i * 0.05f, ColorF(i, 0, 0, 1));
   }
-  assert(r.stops.count == maxGradientStops);
+  assert(r.stops.count() == maxGradientStops);
   assert(r.stops.items()[0].color.r == maxGradientStops - 1);
   assert(r.stops.items()[$ - 1].offset == 1);
 }

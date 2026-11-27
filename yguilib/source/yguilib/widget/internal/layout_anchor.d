@@ -1,98 +1,95 @@
 module yguilib.widget.internal.layout_anchor;
 
 package(yguilib):
+import std.typecons : Nullable;
 import yguilib.render.render_types : RectF;
 import yguilib.widget : Widget;
 import yguilib.widget.layout_components : Anchor, Dimension, Insets, Size,
   SizingMode;
 import yguilib.widget.internal.layout_dimension : clampDimension;
-import yguilib.widget.internal.layout_flex : calcContentRect;
 
 /// Positions and optionally sizes a widget according to its Anchor component.
+/// `w` may be null (no-op).
 void handleAnchorComp(Widget w) {
   if (w is null || w.components.anchor is null || w.parent is null) {
     return;
   }
 
   const Anchor anchor = w.components.anchor;
-  const RectF contentRect = calcContentRect(w.parent);
+  const RectF contentRect = w.parent.contentArea();
   const Size szComp = w.components.size;
 
-  resolveHorizontalAnchor(w, anchor, szComp, contentRect);
-  resolveVerticalAnchor(w, anchor, szComp, contentRect);
+  resolveAxisAnchor(w, anchor, szComp, contentRect, true);
+  resolveAxisAnchor(w, anchor, szComp, contentRect, false);
 }
 
 private:
 
-void resolveHorizontalAnchor(
+void resolveAxisAnchor(
   Widget w,
   const Anchor anchor,
   const Size szComp,
-  const RectF contentRect
+  const RectF contentRect,
+  bool isHorizontal
 ) {
-  const float ml = szComp !is null ? szComp.margin.left : 0.0f;
-  const float mr = szComp !is null ? szComp.margin.right : 0.0f;
+  const Nullable!float startAnchor = isHorizontal ? anchor.left : anchor.top;
+  const Nullable!float endAnchor = isHorizontal ? anchor.right : anchor.bottom;
+  const float marginStart = szComp !is null
+    ? (isHorizontal ? szComp.margin.left : szComp.margin.top)
+    : 0.0f;
+  const float marginEnd = szComp !is null
+    ? (isHorizontal ? szComp.margin.right : szComp.margin.bottom)
+    : 0.0f;
+  const float contentPos = isHorizontal ? contentRect.x : contentRect.y;
+  const float contentExtent = isHorizontal
+    ? contentRect.width : contentRect.height;
 
-  if (!anchor.left.isNull && !anchor.right.isNull) {
-    const bool isFixed = szComp !is null &&
-      szComp.width.mode == SizingMode.fixed;
-    if (isFixed) {
-      // Over-constrained: left takes precedence in LTR
-      w.rect.x = contentRect.x + anchor.left.get + ml;
-    } else {
+  if (!startAnchor.isNull && !endAnchor.isNull) {
+    const bool isFixed = szComp !is null && (
+      isHorizontal
+        ? szComp.width.mode == SizingMode.fixed
+        : szComp.height.mode == SizingMode.fixed
+    );
+    if (!isFixed) {
       // Auto / unconstrained: stretches to fill between anchors
-      const float totalInsets = anchor.left.get + anchor.right.get + ml + mr;
+      const float totalInsets =
+        startAnchor.get + endAnchor.get + marginStart + marginEnd;
       import std.algorithm.comparison : max;
-      float targetWidth = max(0.0f, contentRect.width - totalInsets);
+      float targetExtent = max(0.0f, contentExtent - totalInsets);
       if (szComp !is null) {
-        targetWidth = clampDimension(
-          targetWidth, szComp.minWidth, szComp.maxWidth
-        );
+        const float minVal = isHorizontal ? szComp.minWidth : szComp.minHeight;
+        const float maxVal = isHorizontal ? szComp.maxWidth : szComp.maxHeight;
+        targetExtent = clampDimension(targetExtent, minVal, maxVal);
       }
-      w.rect.width = targetWidth;
-      w.rect.x = contentRect.x + anchor.left.get + ml;
+      if (isHorizontal) {
+        w.rect.width = targetExtent;
+      } else {
+        w.rect.height = targetExtent;
+      }
     }
-  } else if (!anchor.left.isNull) {
-    w.rect.x = contentRect.x + anchor.left.get + ml;
-  } else if (!anchor.right.isNull) {
-    w.rect.x = contentRect.x + contentRect.width
-      - w.rect.width - anchor.right.get - mr;
-  }
-}
-
-void resolveVerticalAnchor(
-  Widget w,
-  const Anchor anchor,
-  const Size szComp,
-  const RectF contentRect
-) {
-  const float mt = szComp !is null ? szComp.margin.top : 0.0f;
-  const float mb = szComp !is null ? szComp.margin.bottom : 0.0f;
-
-  if (!anchor.top.isNull && !anchor.bottom.isNull) {
-    const bool isFixed = szComp !is null &&
-      szComp.height.mode == SizingMode.fixed;
-    if (isFixed) {
-      // Over-constrained: top takes precedence
-      w.rect.y = contentRect.y + anchor.top.get + mt;
+    // Over-constrained fixed or stretched: start anchor takes precedence
+    const float pos = contentPos + startAnchor.get + marginStart;
+    if (isHorizontal) {
+      w.rect.x = pos;
     } else {
-      // Auto / unconstrained: stretches to fill between anchors
-      const float totalInsets = anchor.top.get + anchor.bottom.get + mt + mb;
-      import std.algorithm.comparison : max;
-      float targetHeight = max(0.0f, contentRect.height - totalInsets);
-      if (szComp !is null) {
-        targetHeight = clampDimension(
-          targetHeight, szComp.minHeight, szComp.maxHeight
-        );
-      }
-      w.rect.height = targetHeight;
-      w.rect.y = contentRect.y + anchor.top.get + mt;
+      w.rect.y = pos;
     }
-  } else if (!anchor.top.isNull) {
-    w.rect.y = contentRect.y + anchor.top.get + mt;
-  } else if (!anchor.bottom.isNull) {
-    w.rect.y = contentRect.y + contentRect.height
-      - w.rect.height - anchor.bottom.get - mb;
+  } else if (!startAnchor.isNull) {
+    const float pos = contentPos + startAnchor.get + marginStart;
+    if (isHorizontal) {
+      w.rect.x = pos;
+    } else {
+      w.rect.y = pos;
+    }
+  } else if (!endAnchor.isNull) {
+    const float currentExtent = isHorizontal ? w.rect.width : w.rect.height;
+    const float pos =
+      contentPos + contentExtent - currentExtent - endAnchor.get - marginEnd;
+    if (isHorizontal) {
+      w.rect.x = pos;
+    } else {
+      w.rect.y = pos;
+    }
   }
 }
 

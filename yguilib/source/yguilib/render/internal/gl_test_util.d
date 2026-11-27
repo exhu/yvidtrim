@@ -1,9 +1,10 @@
-/** Shared GL test fixture and pixel helpers for Renderer and Canvas tests.
-
-    `GlTestWindow` opens the hidden 320x240 window with a GL context and a
-    `Renderer` at display scaling 1. The helpers read back pixels in logic
-    coordinates (y down) from the bound framebuffer.
-*/
+/**
+ * Shared GL test fixture and pixel helpers for Renderer and Canvas tests.
+ *
+ * `GlTestWindow` opens the hidden 320x240 window with a GL context and a
+ * `Renderer` at display scaling 1. The helpers read back pixels in logic
+ * coordinates (y down) from the bound framebuffer.
+ */
 module yguilib.render.internal.gl_test_util;
 
 version (unittest):
@@ -93,11 +94,9 @@ private:
   Renderer fRenderer;
 }
 
-/// RGBA at logic (x, y) with y down; GL y = 240 - y.
+/// RGBA at logic (x, y) with y down; delegates to `readAt`.
 ubyte[4] px(int x, int y) {
-  ubyte[4] p;
-  glReadPixels(x, testHeight - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, p.ptr);
-  return p;
+  return readAt(x, y);
 }
 
 /// RGBA at logic pixel row `y` (top row 0); GL y = 240 - 1 - y.

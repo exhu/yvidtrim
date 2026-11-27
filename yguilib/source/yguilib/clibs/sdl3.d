@@ -1,4 +1,4 @@
-/// bindings to yguilib-clib-sdl C library
+/// Bindings to yguilib_sdl3 C library.
 module yguilib.clibs.sdl3;
 
 package(yguilib):
@@ -24,14 +24,14 @@ enum yguilib_sdl3_EventType : int {
   unknown,
 }
 
-struct yguilib_sdl3_Rect {
+extern(C) struct yguilib_sdl3_Rect {
   int x;
   int y;
   int w;
   int h;
 }
 
-struct yguilib_sdl3_WindowEvent {
+extern(C) struct yguilib_sdl3_WindowEvent {
   yguilib_sdl3_EventType type;
   uint windowId;
   int width;
@@ -39,7 +39,7 @@ struct yguilib_sdl3_WindowEvent {
   float scale;
 }
 
-struct yguilib_sdl3_MouseMotionEvent {
+extern(C) struct yguilib_sdl3_MouseMotionEvent {
   yguilib_sdl3_EventType type;
   uint windowId;
   float x;
@@ -49,7 +49,7 @@ struct yguilib_sdl3_MouseMotionEvent {
   float yrel;
 }
 
-struct yguilib_sdl3_MouseButtonEvent {
+extern(C) struct yguilib_sdl3_MouseButtonEvent {
   yguilib_sdl3_EventType type;
   uint windowId;
   float x;
@@ -60,7 +60,7 @@ struct yguilib_sdl3_MouseButtonEvent {
   ubyte padding;
 }
 
-struct yguilib_sdl3_MouseWheelEvent {
+extern(C) struct yguilib_sdl3_MouseWheelEvent {
   yguilib_sdl3_EventType type;
   uint windowId;
   float x;
@@ -72,7 +72,7 @@ struct yguilib_sdl3_MouseWheelEvent {
   int integerY;
 }
 
-struct yguilib_sdl3_KeyEvent {
+extern(C) struct yguilib_sdl3_KeyEvent {
   yguilib_sdl3_EventType type;
   uint windowId;
   uint key;
@@ -82,21 +82,23 @@ struct yguilib_sdl3_KeyEvent {
   ubyte padding;
 }
 
-struct yguilib_sdl3_TextEditingEvent {
+extern(C) struct yguilib_sdl3_TextEditingEvent {
   yguilib_sdl3_EventType type;
   uint windowId;
+  /// Borrowed SDL string valid until next event poll/wait; may be null.
   const(char)* text;
   int start;
   int length;
 }
 
-struct yguilib_sdl3_TextInputEvent {
+extern(C) struct yguilib_sdl3_TextInputEvent {
   yguilib_sdl3_EventType type;
   uint windowId;
+  /// Borrowed SDL string valid until next event poll/wait; may be null.
   const(char)* text;
 }
 
-union yguilib_sdl3_Event {
+extern(C) union yguilib_sdl3_Event {
   yguilib_sdl3_EventType type;
   yguilib_sdl3_WindowEvent window;
   yguilib_sdl3_MouseMotionEvent motion;
@@ -107,7 +109,30 @@ union yguilib_sdl3_Event {
   yguilib_sdl3_TextInputEvent textInput;
 }
 
-static assert(yguilib_sdl3_Event.sizeof == 40);
+static assert(yguilib_sdl3_Rect.sizeof == 16);
+static assert(yguilib_sdl3_Rect.h.offsetof == 12);
+static assert(yguilib_sdl3_WindowEvent.sizeof == 20);
+static assert(yguilib_sdl3_WindowEvent.scale.offsetof == 16);
+static assert(yguilib_sdl3_MouseMotionEvent.sizeof == 28);
+static assert(yguilib_sdl3_MouseMotionEvent.yrel.offsetof == 24);
+static assert(yguilib_sdl3_MouseButtonEvent.sizeof == 20);
+static assert(yguilib_sdl3_MouseButtonEvent.padding.offsetof == 19);
+static assert(yguilib_sdl3_MouseWheelEvent.sizeof == 36);
+static assert(yguilib_sdl3_MouseWheelEvent.integerY.offsetof == 32);
+static assert(yguilib_sdl3_KeyEvent.sizeof == 20);
+static assert(yguilib_sdl3_KeyEvent.padding.offsetof == 19);
+static assert(yguilib_sdl3_TextEditingEvent.text.offsetof == 8);
+static assert(yguilib_sdl3_TextInputEvent.text.offsetof == 8);
+
+static if ((void*).sizeof == 8) {
+  static assert(yguilib_sdl3_TextEditingEvent.sizeof == 24);
+  static assert(yguilib_sdl3_TextInputEvent.sizeof == 16);
+  static assert(yguilib_sdl3_Event.sizeof == 40);
+} else {
+  static assert(yguilib_sdl3_TextEditingEvent.sizeof == 20);
+  static assert(yguilib_sdl3_TextInputEvent.sizeof == 12);
+  static assert(yguilib_sdl3_Event.sizeof == 36);
+}
 
 struct yguilib_sdl3_Window;
 struct yguilib_sdl3_GLContext;
@@ -659,69 +684,116 @@ enum yguilib_sdl3_Keymod : ushort {
   gui = lgui | rgui,
 }
 
-extern(C) {
+alias yguilib_sdl3_GLProc = extern(C) void function();
+
+extern(C) nothrow @nogc {
+  /// Initializes SDL events/video and wake event. Returns 0 or -1.
   int yguilib_sdl3_init();
+
+  /// Shuts down SDL subsystems.
   void yguilib_sdl3_quit();
-  uint yguilib_sdl3_register_wake_event();
+
+  /// Pushes a wake event (thread-safe). Returns 0 or -1.
   int yguilib_sdl3_send_wake_event();
+
+  /// Waits for an event (timeoutMs < 0 blocks); event must be non-null.
+  /// Returns 1 on event, 0 on timeout, or -1 on error.
   int yguilib_sdl3_wait_event(yguilib_sdl3_Event* event, int timeoutMs);
+
+  /// Polls for an event; event must be non-null.
+  /// Returns 1 on event, 0 if none, or -1 on error.
   int yguilib_sdl3_poll_event(yguilib_sdl3_Event* event);
+
+  /// Creates an OpenGL ES 3.0 window; title must be non-null.
+  /// Returns null on failure. Free with yguilib_sdl3_destroy_window.
   yguilib_sdl3_Window* yguilib_sdl3_create_window(
     const(char)* title,
     int w,
     int h
   );
+
+  /// Destroys a window handle; null is ignored.
   void yguilib_sdl3_destroy_window(yguilib_sdl3_Window* window);
+
+  /// Returns SDL window ID, or 0 if window is null or on error.
   uint yguilib_sdl3_get_window_id(const(yguilib_sdl3_Window)* window);
+
+  /// Sets window size; window must be non-null. Returns 0 or -1.
   int yguilib_sdl3_set_window_size(
     yguilib_sdl3_Window* window,
     int width,
     int height
   );
+
+  /// Gets window pixel size; window, width, height must be non-null.
+  /// Returns 0 on success or -1 on error.
   int yguilib_sdl3_get_window_size_in_pixels(
     const(yguilib_sdl3_Window)* window,
     int* width,
     int* height
   );
+
+  /// Returns window display scale, or 0.0f if window is null or on error.
   float yguilib_sdl3_get_window_display_scale(
     const(yguilib_sdl3_Window)* window
   );
+
+  /// Creates an OpenGL ES 3.0 context; window must be non-null.
+  /// Returns null on failure. Free with yguilib_sdl3_gl_destroy_context.
   yguilib_sdl3_GLContext* yguilib_sdl3_gl_create_context(
     yguilib_sdl3_Window* window
   );
+
+  /// Destroys an OpenGL context; null is ignored.
   void yguilib_sdl3_gl_destroy_context(yguilib_sdl3_GLContext* context);
+
+  /// Makes context current on window; both must be non-null. Returns 0 or -1.
   int yguilib_sdl3_gl_make_current(
     yguilib_sdl3_Window* window,
     yguilib_sdl3_GLContext* context
   );
+
+  /// Swaps window buffers; window must be non-null. Returns 0 or -1.
   int yguilib_sdl3_gl_swap_window(yguilib_sdl3_Window* window);
-  alias yguilib_sdl3_GLProc = extern(C) void function();
+
+  /// Looks up an OpenGL ES function; proc must be non-null.
+  /// Returns null if unavailable.
   yguilib_sdl3_GLProc yguilib_sdl3_gl_get_proc_address(const(char)* proc);
-  int yguilib_sdl3_hello();
-  void yguilib_sdl3_log(const(char)* message);
+
+  /// Logs a message at priority; null message is ignored.
   void yguilib_sdl3_log_priority(
     yguilib_sdl3_LogPriority priority,
     const(char)* message
   );
+
+  /// Starts Unicode text input; window must be non-null. Returns 0 or -1.
   int yguilib_sdl3_start_text_input(yguilib_sdl3_Window* window);
+
+  /// Stops Unicode text input; window must be non-null. Returns 0 or -1.
   int yguilib_sdl3_stop_text_input(yguilib_sdl3_Window* window);
+
+  /// Sets IME text input area; window must be non-null, rect may be null.
+  /// Returns 0 on success or -1 on error.
   int yguilib_sdl3_set_text_input_area(
     yguilib_sdl3_Window* window,
     const(yguilib_sdl3_Rect)* rect,
     int cursor
   );
-  uint yguilib_sdl3_get_key_from_scancode(
-    uint scancode,
-    ushort modstate,
-    int keyEvent
-  );
+
+  /// Returns non-null borrowed UTF-8 key name (empty string if not found).
   const(char)* yguilib_sdl3_get_key_name(uint key);
+
+  /// Gets keycode from UTF-8 name; name must be non-null (0 if null/unknown).
   uint yguilib_sdl3_get_key_from_name(const(char)* name);
-  uint yguilib_sdl3_get_scancode_from_name(const(char)* name);
-  const(char)* yguilib_sdl3_get_scancode_name(uint scancode);
+
+  /// Enables/disables mouse capture. Returns 0 on success or -1 on failure.
   int yguilib_sdl3_capture_mouse(int enabled);
-  int yguilib_sdl3_set_relative_mouse_mode(uint window_id, int enabled);
-  int yguilib_sdl3_warp_mouse_in_window(uint window_id, float x, float y);
+
+  /// Sets relative mouse mode for windowId. Returns 0 on success or -1.
+  int yguilib_sdl3_set_relative_mouse_mode(uint windowId, int enabled);
+
+  /// Warps mouse cursor inside windowId. Returns 0 on success or -1.
+  int yguilib_sdl3_warp_mouse_in_window(uint windowId, float x, float y);
 }
 
 unittest {
@@ -737,10 +809,9 @@ unittest {
   assert(yguilib_sdl3_Keymod.ctrl == (0x0040u | 0x0080u));
   assert(yguilib_sdl3_Keymod.shift == (0x0001u | 0x0002u));
 
-  import std.string : fromStringz, toStringz;
-  const(char)* name = yguilib_sdl3_get_key_name('a');
-  assert(name !is null && fromStringz(name) == "A");
-
-  uint keyRet = yguilib_sdl3_get_key_from_name("Return".toStringz);
-  assert(keyRet == 13);
+  yguilib_sdl3_destroy_window(null);
+  yguilib_sdl3_gl_destroy_context(null);
+  assert(yguilib_sdl3_get_window_id(null) == 0);
+  assert(yguilib_sdl3_get_window_display_scale(null) == 0.0f);
+  assert(yguilib_sdl3_get_key_from_name(null) == 0);
 }

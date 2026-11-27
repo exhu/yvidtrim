@@ -45,8 +45,12 @@ yguilib_sdl3_ttf_Font *yguilib_sdl3_ttf_open_font(
 /**
  * Opens a font from memory data.
  *
- * @param data Pointer to font file data in memory.
- * @param size Size of font data in bytes.
+ * The caller must keep @p data alive and unmodified until
+ * yguilib_sdl3_ttf_close_font is called, because SDL3_ttf reads from the
+ * borrowed buffer on demand without copying it.
+ *
+ * @param data Pointer to font file data in memory (NULL returns NULL).
+ * @param size Size of font data in bytes (0 returns NULL).
  * @param pt_size Point size of the font.
  * @return Pointer to font handle, or NULL on failure.
  */
@@ -257,7 +261,8 @@ const void *yguilib_sdl3_ttf_get_surface_pixels(
 );
 
 /**
- * Destroys a surface allocated by yguilib_sdl3_ttf_render_text_blended.
+ * Destroys a surface allocated by yguilib_sdl3_ttf_render_text_blended or
+ * yguilib_sdl3_ttf_render_glyph.
  *
  * @param surface Surface handle to destroy (NULL is ignored).
  */

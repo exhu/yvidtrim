@@ -73,10 +73,10 @@ private:
 }
 
 unittest {
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : makeHeadlessUiSystem;
   import yguilib.widget : Widget;
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   auto root = new Widget(ui.nextWidgetId());
   auto demoTracker = ModelTracker!DemoModel(new DemoModel());
   auto pageTracker = ModelTracker!GamepadPageModel(new GamepadPageModel());

@@ -4,11 +4,11 @@ package(yguilib):
 
 import core.lifetime : move;
 import core.thread : Thread, ThreadID;
+import core.time : MonoTime, ticksToNSecs;
 import std.typecons : Nullable;
 import yguilib.allochelpers : RingBuffer;
 import yguilib.clibs.sdl3;
 import yguilib.events : AppEvent;
-import yguilib.timers : StopWatchNs;
 
 /**
  * Snapshot of event queue activity recorded by $(D MessageBus).
@@ -24,10 +24,12 @@ struct EventQueueStats {
 /**
  * Thread-safe ring-buffer FIFO event queue for UI event dispatch.
  *
- * Allows background threads to post $(D AppEvent) instances to the main UI
- * event loop. Background-thread sends post a single SDL wake event when the
- * main thread is idle or waiting; main-thread sends never emit wake events.
- * Raw input events (including $(D AppEvent.Kind.mouseMotion)) are never merged.
+ * Allows D-registered background threads to post $(D AppEvent) instances to
+ * the main UI event loop. Callers must be attached to the D runtime
+ * ($(D Thread.getThis() !is null)). Background-thread sends post a single SDL
+ * wake event when the main thread is idle or waiting; main-thread sends never
+ * emit wake events. Raw input events (including $(D AppEvent.Kind.mouseMotion))
+ * are never merged.
  */
 struct MessageBus {
   @disable this();
@@ -43,19 +45,24 @@ struct MessageBus {
     this.lock = lockObj;
     this.queue.reserve(initialCapacity);
     if (fStatsEnabled) {
-      fTotalWatch.start();
-      fWindowWatch.start();
+      const long now = ticksToNSecs(MonoTime.currTime.ticks);
+      totalStartNs = now;
+      totalRunning = true;
+      windowStartNs = now;
     }
   }
 
   invariant {
     assert(lock !is null);
+    assert(queue.capacity > 0);
   }
 
-  /// Marks the calling thread as the main UI loop thread so main-thread
-  /// sends do not emit redundant SDL_WAKE events.
+  /// Marks the calling D-attached thread as the main UI loop thread so
+  /// main-thread sends do not emit redundant SDL_WAKE events.
   void bindMainThread() {
-    const ThreadID tid = Thread.getThis().id;
+    Thread current = Thread.getThis();
+    assert(current !is null, "MessageBus requires a D-attached thread");
+    const ThreadID tid = current.id;
     synchronized (lock) {
       mainThreadId = tid;
       hasMainThread = true;
@@ -71,18 +78,18 @@ struct MessageBus {
 
   /**
    * Enqueues an event in strict FIFO order and signals the UI thread when
-   * called from a background thread.
+   * called from a background D-attached thread.
    *
    * Params:
    *   ev = The event to enqueue.
    */
   void send(AppEvent ev) {
     bool needWake = false;
-    const ThreadID callerId = Thread.getThis().id;
+    int delegate() wakeCb = null;
+    Thread current = Thread.getThis();
+    assert(current !is null, "MessageBus requires a D-attached thread");
+    const ThreadID callerId = current.id;
     synchronized (lock) {
-      if (queue.capacity == 0) {
-        queue.reserve(initialCapacity);
-      }
       const bool isMain = hasMainThread && callerId == mainThreadId;
       bool allowedToSend = true;
       if (ev.noRepeat && isDuplicateNoRepeat(ev)) {
@@ -94,12 +101,23 @@ struct MessageBus {
         if (!isMain && !wakeSent) {
           wakeSent = true;
           needWake = true;
+          wakeCb = wakeFn;
         }
       }
       recordEventStats(allowedToSend);
     }
     if (needWake) {
-      yguilib_sdl3_send_wake_event();
+      const int rc = wakeCb !is null
+        ? wakeCb()
+        : yguilib_sdl3_send_wake_event();
+      if (rc != 0) {
+        synchronized (lock) {
+          wakeSent = false;
+        }
+        import std.logger : warning;
+
+        warning("MessageBus: failed to push SDL wake event");
+      }
     }
   }
 
@@ -116,6 +134,10 @@ struct MessageBus {
       const AppEvent.Kind kind = ev.get().kind;
       assert(pendingKindCounts[kind] > 0);
       pendingKindCounts[kind]--;
+      if (queue.empty && queue.capacity > maxIdleCapacity) {
+        queue.releaseMemory();
+        queue.reserve(initialCapacity);
+      }
       return ev;
     }
   }
@@ -140,15 +162,39 @@ struct MessageBus {
     }
   }
 
-  size_t length() {
+  @property size_t length() {
     synchronized (lock) {
       return queue.length;
     }
   }
 
-  size_t capacity() {
+  @property size_t capacity() {
     synchronized (lock) {
       return queue.capacity;
+    }
+  }
+
+  /// Sets a custom wake event sender delegate for deterministic testing.
+  /// Passing $(D null) restores $(D yguilib_sdl3_send_wake_event).
+  void wakeSender(int delegate() fn) {
+    synchronized (lock) {
+      wakeFn = fn;
+    }
+  }
+
+  /// Sets a custom nanosecond clock delegate for deterministic testing.
+  /// Passing $(D null) restores the default monotonic clock.
+  void clock(long delegate() fn) {
+    synchronized (lock) {
+      clockFn = fn;
+      const long now = nowNs();
+      totalStartNs = now;
+      totalElapsedNs = 0;
+      windowStartNs = now;
+      currentWindowCount = 0;
+      maxEventsPerSecond = 0;
+      postedCount = 0;
+      suppressedCount = 0;
     }
   }
 
@@ -161,14 +207,17 @@ struct MessageBus {
         return;
       }
       fStatsEnabled = enabled;
+      const long now = nowNs();
       if (enabled) {
-        fTotalWatch.start();
-        fCurrentWindowCount = 0;
-        fWindowWatch.reset();
-        fWindowWatch.start();
+        totalStartNs = now;
+        totalRunning = true;
+        currentWindowCount = 0;
+        windowStartNs = now;
       } else {
-        fTotalWatch.stop();
-        fWindowWatch.stop();
+        if (totalRunning) {
+          totalElapsedNs += now - totalStartNs;
+          totalRunning = false;
+        }
         flushWindowMax();
       }
     }
@@ -188,18 +237,20 @@ struct MessageBus {
    */
   EventQueueStats queueStats() {
     synchronized (lock) {
-      fTotalWatch.update();
-      fWindowWatch.update();
-      const ulong peak = fCurrentWindowCount > fMaxEventsPerSecond
-        ? fCurrentWindowCount
-        : fMaxEventsPerSecond;
-      const double elapsedSec = fTotalWatch.elapsed() / 1_000_000_000.0;
+      const long now = nowNs();
+      const long totalNs = totalRunning
+        ? totalElapsedNs + (now - totalStartNs)
+        : totalElapsedNs;
+      const ulong peak = currentWindowCount > maxEventsPerSecond
+        ? currentWindowCount
+        : maxEventsPerSecond;
+      const double elapsedSec = totalNs / 1_000_000_000.0;
       const double avgPerSec = elapsedSec > 0.0
-        ? cast(double) fPostedCount / elapsedSec
+        ? cast(double) postedCount / elapsedSec
         : 0.0;
       return EventQueueStats(
-        fPostedCount,
-        fSuppressedCount,
+        postedCount,
+        suppressedCount,
         peak,
         avgPerSec,
         elapsedSec,
@@ -213,7 +264,7 @@ struct MessageBus {
   void logStats() {
     bool shouldLog = false;
     synchronized (lock) {
-      shouldLog = fStatsEnabled || fPostedCount > 0 || fSuppressedCount > 0;
+      shouldLog = fStatsEnabled || postedCount > 0 || suppressedCount > 0;
     }
     if (!shouldLog) {
       return;
@@ -233,7 +284,7 @@ struct MessageBus {
 
 private:
   static bool isIdempotentNoRepeatKind(AppEvent.Kind k) {
-    return k == AppEvent.Kind.update || k == AppEvent.Kind.windowRedraw;
+    return k == AppEvent.Kind.update;
   }
 
   bool isDuplicateNoRepeat(in AppEvent ev) const {
@@ -251,32 +302,38 @@ private:
     return false;
   }
 
+  long nowNs() const {
+    return clockFn !is null
+      ? clockFn()
+      : ticksToNSecs(MonoTime.currTime.ticks);
+  }
+
   void recordEventStats(bool posted) {
     if (!fStatsEnabled) {
       return;
     }
-    fWindowWatch.update();
-    if (fWindowWatch.elapsed() >= oneSecondNs) {
+    const long now = nowNs();
+    if (now - windowStartNs >= oneSecondNs) {
       flushWindowMax();
-      fWindowWatch.reset();
-      fWindowWatch.start();
+      windowStartNs = now;
     }
     if (posted) {
-      fPostedCount++;
-      fCurrentWindowCount++;
+      postedCount++;
+      currentWindowCount++;
     } else {
-      fSuppressedCount++;
+      suppressedCount++;
     }
   }
 
   void flushWindowMax() {
-    if (fCurrentWindowCount > fMaxEventsPerSecond) {
-      fMaxEventsPerSecond = fCurrentWindowCount;
+    if (currentWindowCount > maxEventsPerSecond) {
+      maxEventsPerSecond = currentWindowCount;
     }
-    fCurrentWindowCount = 0;
+    currentWindowCount = 0;
   }
 
   enum size_t initialCapacity = 64;
+  enum size_t maxIdleCapacity = initialCapacity * 4;
   RingBuffer!AppEvent queue;
   size_t[AppEvent.Kind.max + 1] pendingKindCounts;
   bool wakeSent = false;
@@ -290,12 +347,16 @@ private:
   } else {
     bool fStatsEnabled = false;
   }
-  ulong fPostedCount = 0;
-  ulong fSuppressedCount = 0;
-  ulong fMaxEventsPerSecond = 0;
-  ulong fCurrentWindowCount = 0;
-  StopWatchNs fTotalWatch;
-  StopWatchNs fWindowWatch;
+  long delegate() clockFn = null;
+  int delegate() wakeFn = null;
+  ulong postedCount = 0;
+  ulong suppressedCount = 0;
+  ulong maxEventsPerSecond = 0;
+  ulong currentWindowCount = 0;
+  long totalStartNs = 0;
+  long totalElapsedNs = 0;
+  bool totalRunning = false;
+  long windowStartNs = 0;
 }
 
 // Verifies MessageBus event queueing, retrieval, and ring buffer reuse.
@@ -399,7 +460,8 @@ unittest {
   assert(!bus.get().isNull);
   assert(bus.prepareToWait());
 
-  // Unbound / background send arms wakeSent
+  // Unbound / background send arms wakeSent when wake succeeds
+  bus.wakeSender(() => 0);
   bus.unbindMainThread();
   bus.send(AppEvent.userEvent(AppEvent.UserData(2)));
   assert(bus.wakeSent);
@@ -407,6 +469,22 @@ unittest {
   assert(!bus.get().isNull);
   assert(bus.prepareToWait());
   assert(!bus.wakeSent);
+
+  // Wake failure resets wakeSent so subsequent sends retry waking
+  int wakeCalls = 0;
+  bus.wakeSender(() {
+    wakeCalls++;
+    return -1;
+  });
+  bus.send(AppEvent.userEvent(AppEvent.UserData(3)));
+  assert(wakeCalls == 1);
+  assert(!bus.wakeSent);
+  bus.send(AppEvent.userEvent(AppEvent.UserData(4)));
+  assert(wakeCalls == 2);
+  assert(!bus.wakeSent);
+  while (!bus.get().isNull) {}
+  assert(bus.prepareToWait());
+  bus.wakeSender(null);
 
   // Force wrap-around and grow past initialCapacity
   foreach (i; 0 .. 40) {
@@ -453,19 +531,19 @@ unittest {
   bus.logStats();
 }
 
-// Verifies 1-second window rollover for max and avg events per second.
+// Verifies 1-second window rollover for max and avg events per second
+// using an injectable clock delegate.
 unittest {
-  import core.thread : Thread;
-  import core.time : msecs;
-
+  long fakeNow = 1_000_000_000L;
   MessageBus bus = MessageBus(new Object);
+  bus.clock(() => fakeNow);
   bus.statsEnabled(true);
 
   bus.send(AppEvent.userEvent(AppEvent.UserData(1)));
   bus.send(AppEvent.userEvent(AppEvent.UserData(2)));
   bus.send(AppEvent.userEvent(AppEvent.UserData(3)));
 
-  Thread.sleep(1050.msecs);
+  fakeNow += 1_050_000_000L;
   bus.send(AppEvent.userEvent(AppEvent.UserData(4)));
 
   const stats = bus.queueStats();
@@ -473,4 +551,90 @@ unittest {
   assert(stats.maxEventsPerSecond == 3);
   assert(stats.elapsedSeconds >= 1.0);
   assert(stats.avgEventsPerSecond > 0.0 && stats.avgEventsPerSecond <= 4.0);
+}
+
+// Verifies non-idempotent noRepeat deduplication, windowId distinction on
+// windowRedraw, and shrink-when-empty after burst capacity.
+unittest {
+  MessageBus bus = MessageBus(new Object);
+
+  // Non-idempotent Kind.user with noRepeat deduplicates matching payloads
+  // while preserving distinct payloads.
+  auto u1 = AppEvent.makeNoRepeat(AppEvent.Kind.user);
+  u1.user.eventId = 10;
+  auto u1Dup = AppEvent.makeNoRepeat(AppEvent.Kind.user);
+  u1Dup.user.eventId = 10;
+  auto u2 = AppEvent.makeNoRepeat(AppEvent.Kind.user);
+  u2.user.eventId = 20;
+
+  bus.send(u1);
+  bus.send(u1Dup);
+  bus.send(u2);
+  assert(bus.length == 2);
+
+  // windowRedraw with different windowId values must not collapse
+  auto r1 = AppEvent.makeNoRepeat(AppEvent.Kind.windowRedraw);
+  r1.window.windowId = 1;
+  auto r2 = AppEvent.makeNoRepeat(AppEvent.Kind.windowRedraw);
+  r2.window.windowId = 2;
+  auto r1Dup = AppEvent.makeNoRepeat(AppEvent.Kind.windowRedraw);
+  r1Dup.window.windowId = 1;
+  bus.send(r1);
+  bus.send(r2);
+  bus.send(r1Dup);
+  assert(bus.length == 4);
+
+  while (!bus.get().isNull) {}
+
+  // Burst > 4 * initialCapacity (256), then drain -> shrinks back to 64
+  foreach (i; 0 .. 300) {
+    bus.send(AppEvent.userEvent(AppEvent.UserData(cast(uint) i)));
+  }
+  assert(bus.capacity > 256);
+  while (!bus.get().isNull) {}
+  assert(bus.capacity == 64);
+}
+
+// Verifies multi-producer / single-consumer thread safety across D threads.
+unittest {
+  import core.thread : Thread;
+
+  MessageBus bus = MessageBus(new Object);
+  bus.bindMainThread();
+
+  enum size_t producerCount = 4;
+  enum size_t perProducer = 250;
+  Thread[producerCount] threads;
+
+  Thread makeProducer(uint baseId) {
+    return new Thread(() {
+      foreach (i; 0 .. perProducer) {
+        bus.send(AppEvent.userEvent(AppEvent.UserData(baseId + cast(uint) i)));
+      }
+    });
+  }
+
+  foreach (p; 0 .. producerCount) {
+    threads[p] = makeProducer(cast(uint) (p * perProducer));
+    threads[p].start();
+  }
+
+  size_t consumed = 0;
+  bool[producerCount * perProducer] seen;
+  while (consumed < producerCount * perProducer) {
+    auto ev = bus.get();
+    if (!ev.isNull) {
+      const uint id = ev.get().user.eventId;
+      assert(!seen[id]);
+      seen[id] = true;
+      consumed++;
+    } else {
+      Thread.yield();
+    }
+  }
+
+  foreach (t; threads) {
+    t.join();
+  }
+  assert(!bus.hasPending());
 }

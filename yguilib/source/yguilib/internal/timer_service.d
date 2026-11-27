@@ -19,6 +19,7 @@ struct TimerEntry {
 
 /// Manages wall-clock timers bound to owners.
 struct TimerService {
+  /// Sets a custom nanosecond clock delegate, or `null` to use `MonoTime`.
   void clock(long delegate() clock) {
     clockFn = clock;
   }
@@ -66,6 +67,7 @@ struct TimerService {
     return false;
   }
 
+  /// Stops all active timers owned by `owner` (a no-op if `null`).
   void stopTimersForOwner(Object owner) {
     if (owner is null) {
       return;
@@ -167,14 +169,15 @@ private:
   }
 
   TimerId allocateId() {
-    TimerId id = nextId++;
-    if (nextId == invalidTimerId) {
-      nextId = 1;
+    while (true) {
+      TimerId id = nextId++;
+      if (nextId == invalidTimerId) {
+        nextId = 1;
+      }
+      if (id != invalidTimerId && findActiveIndex(id) < 0) {
+        return id;
+      }
     }
-    if (id == invalidTimerId) {
-      id = nextId++;
-    }
-    return id;
   }
 
   void collectDueIds(long now, ref SmallBuffer!(TimerId, 32) dueIds) const {
@@ -349,7 +352,6 @@ unittest {
     override void onSuspendByModal() {}
     override void onResumeByModal() {}
     @property override bool modal() const { return false; }
-    @property override void modal(bool value) {}
     override void sendAppEvent(AppEvent ev) {}
     override void onWidgetReleased(Widget w) {}
   }
@@ -420,4 +422,45 @@ unittest {
   assert(firedOrder == ids[]);
   assert(svc.activeCount() == 0);
   assert(svc.nextWaitTimeoutMs(fakeNowNs) == -1);
+}
+
+// Verifies intervalMs == 0, re-entrant startTimer, dt lag clamping,
+// and allocateId() wrap-around skipping active IDs.
+unittest {
+  import std.math.operations : isClose;
+
+  long fakeNowNs = 1_000_000_000L;
+  TimerService svc;
+  svc.clock(() => fakeNowNs);
+
+  auto owner = new Object();
+  // Repeat with intervalMs == 0 clamps to 1 ms; oneShot with 0 fires now.
+  const TimerId repZero = svc.startTimer(owner, 0, TimerMode.repeat);
+  const TimerId oneZero = svc.startTimer(owner, 0, TimerMode.oneShot);
+  assert(svc.nextWaitTimeoutMs(fakeNowNs) == 0);
+
+  // Advance by 500 ms (> 100 ms lag clamp) and start a new timer inside onFire.
+  fakeNowNs += 500_000_000L;
+  TimerId spawnedId = invalidTimerId;
+  float[] dts;
+  svc.fireDueTimers(fakeNowNs, (TimerEntry e, float dt) {
+    dts ~= dt;
+    if (e.id == oneZero) {
+      spawnedId = svc.startTimer(owner, 10, TimerMode.oneShot);
+    }
+  });
+  assert(dts.length == 2);
+  assert(isClose(dts[0], 0.1f));
+  assert(isClose(dts[1], 0.1f));
+  assert(svc.isTimerActive(repZero));
+  assert(!svc.isTimerActive(oneZero));
+  assert(svc.isTimerActive(spawnedId));
+
+  // Wrap-around skips invalidTimerId (0) and already active IDs.
+  svc.nextId = TimerId.max;
+  const TimerId wrap1 = svc.startTimer(owner, 10, TimerMode.oneShot);
+  assert(wrap1 == TimerId.max);
+  svc.nextId = repZero;
+  const TimerId wrap2 = svc.startTimer(owner, 10, TimerMode.oneShot);
+  assert(wrap2 != invalidTimerId && wrap2 != repZero);
 }

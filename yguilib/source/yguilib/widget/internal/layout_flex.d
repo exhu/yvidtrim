@@ -2,6 +2,7 @@ module yguilib.widget.internal.layout_flex;
 
 package(yguilib):
 import std.math : round;
+import std.math.traits : isFinite;
 import yguilib.render : Renderer;
 import yguilib.render.render_types : PointF, RectF;
 import yguilib.widget : Widget;
@@ -29,7 +30,7 @@ void updateFlexChildTextHeight(Widget child, Renderer r) {
   }
 
   const PointF padBorder = calcPaddingAndBorder(sz, child.components.border);
-    import std.algorithm.comparison : max;
+  import std.algorithm.comparison : max;
   const float availW = max(0.0f, child.rect.width - padBorder.x);
   const float availH = (sz.maxHeight < float.infinity && sz.maxHeight > 0.0f)
     ? max(0.0f, sz.maxHeight - padBorder.y)
@@ -70,7 +71,8 @@ void resolveFractionSizes(
 
     if (isFraction) {
       const float wVal = isRow ? szComp.width.value : szComp.height.value;
-      totalWeight += wVal > 0.0f ? wVal : 1.0f;
+      totalWeight += (isFinite(wVal) && wVal > 0.0f) ? wVal : 1.0f;
+      fixedSum += mainMarginStart(child, isRow) + mainMarginEnd(child, isRow);
       fractionCount++;
     } else {
       fixedSum += mainOuterSize(child, isRow);
@@ -84,35 +86,114 @@ void resolveFractionSizes(
   const float totalGaps = children.length > 1
     ? gap * (children.length - 1)
     : 0.0f;
-    import std.algorithm.comparison : max;
-  const float freeSpace = max(
+  import std.algorithm.comparison : max;
+  float remainingSpace = max(
     0.0f,
     contentMainExtent - fixedSum - totalGaps
   );
+  float remainingWeight = totalWeight;
 
-  foreach (child; children) {
-    const Size szComp = child.components.size;
-    const bool isFraction = szComp !is null && (
-      isRow
-        ? szComp.width.mode == SizingMode.fraction
-        : szComp.height.mode == SizingMode.fraction
-    );
+  bool[32] stackClamped;
+  bool[] clampedFlags = children.length <= stackClamped.length
+    ? stackClamped[0 .. children.length]
+    : new bool[children.length];
 
-    if (!isFraction) {
-      continue;
+  while (remainingWeight > 0.0f) {
+    bool anyClamped = false;
+    float nextSpace = remainingSpace;
+    float nextWeight = 0.0f;
+
+    foreach (size_t i, child; children) {
+      if (clampedFlags[i]) {
+        continue;
+      }
+      const Size szComp = child.components.size;
+      const bool isFraction = szComp !is null && (
+        isRow
+          ? szComp.width.mode == SizingMode.fraction
+          : szComp.height.mode == SizingMode.fraction
+      );
+      if (!isFraction) {
+        continue;
+      }
+
+      const float wVal = isRow ? szComp.width.value : szComp.height.value;
+      const float weight = (isFinite(wVal) && wVal > 0.0f) ? wVal : 1.0f;
+      const float tentative = (remainingSpace * weight) / remainingWeight;
+      const float minVal = isRow ? szComp.minWidth : szComp.minHeight;
+      const float maxVal = isRow ? szComp.maxWidth : szComp.maxHeight;
+      const float clamped = clampDimension(tentative, minVal, maxVal);
+
+      if (clamped != tentative) {
+        assignMainSize(child, isRow, clamped);
+        clampedFlags[i] = true;
+        nextSpace = max(0.0f, nextSpace - clamped);
+        anyClamped = true;
+      } else {
+        nextWeight += weight;
+      }
     }
 
-    const float wVal = isRow ? szComp.width.value : szComp.height.value;
-    const float weight = wVal > 0.0f ? wVal : 1.0f;
-    float allocated = totalWeight > 0.0f
-      ? (freeSpace * weight) / totalWeight
-      : 0.0f;
+    if (!anyClamped) {
+      foreach (size_t i, child; children) {
+        if (clampedFlags[i]) {
+          continue;
+        }
+        const Size szComp = child.components.size;
+        const bool isFraction = szComp !is null && (
+          isRow
+            ? szComp.width.mode == SizingMode.fraction
+            : szComp.height.mode == SizingMode.fraction
+        );
+        if (!isFraction) {
+          continue;
+        }
+        const float wVal = isRow ? szComp.width.value : szComp.height.value;
+        const float weight = (isFinite(wVal) && wVal > 0.0f) ? wVal : 1.0f;
+        const float allocated = (remainingSpace * weight) / remainingWeight;
+        assignMainSize(child, isRow, allocated);
+      }
+      break;
+    }
 
-    const float minVal = isRow ? szComp.minWidth : szComp.minHeight;
-    const float maxVal = isRow ? szComp.maxWidth : szComp.maxHeight;
-    allocated = clampDimension(allocated, minVal, maxVal);
+    remainingSpace = nextSpace;
+    remainingWeight = nextWeight;
+  }
+}
 
-    assignMainSize(child, isRow, allocated);
+/// Parameters for `computeJustifyOffsets`.
+struct JustifyParams {
+  JustifyContent justify = JustifyContent.start;
+  Widget[] children;
+  bool isRow = true;
+  float contentMainPos = 0.0f;
+  float contentMainExtent = 0.0f;
+  float gap = 0.0f;
+
+  ref JustifyParams withJustify(JustifyContent justify) return {
+    this.justify = justify;
+    return this;
+  }
+
+  ref JustifyParams withChildren(Widget[] children) return {
+    this.children = children;
+    return this;
+  }
+
+  ref JustifyParams withIsRow(bool isRow) return {
+    this.isRow = isRow;
+    return this;
+  }
+
+  ref JustifyParams withMainBounds(float pos, float extent) return {
+    this.contentMainPos = pos;
+    this.contentMainExtent = extent;
+    return this;
+  }
+
+  ref JustifyParams withGap(float gap) return {
+    this.gap = gap;
+    return this;
   }
 }
 
@@ -122,48 +203,43 @@ struct JustifyOffsets {
 }
 
 /// Computes start offset and gap between children for JustifyContent modes.
-JustifyOffsets computeJustifyOffsets(
-  JustifyContent justify,
-  Widget[] children,
-  bool isRow,
-  float contentMainPos,
-  float contentMainExtent,
-  float gap
-) {
+JustifyOffsets computeJustifyOffsets(in JustifyParams params) {
   float totalChildrenSize = 0.0f;
-  foreach (child; children) {
-    totalChildrenSize += mainOuterSize(child, isRow);
+  foreach (child; params.children) {
+    totalChildrenSize += mainOuterSize(child, params.isRow);
   }
 
-  const size_t count = children.length;
-  const float totalGaps = count > 1 ? gap * (count - 1) : 0.0f;
-  const float freeSpace = contentMainExtent - totalChildrenSize - totalGaps;
+  const size_t count = params.children.length;
+  const float totalGaps = count > 1 ? params.gap * (count - 1) : 0.0f;
+  const float freeSpace =
+    params.contentMainExtent - totalChildrenSize - totalGaps;
 
   JustifyOffsets result;
-  final switch (justify) {
+  final switch (params.justify) {
   case JustifyContent.start:
-    result.startOffset = contentMainPos;
-    result.gapBetween = gap;
+    result.startOffset = params.contentMainPos;
+    result.gapBetween = params.gap;
     break;
 
   case JustifyContent.end:
     import std.algorithm.comparison : max;
-    result.startOffset = contentMainPos + max(0.0f, freeSpace);
-    result.gapBetween = gap;
+    result.startOffset = params.contentMainPos + max(0.0f, freeSpace);
+    result.gapBetween = params.gap;
     break;
 
   case JustifyContent.center:
     import std.algorithm.comparison : max;
-    result.startOffset = contentMainPos + round(max(0.0f, freeSpace) * 0.5f);
-    result.gapBetween = gap;
+    result.startOffset =
+      params.contentMainPos + round(max(0.0f, freeSpace) * 0.5f);
+    result.gapBetween = params.gap;
     break;
 
   case JustifyContent.spaceBetween:
-    result.startOffset = contentMainPos;
+    result.startOffset = params.contentMainPos;
     if (count > 1 && freeSpace > 0.0f) {
-      result.gapBetween = gap + (freeSpace / (count - 1));
+      result.gapBetween = params.gap + (freeSpace / (count - 1));
     } else {
-      result.gapBetween = count > 1 ? gap : 0.0f;
+      result.gapBetween = count > 1 ? params.gap : 0.0f;
     }
     break;
   }
@@ -227,19 +303,26 @@ void alignChildCrossAxis(
       isRow,
       contentCrossPos + crossMarginStart(child, isRow)
     );
-        import std.algorithm.comparison : max;
-    float targetSize = max(
-      0.0f,
-      contentCrossExtent - crossMarginStart(child, isRow)
-        - crossMarginEnd(child, isRow)
-    );
     const Size szComp = child.components.size;
-    if (szComp !is null) {
-      const float minCross = isRow ? szComp.minHeight : szComp.minWidth;
-      const float maxCross = isRow ? szComp.maxHeight : szComp.maxWidth;
-      targetSize = clampDimension(targetSize, minCross, maxCross);
+    const bool isCrossFixed = szComp !is null && (
+      isRow
+        ? szComp.height.mode == SizingMode.fixed
+        : szComp.width.mode == SizingMode.fixed
+    );
+    if (!isCrossFixed) {
+      import std.algorithm.comparison : max;
+      float targetSize = max(
+        0.0f,
+        contentCrossExtent - crossMarginStart(child, isRow)
+          - crossMarginEnd(child, isRow)
+      );
+      if (szComp !is null) {
+        const float minCross = isRow ? szComp.minHeight : szComp.minWidth;
+        const float maxCross = isRow ? szComp.maxHeight : szComp.maxWidth;
+        targetSize = clampDimension(targetSize, minCross, maxCross);
+      }
+      assignCrossSize(child, isRow, targetSize);
     }
-    assignCrossSize(child, isRow, targetSize);
     break;
   }
 }
@@ -570,12 +653,12 @@ unittest {
   szFrac.margin = Insets(0, 5, 0, 5);
   cFrac.components.size = szFrac;
 
-  // Free space = 320 - outerFixed(70) - gap(10) = 240
-  // cFrac width = 240
+  // Free space = 320 - outerFixed(70) - fracMargins(10) - gap(10) = 230
+  // cFrac width = 230
   ls.handleFlexContainerComp(parent, null);
   assert(cFixed.rect.x == 10);
   assert(cFixed.rect.width == 50);
-  assert(cFrac.rect.width == 240);
+  assert(cFrac.rect.width == 230);
   // cFrac pos: outerFixed(70) + gap(10) + fracMarginLeft(5) = 85
   assert(cFrac.rect.x == 85);
 }
@@ -615,7 +698,42 @@ unittest {
   // c2 outer: width = 50 + 15 + 5 = 70, height = 30 + 10 + 5 = 45
   // Parent width = 70 + 70 + gap(10) = 150
   // Parent height = max(40, 45) = 45
-  ls.handleSizeComp(parent);
+  ls.handleSizeComp(parent, null);
   assert(parent.rect.width == 150);
   assert(parent.rect.height == 45);
+}
+
+// Fraction redistribution, +inf weight guard, and fixed cross under stretch
+unittest {
+  import yguilib.render.render_types : RectF;
+  import yguilib.widget.internal.layout_system : LayoutSystem;
+  import yguilib.widget.test_fixture : WidgetFixture;
+
+  auto fix = new WidgetFixture();
+  auto ls = new LayoutSystem;
+  auto parent = fix.makeRootWithRect(RectF(0, 0, 300, 100));
+  auto flex = new FlexContainer;
+  flex.direction = FlexDirection.row;
+  flex.alignItems = AlignItems.stretch;
+  parent.components.flexContainer = flex;
+
+  // Child 1: weight 1, maxWidth = 50 -> clamped to 50, remainder 250 goes to c2
+  auto c1 = fix.makeChildWithRect(parent, RectF(0, 0, 0, 30));
+  auto sz1 = new Size;
+  sz1.width = Dimension(1, SizingMode.fraction);
+  sz1.maxWidth = 50;
+  sz1.height = Dimension(30, SizingMode.fixed);
+  c1.components.size = sz1;
+
+  // Child 2: +inf weight falls back to 1.0f
+  auto c2 = fix.makeChildWithRect(parent, RectF(0, 0, 0, 20));
+  auto sz2 = new Size;
+  sz2.width = Dimension(float.infinity, SizingMode.fraction);
+  c2.components.size = sz2;
+
+  ls.handleFlexContainerComp(parent, null);
+  assert(c1.rect.width == 50);
+  assert(c1.rect.height == 30); // fixed cross-axis preserved under stretch
+  assert(c2.rect.width == 250);
+  assert(c2.rect.height == 100);
 }

@@ -21,8 +21,8 @@ import yguilib.render.internal.glyph_atlas : GlyphAtlas, GlyphLookup,
  * glyph draws nothing (blank or unresolved).
  */
 struct RunGlyph {
-  short dx;
-  short dy;
+  int dx;
+  int dy;
   short dw;
   short dh;
   uint glyph;
@@ -51,6 +51,7 @@ private:
 enum ulong unresolvedGen = ulong.max;
 
 struct LayoutResult {
+  bool ok;
   int count;
   int width;
   int height;
@@ -192,6 +193,7 @@ final class TextRunCache {
    */
   void beginFrame() {
     fFrameStartTick = fTick + 1;
+    fNoStaleEntries = false;
   }
 
   bool contains(const Font font, string text, int outlinePx) const {
@@ -210,9 +212,12 @@ final class TextRunCache {
     cache.clear();
     fEvictScratch.clear();
     fCompactScratch.clear();
+    fQuads = null;
     fGlyphPool = null;
     fPoolUsed = 0;
     fLiveGlyphs = 0;
+    fLoggedThrash = false;
+    fNoStaleEntries = false;
     fAtlas.destroy();
   }
 
@@ -235,7 +240,7 @@ final class TextRunCache {
     auto p = key in cache;
     if (p !is null) {
       p.lastUse = ++fTick;
-      if (p.run.atlasGen != fAtlas.generation) {
+      if (p.run.glyphs.length > 0 && p.run.atlasGen != fAtlas.generation) {
         if (!applyOutline(font, outlinePx)) {
           return null;
         }
@@ -250,29 +255,43 @@ final class TextRunCache {
     }
     scope(exit) resetOutline(font, outlinePx);
     const LayoutResult laid = layoutQuads(font, text);
-    if (laid.count <= 0) {
+    if (!laid.ok) {
       return null;
     }
+    return insertRun(font, key, outlinePx, laid);
+  }
+
+private:
+  const(TextRun)* insertRun(
+    Font font,
+    in TextCacheKey key,
+    int outlinePx,
+    in LayoutResult laid
+  ) {
     if (cache.length >= maxEntries) {
       evictOldest();
     }
     const size_t n = cast(size_t)laid.count;
-    const size_t offset = allocGlyphSpan(n);
+    size_t offset = 0;
+    RunGlyph[] glyphs = null;
+    if (n > 0) {
+      offset = allocGlyphSpan(n);
+      glyphs = fGlyphPool[offset .. offset + n];
+    }
     TextRun run = TextRun(
       laid.width,
       laid.height,
-      fGlyphPool[offset .. offset + n],
-      unresolvedGen
+      glyphs,
+      n > 0 ? unresolvedGen : fAtlas.generation
     );
-    fillRunGlyphs(run.glyphs, outlinePx);
-    resolveSlots(font, outlinePx, run);
-
+    if (n > 0) {
+      fillRunGlyphs(run.glyphs, outlinePx);
+      resolveSlots(font, outlinePx, run);
+    }
     fLiveGlyphs += n;
     cache[key] = TextCacheEntry(run, offset, ++fTick);
     return &(key in cache).run;
   }
-
-private:
   static bool applyOutline(Font font, int outlinePx) {
     return outlinePx == 0
       || yguilib_sdl3_ttf_set_font_outline(font.handle, outlinePx) == 0;
@@ -286,7 +305,7 @@ private:
 
   /**
    * Lays out `text` into the reused `fQuads` buffer, growing it if needed.
-   * Returns `LayoutResult(0, 0, 0)` on failure.
+   * Returns `LayoutResult(false, 0, 0, 0)` on failure.
    */
   LayoutResult layoutQuads(Font font, string text) {
     if (fQuads.length == 0) {
@@ -305,10 +324,10 @@ private:
         cast(int)fQuads.length, &w, &h
       );
     }
-    if (n <= 0 || n > cast(int)fQuads.length) {
-      return LayoutResult(0, 0, 0);
+    if (n < 0 || n > cast(int)fQuads.length) {
+      return LayoutResult(false, 0, 0, 0);
     }
-    return LayoutResult(n, w, h);
+    return LayoutResult(true, n, w, h);
   }
 
   /**
@@ -319,8 +338,8 @@ private:
   void fillRunGlyphs(RunGlyph[] glyphs, int outlinePx) const {
     foreach (i, ref g; glyphs) {
       const q = fQuads[i];
-      g.dx = cast(short)(q.dstX - outlinePx);
-      g.dy = cast(short)(q.dstY - outlinePx);
+      g.dx = q.dstX - outlinePx;
+      g.dy = q.dstY - outlinePx;
       g.dw = cast(short)q.dstW;
       g.dh = cast(short)q.dstH;
       g.glyph = q.glyphIndex;
@@ -413,13 +432,15 @@ private:
 
   /**
    * Resolves the atlas slot of every glyph of `run` (the font outline is
-   * already set). The atlas growing or clearing in the middle restarts
-   * the loop once; after a second change the stale slots are emptied and
-   * the run is marked unresolved, so the next use retries.
+   * already set). Retries while the atlas grows; after one clear at
+   * `fMaxSize` without growing, a second clear flags thrash and empties
+   * stale slots so the next use retries.
    */
   void resolveSlots(Font font, int outlinePx, ref TextRun run) {
-    foreach (attempt; 0 .. 2) {
+    bool retriedAtMax = false;
+    while (true) {
       const ulong gen = fAtlas.generation;
+      const int sizeBefore = fAtlas.size();
       size_t changedAt = run.glyphs.length;
       foreach (i, ref g; run.glyphs) {
         const GlyphLookup l = fAtlas.slotFor(font, outlinePx, g.glyph);
@@ -433,18 +454,25 @@ private:
         run.atlasGen = gen;
         return;
       }
-      if (attempt == 1) {
-        foreach (i, ref g; run.glyphs) {
-          g.slot = GlyphSlot.init;
-        }
-        run.atlasGen = unresolvedGen;
-        if (!fLoggedThrash) {
-          import std.logger : warningf;
-
-          fLoggedThrash = true;
-          warningf("TextRunCache: atlas full, text run not resolved");
-        }
+      if (fAtlas.size() > sizeBefore) {
+        retriedAtMax = false;
+        continue;
       }
+      if (!retriedAtMax) {
+        retriedAtMax = true;
+        continue;
+      }
+      foreach (i, ref g; run.glyphs) {
+        g.slot = GlyphSlot.init;
+      }
+      run.atlasGen = unresolvedGen;
+      if (!fLoggedThrash) {
+        import std.logger : warningf;
+
+        fLoggedThrash = true;
+        warningf("TextRunCache: atlas full, text run not resolved");
+      }
+      return;
     }
   }
 
@@ -465,11 +493,18 @@ private:
     // At the cap every entry is a candidate; stale entries still sort
     // first, since their ticks are below `fFrameStartTick`.
     const bool atCap = cache.length >= hardCap();
+    if (!atCap && fNoStaleEntries) {
+      return;
+    }
     fEvictScratch.clear();
     foreach (key, ref entry; cache) {
       if (atCap || entry.lastUse < fFrameStartTick) {
         fEvictScratch.push(EvictCandidate(entry.lastUse, key));
       }
+    }
+    if (!atCap && fEvictScratch.length == 0) {
+      fNoStaleEntries = true;
+      return;
     }
     EvictCandidate[] cands = fEvictScratch[];
     sort!((a, b) => a.lastUse < b.lastUse)(cands);
@@ -509,6 +544,7 @@ private:
   /// Reused layout output buffer.
   yguilib_sdl3_ttf_GlyphQuad[] fQuads;
   bool fLoggedThrash;
+  bool fNoStaleEntries;
   version (unittest) {
     size_t fCompactionCount;
   }
@@ -517,15 +553,11 @@ private:
 unittest {
   import std.conv : to;
   import yguilib.assets : defaultTtfFontData;
-  import yguilib.clibs.sdl3;
-  import yguilib.window : Window;
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
 
-  yguilib_sdl3_init();
-  scope(exit) yguilib_sdl3_quit();
-
-  auto win = new Window(160, 120, "test_text_cache");
-  win.create();
-  scope(exit) win.destroy();
+  auto w = GlTestWindow("test_text_cache");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
 
   Font fontA = Font.fromMemory(
     cast(const(void)[])defaultTtfFontData, 12.0f, 1.0f
@@ -574,15 +606,11 @@ unittest {
   import core.memory : GC;
   import std.conv : to;
   import yguilib.assets : defaultTtfFontData;
-  import yguilib.clibs.sdl3;
-  import yguilib.window : Window;
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
 
-  yguilib_sdl3_init();
-  scope(exit) yguilib_sdl3_quit();
-
-  auto win = new Window(160, 120, "test_text_cache_frames");
-  win.create();
-  scope(exit) win.destroy();
+  auto w = GlTestWindow("test_text_cache_frames");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
 
   Font font = Font.fromMemory(
     cast(const(void)[])defaultTtfFontData, 12.0f, 1.0f
@@ -650,15 +678,11 @@ unittest {
 
 unittest {
   import yguilib.assets : defaultTtfFontData;
-  import yguilib.clibs.sdl3;
-  import yguilib.window : Window;
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
 
-  yguilib_sdl3_init();
-  scope(exit) yguilib_sdl3_quit();
-
-  auto win = new Window(160, 120, "test_text_cache_outline");
-  win.create();
-  scope(exit) win.destroy();
+  auto w = GlTestWindow("test_text_cache_outline");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
 
   Font font = Font.fromMemory(
     cast(const(void)[])defaultTtfFontData, 24.0f, 1.0f
@@ -730,15 +754,11 @@ unittest {
 unittest {
   import std.format : format;
   import yguilib.assets : defaultTtfFontData;
-  import yguilib.clibs.sdl3;
-  import yguilib.window : Window;
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
 
-  yguilib_sdl3_init();
-  scope(exit) yguilib_sdl3_quit();
-
-  auto win = new Window(160, 120, "test_text_cache_pool_churn");
-  win.create();
-  scope(exit) win.destroy();
+  auto w = GlTestWindow("test_text_cache_pool_churn");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
 
   Font font = Font.fromMemory(
     cast(const(void)[])defaultTtfFontData, 12.0f, 1.0f
@@ -788,15 +808,11 @@ unittest {
 // all RunGlyph fields of the shifted long run.
 unittest {
   import yguilib.assets : defaultTtfFontData;
-  import yguilib.clibs.sdl3;
-  import yguilib.window : Window;
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
 
-  yguilib_sdl3_init();
-  scope(exit) yguilib_sdl3_quit();
-
-  auto win = new Window(160, 120, "test_text_cache_pool_overlap");
-  win.create();
-  scope(exit) win.destroy();
+  auto w = GlTestWindow("test_text_cache_pool_overlap");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
 
   Font font = Font.fromMemory(
     cast(const(void)[])defaultTtfFontData, 12.0f, 1.0f
@@ -841,15 +857,11 @@ unittest {
 // removeFont decrements liveGlyphCount and resets glyphPoolUsed when empty.
 unittest {
   import yguilib.assets : defaultTtfFontData;
-  import yguilib.clibs.sdl3;
-  import yguilib.window : Window;
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
 
-  yguilib_sdl3_init();
-  scope(exit) yguilib_sdl3_quit();
-
-  auto win = new Window(160, 120, "test_text_cache_pool_remove_font");
-  win.create();
-  scope(exit) win.destroy();
+  auto w = GlTestWindow("test_text_cache_pool_remove_font");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
 
   Font fontA = Font.fromMemory(
     cast(const(void)[])defaultTtfFontData, 12.0f, 1.0f
@@ -881,15 +893,11 @@ unittest {
 // clear resets pool capacity, used count, and live glyph count to 0.
 unittest {
   import yguilib.assets : defaultTtfFontData;
-  import yguilib.clibs.sdl3;
-  import yguilib.window : Window;
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
 
-  yguilib_sdl3_init();
-  scope(exit) yguilib_sdl3_quit();
-
-  auto win = new Window(160, 120, "test_text_cache_pool_clear");
-  win.create();
-  scope(exit) win.destroy();
+  auto w = GlTestWindow("test_text_cache_pool_clear");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
 
   Font font = Font.fromMemory(
     cast(const(void)[])defaultTtfFontData, 12.0f, 1.0f
@@ -908,4 +916,72 @@ unittest {
   assert(tc.glyphPoolCapacity() == 0);
   assert(tc.glyphPoolUsed() == 0);
   assert(tc.liveGlyphCount() == 0);
+}
+
+// Mid-run atlas growth, thrash at fMaxSize, onBeforeAtlasReset, >64 quads,
+// growGlyphPool, UTF-8, and zero-glyph whitespace runs.
+unittest {
+  import yguilib.assets : defaultTtfFontData;
+  import yguilib.render.internal.gl_test_util : GlTestWindow;
+
+  auto w = GlTestWindow("test_text_cache_edge_cases");
+  scope(exit) w.destroy();
+  scope(exit) w.endTargets();
+
+  Font font = Font.fromMemory(
+    cast(const(void)[])defaultTtfFontData, 28.0f, 1.0f
+  );
+  scope(exit) font.destroy();
+
+  // Mid-run growth across multiple doublings (64 -> 128 -> 256) + callback.
+  auto growTc = new TextRunCache(8, 64, 512);
+  scope(exit) growTc.clear();
+  int resetCount = 0;
+  growTc.onBeforeAtlasReset(() { resetCount++; });
+
+  const growRun = growTc.runFor(
+    font, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", 0
+  );
+  assert(growRun !is null && growRun.glyphs.length == 52);
+  assert(growRun.atlasGen != unresolvedGen);
+  assert(growTc.atlasSize() >= 256);
+  assert(resetCount >= 2);
+  foreach (ref g; growRun.glyphs) {
+    assert(g.slot.w > 0);
+  }
+
+  // Thrash when a single run cannot fit in atlasMax.
+  auto thrashTc = new TextRunCache(8, 32, 32);
+  scope(exit) thrashTc.clear();
+  const thrashRun = thrashTc.runFor(font, "ABCDEFGHIJKLMNOP", 0);
+  assert(thrashRun !is null);
+  assert(thrashRun.atlasGen == unresolvedGen);
+  foreach (ref g; thrashRun.glyphs) {
+    assert(g.slot.w == 0);
+  }
+  thrashTc.clear();
+
+  // fQuads > 64, growGlyphPool (> initialPoolCap == 64), UTF-8, whitespace.
+  Font smallFont = Font.fromMemory(
+    cast(const(void)[])defaultTtfFontData, 12.0f, 1.0f
+  );
+  scope(exit) smallFont.destroy();
+  auto poolTc = new TextRunCache(2, 512, 2048);
+  scope(exit) poolTc.clear();
+
+  string longText;
+  foreach (i; 0 .. 80) {
+    longText ~= cast(char)('A' + (i % 26));
+  }
+  const longRun = poolTc.runFor(smallFont, longText, 0);
+  assert(longRun !is null && longRun.glyphs.length == 80);
+  assert(poolTc.glyphPoolCapacity() > 64);
+
+  const utf8Run = poolTc.runFor(smallFont, "Héllo café — αβγ", 0);
+  assert(utf8Run !is null && utf8Run.glyphs.length > 0);
+  assert(poolTc.contains(smallFont, "Héllo café — αβγ", 0));
+
+  const wsRun = poolTc.runFor(smallFont, "   ", 0);
+  assert(wsRun !is null);
+  assert(poolTc.contains(smallFont, "   ", 0));
 }

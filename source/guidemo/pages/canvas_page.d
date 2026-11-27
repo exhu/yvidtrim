@@ -1128,9 +1128,9 @@ private:
 }
 
 unittest {
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : makeHeadlessUiSystem;
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   auto root = new Widget(ui.nextWidgetId());
   auto tracker = ModelTracker!CanvasPageModel(new CanvasPageModel());
   auto page = new CanvasPage(ui, root, tracker);

@@ -58,7 +58,6 @@ interface Controller {
   void onSuspendByModal();
   void onResumeByModal();
   @property bool modal() const;
-  @property void modal(bool value);
 
   void sendAppEvent(AppEvent ev);
 
@@ -73,7 +72,7 @@ class DefaultController : Controller {
 
   this(UiSystem uiSystem) {
     assert(uiSystem !is null, "uiSystem must not be null");
-    this.uiSystem = uiSystem;
+    fUiSystem = uiSystem;
   }
 
   override bool update() {
@@ -86,36 +85,41 @@ class DefaultController : Controller {
 
   override HandleResult handleEvent(AppEvent ev) {
     if (ev.kind == AppEvent.Kind.windowClose ||
-        ev.kind == AppEvent.Kind.appQuit)
+        ev.kind == AppEvent.Kind.appQuit) {
       return HandleResult(HandleResult.Result.quit);
-    if (ev.isWindowRedrawEvent())
+    }
+    if (ev.isWindowRedrawEvent()) {
       return HandleResult(HandleResult.Result.updateView);
+    }
 
     return HandleResult(HandleResult.Result.nothing);
   }
+
   override bool updateView() {
     return true;
   }
+
   override void onPush() {
   }
+
   override void onPop() {
   }
+
   override void onSuspendByModal() {
   }
+
   override void onResumeByModal() {
   }
+
   @property override bool modal() const {
     return fModal;
-  }
-  @property override void modal(bool value) {
-    fModal = value;
   }
 
   override void onWidgetReleased(Widget w) {
   }
 
   override void sendAppEvent(AppEvent ev) {
-    uiSystem.sendAppEvent(ev);
+    fUiSystem.sendAppEvent(ev);
   }
 
   /// Request update for when thread updated the model, or onTimer, or there's
@@ -128,25 +132,97 @@ class DefaultController : Controller {
   void sendQuit() {
     sendAppEvent(AppEvent(AppEvent.Kind.appQuit));
   }
+
 protected:
+  UiSystem uiSystem() {
+    return fUiSystem;
+  }
+
   TimerId startTimer(
     uint intervalMs,
     TimerMode mode
   ) {
-    if (uiSystem is null) {
-      return invalidTimerId;
-    }
-    return uiSystem.startTimer(this, intervalMs, mode);
+    return fUiSystem.startControllerTimer(this, intervalMs, mode);
   }
 
   void stopTimer(ref TimerId id) {
-    if (id != invalidTimerId && uiSystem !is null) {
-      uiSystem.stopTimer(id);
+    if (id != invalidTimerId) {
+      fUiSystem.stopTimer(id);
+      id = invalidTimerId;
     }
-    id = invalidTimerId;
   }
 
-  UiSystem uiSystem;
 private:
+  invariant {
+    assert(fUiSystem !is null);
+  }
+
+  UiSystem fUiSystem;
   bool fModal = false;
+}
+
+// Verifies HandleResult helpers and DefaultController fallbacks and timers.
+unittest {
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+
+  auto quitRes = HandleResult(HandleResult.Result.quit);
+  assert(quitRes.isQuit());
+  assert(!quitRes.isUpdateView());
+
+  auto redrawRes = HandleResult(HandleResult.Result.updateView);
+  assert(!redrawRes.isQuit());
+  assert(redrawRes.isUpdateView());
+
+  auto nothingRes = HandleResult(HandleResult.Result.nothing);
+  assert(!nothingRes.isQuit());
+  assert(!nothingRes.isUpdateView());
+
+  class TestCtrl : DefaultController {
+    this(UiSystem ui) {
+      assert(ui !is null);
+      super(ui);
+    }
+
+    TimerId beginTimer(uint ms, TimerMode mode) {
+      return startTimer(ms, mode);
+    }
+
+    void endTimer(ref TimerId id) {
+      stopTimer(id);
+    }
+
+    UiSystem host() {
+      return uiSystem();
+    }
+  }
+
+  auto ui = new UiSystemImpl(null);
+  auto ctrl = new TestCtrl(ui);
+  assert(ctrl.host() is ui);
+  assert(!ctrl.update());
+  assert(!ctrl.onTimer(invalidTimerId, 0.016f));
+  assert(ctrl.updateView());
+  assert(!ctrl.modal());
+
+  assert(ctrl.handleEvent(AppEvent(AppEvent.Kind.windowClose)).isQuit());
+  assert(ctrl.handleEvent(AppEvent(AppEvent.Kind.appQuit)).isQuit());
+  assert(
+    ctrl.handleEvent(
+      AppEvent.windowEvent(
+        AppEvent.Kind.windowExposed,
+        AppEvent.WindowData(0, 0, 0)
+      )
+    ).isUpdateView()
+  );
+  auto userRes = ctrl.handleEvent(AppEvent.userEvent(AppEvent.UserData(1)));
+  assert(userRes.result == HandleResult.Result.nothing);
+
+  TimerId tid = ctrl.beginTimer(50, TimerMode.oneShot);
+  assert(tid != invalidTimerId);
+  assert(ui.isTimerActive(tid));
+  ctrl.endTimer(tid);
+  assert(tid == invalidTimerId);
+
+  ctrl.sendUpdate();
+  ctrl.sendQuit();
 }

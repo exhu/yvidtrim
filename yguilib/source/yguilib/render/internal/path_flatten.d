@@ -115,10 +115,12 @@ struct Flattener {
   PointF cur;
   size_t start;
   bool open;
+  bool hasSegment;
 
   void begin(ref Contours dst, PointF p) nothrow @safe {
     start = dst.points[].length;
     open = true;
+    hasSegment = false;
     dst.points.put(p);
     cur = p;
   }
@@ -131,6 +133,7 @@ struct Flattener {
   }
 
   void add(ref Contours dst, PointF p) nothrow @safe {
+    hasSegment = true;
     if (p == cur) {
       return;
     }
@@ -148,7 +151,7 @@ struct Flattener {
       count -= 1;
       shrinkPoints(dst, start + count);
     }
-    if (count < 2) {
+    if (count < 2 && !hasSegment) {
       shrinkPoints(dst, start);
     } else {
       dst.infos.put(ContourInfo(start, count, closed));
@@ -157,6 +160,7 @@ struct Flattener {
   }
 
   void quad(ref Contours dst, PointF c, PointF e, float tol) nothrow @safe {
+    hasSegment = true;
     const PointF s = cur;
     const float ddx = s.x - 2 * c.x + e.x;
     const float ddy = s.y - 2 * c.y + e.y;
@@ -175,6 +179,7 @@ struct Flattener {
   void cubic(
     ref Contours dst, PointF c1, PointF c2, PointF e, float tol
   ) nothrow @safe {
+    hasSegment = true;
     const PointF s = cur;
     const float d1x = s.x - 2 * c1.x + c2.x;
     const float d1y = s.y - 2 * c1.y + c2.y;

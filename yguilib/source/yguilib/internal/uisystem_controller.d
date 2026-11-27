@@ -47,3 +47,23 @@ final class UiSystemController : DefaultController {
 private:
   WidgetSystemPipeline pipeline;
 }
+
+unittest {
+  import yguilib.internal.uisystem_impl : UiSystemImpl;
+
+  auto ui = new UiSystemImpl(null);
+  auto ctrl = new UiSystemController(ui, ui.systemPipeline);
+
+  assert(!ctrl.update());
+  assert(ctrl.updateView());
+
+  const HandleResult quitRes = ctrl.handleEvent(
+    AppEvent(AppEvent.Kind.appQuit)
+  );
+  assert(quitRes.isQuit());
+
+  const HandleResult userRes = ctrl.handleEvent(
+    AppEvent.userEvent(AppEvent.UserData(1))
+  );
+  assert(!userRes.isQuit());
+}

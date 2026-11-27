@@ -1,5 +1,5 @@
 module yguilib.widget.input_components;
-import yguilib.widget.component;
+import yguilib.widget.component : AppEventViewValueMixin, WidgetComponent;
 
 /// participates in focus loop
 final class Focus : WidgetComponent {
@@ -42,11 +42,50 @@ enum CursorCapture {
 }
 
 final class MouseEvent : WidgetComponent {
+  /// Parameter struct for `AppEventViewValue.pack`.
+  struct PackParams {
+    float localX = 0.0f;
+    float localY = 0.0f;
+    ubyte buttons = 0;
+    bool inside = false;
+    float relX = 0.0f;
+    float relY = 0.0f;
+    float windowX = 0.0f;
+    float windowY = 0.0f;
+
+    PackParams* withLocalPos(float x, float y) {
+      localX = x;
+      localY = y;
+      return &this;
+    }
+
+    PackParams* withButtons(ubyte b) {
+      buttons = b;
+      return &this;
+    }
+
+    PackParams* withInside(bool v) {
+      inside = v;
+      return &this;
+    }
+
+    PackParams* withRelPos(float x, float y) {
+      relX = x;
+      relY = y;
+      return &this;
+    }
+
+    PackParams* withWindowPos(float x, float y) {
+      windowX = x;
+      windowY = y;
+      return &this;
+    }
+  }
+
   /// Packed value passed in AppEvent.ViewData.value to avoid heap
   /// allocations during frequent mouse events.
   union AppEventViewValue {
-    /// Raw 64-bit integer array stored in AppEvent.ViewData.value.
-    ulong[AppEvent.ViewData.valueSize] raw;
+    mixin AppEventViewValueMixin!();
     struct {
       /// Mouse button index (1=left, 2=middle, 3=right), 0 for motion.
       ubyte buttons;
@@ -66,23 +105,6 @@ final class MouseEvent : WidgetComponent {
       float windowY;
     }
 
-    static assert(
-      AppEventViewValue.sizeof ==
-        (ulong[AppEvent.ViewData.valueSize]).sizeof
-    );
-
-    /// Allows implicit conversion to array for ViewAppEventBuilder.value.
-    alias raw this;
-
-    /// Constructs from raw array payload.
-    static AppEventViewValue fromRaw(
-      in ulong[AppEvent.ViewData.valueSize] raw
-    ) {
-      AppEventViewValue val;
-      val.raw = raw;
-      return val;
-    }
-
     /// Constructs from cursor coordinates and button state.
     static AppEventViewValue packLocal(
       float localX,
@@ -90,30 +112,26 @@ final class MouseEvent : WidgetComponent {
       ubyte buttons,
       bool inside
     ) {
-      return pack(localX, localY, buttons, inside, 0.0f, 0.0f, 0.0f, 0.0f);
+      PackParams p;
+      p.localX = localX;
+      p.localY = localY;
+      p.buttons = buttons;
+      p.inside = inside;
+      return pack(p);
     }
 
-    /// Constructs from cursor coordinates, button index, and inside flag.
-    static AppEventViewValue pack(
-      float localX,
-      float localY,
-      ubyte buttons,
-      bool inside,
-      float relX,
-      float relY,
-      float windowX,
-      float windowY
-    ) {
+    /// Constructs from `PackParams`.
+    static AppEventViewValue pack(in PackParams p) {
       AppEventViewValue val;
       val.raw = 0;
-      val.buttons = buttons;
-      val.inside = inside;
-      val.localX = localX;
-      val.localY = localY;
-      val.relX = relX;
-      val.relY = relY;
-      val.windowX = windowX;
-      val.windowY = windowY;
+      val.buttons = p.buttons;
+      val.inside = p.inside;
+      val.localX = p.localX;
+      val.localY = p.localY;
+      val.relX = p.relX;
+      val.relY = p.relY;
+      val.windowX = p.windowX;
+      val.windowY = p.windowY;
       return val;
     }
   }
@@ -137,4 +155,43 @@ final class MouseEvent : WidgetComponent {
   /// Cursor capture mode while a button pressed on this widget is held
   /// down; see `CursorCapture`.
   CursorCapture cursorCapture = CursorCapture.none;
+}
+
+unittest {
+  // packLocal
+  auto localVal = MouseEvent.AppEventViewValue.packLocal(12.5f, 34.0f, 1, true);
+  assert(localVal.localX == 12.5f);
+  assert(localVal.localY == 34.0f);
+  assert(localVal.buttons == 1);
+  assert(localVal.inside);
+  assert(localVal.relX == 0.0f);
+  assert(localVal.relY == 0.0f);
+  assert(localVal.windowX == 0.0f);
+  assert(localVal.windowY == 0.0f);
+
+  // pack with PackParams fluent builder and round-trip via fromRaw
+  MouseEvent.PackParams params;
+  params.withLocalPos(10.0f, 20.0f)
+    .withButtons(2)
+    .withInside(false)
+    .withRelPos(-3.5f, 4.5f)
+    .withWindowPos(100.0f, 200.0f);
+  auto packed = MouseEvent.AppEventViewValue.pack(params);
+  auto unpacked = MouseEvent.AppEventViewValue.fromRaw(packed.raw);
+  assert(unpacked.localX == 10.0f);
+  assert(unpacked.localY == 20.0f);
+  assert(unpacked.buttons == 2);
+  assert(!unpacked.inside);
+  assert(unpacked.relX == -3.5f);
+  assert(unpacked.relY == 4.5f);
+  assert(unpacked.windowX == 100.0f);
+  assert(unpacked.windowY == 200.0f);
+
+  // Focus, DefaultButton, KeyboardEvent defaults
+  auto focus = new Focus();
+  assert(!focus.focused && !focus.skip && !focus.focusRoot);
+  auto defBtn = new DefaultButton();
+  assert(defBtn !is null);
+  auto kb = new KeyboardEvent();
+  assert(kb.keyToViewEvent.length == 0);
 }

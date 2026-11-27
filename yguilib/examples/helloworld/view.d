@@ -96,10 +96,10 @@ private:
 
 unittest {
   import helloworld.model : helloTextPalette;
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : makeHeadlessUiSystem;
   import yguilib.widget.layout_components : FlexDirection, SizingMode;
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   auto tracker = ModelTracker!HelloModel(new HelloModel());
   auto view = new HelloView(ui, tracker);
 

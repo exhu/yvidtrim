@@ -27,9 +27,12 @@ final class VirtListSystem : WidgetSystem {
   /// Constructs VirtListSystem. `host` is allowed to be null in isolated
   /// tests.
   this(WidgetSystemHost host) {
-    priority(virtListSystemPriority);
     fHost = host;
     fLayoutSystem = new LayoutSystem();
+  }
+
+  override @property int priority() const nothrow @safe {
+    return virtListSystemPriority;
   }
 
   invariant {
@@ -54,7 +57,7 @@ final class VirtListSystem : WidgetSystem {
       clearComponentRuntime(w.components.virtList);
     }
     if (w.parent !is null && w.parent.components.virtList !is null) {
-      detachReleasedItem(w.parent.components.virtList, w);
+      detachReleasedItem(w.parent.components.virtList, w.parent, w);
     }
   }
 
@@ -66,19 +69,33 @@ final class VirtListSystem : WidgetSystem {
       return SystemEventResult(false, false);
     }
     const PointF p = PointF(event.wheel.mouseX, event.wheel.mouseY);
-    foreach_reverse (ref vw; ctx.visibleWidgets) {
+    size_t listIdx = size_t.max;
+    Widget listWidget = null;
+    foreach_reverse (i, ref vw; ctx.visibleWidgets) {
       Widget w = vw.widget;
-      if (w is null || w.components.virtList is null) {
+      if (w is null || w.components.virtList is null || !vw.containsPoint(p)) {
         continue;
       }
-      if (!isPointInVisibleWidget(vw, p)) {
-        continue;
-      }
-      if (applyWheelEvent(w, w.components.virtList, event)) {
-        w.update(WidgetUpdateScope.layout);
-        return SystemEventResult(true, false);
-      }
+      listIdx = i;
+      listWidget = w;
+      break;
+    }
+    if (listWidget is null || !listWidget.inputEnabled) {
       return SystemEventResult(false, false);
+    }
+    foreach_reverse (j; listIdx + 1 .. ctx.visibleWidgets.length) {
+      const ref VisibleWidget ov = ctx.visibleWidgets[j];
+      const Widget ow = ov.widget;
+      if (ow is null || !ow.handleInput || !ov.containsPoint(p)) {
+        continue;
+      }
+      if (ow !is listWidget && !ow.isChildOf(listWidget)) {
+        return SystemEventResult(false, false);
+      }
+    }
+    if (applyWheelEvent(listWidget.components.virtList, event)) {
+      listWidget.update(WidgetUpdateScope.layout);
+      return SystemEventResult(true, false);
     }
     return SystemEventResult(false, false);
   }
@@ -119,33 +136,36 @@ final class VirtListSystem : WidgetSystem {
   }
 
 private:
+  static size_t saturatingAdd(size_t a, size_t b) nothrow @safe pure {
+    return (a <= size_t.max - b) ? a + b : size_t.max;
+  }
+
   static void clearComponentRuntime(VirtListComponent vc) {
-    vc.fActiveItems = null;
+    vc.fActiveItems.releaseMemory();
     vc.fFreePool.releaseMemory();
     vc.fItemMainSizes.clear();
     vc.fItemCrossSizes.clear();
     vc.fKnownMainSizesSum = 0.0;
-    vc.fPendingChanges = null;
+    vc.fPendingChanges.releaseMemory();
+    vc.fLastItemsCount = 0;
   }
 
-  static void detachReleasedItem(VirtListComponent vc, Widget w) {
-    import std.algorithm.mutation : remove;
+  static void detachReleasedItem(
+    VirtListComponent vc,
+    Widget listWidget,
+    Widget w
+  ) {
     vc.fFreePool.compact((const ref Widget item) => item !is w);
-    vc.fActiveItems = vc.fActiveItems.remove!(item => item.widget is w);
-  }
-
-  static bool isPointInVisibleWidget(in VisibleWidget vw, PointF p) {
-    if (!vw.absRect.contains(p)) {
-      return false;
+    vc.fActiveItems.compact(
+      (const ref VirtListActiveItem item) => item.widget !is w
+    );
+    vc.fVisibleItemsCount = vc.fActiveItems.length;
+    if (!listWidget.released) {
+      listWidget.update(WidgetUpdateScope.layout);
     }
-    if (vw.hasClip && !vw.clipRect.contains(p)) {
-      return false;
-    }
-    return true;
   }
 
   static bool applyWheelEvent(
-    Widget w,
     VirtListComponent vc,
     in AppEvent event
   ) {
@@ -188,7 +208,9 @@ private:
     vc.fViewportCrossSize = viewportCross;
 
     applyPendingChanges(vc);
+    pruneStaleSizeCaches(vc);
     handleInvalidations(vc, viewportCross);
+    vc.fLastItemsCount = vc.itemsCount;
 
     if (vc.itemsCount == 0 || vc.provider is null ||
         viewportMain <= 0.0f || viewportCross <= 0.0f) {
@@ -201,21 +223,29 @@ private:
     applyScrollRequests(vc, viewportMain, avgMain, gap);
     normalizeAnchor(vc, viewportMain, avgMain, gap);
 
-    VirtListActiveItem[] prevActive = vc.fActiveItems;
+    VirtListActiveItem[] prevActive = vc.fActiveItems[];
     SmallBuffer!(bool, 32) claimedBuf;
     claimedBuf.fillWith(prevActive.length, false);
-    bool[] claimed = claimedBuf[];
-    VirtListActiveItem[] newActive = fillVisibleRange(
-      w, vc, r, viewportMain, viewportCross, isRow, gap, prevActive, claimed
-    );
-    handleBottomUnderflow(
-      w, vc, r, viewportMain, viewportCross, isRow, gap,
-      prevActive, claimed, newActive
-    );
-    trimLeadingOffscreen(vc, gap, newActive);
-    recycleUnclaimed(vc, prevActive, claimed);
 
-    vc.fActiveItems = newActive;
+    VirtListPass pass;
+    pass.listWidget = w;
+    pass.vc = vc;
+    pass.renderer = r;
+    pass.viewportMain = viewportMain;
+    pass.viewportCross = viewportCross;
+    pass.isRow = isRow;
+    pass.gap = gap;
+    pass.prevActive = prevActive;
+    pass.claimed = claimedBuf[];
+
+    fNextActiveBuf.clear();
+    fillVisibleRange(pass, fNextActiveBuf);
+    handleBottomUnderflow(pass, fNextActiveBuf);
+    trimLeadingOffscreen(vc, gap, fNextActiveBuf);
+    recycleUnclaimed(pass);
+
+    vc.fActiveItems.swapWith(fNextActiveBuf);
+    fNextActiveBuf.clear();
     finalizeMetricsAndPositions(
       vc, contentArea, isRow, gap, viewportCross
     );
@@ -225,7 +255,7 @@ private:
     if (vc.fPendingChanges.length == 0) {
       return;
     }
-    foreach (ref ch; vc.fPendingChanges) {
+    foreach (ref ch; vc.fPendingChanges[]) {
       final switch (ch.kind) {
       case VirtListChange.Kind.insert:
         applyInsertChange(vc, ch.index, ch.count);
@@ -238,7 +268,7 @@ private:
         break;
       }
     }
-    vc.fPendingChanges = null;
+    vc.fPendingChanges.clear();
     if (vc.fItemMainSizes.length == 0 || vc.fKnownMainSizesSum < 0.0) {
       vc.fKnownMainSizesSum = 0.0;
     }
@@ -253,12 +283,13 @@ private:
       return;
     }
     shiftSizeCachesInsert(vc, idx, count);
-    foreach (ref item; vc.fActiveItems) {
+    foreach (ref item; vc.fActiveItems[]) {
       if (item.index != size_t.max && item.index >= idx) {
         item.index += count;
       }
     }
-    if (idx <= vc.fAnchorIndex && vc.itemsCount > count) {
+    if (vc.fLastItemsCount > 0 && idx <= vc.fAnchorIndex &&
+        vc.itemsCount > count) {
       vc.fAnchorIndex += count;
     }
   }
@@ -292,8 +323,8 @@ private:
       return;
     }
     shiftSizeCachesRemove(vc, idx, count);
-    const size_t endIdx = idx + count;
-    foreach (ref item; vc.fActiveItems) {
+    const size_t endIdx = saturatingAdd(idx, count);
+    foreach (ref item; vc.fActiveItems[]) {
       if (item.index == size_t.max) {
         continue;
       }
@@ -306,7 +337,7 @@ private:
     if (vc.itemsCount == 0) {
       vc.fAnchorIndex = 0;
       vc.fAnchorOffset = 0.0f;
-    } else if (endIdx <= vc.fAnchorIndex) {
+    } else if (endIdx < size_t.max && endIdx <= vc.fAnchorIndex) {
       vc.fAnchorIndex -= count;
     } else if (idx <= vc.fAnchorIndex) {
       vc.fAnchorIndex = min(idx, vc.itemsCount - 1);
@@ -319,7 +350,7 @@ private:
     size_t idx,
     size_t count
   ) {
-    const size_t endIdx = idx + count;
+    const size_t endIdx = saturatingAdd(idx, count);
     float[size_t] nextMain;
     float[size_t] nextCross;
     double sum = 0.0;
@@ -351,25 +382,59 @@ private:
     if (count == 0) {
       return;
     }
-    const size_t endIdx = (idx <= size_t.max - count)
-      ? idx + count
-      : size_t.max;
-    size_t[] toRemove;
+    const size_t endIdx = saturatingAdd(idx, count);
+    SmallBuffer!(size_t, 32) toRemove;
     foreach (k; vc.fItemMainSizes.byKey) {
       if (k >= idx && k < endIdx) {
-        toRemove ~= k;
+        toRemove.push(k);
       }
     }
-    foreach (k; toRemove) {
+    foreach (k; toRemove[]) {
       vc.fKnownMainSizesSum -= vc.fItemMainSizes[k];
       vc.fItemMainSizes.remove(k);
       vc.fItemCrossSizes.remove(k);
     }
-    foreach (ref item; vc.fActiveItems) {
+    foreach (ref item; vc.fActiveItems[]) {
       if (item.index != size_t.max && item.index >= idx &&
           item.index < endIdx) {
         item.needsRebind = true;
       }
+    }
+  }
+
+  static void pruneStaleSizeCaches(VirtListComponent vc) {
+    if (vc.itemsCount == 0) {
+      if (vc.fItemMainSizes.length > 0 || vc.fItemCrossSizes.length > 0) {
+        vc.fItemMainSizes.clear();
+        vc.fItemCrossSizes.clear();
+        vc.fKnownMainSizesSum = 0.0;
+      }
+      return;
+    }
+    if (vc.itemsCount >= vc.fLastItemsCount) {
+      return;
+    }
+    SmallBuffer!(size_t, 32) staleMain;
+    foreach (k; vc.fItemMainSizes.byKey) {
+      if (k >= vc.itemsCount) {
+        staleMain.push(k);
+      }
+    }
+    foreach (k; staleMain[]) {
+      vc.fKnownMainSizesSum -= vc.fItemMainSizes[k];
+      vc.fItemMainSizes.remove(k);
+    }
+    SmallBuffer!(size_t, 32) staleCross;
+    foreach (k; vc.fItemCrossSizes.byKey) {
+      if (k >= vc.itemsCount) {
+        staleCross.push(k);
+      }
+    }
+    foreach (k; staleCross[]) {
+      vc.fItemCrossSizes.remove(k);
+    }
+    if (vc.fItemMainSizes.length == 0 || vc.fKnownMainSizesSum < 0.0) {
+      vc.fKnownMainSizesSum = 0.0;
     }
   }
 
@@ -378,7 +443,7 @@ private:
       vc.fItemMainSizes.clear();
       vc.fItemCrossSizes.clear();
       vc.fKnownMainSizesSum = 0.0;
-      foreach (ref item; vc.fActiveItems) {
+      foreach (ref item; vc.fActiveItems[]) {
         item.needsRebind = true;
       }
       vc.modelChanged = false;
@@ -392,7 +457,7 @@ private:
   }
 
   static void recycleAllAndReset(VirtListComponent vc) {
-    foreach (ref item; vc.fActiveItems) {
+    foreach (ref item; vc.fActiveItems[]) {
       if (item.widget !is null) {
         item.widget.visible = false;
         vc.fFreePool.push(item.widget);
@@ -401,7 +466,7 @@ private:
         }
       }
     }
-    vc.fActiveItems = null;
+    vc.fActiveItems.clear();
     vc.fAnchorIndex = 0;
     vc.fAnchorOffset = 0.0f;
     vc.fVisibleItemsCount = 0;
@@ -453,12 +518,10 @@ private:
     double avgMain,
     float gap
   ) {
-    double acc = 0.0;
-    if (vc.fItemMainSizes.length == 0) {
-      acc = cast(double) vc.fAnchorIndex * (avgMain + gap);
-    } else {
-      foreach (i; 0 .. vc.fAnchorIndex) {
-        acc += estimatedItemMainSize(vc, i, avgMain) + gap;
+    double acc = cast(double) vc.fAnchorIndex * (avgMain + gap);
+    foreach (k, v; vc.fItemMainSizes) {
+      if (k < vc.fAnchorIndex) {
+        acc += cast(double) v - avgMain;
       }
     }
     const double res = acc - vc.fAnchorOffset;
@@ -591,33 +654,34 @@ private:
     }
   }
 
-  VirtListActiveItem[] fillVisibleRange(
-    Widget w,
-    VirtListComponent vc,
-    Renderer r,
-    float viewportMain,
-    float viewportCross,
-    bool isRow,
-    float gap,
-    VirtListActiveItem[] prevActive,
-    bool[] claimed
-  ) {
-    VirtListActiveItem[] result;
-    size_t currIdx = vc.fAnchorIndex;
-    float currPos = vc.fAnchorOffset;
+  struct VirtListPass {
+    Widget listWidget;
+    VirtListComponent vc;
+    Renderer renderer;
+    float viewportMain = 0.0f;
+    float viewportCross = 0.0f;
+    bool isRow = false;
+    float gap = 0.0f;
+    VirtListActiveItem[] prevActive;
+    bool[] claimed;
+  }
 
-    while (currIdx < vc.itemsCount && currPos < viewportMain) {
-      VirtListActiveItem entry = acquireAndMeasureItem(
-        w, vc, r, currIdx, currPos, viewportCross, isRow, prevActive, claimed
-      );
+  void fillVisibleRange(
+    ref VirtListPass pass,
+    ref ReusableArray!VirtListActiveItem outActive
+  ) {
+    size_t currIdx = pass.vc.fAnchorIndex;
+    float currPos = pass.vc.fAnchorOffset;
+
+    while (currIdx < pass.vc.itemsCount && currPos < pass.viewportMain) {
+      VirtListActiveItem entry = acquireAndMeasureItem(pass, currIdx, currPos);
       if (entry.widget is null) {
         break;
       }
-      result ~= entry;
-      currPos += entry.mainSize + gap;
+      outActive.push(entry);
+      currPos += entry.mainSize + pass.gap;
       currIdx++;
     }
-    return result;
   }
 
   struct MeasuredItemSize {
@@ -632,24 +696,17 @@ private:
   }
 
   VirtListActiveItem acquireAndMeasureItem(
-    Widget w,
-    VirtListComponent vc,
-    Renderer r,
+    ref VirtListPass pass,
     size_t idx,
-    float pos,
-    float viewportCross,
-    bool isRow,
-    VirtListActiveItem[] prevActive,
-    bool[] claimed
+    float pos
   ) {
-    AcquiredItem acquired = acquireItemWidget(
-      w, vc, idx, prevActive, claimed
-    );
+    AcquiredItem acquired = acquireItemWidget(pass, idx);
     Widget itemWidget = acquired.widget;
     if (itemWidget is null) {
       return VirtListActiveItem.init;
     }
 
+    VirtListComponent vc = pass.vc;
     if (!itemWidget.visible) {
       itemWidget.visible = true;
     }
@@ -660,15 +717,16 @@ private:
     const bool cached = (idx in vc.fItemMainSizes) !is null;
     const bool dirtyLayout = itemWidget.isTreeLayoutDirty();
     const bool crossChanged = cached && vc.stretchCrossAxis &&
-      crossSize(itemWidget, isRow) != vc.fItemCrossSizes[idx];
+      crossSize(itemWidget, pass.isRow) != vc.fItemCrossSizes[idx];
 
     MeasuredItemSize measured;
     if (!cached || acquired.newlyBound || acquired.needsRebind ||
         dirtyLayout || crossChanged) {
       measureItemSubtree(
-        itemWidget, r, viewportCross, isRow, vc.stretchCrossAxis
+        itemWidget, pass.renderer, pass.viewportCross, pass.isRow,
+        vc.stretchCrossAxis
       );
-      measured = cacheMeasuredItemSize(vc, itemWidget, idx, isRow);
+      measured = cacheMeasuredItemSize(vc, itemWidget, idx, pass.isRow);
     } else {
       measured = MeasuredItemSize(
         vc.fItemMainSizes[idx],
@@ -709,51 +767,47 @@ private:
   }
 
   static AcquiredItem acquireItemWidget(
-    Widget w,
-    VirtListComponent vc,
-    size_t idx,
-    VirtListActiveItem[] prevActive,
-    bool[] claimed
+    ref VirtListPass pass,
+    size_t idx
   ) {
-    foreach (i, ref oldItem; prevActive) {
-      if (!claimed[i] && oldItem.index == idx && oldItem.widget !is null) {
-        claimed[i] = true;
+    foreach (i, ref oldItem; pass.prevActive) {
+      if (!pass.claimed[i] && oldItem.index == idx && oldItem.widget !is null) {
+        pass.claimed[i] = true;
         return AcquiredItem(oldItem.widget, false, oldItem.needsRebind);
       }
     }
-    auto reused = vc.fFreePool.tryPopBack();
+    auto reused = pass.vc.fFreePool.tryPopBack();
     if (!reused.isNull) {
       return AcquiredItem(reused.get(), true, true);
     }
-    Widget stolen = stealUnclaimedActive(vc, idx, prevActive, claimed);
+    Widget stolen = stealUnclaimedActive(pass, idx);
     if (stolen !is null) {
       return AcquiredItem(stolen, true, true);
     }
-    Widget created = vc.provider.createWidget(w);
-    if (created !is null && created.parent !is w) {
-      w.addChild(created);
+    Widget created = pass.vc.provider.createWidget(pass.listWidget);
+    if (created !is null && created.parent !is pass.listWidget) {
+      pass.listWidget.addChild(created);
     }
     return AcquiredItem(created, true, true);
   }
 
   static Widget stealUnclaimedActive(
-    VirtListComponent vc,
-    size_t currIdx,
-    VirtListActiveItem[] prevActive,
-    bool[] claimed
+    ref VirtListPass pass,
+    size_t currIdx
   ) {
-    foreach (i, ref oldItem; prevActive) {
-      if (!claimed[i] && oldItem.widget !is null &&
+    VirtListComponent vc = pass.vc;
+    foreach (i, ref oldItem; pass.prevActive) {
+      if (!pass.claimed[i] && oldItem.widget !is null &&
           (oldItem.index == size_t.max || oldItem.index < currIdx ||
           oldItem.index >= vc.itemsCount)) {
-        claimed[i] = true;
+        pass.claimed[i] = true;
         vc.provider.onWidgetRecycled(oldItem.widget);
         return oldItem.widget;
       }
     }
-    foreach_reverse (i, ref oldItem; prevActive) {
-      if (!claimed[i] && oldItem.widget !is null) {
-        claimed[i] = true;
+    foreach_reverse (i, ref oldItem; pass.prevActive) {
+      if (!pass.claimed[i] && oldItem.widget !is null) {
+        pass.claimed[i] = true;
         vc.provider.onWidgetRecycled(oldItem.widget);
         return oldItem.widget;
       }
@@ -762,31 +816,25 @@ private:
   }
 
   void handleBottomUnderflow(
-    Widget w,
-    VirtListComponent vc,
-    Renderer r,
-    float viewportMain,
-    float viewportCross,
-    bool isRow,
-    float gap,
-    VirtListActiveItem[] prevActive,
-    bool[] claimed,
-    ref VirtListActiveItem[] active
+    ref VirtListPass pass,
+    ref ReusableArray!VirtListActiveItem active
   ) {
     if (active.length == 0) {
       return;
     }
-    const size_t lastIdx = active[$ - 1].index;
-    const float lastBottom = active[$ - 1].mainOffset + active[$ - 1].mainSize;
-    if (lastIdx + 1 != vc.itemsCount || lastBottom >= viewportMain) {
+    const size_t lastIdx = active[active.length - 1].index;
+    const float lastBottom = active[active.length - 1].mainOffset +
+      active[active.length - 1].mainSize;
+    if (lastIdx + 1 != pass.vc.itemsCount ||
+        lastBottom >= pass.viewportMain) {
       return;
     }
     if (active[0].index == 0 && active[0].mainOffset >= 0.0f) {
       return;
     }
 
-    const float shortfall = viewportMain - lastBottom;
-    foreach (ref item; active) {
+    const float shortfall = pass.viewportMain - lastBottom;
+    foreach (ref item; active[]) {
       item.mainOffset += shortfall;
     }
 
@@ -795,26 +843,22 @@ private:
     size_t prevIdx = active[0].index;
     while (topEdge > 0.0f && prevIdx > 0) {
       prevIdx--;
-      VirtListActiveItem entry = acquireAndMeasureItem(
-        w, vc, r, prevIdx, 0.0f, viewportCross, isRow, prevActive, claimed
-      );
+      VirtListActiveItem entry = acquireAndMeasureItem(pass, prevIdx, 0.0f);
       if (entry.widget is null) {
         break;
       }
-      entry.mainOffset = topEdge - gap - entry.mainSize;
+      entry.mainOffset = topEdge - pass.gap - entry.mainSize;
       topEdge = entry.mainOffset;
       backfill.push(entry);
     }
 
-    if (backfill.length > 0) {
-      import std.algorithm.mutation : reverse;
-      reverse(backfill[]);
-      active = backfill[] ~ active;
+    foreach (ref item; backfill[]) {
+      active.insertAt(0, item);
     }
 
     if (active[0].index == 0 && active[0].mainOffset > 0.0f) {
       const float clampShift = active[0].mainOffset;
-      foreach (ref item; active) {
+      foreach (ref item; active[]) {
         item.mainOffset -= clampShift;
       }
     }
@@ -823,7 +867,7 @@ private:
   static void trimLeadingOffscreen(
     VirtListComponent vc,
     float gap,
-    ref VirtListActiveItem[] active
+    ref ReusableArray!VirtListActiveItem active
   ) {
     while (active.length > 1) {
       const float endPos = active[0].mainOffset + active[0].mainSize + gap;
@@ -836,20 +880,16 @@ private:
         vc.fFreePool.push(w);
         vc.provider.onWidgetRecycled(w);
       }
-      active = active[1 .. $];
+      active.removeAt(0);
     }
   }
 
-  static void recycleUnclaimed(
-    VirtListComponent vc,
-    VirtListActiveItem[] prevActive,
-    bool[] claimed
-  ) {
-    foreach (i, ref oldItem; prevActive) {
-      if (!claimed[i] && oldItem.widget !is null) {
+  static void recycleUnclaimed(ref VirtListPass pass) {
+    foreach (i, ref oldItem; pass.prevActive) {
+      if (!pass.claimed[i] && oldItem.widget !is null) {
         oldItem.widget.visible = false;
-        vc.fFreePool.push(oldItem.widget);
-        vc.provider.onWidgetRecycled(oldItem.widget);
+        pass.vc.fFreePool.push(oldItem.widget);
+        pass.vc.provider.onWidgetRecycled(oldItem.widget);
       }
     }
   }
@@ -893,7 +933,7 @@ private:
     vc.fCrossOffset = crossOff;
     vc.fCrossOffsetTarget = crossOff;
 
-    foreach (ref item; vc.fActiveItems) {
+    foreach (ref item; vc.fActiveItems[]) {
       if (isRow) {
         item.widget.rect.x = contentArea.x + item.mainOffset;
         item.widget.rect.y = contentArea.y - crossOff;
@@ -1016,11 +1056,14 @@ private:
   }
 
   static void handleVirtListPostLayout(Widget w, WidgetSystemHost activeHost) {
+    import std.algorithm.comparison : min;
     VirtListComponent vc = w.components.virtList;
     assert(vc !is null);
 
-    const uint firstIdx = cast(uint) vc.fAnchorIndex;
-    const uint visCount = cast(uint) vc.fVisibleItemsCount;
+    const uint firstIdx = cast(uint) min(vc.fAnchorIndex, size_t(uint.max));
+    const uint visCount = cast(uint) min(
+      vc.fVisibleItemsCount, size_t(uint.max)
+    );
     const bool changed = (
       vc.fTotalMainSize != vc.fLastEmittedTotalMainSize ||
       vc.fViewportMainSize != vc.fLastEmittedViewportMainSize ||
@@ -1042,11 +1085,16 @@ private:
     vc.fLastEmittedVisibleCount = visCount;
 
     if (changed && vc.metricsChangedEvent.length > 0 && activeHost !is null) {
-      auto val = VirtListComponent.AppEventViewValue.pack(
-        vc.fTotalMainSize, vc.fViewportMainSize, vc.fMainOffset,
-        vc.fMaxCrossSize, vc.fViewportCrossSize, vc.fCrossOffset,
-        firstIdx, visCount
-      );
+      VirtListComponent.PackParams pp;
+      pp.withTotalMainSize(vc.fTotalMainSize)
+        .withViewportMainSize(vc.fViewportMainSize)
+        .withMainOffset(vc.fMainOffset)
+        .withMaxCrossSize(vc.fMaxCrossSize)
+        .withViewportCrossSize(vc.fViewportCrossSize)
+        .withCrossOffset(vc.fCrossOffset)
+        .withFirstVisibleIndex(firstIdx)
+        .withVisibleCount(visCount);
+      auto val = VirtListComponent.AppEventViewValue.pack(pp);
       auto ev = ViewAppEventBuilder(vc.metricsChangedEvent)
         .widget(w)
         .valueArray(val)
@@ -1058,60 +1106,20 @@ private:
   WidgetSystemHost fHost;
   LayoutSystem fLayoutSystem;
   ReusableArray!Widget nodeBuf;
+  ReusableArray!VirtListActiveItem fNextActiveBuf;
 }
 
 version (unittest) {
   import yguilib.internal.uisystem_impl : UiSystemImpl;
-  import yguilib.object_registry : ObjectRegistry;
-  import yguilib.timercontrol : TimerId, invalidTimerId;
-  import yguilib.timers : TimerMode;
   import yguilib.uisystem : UiSystem;
   import yguilib.widget.builder : WidgetBuilder;
   import yguilib.widget.internal.collect_visible : VisibleWidgetsCollector;
-  import yguilib.widget.internal.system_pipeline : WidgetSystemPipeline;
   import yguilib.widget.layout_components : Dimension, FlexContainer, Insets;
+  import yguilib.widget.test_fixture : MockWidgetSystemHost;
   import yguilib.widget.virtlist_components : VirtListProvider;
-  import yguilib.widget.widget_view : WidgetView, WidgetViewController;
 
-  private final class TestVirtListHost : WidgetSystemHost {
-    AppEvent[] sentEvents;
-    ObjectRegistry!WidgetViewController dummyControllers;
-    ObjectRegistry!WidgetView dummyViews;
-
-    this() {
-      dummyControllers = new ObjectRegistry!WidgetViewController();
-      dummyViews = new ObjectRegistry!WidgetView();
-    }
-
-    override void sendAppEvent(AppEvent ev) {
-      sentEvents ~= ev;
-    }
-
-    override TimerId startTimer(
-      Object owner,
-      uint intervalMs,
-      TimerMode mode
-    ) {
-      return invalidTimerId;
-    }
-
-    override void stopTimer(TimerId id) {}
-
-    override bool isTimerActive(TimerId id) const {
-      return false;
-    }
-
-    override @property
-    ObjectRegistry!WidgetViewController widgetViewControllers() {
-      return dummyControllers;
-    }
-
-    override @property ObjectRegistry!WidgetView widgetViews() {
-      return dummyViews;
-    }
-  }
-
-  private final class TestItemProvider : VirtListProvider {
+  private:
+  final class TestItemProvider : VirtListProvider {
     UiSystem ui;
     size_t createCalls;
     size_t updateCalls;
@@ -1164,7 +1172,7 @@ version (unittest) {
     }
   }
 
-  private final class HeterogeneousSubtreeProvider : VirtListProvider {
+  final class HeterogeneousSubtreeProvider : VirtListProvider {
     UiSystem ui;
     size_t createCalls;
     size_t[] rowTypes;
@@ -1219,10 +1227,9 @@ version (unittest) {
     override void onWidgetRecycled(Widget w) {}
   }
 
-  private:
   void runLayoutStep(
     VirtListSystem sys,
-    TestVirtListHost host,
+    MockWidgetSystemHost host,
     Widget viewport
   ) {
     WidgetSystemContext ctx;
@@ -1238,7 +1245,7 @@ version (unittest) {
 // Single-template creation, bounded pool reuse, and onWidgetRecycled
 unittest {
   auto ui = new UiSystemImpl(null);
-  auto host = new TestVirtListHost();
+  auto host = new MockWidgetSystemHost();
   auto sys = new VirtListSystem(host);
   assert(sys.priority == WidgetSystem.virtListSystemPriority);
   assert(
@@ -1293,7 +1300,7 @@ unittest {
 // Heterogeneous row subtrees, variable & oversized items, smooth pixel scroll
 unittest {
   auto ui = new UiSystemImpl(null);
-  auto host = new TestVirtListHost();
+  auto host = new MockWidgetSystemHost();
   auto sys = new VirtListSystem(host);
   auto provider = new HeterogeneousSubtreeProvider(ui);
   // Row 0: 30x120, Row 1: 220x320 (oversized on both main and cross axes!),
@@ -1342,7 +1349,7 @@ unittest {
 // Dynamic recordUpdate and isTreeLayoutDirty() reflow & trailing recycle
 unittest {
   auto ui = new UiSystemImpl(null);
-  auto host = new TestVirtListHost();
+  auto host = new MockWidgetSystemHost();
   auto sys = new VirtListSystem(host);
   auto provider = new HeterogeneousSubtreeProvider(ui);
   provider.rowTypes = [0, 0, 0, 0];
@@ -1394,7 +1401,7 @@ unittest {
 // Dynamic recordInsert & recordRemove preserving visible anchor item & offset
 unittest {
   auto ui = new UiSystemImpl(null);
-  auto host = new TestVirtListHost();
+  auto host = new MockWidgetSystemHost();
   auto sys = new VirtListSystem(host);
   auto provider = new TestItemProvider(ui);
 
@@ -1448,7 +1455,7 @@ unittest {
 // Horizontal (FlexDirection.row) mode, stretchCrossAxis, and mouseWheel
 unittest {
   auto ui = new UiSystemImpl(null);
-  auto host = new TestVirtListHost();
+  auto host = new MockWidgetSystemHost();
   auto sys = new VirtListSystem(host);
   auto provider = new TestItemProvider(ui);
   provider.horizontal = true;
@@ -1538,4 +1545,230 @@ unittest {
   }
   assert(lastItem !is null);
   assert(lastItem.rect.y + lastItem.rect.height == 100.0f);
+}
+
+// Wheel gating: disabled list, occluding overlay, and clickable child item
+unittest {
+  auto ui = new UiSystemImpl(null);
+  auto host = new MockWidgetSystemHost();
+  auto sys = new VirtListSystem(host);
+  auto provider = new TestItemProvider(ui);
+
+  auto root = WidgetBuilder.make(ui)
+    .name("root")
+    .rect(RectF(0, 0, 300, 300))
+    .build();
+
+  auto viewport = WidgetBuilder.make(ui)
+    .parent(root)
+    .name("vp")
+    .rect(RectF(0, 0, 120, 100))
+    .virtList(provider)
+    .virtListCount(20)
+    .virtListGap(4.0f)
+    .build();
+
+  runLayoutStep(sys, host, viewport);
+  auto vc = viewport.components.virtList;
+
+  // Clickable child item inside list does NOT block wheel on list
+  Widget item0 = viewport.children[0];
+  item0.handleInput = true;
+  WidgetSystemContext ctx;
+  ctx.host = host;
+  ctx.root = root;
+  ctx.visibleWidgets = [
+    VisibleWidget(root, root.rect),
+    VisibleWidget(viewport, viewport.rect),
+    VisibleWidget(item0, item0.rect),
+  ];
+  auto wheelEv = AppEvent.wheelEvent(
+    AppEvent.WheelData(1, 0.0f, -1.0f, 20.0f, 20.0f, 1, 0, -1)
+  );
+  assert(sys.handleEvent(wheelEv, ctx).consumed);
+  runLayoutStep(sys, host, viewport);
+  assert(vc.mainOffset > 0.0f);
+  const float prevOffset = vc.mainOffset;
+
+  // Disabled list ignores wheel
+  viewport.inputEnabled = false;
+  assert(!sys.handleEvent(wheelEv, ctx).consumed);
+  runLayoutStep(sys, host, viewport);
+  assert(vc.mainOffset == prevOffset);
+  viewport.inputEnabled = true;
+
+  // Occluding overlay with handleInput blocks wheel
+  auto overlay = WidgetBuilder.make(ui)
+    .parent(root)
+    .name("overlay")
+    .rect(RectF(0, 0, 120, 100))
+    .handleInput(true)
+    .build();
+  ctx.visibleWidgets ~= VisibleWidget(overlay, overlay.rect);
+  assert(!sys.handleEvent(wheelEv, ctx).consumed);
+  runLayoutStep(sys, host, viewport);
+  assert(vc.mainOffset == prevOffset);
+
+  // Transparent overlay (handleInput == false) does not block wheel
+  overlay.handleInput = false;
+  assert(sys.handleEvent(wheelEv, ctx).consumed);
+}
+
+// Empty-list cache reset, itemsCount shrink pruning, and multi-batch insert
+unittest {
+  auto ui = new UiSystemImpl(null);
+  auto host = new MockWidgetSystemHost();
+  auto sys = new VirtListSystem(host);
+  auto provider = new TestItemProvider(ui);
+
+  auto viewport = WidgetBuilder.make(ui)
+    .name("cacheVp")
+    .rect(RectF(0, 0, 120, 100))
+    .virtList(provider)
+    .virtListCount(10)
+    .build();
+
+  runLayoutStep(sys, host, viewport);
+  auto vc = viewport.components.virtList;
+  assert(vc.fItemMainSizes.length == 3);
+
+  // Shrink itemsCount to 2 without recordRemove -> stale key 2 pruned
+  vc.itemsCount = 2;
+  runLayoutStep(sys, host, viewport);
+  assert(vc.fItemMainSizes.length == 2);
+  assert((2 in vc.fItemMainSizes) is null);
+
+  // Reset itemsCount to 0 -> all size caches cleared
+  vc.itemsCount = 0;
+  runLayoutStep(sys, host, viewport);
+  assert(vc.fItemMainSizes.length == 0);
+  assert(vc.fItemCrossSizes.length == 0);
+  assert(vc.fKnownMainSizesSum == 0.0);
+
+  // Multi-batch insert into empty list preserves anchorIndex == 0
+  vc.recordInsert(0, 3);
+  vc.recordInsert(3, 3);
+  vc.itemsCount = 6;
+  runLayoutStep(sys, host, viewport);
+  assert(vc.anchorIndex == 0);
+  assert(vc.activeWidgetsCount == 3);
+}
+
+// Removal overflow guard, detachReleasedItem, and postLayout uint clamping
+unittest {
+  auto ui = new UiSystemImpl(null);
+  auto host = new MockWidgetSystemHost();
+  auto sys = new VirtListSystem(host);
+  auto provider = new TestItemProvider(ui);
+
+  auto viewport = WidgetBuilder.make(ui)
+    .name("ovVp")
+    .rect(RectF(0, 0, 120, 30))
+    .virtList(provider)
+    .virtListCount(10)
+    .build();
+
+  runLayoutStep(sys, host, viewport);
+  auto vc = viewport.components.virtList;
+  vc.scrollToIndex(2);
+  runLayoutStep(sys, host, viewport);
+  assert(vc.anchorIndex == 2);
+
+  // Huge count near size_t.max must saturate instead of wrapping
+  vc.itemsCount = 3;
+  vc.recordRemove(3, size_t.max);
+  runLayoutStep(sys, host, viewport);
+  assert(vc.anchorIndex == 2);
+
+  // Releasing an active item detaches it, updates visibleItemsCount, and
+  // dirties parent layout
+  const size_t beforeCount = vc.visibleItemsCount;
+  assert(beforeCount > 0);
+  Widget firstChild = viewport.children[0];
+  viewport.layoutDirty = false;
+  sys.onWidgetReleased(firstChild);
+  assert(vc.visibleItemsCount == beforeCount - 1);
+  assert(viewport.layoutDirty);
+
+  // postLayout clamps size_t > uint.max to uint.max
+  vc.fAnchorIndex = size_t(uint.max) + 42;
+  vc.fVisibleItemsCount = size_t(uint.max) + 7;
+  vc.metricsChangedEvent = "clampedMetrics";
+  WidgetSystemContext ctx;
+  ctx.host = host;
+  ctx.root = viewport;
+  ctx.unclippedWidgets = [VisibleWidget(viewport, viewport.rect)];
+  ctx.visibleWidgets = ctx.unclippedWidgets;
+  sys.postLayout(ctx);
+  auto m = VirtListComponent.AppEventViewValue.fromRaw(
+    host.sentEvents[$ - 1].view.value
+  );
+  assert(m.firstVisibleIndex == uint.max);
+  assert(m.visibleCount == uint.max);
+}
+
+// LayoutSystem (priority 0) + VirtListSystem (priority 5) stretchCrossAxis
+unittest {
+  auto ui = new UiSystemImpl(null);
+  auto host = new MockWidgetSystemHost();
+  auto layoutSys = new LayoutSystem();
+  auto virtSys = new VirtListSystem(host);
+
+  final class AutoCrossProvider : VirtListProvider {
+    UiSystem u;
+    this(UiSystem u) {
+      assert(u !is null);
+      this.u = u;
+    }
+
+    override Widget createWidget(Widget parent) {
+      return WidgetBuilder.make(u)
+        .parent(parent)
+        .name("autoRow")
+        .rect(RectF(0, 0, 0, 0))
+        .autoWidth()
+        .fixedHeight(30.0f)
+        .flexRow()
+        .child((WidgetBuilder b) {
+          b.name("cell")
+            .rect(RectF(0, 0, 50, 20))
+            .fixedSize(50, 20);
+        })
+        .build();
+    }
+
+    override void updateWidgetAt(Widget w, size_t index) {}
+    override void onWidgetRecycled(Widget w) {}
+  }
+
+  auto viewport = WidgetBuilder.make(ui)
+    .name("pipeVp")
+    .rect(RectF(0, 0, 180, 100))
+    .virtList(new AutoCrossProvider(ui))
+    .virtListCount(5)
+    .virtListStretchCross(true)
+    .build();
+
+  auto collector = new VisibleWidgetsCollector();
+  WidgetSystemContext ctx;
+  ctx.host = host;
+  ctx.root = viewport;
+  ctx.unclippedWidgets = collector.collectVisibleWithViewport(
+    viewport, 400.0f, 400.0f, true
+  );
+  layoutSys.layout(ctx);
+  virtSys.layout(ctx);
+  virtSys.postLayout(ctx);
+  assert(viewport.children[0].rect.width == 180.0f);
+
+  // Second pass with all active children in unclippedWidgets must keep
+  // stretched width 180.0f without LayoutSystem overwriting it
+  ctx.unclippedWidgets = collector.collectVisibleWithViewport(
+    viewport, 400.0f, 400.0f, true
+  );
+  layoutSys.layout(ctx);
+  assert(viewport.children[0].rect.width == 180.0f);
+  virtSys.layout(ctx);
+  virtSys.postLayout(ctx);
+  assert(viewport.children[0].rect.width == 180.0f);
 }

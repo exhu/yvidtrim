@@ -226,7 +226,10 @@ class Size : WidgetComponent {
 
   static Size fraction(float wFr, float hFr) {
     auto sz = new Size();
-    sz.width = Dimension(wFr, SizingMode.fraction);
+    sz.width = Dimension(
+      wFr,
+      wFr > 0.0f ? SizingMode.fraction : SizingMode.auto_
+    );
     sz.height = Dimension(
       hFr,
       hFr > 0.0f ? SizingMode.fraction : SizingMode.auto_
@@ -362,6 +365,11 @@ unittest {
 
   auto szFrac = Size.fraction(1.0f, 0.0f);
   assert(szFrac.width.mode == SizingMode.fraction);
+  assert(szFrac.height.mode == SizingMode.auto_);
+
+  auto szFracY = Size.fraction(0.0f, 1.0f);
+  assert(szFracY.width.mode == SizingMode.auto_);
+  assert(szFracY.height.mode == SizingMode.fraction);
 
   // Anchor builder
   auto anch = new Anchor()
