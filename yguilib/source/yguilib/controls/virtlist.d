@@ -12,7 +12,7 @@ import yguilib.controls.common : emitViewValueEvent, findWidgetView, orDefault,
 import yguilib.controls.composite_view : bindCompositeModel,
   ensureDefaultModelTracker, ensureViewWidgetRegistered, findEntry,
   findOwningView, entryField, resolveBuilderRegistry, assignBuilderModel,
-  assignBuilderTracker, unregisterCompositeWidget, updateCompositeEntries;
+  assignBuilderTracker, updateCompositeEntries;
 import yguilib.controls.internal.axis : Axis;
 import yguilib.controls.scrollbars : ScrollbarBuilder, ScrollbarModel,
   ScrollbarStyle;
@@ -254,7 +254,8 @@ final class VirtListWidgetView : WidgetViewBase {
 
   override void unregisterViewWidget(Widget viewWidget) {
     removeScrollbarMappings(viewWidget);
-    unregisterCompositeWidget(this, entries, viewWidget);
+    entries.remove(viewWidget);
+    super.unregisterViewWidget(viewWidget);
   }
 
   /// Returns the `VirtListComponent` viewport widget for `viewWidget`, or null

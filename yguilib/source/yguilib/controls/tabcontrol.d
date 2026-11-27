@@ -13,7 +13,7 @@ import yguilib.controls.common : WidgetColors, defaultDisabledColors,
 import yguilib.controls.composite_view : bindCompositeModel,
   ensureDefaultModelTracker, ensureViewWidgetRegistered, findEntry,
   findOwningView, entryField, resolveBuilderRegistry, assignBuilderModel,
-  assignBuilderTracker, unregisterCompositeWidget, updateCompositeEntries;
+  assignBuilderTracker, updateCompositeEntries;
 import yguilib.controls.internal.axis : Axis;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker, VersionedModel;
@@ -316,7 +316,8 @@ final class TabControlWidgetView : WidgetViewBase {
   }
 
   override void unregisterViewWidget(Widget viewWidget) {
-    unregisterCompositeWidget(this, tabEntries, viewWidget);
+    tabEntries.remove(viewWidget);
+    super.unregisterViewWidget(viewWidget);
   }
 
   Widget leftButton(Widget viewWidget) {

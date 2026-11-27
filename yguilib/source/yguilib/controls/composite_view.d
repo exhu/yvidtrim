@@ -7,7 +7,7 @@ module yguilib.controls.composite_view;
 import yguilib.model : ModelTracker, VersionedModel;
 import yguilib.uisystem : UiRegistry, UiSystem;
 import yguilib.widget : Widget;
-import yguilib.widget.widget_view : WidgetView, WidgetViewBase;
+import yguilib.widget.widget_view : WidgetView;
 
 /// Registers `viewWidget` with `view` if it is not already registered.
 void ensureViewWidgetRegistered(WidgetView view, Widget viewWidget) {
@@ -39,7 +39,11 @@ Entry findEntry(Entry)(
 auto entryField(string field, Entry)(
   Entry[Widget] entries,
   Widget viewWidget
-) if (is(typeof(null) : Entry) && __traits(hasMember, Entry, field)) {
+) if (
+  is(typeof(null) : Entry) &&
+  __traits(hasMember, Entry, field) &&
+  is(typeof(__traits(getMember, Entry.init, field).offsetof))
+) {
   if (auto e = findEntry(entries, viewWidget)) {
     return __traits(getMember, e, field);
   }
@@ -51,7 +55,9 @@ void bindCompositeModel(V, M : VersionedModel)(
   V view,
   Widget viewWidget,
   M model
-) {
+) if (is(typeof(
+  (V v, Widget w, ref ModelTracker!M t) { v.bindModel(w, t); }
+))) {
   assert(view !is null, "view must not be null");
   assert(viewWidget !is null, "viewWidget must not be null");
   assert(model !is null, "model must not be null");
@@ -59,25 +65,14 @@ void bindCompositeModel(V, M : VersionedModel)(
   view.bindModel(viewWidget, tracker);
 }
 
-/// Removes `viewWidget` from `entries` and unregisters it from `view` via
-/// a non-virtual base call to `WidgetViewBase.unregisterViewWidget`.
-/// `viewWidget` is allowed to be null (no-op).
-void unregisterCompositeWidget(Entry)(
-  WidgetViewBase view,
-  ref Entry[Widget] entries,
-  Widget viewWidget
-) {
-  assert(view !is null, "view must not be null");
-  entries.remove(viewWidget);
-  view.WidgetViewBase.unregisterViewWidget(viewWidget);
-}
-
 /// Updates every tracked entry in `entries`, invoking `onModelChanged` when
 /// its model version changes, and clears `viewDirty` flags.
+/// `onModelChanged` must not add to or remove from `entries` during iteration
+/// (for example, by releasing a widget).
 bool updateCompositeEntries(Entry)(
   Entry[Widget] entries,
   scope bool delegate(Entry) onModelChanged
-) {
+) if (is(Entry == class)) {
   assert(onModelChanged !is null, "onModelChanged must not be null");
   bool anyUpdated = false;
   foreach (entry; entries) {
@@ -127,11 +122,14 @@ void assignBuilderModel(M : VersionedModel)(
   tracker = ModelTracker!M(model);
 }
 
-/// Copies `src` into builder `tracker`.
+/// Copies `src` into builder `tracker`. `src` must be initialized
+/// (`src.model !is null`). Resets `lastSeenVersion` so the next `update()`
+/// reports a change.
 void assignBuilderTracker(M : VersionedModel)(
   ref ModelTracker!M tracker,
   ref ModelTracker!M src
 ) {
+  assert(src.model !is null, "src must be initialized");
   tracker = ModelTracker!M.from(src);
 }
 
@@ -149,6 +147,7 @@ void ensureDefaultModelTracker(M : VersionedModel)(
 
 unittest {
   import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.widget.widget_view : WidgetViewBase;
 
   final class DummyModel : VersionedModel {
     int count = 0;
@@ -158,10 +157,15 @@ unittest {
     ModelTracker!DummyModel tracker;
     Widget part;
     string label;
+    int tag = 0;
     bool viewDirty = false;
 
     this(ref ModelTracker!DummyModel tracker) {
       this.tracker = ModelTracker!DummyModel.from(tracker);
+    }
+
+    int helperMethod() {
+      return 1;
     }
   }
 
@@ -172,13 +176,17 @@ unittest {
 
     void bindModel(Widget viewWidget, ref ModelTracker!DummyModel tracker) {
       ensureViewWidgetRegistered(this, viewWidget);
-      auto entry = new DummyEntry(tracker);
-      entries[viewWidget] = entry;
+      if (auto existing = findEntry(entries, viewWidget)) {
+        existing.tracker = ModelTracker!DummyModel.from(tracker);
+      } else {
+        entries[viewWidget] = new DummyEntry(tracker);
+      }
       bindCalls++;
     }
 
     override void unregisterViewWidget(Widget viewWidget) {
-      unregisterCompositeWidget(this, entries, viewWidget);
+      entries.remove(viewWidget);
+      super.unregisterViewWidget(viewWidget);
     }
 
     override bool update() {
@@ -194,6 +202,11 @@ unittest {
     }
   }
 
+  struct ValueEntry {
+    ModelTracker!DummyModel tracker;
+    bool viewDirty = false;
+  }
+
   auto ui = new UiSystemImpl(null);
   auto w1 = ui.makeWidget();
   auto w2 = ui.makeWidget();
@@ -202,6 +215,17 @@ unittest {
   auto otherView = new DummyView();
   auto unrelatedView = new UnrelatedView();
   auto model = new DummyModel();
+
+  ValueEntry[Widget] valueEntries;
+  static assert(!__traits(compiles,
+    updateCompositeEntries(valueEntries, (ValueEntry e) => true)
+  ));
+  static assert(!__traits(compiles,
+    entryField!"helperMethod"(view.entries, w1)
+  ));
+  static assert(!__traits(compiles,
+    bindCompositeModel(unrelatedView, w1, model)
+  ));
 
   ensureViewWidgetRegistered(view, w1);
   assert(view.isWidgetRegistered(w1));
@@ -215,13 +239,17 @@ unittest {
   assert(e1 !is null);
   e1.part = part1;
   e1.label = "hello";
+  e1.tag = 42;
 
   assert(findEntry(view.entries, null) is null);
   assert(findEntry(view.entries, w2) is null);
   assert(entryField!("part")(view.entries, w1) is part1);
   assert(entryField!("label")(view.entries, w1) == "hello");
+  assert(entryField!("tag")(view.entries, w1) == 42);
   assert(entryField!("part")(view.entries, w2) is null);
   assert(entryField!("label")(view.entries, null) is null);
+  assert(entryField!("tag")(view.entries, w2) == 0);
+  assert(entryField!("tag")(view.entries, null) == 0);
 
   // Skips null slots and unrelated WidgetView subclasses even if registered
   WidgetView[] views = [null, unrelatedView, otherView, view];
@@ -229,6 +257,16 @@ unittest {
   assert(findOwningView!DummyView(views, w2) is null);
   assert(findOwningView!DummyView(views, null) is null);
 
+  assert(view.update());
+  assert(!view.update());
+
+  // Re-binding an already-bound widget reuses its entry and triggers update
+  auto model2 = new DummyModel();
+  bindCompositeModel(view, w1, model2);
+  assert(view.bindCalls == 2);
+  assert(findEntry(view.entries, w1) is e1);
+  assert(e1.part is part1);
+  assert(e1.tracker.model is model2);
   assert(view.update());
   assert(!view.update());
 
@@ -257,7 +295,7 @@ unittest {
   view.unregisterViewWidget(w2);
   assert(view.isWidgetRegistered(w1));
 
-  // Verify non-virtual base unregister avoids infinite recursion
+  // Verify unregister removes entry and base registration
   view.unregisterViewWidget(w1);
   assert(!view.isWidgetRegistered(w1));
   assert(findEntry(view.entries, w1) is null);
@@ -318,6 +356,10 @@ unittest {
   auto m3 = new SampleModel();
   m3.id = 456;
   auto srcTracker = ModelTracker!SampleModel(m3);
+  assert(srcTracker.update());
+  assert(!srcTracker.update());
   assignBuilderTracker(tracker, srcTracker);
   assert(tracker.model is m3);
+  assert(tracker.update());
+  assert(!tracker.update());
 }

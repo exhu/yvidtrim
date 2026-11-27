@@ -15,7 +15,7 @@ import yguilib.controls.common : WidgetColors, applyBgAndBorderColors,
 import yguilib.controls.composite_view : bindCompositeModel,
   ensureDefaultModelTracker, ensureViewWidgetRegistered, findEntry,
   findOwningView, entryField, resolveBuilderRegistry, assignBuilderModel,
-  assignBuilderTracker, unregisterCompositeWidget, updateCompositeEntries;
+  assignBuilderTracker, updateCompositeEntries;
 import yguilib.controls.internal.axis : Axis;
 import yguilib.events : AppEvent;
 import yguilib.model : ModelTracker, VersionedModel;
@@ -299,7 +299,8 @@ final class ScrollbarWidgetView : WidgetViewBase {
   }
 
   override void unregisterViewWidget(Widget viewWidget) {
-    unregisterCompositeWidget(this, entries, viewWidget);
+    entries.remove(viewWidget);
+    super.unregisterViewWidget(viewWidget);
   }
 
   Widget decButton(Widget viewWidget) {
