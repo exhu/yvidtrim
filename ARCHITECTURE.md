@@ -71,7 +71,7 @@ yvidtrim/
 
 ## Architectural Invariants & Boundaries
 - `yguilib` Independence: `yguilib/` (D source & C wrappers) must never import
-  or link `source/yvidtrim/` or `yvidtrim-clibs/`. Enforced by check-boundaries.
+  or link `source/yvidtrim/` or `yvidtrim-clibs/` (see `check_boundaries.d`).
 - Private C Wrappers: Never import third-party C headers directly in D. Wrap
   dependencies in private static C libs (`<proj>-clibs/<proj>_<libname>.[c|h]`)
   using opaque handles, explicit NULL docs, and matching D bindings in `clibs/`.
@@ -246,4 +246,4 @@ attach with `widget.components.set(new MyComponent())`.
 ### Adding a Subsystem with Package Facade
 `<root_pkg>/<subsystem>/` with the public API in `package.d`, helpers in
 `internal/*.d` (`package(<root_pkg>):`, never `public:`); verify with
-`rdmd .agents/skills/check-boundaries/scripts/check_boundaries.d`.
+`rdmd .agents/skills/check/scripts/check_boundaries.d`.

@@ -1,8 +1,9 @@
 ---
 name: build-and-test
 description: >-
-  Standardized build, timeout-wrapped test execution, and _bench benchmark runs
-  for yvidtrim and yguilib with Meson and Ninja, supporting reconfigure, target
+  The preferred way to build, test, and verify yvidtrim and yguilib
+  (run_verify.d --checks: static checks, then Meson/Ninja build and
+  timeout-wrapped tests), plus _bench benchmark runs, reconfigure, target
   selection, and failure log extraction.
 ---
 
@@ -11,6 +12,8 @@ description: >-
 This skill provides a standardized tool to compile and test `yvidtrim` and
 `yguilib` according to
 [AGENTS.md](../../../AGENTS.md).
+Prefer it over raw chained `ninja && timeout ... meson test` commands; use
+`--checks` for standard verification.
 
 ## Core Script
 
@@ -33,13 +36,14 @@ rdmd .agents/skills/build-and-test/scripts/run_verify.d [options]
   fails and prints the failure log excerpt and stack trace.
 - **Environment Management**: Supports reconfiguring Meson (`--reconfigure`) and
   cleaning build artifacts (`--clean`).
-- **Static Checks**: `--checks` runs the static checkers in order (line length,
-  codestyle, null safety, boundaries, assets) before the build. Each runs under
-  `timeout 120`; the first failing checker stops the run unless `--keep-going`
-  is set. `--style-all` passes `--all` to `check_style.d`; `--audit-widgets`
-  appends `define_gui_widget.d --audit`. `check-boundaries` already verifies
-  `ARCHITECTURE.md < 250` lines (no `wc -l` needed). `--checks-only` runs the
-  checkers and skips the build and tests.
+- **Static Checks**: `--checks` runs the `check` skill driver
+  (`run_checks.d`: line length, codestyle, null safety, boundaries, assets)
+  before the build. Each check runs under `timeout 120`; the first failure
+  stops the run unless `--keep-going` is set. `--style-all` and
+  `--audit-widgets` are forwarded to the driver. The boundaries check already
+  verifies `ARCHITECTURE.md < 250` lines (no `wc -l` needed). `--checks-only`
+  runs the checkers and skips the build and tests. To run a subset, call
+  `run_checks.d --only ...` directly.
 
 ## CLI Usage
 
@@ -96,7 +100,7 @@ rdmd .agents/skills/build-and-test/scripts/run_verify.d --reconfigure --clean
 - `--checks-only`: Run the static checkers only; skips build and tests. Cannot
   be combined with `--build-only` or `--test-only`.
 - `--style-all`: Pass `--all` to `check_style.d` during `--checks`.
-- `--audit-widgets`: Include `define_gui_widget.d --audit` in `--checks`.
+- `--audit-widgets`: Include `gui_widget.d --audit` in `--checks`.
 - `--keep-going`: Run all static checkers instead of stopping at the first
   failure.
 - `--test <name>`: Run a specific test name.
@@ -117,8 +121,8 @@ rdmd .agents/skills/build-and-test/scripts/run_verify.d --reconfigure --clean
   `source/guidemo/test_main.d`) in `meson.build` with `d_unittest : true`.
 - When adding a new module with `unittest` blocks, verify it is included in a
   Meson test target and passes under `meson test -C _build`.
-- `check-boundaries` enforces this: rule 9 errors when a module with `unittest`
-  blocks is not quoted in `meson.build` or `yguilib/meson.build`, and rule 10
-  errors when a `version (unittest)` block declares `main(` outside
+- The boundaries check enforces this: rule 9 errors when a module with
+  `unittest` blocks is not quoted in `meson.build` or `yguilib/meson.build`,
+  and rule 10 errors when a `version (unittest)` block declares `main(` outside
   `test_main.d`. After adding a module, run
-  `rdmd .agents/skills/check-boundaries/scripts/check_boundaries.d`.
+  `rdmd .agents/skills/check/scripts/run_checks.d --only boundaries`.

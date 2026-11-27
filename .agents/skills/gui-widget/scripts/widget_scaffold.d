@@ -1,176 +1,36 @@
-#!/usr/bin/env rdmd
 /**
- * Auditing, discovery, and scaffolding tool for GUI widgets and views.
- *
- * Inspects WidgetBuilder chains across yguilib, guidemo, and yvidtrim for
- * required conventions (.name(...) and .rect(...)), lists custom *Builder
- * structs, and scaffolds new GUI widget builders (inline, view, or system).
+ * Scaffolds new GUI widget builders (inline, view, or system tier).
  */
-module define_gui_widget;
+module widget_scaffold;
 
-import std.array : appender, array, replace;
+import std.array : appender, replace;
 import std.ascii : toLower;
-import std.file : dirEntries, exists, isFile, mkdirRecurse, readText, SpanMode,
-  write;
-import std.getopt : defaultGetoptPrinter, getopt, GetoptResult;
-import std.path : buildNormalizedPath, dirName, extension;
+import std.file : exists, mkdirRecurse, write;
+import std.path : dirName;
 import std.stdio : stderr, writefln, writeln;
-import std.string : format, splitLines, strip;
 
-struct BuilderChain {
-  string file;
-  size_t startLine;
-  size_t endLine;
-  string kind; // "WidgetBuilder.make" or ".child"
-  bool hasName;
-  bool hasRect;
-  bool inUnittest;
-}
-
-struct CustomBuilderInfo {
-  string file;
-  size_t line;
-  string structName;
-}
-
-struct CliOptions {
-  bool optAudit = false;
-  bool optList = false;
-  bool optDryRun = false;
-  string scaffoldName = null;
+struct ScaffoldOptions {
+  string name = null;
   string tier = "inline";
   string modName = null;
   string outPath = null;
-  string filterTarget = null;
+  bool dryRun = false;
 }
 
-/**
- * Collects all D source files in the target directories.
- */
-string[] collectDSourceFiles(string[] searchDirs) {
-  string[] dFiles;
-  foreach (dir; searchDirs) {
-    if (!exists(dir)) {
-      continue;
-    }
-    foreach (entry; dirEntries(dir, SpanMode.depth)) {
-      if (entry.isFile && extension(entry.name) == ".d") {
-        dFiles ~= buildNormalizedPath(entry.name);
-      }
-    }
-  }
-  return dFiles;
-}
-
-/**
- * Scans files for custom *Builder structs (excluding WidgetBuilder and
- * event builders).
- */
-CustomBuilderInfo[] scanCustomBuilders(string[] files) {
-  import std.algorithm : endsWith;
-  import std.regex : ctRegex, matchFirst;
-
-  CustomBuilderInfo[] builders;
-  auto structRe = ctRegex!(r"^\s*struct\s+([A-Za-z0-9_]*Builder)\b");
-
-  foreach (file; files) {
-    if (!exists(file) || !isFile(file)) {
-      continue;
-    }
-    const string[] lines = readText(file).splitLines();
-    foreach (size_t idx, string line; lines) {
-      auto m = matchFirst(line, structRe);
-      if (!m.empty) {
-        const string name = m[1];
-        if (name != "WidgetBuilder" && !name.endsWith("EventBuilder")) {
-          builders ~= CustomBuilderInfo(file, idx + 1, name);
-        }
-      }
-    }
-  }
-  return builders;
-}
-
-/**
- * Scans files for WidgetBuilder.make(...) and .child(...) chains and checks
- * whether .name(...) and .rect(...) are invoked before the statement ends.
- */
-BuilderChain[] scanBuilderChains(string[] files) {
-  import std.algorithm : endsWith;
-
-  BuilderChain[] chains;
-  foreach (file; files) {
-    if (!exists(file) || !isFile(file) || file.endsWith("widget/builder.d")) {
-      continue;
-    }
-    chains ~= scanFileBuilderChains(file, readText(file).splitLines());
-  }
-  return chains;
-}
-
-int main(string[] args) {
-  CliOptions opts;
-  if (!parseCliArgs(args, opts)) {
-    return 0;
-  }
-  if (opts.scaffoldName !is null && opts.scaffoldName.length > 0) {
-    return runScaffoldCommand(opts);
-  }
-  return runScanCommand(opts);
-}
-
-private:
-
-bool parseCliArgs(string[] args, out CliOptions opts) {
-  GetoptResult helpInfo;
-  try {
-    helpInfo = getopt(
-      args,
-      "audit|a", "Audit WidgetBuilder chains for .name() and .rect()",
-        &opts.optAudit,
-      "list|l", "List custom *Builder structs and WidgetBuilder chains",
-        &opts.optList,
-      "scaffold|s", "Scaffold a new GUI widget builder by PascalCase name",
-        &opts.scaffoldName,
-      "tier|t", "Scaffold tier: inline (default), view, or system",
-        &opts.tier,
-      "module|m", "D module name for scaffold (e.g. yvidtrim.transport)",
-        &opts.modName,
-      "output|o", "Output file path for scaffold", &opts.outPath,
-      "dry-run|d", "Preview scaffold output without writing to disk",
-        &opts.optDryRun,
-      "filter|f", "Filter scanned files by substring", &opts.filterTarget
-    );
-  } catch (Exception e) {
-    stderr.writeln("Error: ", e.msg);
-    return false;
-  }
-
-  if (helpInfo.helpWanted) {
-    defaultGetoptPrinter(
-      "Usage: define_gui_widget.d [options]\n\n" ~
-      "Audit, list, and scaffold GUI widgets and builders.\n\nOptions:",
-      helpInfo.options
-    );
-    return false;
-  }
-  return true;
-}
-
-int runScaffoldCommand(in CliOptions opts) {
+int runScaffoldCommand(in ScaffoldOptions opts) {
   if (opts.tier != "inline" && opts.tier != "view" && opts.tier != "system") {
     stderr.writeln("Error: --tier must be 'inline', 'view', or 'system'.");
     return 1;
   }
   const string modName = (opts.modName !is null && opts.modName.length > 0)
     ? opts.modName
-    : "yvidtrim." ~ toSnakeCase(opts.scaffoldName);
+    : "yvidtrim." ~ toSnakeCase(opts.name);
   const string outPath = (opts.outPath !is null && opts.outPath.length > 0)
     ? opts.outPath
     : derivePathFromModule(modName);
 
-  const string code = generateScaffold(opts.scaffoldName, modName, opts.tier);
-  if (opts.optDryRun) {
+  const string code = generateScaffold(opts.name, modName, opts.tier);
+  if (opts.dryRun) {
     writefln("// --- DRY RUN: %s (tier: %s) ---", outPath, opts.tier);
     writeln(code);
     return 0;
@@ -187,264 +47,14 @@ int runScaffoldCommand(in CliOptions opts) {
   write(outPath, code);
   writefln(
     "Scaffolded %s (%s tier) -> %s",
-    opts.scaffoldName,
+    opts.name,
     opts.tier,
     outPath
   );
   return 0;
 }
 
-int runScanCommand(CliOptions opts) {
-  import std.algorithm : canFind, filter;
-
-  if (!opts.optAudit && !opts.optList) {
-    opts.optAudit = true;
-    opts.optList = true;
-  }
-
-  string[] files = collectDSourceFiles([
-    "yguilib/source",
-    "yguilib/examples",
-    "source",
-  ]);
-  if (opts.filterTarget !is null) {
-    files = files.filter!(f => f.canFind(opts.filterTarget)).array;
-  }
-
-  auto customBuilders = scanCustomBuilders(files);
-  auto chains = scanBuilderChains(files);
-
-  if (opts.optList) {
-    printBuilderList(customBuilders, chains);
-  }
-  if (opts.optAudit) {
-    printAuditReport(chains);
-  }
-  return 0;
-}
-
-void printBuilderList(
-  in CustomBuilderInfo[] customBuilders,
-  in BuilderChain[] chains
-) {
-  writeln("=== Custom GUI Widget Builders ===");
-  foreach (cb; customBuilders) {
-    writefln("  %s (%s:%d)", cb.structName, cb.file, cb.line);
-  }
-  writefln("Total custom builders: %d\n", customBuilders.length);
-
-  size_t prodCount = 0;
-  size_t testCount = 0;
-  foreach (ch; chains) {
-    if (ch.inUnittest) {
-      testCount++;
-    } else {
-      prodCount++;
-    }
-  }
-  writeln("=== WidgetBuilder Chain Summary ===");
-  writefln("  Production chains: %d", prodCount);
-  writefln("  Unittest chains:   %d", testCount);
-  writefln("  Total chains:      %d\n", chains.length);
-}
-
-void printAuditReport(in BuilderChain[] chains) {
-  writeln("=== WidgetBuilder Convention Audit (Production Code) ===");
-  size_t missingNameCount = 0;
-  size_t missingRectCount = 0;
-
-  foreach (ch; chains) {
-    if (ch.inUnittest) {
-      continue;
-    }
-    if (!ch.hasName) {
-      missingNameCount++;
-      writefln(
-        "  [WARN] %s:%d: %s chain missing .name(...)",
-        ch.file,
-        ch.startLine,
-        ch.kind
-      );
-    }
-    if (!ch.hasRect) {
-      missingRectCount++;
-      writefln(
-        "  [WARN] %s:%d: %s chain missing .rect(...)",
-        ch.file,
-        ch.startLine,
-        ch.kind
-      );
-    }
-  }
-
-  if (missingNameCount == 0 && missingRectCount == 0) {
-    writeln("  All production WidgetBuilder chains set .name() and .rect().");
-  } else {
-    writefln(
-      "\nSummary: %d chain(s) missing .name(), %d chain(s) missing .rect().",
-      missingNameCount,
-      missingRectCount
-    );
-  }
-}
-
-bool hasGeometryCall(string line) {
-  import std.algorithm : canFind;
-
-  return line.canFind(".rect(") ||
-    line.canFind(".bounds(") ||
-    line.canFind(".pos(") ||
-    line.canFind(".size(") ||
-    line.canFind(".fixedSize(");
-}
-
-BuilderChain[] scanFileBuilderChains(string file, const string[] lines) {
-  import std.algorithm : canFind, startsWith;
-
-  BuilderChain[] chains;
-  bool inUnittest = false;
-  int braceDepth = 0;
-  int unittestBraceDepth = -1;
-
-  foreach (size_t idx, string line; lines) {
-    const string trimmed = line.strip();
-    if (trimmed.startsWith("unittest") && trimmed.canFind("{")) {
-      inUnittest = true;
-      unittestBraceDepth = braceDepth;
-    }
-    updateBraceDepth(line, braceDepth, inUnittest, unittestBraceDepth);
-
-    if (trimmed.startsWith("//") || trimmed.startsWith("*")) {
-      continue;
-    }
-    if (trimmed.canFind("WidgetBuilder.make(")) {
-      chains ~= extractChain(
-        file,
-        lines,
-        idx,
-        "WidgetBuilder.make",
-        inUnittest
-      );
-    } else if (
-      trimmed.canFind(".child(") && trimmed.canFind("WidgetBuilder")
-    ) {
-      chains ~= extractChildBlock(file, lines, idx, inUnittest);
-    }
-  }
-  return chains;
-}
-
-void updateBraceDepth(
-  string line,
-  ref int braceDepth,
-  ref bool inUnittest,
-  ref int unittestBraceDepth
-) {
-  foreach (c; line) {
-    if (c == '{') {
-      braceDepth++;
-    } else if (c == '}') {
-      braceDepth--;
-      if (inUnittest && braceDepth <= unittestBraceDepth) {
-        inUnittest = false;
-        unittestBraceDepth = -1;
-      }
-    }
-  }
-}
-
-BuilderChain extractChain(
-  string file,
-  const string[] lines,
-  size_t startIdx,
-  string kind,
-  bool inUnittest
-) {
-  import std.algorithm : canFind, endsWith;
-
-  bool hasName = false;
-  bool hasRect = false;
-  size_t endIdx = startIdx;
-  int parenDepth = 0;
-
-  for (size_t i = startIdx; i < lines.length && i < startIdx + 60; ++i) {
-    const string t = lines[i].strip();
-    if (t.canFind(".name(")) {
-      hasName = true;
-    }
-    if (hasGeometryCall(t)) {
-      hasRect = true;
-    }
-    foreach (c; t) {
-      if (c == '(') {
-        parenDepth++;
-      } else if (c == ')') {
-        parenDepth--;
-      }
-    }
-    endIdx = i;
-    if (parenDepth <= 0 && (t.canFind(".build()") || t.endsWith(";"))) {
-      break;
-    }
-  }
-
-  return BuilderChain(
-    file,
-    startIdx + 1,
-    endIdx + 1,
-    kind,
-    hasName,
-    hasRect,
-    inUnittest
-  );
-}
-
-BuilderChain extractChildBlock(
-  string file,
-  const string[] lines,
-  size_t startIdx,
-  bool inUnittest
-) {
-  import std.algorithm : canFind;
-
-  bool hasName = false;
-  bool hasRect = false;
-  size_t endIdx = startIdx;
-  int depth = 0;
-  bool opened = false;
-
-  for (size_t i = startIdx; i < lines.length && i < startIdx + 50; ++i) {
-    const string t = lines[i].strip();
-    if (t.canFind(".name(")) {
-      hasName = true;
-    }
-    if (hasGeometryCall(t)) {
-      hasRect = true;
-    }
-    foreach (c; t) {
-      if (c == '{') {
-        depth++;
-        opened = true;
-      } else if (c == '}') {
-        depth--;
-      }
-    }
-    endIdx = i;
-    if (opened && depth <= 0) {
-      break;
-    }
-  }
-
-  return BuilderChain(
-    file,
-    startIdx + 1,
-    endIdx + 1,
-    ".child",
-    hasName,
-    hasRect,
-    inUnittest
-  );
-}
+private:
 
 string toCamelCase(string pascal) {
   if (pascal.length == 0) {
@@ -612,10 +222,10 @@ private:
 }
 
 unittest {
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : makeHeadlessUiSystem;
   import yguilib.widget.layout_components : SizingMode;
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   __NAME__Builder b;
   auto root = b
     .name("test__NAME__")
@@ -786,9 +396,9 @@ private:
 }
 
 unittest {
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : makeHeadlessUiSystem;
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   auto ctrl = register__NAME__(ui);
   assert(ctrl !is null);
 
@@ -928,9 +538,9 @@ final class __NAME__System : WidgetSystem {
 }
 
 unittest {
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : makeHeadlessUiSystem;
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   __NAME__Builder b;
   auto w = b
     .name("test__NAME__")

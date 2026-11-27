@@ -1,22 +1,14 @@
-#!/usr/bin/env rdmd
 /**
- * Refactoring, auditing, and analysis tool for Widget and WidgetComponents.
- *
- * Scans, classifies, and verifies Widget construction call sites,
- * WidgetComponent usages, constructor overloading rules, and test fixture
- * adoption across yguilib, guidemo, and yvidtrim.
+ * Source scanners for Widget call sites, components, constructors,
+ * invariants, WidgetBuilder chains, and custom *Builder structs.
  */
-module refactor_widget;
+module widget_scan;
 
-import std.algorithm : canFind, countUntil, endsWith, filter, sort, startsWith;
-import std.array : array, join;
-import std.conv : to;
+import std.algorithm : canFind, endsWith, startsWith;
 import std.file : dirEntries, exists, isFile, readText, SpanMode;
-import std.getopt : defaultGetoptPrinter, getopt, GetoptResult;
-import std.path : baseName, buildNormalizedPath, extension;
+import std.path : buildNormalizedPath, extension;
 import std.regex : ctRegex, matchFirst;
-import std.stdio : stderr, write, writefln, writeln;
-import std.string : format, indexOf, splitLines, strip;
+import std.string : splitLines, strip;
 
 enum TargetGroup {
   yguilibPublic,
@@ -87,6 +79,22 @@ struct InvariantViolation {
   string message;
 }
 
+struct BuilderChain {
+  string file;
+  size_t startLine;
+  size_t endLine;
+  string kind; // "WidgetBuilder.make" or ".child"
+  bool hasName;
+  bool hasRect;
+  bool inUnittest;
+}
+
+struct CustomBuilderInfo {
+  string file;
+  size_t line;
+  string structName;
+}
+
 /**
  * Scans source files and discovers Widget and WidgetBuilder call sites.
  */
@@ -111,17 +119,7 @@ CallSite[] scanWidgetCallSites(string[] files) {
         inUnittest = true;
         unittestBraceDepth = braceDepth;
       }
-      foreach (c; line) {
-        if (c == '{') {
-          braceDepth++;
-        } else if (c == '}') {
-          braceDepth--;
-          if (inUnittest && braceDepth <= unittestBraceDepth) {
-            inUnittest = false;
-            unittestBraceDepth = -1;
-          }
-        }
-      }
+      updateBraceDepth(line, braceDepth, inUnittest, unittestBraceDepth);
 
       if (trimmed.startsWith("//") || trimmed.startsWith("*")) {
         continue;
@@ -355,171 +353,195 @@ string[] collectDSourceFiles(string[] searchDirs) {
   return dFiles;
 }
 
-int main(string[] args) {
-  bool optWidgets = false;
-  bool optComponents = false;
-  bool optConstructors = false;
-  bool optTests = false;
-  bool optAudit = false;
-  bool optSummary = false;
-  bool optJson = false;
-  string filterTarget = null;
+/**
+ * Scans files for custom *Builder structs (excluding WidgetBuilder and
+ * event builders).
+ */
+CustomBuilderInfo[] scanCustomBuilders(string[] files) {
+  CustomBuilderInfo[] builders;
+  auto structRe = ctRegex!(r"^\s*struct\s+([A-Za-z0-9_]*Builder)\b");
 
-  GetoptResult helpInfo;
-  try {
-    helpInfo = getopt(
-      args,
-      "widgets|w", "List all Widget and WidgetBuilder call sites", &optWidgets,
-      "components|c", "List WidgetComponents accesses", &optComponents,
-      "constructors|k", "Audit classes with multiple constructors",
-        &optConstructors,
-      "tests|t", "Audit unit tests for WidgetFixture adoption", &optTests,
-      "audit|a", "Check Widget architectural invariants", &optAudit,
-      "summary|s", "Display high-level summary table", &optSummary,
-      "json|j", "Output results in JSON format", &optJson,
-      "filter|f", "Filter files by substring", &filterTarget
-    );
-  } catch (Exception e) {
-    stderr.writeln("Error: ", e.msg);
-    return 1;
-  }
-
-  if (helpInfo.helpWanted) {
-    defaultGetoptPrinter(
-      "Usage: refactor_widget.d [options]\n\n" ~
-      "Widget & WidgetComponent refactoring, inspection, and verification " ~
-      "tool.\n\nOptions:",
-      helpInfo.options
-    );
-    return 0;
-  }
-
-  string[] searchDirs = ["yguilib/source", "source"];
-  string[] files = collectDSourceFiles(searchDirs);
-  if (filterTarget !is null) {
-    files = files.filter!(f => f.canFind(filterTarget)).array;
-  }
-
-  // Default mode: if nothing specified, show summary and audit
-  if (!optWidgets && !optComponents && !optConstructors &&
-      !optTests && !optAudit && !optSummary && !optJson) {
-    optSummary = true;
-    optAudit = true;
-  }
-
-  auto callSites = scanWidgetCallSites(files);
-  auto compUsages = scanComponentUsages(files);
-  auto overloaded = scanOverloadedConstructors(files);
-  auto testSites = scanTestsNeedingFixture(files);
-  auto violations = checkWidgetInvariants(files);
-
-  if (optJson) {
-    write("{\n");
-    writefln("  \"totalFiles\": %d,", files.length);
-    writefln("  \"widgetCallSites\": %d,", callSites.length);
-    writefln("  \"componentUsages\": %d,", compUsages.length);
-    writefln("  \"overloadedClasses\": %d,", overloaded.length);
-    writefln("  \"testCallSitesNeedingFixture\": %d,", testSites.length);
-    writefln("  \"invariantViolations\": %d\n}", violations.length);
-    return 0;
-  }
-
-  if (optSummary) {
-    writeln("=== Widget Architecture & Refactoring Summary ===");
-    writefln("Scanned D files:                   %d", files.length);
-    writefln("Widget construction call sites:    %d", callSites.length);
-
-    size_t prodSites = 0;
-    size_t testCalls = 0;
-    foreach (s; callSites) {
-      if (s.inUnittest) {
-        testCalls++;
-      } else {
-        prodSites++;
+  foreach (file; files) {
+    if (!exists(file) || !isFile(file)) {
+      continue;
+    }
+    const string[] lines = readText(file).splitLines();
+    foreach (size_t idx, string line; lines) {
+      auto m = matchFirst(line, structRe);
+      if (!m.empty) {
+        const string name = m[1];
+        if (name != "WidgetBuilder" && !name.endsWith("EventBuilder")) {
+          builders ~= CustomBuilderInfo(file, idx + 1, name);
+        }
       }
     }
-    writefln("  - Production call sites:         %d", prodSites);
-    writefln("  - Unittest call sites:           %d", testCalls);
-    writefln("  - Tests candidate for fixture:   %d", testSites.length);
-    writefln("WidgetComponents usages:           %d", compUsages.length);
-    writefln("Classes with >1 constructor:       %d", overloaded.length);
-    writefln("Invariant violations:              %d", violations.length);
-    writeln();
   }
+  return builders;
+}
 
-  if (optWidgets) {
-    writeln("=== Widget Construction Call Sites ===");
-    foreach (site; callSites) {
-      writefln(
-        "%s:%d [%s%s]: %s",
-        site.file,
-        site.line,
-        groupName(site.group),
-        site.inUnittest ? ", test" : "",
-        site.text
+/**
+ * Scans files for WidgetBuilder.make(...) and .child(...) chains and checks
+ * whether .name(...) and .rect(...) are invoked before the statement ends.
+ */
+BuilderChain[] scanBuilderChains(string[] files) {
+  BuilderChain[] chains;
+  foreach (file; files) {
+    if (!exists(file) || !isFile(file) || file.endsWith("widget/builder.d")) {
+      continue;
+    }
+    chains ~= scanFileBuilderChains(file, readText(file).splitLines());
+  }
+  return chains;
+}
+
+private:
+
+bool hasGeometryCall(string line) {
+  return line.canFind(".rect(") ||
+    line.canFind(".bounds(") ||
+    line.canFind(".pos(") ||
+    line.canFind(".size(") ||
+    line.canFind(".fixedSize(");
+}
+
+BuilderChain[] scanFileBuilderChains(string file, const string[] lines) {
+  BuilderChain[] chains;
+  bool inUnittest = false;
+  int braceDepth = 0;
+  int unittestBraceDepth = -1;
+
+  foreach (size_t idx, string line; lines) {
+    const string trimmed = line.strip();
+    if (trimmed.startsWith("unittest") && trimmed.canFind("{")) {
+      inUnittest = true;
+      unittestBraceDepth = braceDepth;
+    }
+    updateBraceDepth(line, braceDepth, inUnittest, unittestBraceDepth);
+
+    if (trimmed.startsWith("//") || trimmed.startsWith("*")) {
+      continue;
+    }
+    if (trimmed.canFind("WidgetBuilder.make(")) {
+      chains ~= extractChain(
+        file,
+        lines,
+        idx,
+        "WidgetBuilder.make",
+        inUnittest
       );
+    } else if (
+      trimmed.canFind(".child(") && trimmed.canFind("WidgetBuilder")
+    ) {
+      chains ~= extractChildBlock(file, lines, idx, inUnittest);
     }
-    writeln();
   }
+  return chains;
+}
 
-  if (optComponents) {
-    writeln("=== WidgetComponents Usages ===");
-    foreach (u; compUsages) {
-      writefln(
-        "%s:%d [%s]: %s",
-        u.file,
-        u.line,
-        u.componentName,
-        u.text
-      );
-    }
-    writeln();
-  }
-
-  if (optConstructors) {
-    writeln("=== Classes / Structs with Multiple Constructors ===");
-    if (overloaded.length == 0) {
-      writeln("None found. All types have single constructor.");
-    } else {
-      foreach (o; overloaded) {
-        writefln(
-          "%s: %s '%s' has %d constructors at lines: %s",
-          o.file,
-          o.kind,
-          o.typeName,
-          o.lines.length,
-          to!string(o.lines)
-        );
+void updateBraceDepth(
+  string line,
+  ref int braceDepth,
+  ref bool inUnittest,
+  ref int unittestBraceDepth
+) {
+  foreach (c; line) {
+    if (c == '{') {
+      braceDepth++;
+    } else if (c == '}') {
+      braceDepth--;
+      if (inUnittest && braceDepth <= unittestBraceDepth) {
+        inUnittest = false;
+        unittestBraceDepth = -1;
       }
     }
-    writeln();
   }
+}
 
-  if (optTests) {
-    writeln("=== Unit Tests Candidate for WidgetFixture Migration ===");
-    if (testSites.length == 0) {
-      writeln("None found. All tests use WidgetFixture or builders.");
-    } else {
-      foreach (s; testSites) {
-        writefln("%s:%d: %s", s.file, s.line, s.text);
-      }
-      writefln("Total test sites to migrate: %d", testSites.length);
+BuilderChain extractChain(
+  string file,
+  const string[] lines,
+  size_t startIdx,
+  string kind,
+  bool inUnittest
+) {
+  bool hasName = false;
+  bool hasRect = false;
+  size_t endIdx = startIdx;
+  int parenDepth = 0;
+
+  for (size_t i = startIdx; i < lines.length && i < startIdx + 60; ++i) {
+    const string t = lines[i].strip();
+    if (t.canFind(".name(")) {
+      hasName = true;
     }
-    writeln();
-  }
-
-  if (optAudit) {
-    writeln("=== Widget Invariant Audit ===");
-    if (violations.length == 0) {
-      writeln("All Widget architectural invariants satisfied (0 violations).");
-    } else {
-      foreach (v; violations) {
-        writefln("%s:%d: [%s] %s", v.file, v.line, v.rule, v.message);
+    if (hasGeometryCall(t)) {
+      hasRect = true;
+    }
+    foreach (c; t) {
+      if (c == '(') {
+        parenDepth++;
+      } else if (c == ')') {
+        parenDepth--;
       }
-      writefln("Total violations: %d", violations.length);
-      return 1;
+    }
+    endIdx = i;
+    if (parenDepth <= 0 && (t.canFind(".build()") || t.endsWith(";"))) {
+      break;
     }
   }
 
-  return 0;
+  return BuilderChain(
+    file,
+    startIdx + 1,
+    endIdx + 1,
+    kind,
+    hasName,
+    hasRect,
+    inUnittest
+  );
+}
+
+BuilderChain extractChildBlock(
+  string file,
+  const string[] lines,
+  size_t startIdx,
+  bool inUnittest
+) {
+  bool hasName = false;
+  bool hasRect = false;
+  size_t endIdx = startIdx;
+  int depth = 0;
+  bool opened = false;
+
+  for (size_t i = startIdx; i < lines.length && i < startIdx + 50; ++i) {
+    const string t = lines[i].strip();
+    if (t.canFind(".name(")) {
+      hasName = true;
+    }
+    if (hasGeometryCall(t)) {
+      hasRect = true;
+    }
+    foreach (c; t) {
+      if (c == '{') {
+        depth++;
+        opened = true;
+      } else if (c == '}') {
+        depth--;
+      }
+    }
+    endIdx = i;
+    if (opened && depth <= 0) {
+      break;
+    }
+  }
+
+  return BuilderChain(
+    file,
+    startIdx + 1,
+    endIdx + 1,
+    ".child",
+    hasName,
+    hasRect,
+    inUnittest
+  );
 }

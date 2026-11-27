@@ -1,42 +1,33 @@
 ---
-name: define-gui-widget
+name: gui-widget
 description: >-
-  Define, scaffold, and audit GUI widgets, composite controls, and views using
-  WidgetBuilder, custom fluent builders, ViewComponent event routing,
-  ModelTracker synchronization, and ECS WidgetComponents. Use this skill when
-  constructing new GUI items, pages, views, or reusable widgets in yvidtrim,
-  guidemo, or yguilib.
+  Define, scaffold, refactor, and audit GUI widgets, composite controls, and
+  views (WidgetBuilder, fluent builders, ViewComponent event routing,
+  ModelTracker sync, ECS WidgetComponents). Use when constructing new widgets,
+  pages, or views, when changing Widget, WidgetComponents, or constructor
+  signatures, or when moving yguilib tests to WidgetFixture.
 ---
 
-# Defining GUI Widgets & Views (`define-gui-widget`)
+# GUI Widgets & Views (`gui-widget`)
 
-This skill guides the construction of GUI hierarchies, reusable composite
+This skill covers building and refactoring GUI hierarchies, reusable composite
 widgets, and ECS-style interactive controls in `yguilib`, `guidemo`, and
-`yvidtrim`.
-
-It provides:
-1. Architectural selection rules (Inline View vs. Composite `WidgetView` vs.
-   ECS `WidgetSystem`).
-2. `WidgetBuilder` conventions and layout/invalidation invariants.
-3. An automated D CLI tool (`define_gui_widget.d`) to **audit** existing
-   `WidgetBuilder` chains (e.g., missing `.name(...)` or `.rect(...)` calls)
-   and **scaffold** new fluent widget builders with headless unit tests.
+`yvidtrim`: tier selection, `WidgetBuilder` rules, templates, refactoring
+workflow, and one D CLI tool.
 
 ---
 
 ## Core Helper Script
 
-Run the helper script via `rdmd`:
-
 ```bash
-# Audit all WidgetBuilder chains and custom *Builder structs
-rdmd .agents/skills/define-gui-widget/scripts/define_gui_widget.d --audit
+# Default: summary plus audit
+rdmd .agents/skills/gui-widget/scripts/gui_widget.d
 
-# List all custom *Builder structs and WidgetBuilder chains across the repo
-rdmd .agents/skills/define-gui-widget/scripts/define_gui_widget.d --list
+# Audit invariants and builder chains; list custom *Builder structs
+rdmd .agents/skills/gui-widget/scripts/gui_widget.d --audit --list
 
 # Preview scaffolding for a new reusable widget (tiers: inline, view, system)
-rdmd .agents/skills/define-gui-widget/scripts/define_gui_widget.d \
+rdmd .agents/skills/gui-widget/scripts/gui_widget.d \
   --scaffold TransportBar --module yvidtrim.transport_bar --tier view --dry-run
 ```
 
@@ -83,7 +74,7 @@ registering `AnimatedHoverButtonSystem`).
   explicitly to both `View` and `Controller`, and call
   `app.withRootWidget(view.rootWidget())` in `main()`. Controllers never
   create their View or touch `App`/`Window` (keeping them testable with
-  `UiSystemImpl(null)`).
+  `makeHeadlessUiSystem()`).
 
 ### Tier 2: Reusable Composite Widget (`*Builder` + `WidgetView`)
 Use for multi-widget controls that encapsulate child widgets, translate child
@@ -272,10 +263,10 @@ private:
 Always include a `unittest` block verifying layout components and widget names:
 ```d
 unittest {
-  import yguilib.internal.uisystem_impl : UiSystemImpl;
+  import yguilib.uisystem : makeHeadlessUiSystem;
   import yguilib.widget.layout_components : SizingMode;
 
-  auto ui = new UiSystemImpl(null);
+  auto ui = makeHeadlessUiSystem();
   MyWidgetBuilder b;
   auto root = b
     .name("testControl")
@@ -298,13 +289,68 @@ unittest {
 
 ---
 
+## Refactoring `Widget` and `WidgetComponents`
+
+Applies to changes in `Widget`, `WidgetComponents`, `WidgetBuilder`, and
+hierarchy lifecycles (`Widget.addChild`, `Widget.name`, constructors,
+`dumpTree`).
+
+```bash
+# 1. Map affected call sites before changing a constructor or property
+rdmd .agents/skills/gui-widget/scripts/gui_widget.d --summary --widgets
+rdmd .agents/skills/gui-widget/scripts/gui_widget.d --components
+
+# 2. Find types with more than one constructor
+rdmd .agents/skills/gui-widget/scripts/gui_widget.d --constructors
+
+# 3. Find tests that still call `new Widget(...)` directly
+rdmd .agents/skills/gui-widget/scripts/gui_widget.d --tests
+```
+
+### `WidgetFixture` (inside `yguilib` only)
+
+`WidgetFixture` (`yguilib/source/yguilib/widget/test_fixture.d`) creates
+widgets and configures components in unit tests without manual ID juggling or
+constructor coupling. It is declared `version (unittest):` and
+`package(yguilib):`, so `guidemo` and `yvidtrim` tests cannot import it; they
+use `makeHeadlessUiSystem()` with `WidgetBuilder`. Migrate `yguilib` hits from
+`--tests` before changing constructor signatures.
+
+```d
+import yguilib.widget.test_fixture : WidgetFixture;
+
+unittest {
+  auto fix = new WidgetFixture();
+
+  // Automatic sequential IDs, parent-child wiring
+  auto root = fix.makeRootWithRect(RectF(0, 0, 640, 480));
+  auto child1 = fix.makeChildWithRect(root, RectF(10, 10, 100, 50));
+  auto child2 = fix.makeChildWithBounds(root, 50, 60, 200, 100);
+
+  // Component setup (all arguments are explicit)
+  fix.withBackground(
+    child1, ColorF(0.2f, 0.4f, 0.6f, 1.0f), Background.Style.rect, 0.0f
+  );
+  fix.withBorder(child1, ColorF(1, 0, 0, 1), 2.0f);
+  fix.withText(child1, "Label", ColorF(1, 1, 1, 1));
+  fix.withFlexRow(root, 10.0f, JustifyContent.start, AlignItems.stretch);
+
+  // Tree utilities
+  assert(WidgetFixture.countNodes(root) == 3);
+  assert(WidgetFixture.findById(root, child1.uId) is child1);
+  assert(WidgetFixture.isChildOf(child1, root));
+}
+```
+
+---
+
 ## Verification Workflow
 
 After defining or modifying a GUI widget or view, run:
 
 ```bash
-# 1. Audit WidgetBuilder chains (checks .name() and .rect() on every builder)
-rdmd .agents/skills/define-gui-widget/scripts/define_gui_widget.d --audit
+# 1. Audit widget invariants and WidgetBuilder chains
+rdmd .agents/skills/gui-widget/scripts/gui_widget.d --audit
 
 # 2. Static checks, then build and run unit tests
 rdmd .agents/skills/build-and-test/scripts/run_verify.d --checks
@@ -315,20 +361,29 @@ If modules were added, moved, or data flow changed, update `ARCHITECTURE.md`
 
 ---
 
-## CLI Options Reference (`define_gui_widget.d`)
+## CLI Options Reference (`gui_widget.d`)
 
-- `-a, --audit`: Scan `WidgetBuilder.make` and `.child(` chains to verify every
-  widget sets `.name(...)` and `.rect(...)`.
-- `-l, --list`: List all custom `*Builder` structs and `WidgetBuilder` call
-  sites across `yguilib`, `guidemo`, and `yvidtrim`.
-- `-s, --scaffold <WidgetName>`: Generate a new widget module with a
-  `*Style` struct, fluent `*Builder`, and headless `unittest`.
-- `-t, --tier <inline|view|system>`: Select the architectural template when
-  scaffolding (default: `inline`).
-- `-m, --module <pkg.mod>`: D module name for scaffolding (e.g.,
-  `yvidtrim.transport_bar`).
-- `-o, --output <path>`: Output file path for scaffolding (derived from module
-  name if omitted).
-- `-d, --dry-run`: Print generated code to stdout without writing to disk.
+With no query flag, runs `--summary --audit`. Scans `yguilib/source`,
+`yguilib/examples`, and `source`.
+
+- `-a, --audit`: Check invariants (no `new Widget()`, no external
+  `.children ~=`); violations exit `1`. Also warns about production builder
+  chains without `.name(...)` or geometry (`.rect`, `.bounds`, `.pos`,
+  `.size`, `.fixedSize`); warnings do not fail. The geometry check is a text
+  heuristic.
+- `-l, --list`: List custom `*Builder` structs and count builder chains.
+- `-s, --summary`: Summary table of widgets and components.
+- `-w, --widgets`: List `Widget` and `WidgetBuilder` call sites.
+- `-c, --components`: List direct `WidgetComponents` accesses.
+- `-k, --constructors`: List types with multiple constructors.
+- `-t, --tests`: List unit tests that call `new Widget(...)` directly.
+- `-j, --json`: Print summary counts as JSON (ignores other query flags).
 - `-f, --filter <substr>`: Filter scanned files by path substring.
+- `--scaffold <WidgetName>`: Generate a widget module with a `*Style` struct,
+  fluent `*Builder`, and headless `unittest`. Add the new file to
+  `meson.build`.
+- `--tier <inline|view|system>`: Scaffold template (default: `inline`).
+- `-m, --module <pkg.mod>`: D module name for scaffolding.
+- `-o, --output <path>`: Output path (derived from the module if omitted).
+- `-d, --dry-run`: Print generated code without writing to disk.
 - `-h, --help`: Show usage information.

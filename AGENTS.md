@@ -1,7 +1,8 @@
 # Agent Guidelines for yvidtrim
 
 Video trimming tool in D; external C/C++ libraries go through private C
-wrappers.
+wrappers. Three code trees: `source/yvidtrim/` (the app), `source/guidemo/`
+(GUI showcase and testbed), and `yguilib/` (GUI library).
 
 ## Build & Test
 Meson + Ninja only (`dub.json` is for IDE/LSP; never run `dub`).
@@ -31,8 +32,8 @@ ninja -C _build && timeout 300 meson test -C _build # verify every change
 - **Naming**: public symbols prefixed `<proj>_<libname>_`
   (`yvidtrim_sdl3_hello()`, `yguilib_sdl3_EventType`).
 - **GLES**: from D only via `glad2.gles2` (`subprojects/glad2gles31[d]/`).
-- **Independence**: `yguilib/` must not depend on `source/yvidtrim/` or
-  `yvidtrim-clibs/`.
+- **Independence**: `yguilib/` must not depend on `source/yvidtrim/`,
+  `source/guidemo/`, or `yvidtrim-clibs/`.
 - **Threads**: GUI and graphics API on main thread only; cross-thread
   communication only via `sendAppEvent`.
 - **Controllers**: `DefaultController` subclasses overriding
@@ -46,7 +47,7 @@ ninja -C _build && timeout 300 meson test -C _build # verify every change
   then `Controller(ui, tracker, view)`. Controllers never create their View
   or touch `App`/`Window`; `main()` calls
   `app.withRootWidget(view.rootWidget())`. Keeps them headless-testable with
-  `UiSystemImpl(null)`.
+  `makeHeadlessUiSystem()` (`yguilib.uisystem`).
 - **Pointer motion**: never coalesce `mouseMotion` events; hit-test every
   waypoint in FIFO order. Hover-animated controls latch sub-frame
   `mouseEnter`+`mouseLeave` pulses without rendering per packet.

@@ -122,77 +122,26 @@ int runBenchmark(
   return 0;
 }
 
-/** One static checker executed by `--checks`, in order. */
-struct CheckStep {
-  string name;
-  string[] args;
-}
-
-CheckStep[] checkSteps(bool styleAll, bool auditWidgets) {
-  string[] styleArgs = [
-    "rdmd", ".agents/skills/check-codestyle/scripts/check_style.d"
-  ];
-  if (styleAll) {
-    styleArgs ~= "--all";
-  }
-  CheckStep[] steps = [
-    CheckStep("line-length", [
-      "rdmd", ".agents/skills/check-line-length/scripts/check_line_length.d"
-    ]),
-    CheckStep("codestyle", styleArgs),
-    CheckStep("null-safety", [
-      "rdmd", ".agents/skills/check-null-safety/scripts/check_null_safety.d"
-    ]),
-    CheckStep("boundaries", [
-      "rdmd", ".agents/skills/check-boundaries/scripts/check_boundaries.d"
-    ]),
-    CheckStep("assets", [
-      "rdmd",
-      ".agents/skills/manage-assets/scripts/manage_assets.d",
-      "--check"
-    ]),
-  ];
-  if (auditWidgets) {
-    steps ~= CheckStep("define-gui-widget", [
-      "rdmd",
-      ".agents/skills/define-gui-widget/scripts/define_gui_widget.d",
-      "--audit"
-    ]);
-  }
-  return steps;
-}
-
 /**
- * Runs every checker in checkSteps() under timeout 120, printing one
- * summary line per checker. Stops at the first failure unless `keepGoing`
- * is true; returns 0 when all checkers pass.
+ * Runs the static checkers via the `check` skill driver, which owns the list
+ * of checks and their per-check timeouts. Returns 0 when all checkers pass.
  */
 int runChecks(bool styleAll, bool auditWidgets, bool keepGoing) {
-  int firstFailure = 0;
-  string[] failedNames;
-  foreach (step; checkSteps(styleAll, auditWidgets)) {
-    int res = runCommand(["timeout", "120"] ~ step.args);
-    if (res != 0) {
-      writefln("Check %s: FAILED (exit %d).", step.name, res);
-      if (!keepGoing) {
-        writeln("Checks failed; build and tests were not run.");
-        return res;
-      }
-      if (firstFailure == 0) {
-        firstFailure = res;
-      }
-      failedNames ~= step.name;
-    } else {
-      writefln("Check %s: passed.", step.name);
-    }
+  string[] cmd = ["rdmd", ".agents/skills/check/scripts/run_checks.d"];
+  if (styleAll) {
+    cmd ~= "--style-all";
   }
-  if (firstFailure != 0) {
-    writefln("Checks failed (%-(%s, %)); build and tests were not run.",
-      failedNames);
-    return firstFailure;
+  if (auditWidgets) {
+    cmd ~= "--audit-widgets";
   }
-  writeln("All checks passed.");
-  return 0;
+  if (keepGoing) {
+    cmd ~= "--keep-going";
+  }
+  const int res = runCommand(cmd);
+  if (res != 0) {
+    writeln("Checks failed; build and tests were not run.");
+  }
+  return res;
 }
 
 int main(string[] args) {
@@ -231,7 +180,7 @@ int main(string[] args) {
         "Pass --all to check_style.d during --checks",
         &optStyleAll,
       "audit-widgets",
-        "Include define_gui_widget.d --audit in --checks",
+        "Include the gui-widget audit in --checks",
         &optAuditWidgets,
       "keep-going",
         "Run all static checkers instead of stopping early",
