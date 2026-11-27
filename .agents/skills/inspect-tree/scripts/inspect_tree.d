@@ -139,7 +139,19 @@ bool isIgnoredDir(string name, bool includeAll) {
   }
   return name == "_build" || name == "_bench" || name == ".git"
     || name == ".dub"
-    || name == ".subprojects" || name == ".cache";
+    || name == "subprojects" || name == ".cache";
+}
+
+void scanWrapFiles(string dir, ref FileEntry[] entries) {
+  try {
+    foreach (entry; dirEntries(dir, SpanMode.shallow)) {
+      if (entry.isFile && extension(entry.name) == ".wrap") {
+        entries ~= inspectFile(entry.name, entry.name);
+      }
+    }
+  } catch (Exception ex) {
+    stderr.writefln("Warning: Cannot read directory %s: %s", dir, ex.msg);
+  }
 }
 
 void scanPath(
@@ -161,7 +173,9 @@ void scanPath(
     foreach (entry; dirEntries(target, SpanMode.shallow)) {
       string base = baseName(entry.name);
       if (entry.isDir) {
-        if (!isIgnoredDir(base, opt.includeAll)) {
+        if (!opt.includeAll && base == "subprojects") {
+          scanWrapFiles(entry.name, entries);
+        } else if (!isIgnoredDir(base, opt.includeAll)) {
           scanPath(entry.name, entries, opt, currentDepth + 1);
         }
       } else if (entry.isFile) {
@@ -183,9 +197,9 @@ FileEntry inspectFile(string filePath, string relPath) {
   entry.relPath = normPath;
 
   if (ext == ".d") {
-    inspectDModule(entry);
+    inspectDlangModule(entry);
   } else if (ext == ".c" || ext == ".h" || ext == ".cpp" || ext == ".hpp") {
-    inspectCFile(entry, ext, base);
+    inspectNativeFile(entry, ext, base);
   } else if (isBuildFile(base, ext)) {
     inspectBuildFile(entry, base);
   } else if (isDocFile(ext)) {
@@ -208,7 +222,7 @@ bool isDocFile(string ext) {
   return ext == ".md" || ext == ".txt" || ext == ".rst" || ext == ".adoc";
 }
 
-void inspectDModule(ref FileEntry entry) {
+void inspectDlangModule(ref FileEntry entry) {
   entry.category = FileCategory.dModule;
   string base = baseName(entry.relPath);
 
@@ -227,13 +241,13 @@ void inspectDModule(ref FileEntry entry) {
   try {
     string content = readText(entry.path);
     entry.lineCount = countLines(content);
-    entry.identifier = extractDModuleName(content, entry.relPath);
+    entry.identifier = extractModuleName(content, entry.relPath);
   } catch (Exception) {
     entry.identifier = defaultModuleName(entry.relPath);
   }
 }
 
-void inspectCFile(ref FileEntry entry, string ext, string base) {
+void inspectNativeFile(ref FileEntry entry, string ext, string base) {
   entry.category = FileCategory.cFile;
 
   if (ext == ".h" || ext == ".hpp") {
@@ -304,7 +318,7 @@ size_t countLines(string content) {
   return count;
 }
 
-string extractDModuleName(string content, string relPath) {
+string extractModuleName(string content, string relPath) {
   string[] lines = content.splitLines();
   foreach (string line; lines) {
     string trimmed = line.strip();
@@ -390,6 +404,7 @@ void printCategorizedOutput(
   FileEntry[] cFiles;
   FileEntry[] bConfigs;
   FileEntry[] docs;
+  FileEntry[] others;
 
   foreach (ref const entry; entries) {
     if (!shouldDisplay(entry, opt)) {
@@ -409,17 +424,19 @@ void printCategorizedOutput(
         docs ~= cast(FileEntry) entry;
         break;
       case FileCategory.other:
+        others ~= cast(FileEntry) entry;
         break;
     }
   }
 
-  printSection("D Modules", dMods, true);
-  printSection("C/C++ Files", cFiles, false);
-  printSection("Build Configurations", bConfigs, false);
-  printSection("Documentation", docs, false);
+  printSection("D Modules", dMods);
+  printSection("C/C++ Files", cFiles);
+  printSection("Build Configurations", bConfigs);
+  printSection("Documentation", docs);
+  printSection("Other Files", others);
 }
 
-void printSection(string title, const ref FileEntry[] items, bool showId) {
+void printSection(string title, const ref FileEntry[] items) {
   if (items.length == 0) {
     return;
   }

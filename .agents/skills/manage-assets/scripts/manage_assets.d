@@ -8,13 +8,11 @@
  */
 module manage_assets;
 
-import std.algorithm : canFind, endsWith, startsWith;
 import std.conv : to;
 import std.file : dirEntries, exists, isDir, isFile, mkdirRecurse, readText,
   SpanMode, write;
 import std.getopt : defaultGetoptPrinter, getopt, GetoptResult;
 import std.path : baseName, buildPath, dirName, extension;
-import std.regex : ctRegex, matchAll, matchFirst;
 import std.stdio : stderr, writeln, writefln;
 import std.string : replace, splitLines, strip;
 
@@ -75,6 +73,8 @@ string[] findAssetModules() {
 }
 
 void checkStringImports(ref size_t errorCount) {
+  import std.regex : ctRegex, matchAll;
+
   auto importRe = ctRegex!(`import\s*\(\s*"([^"]+)"\s*\)`);
 
   foreach (af; findAssetModules()) {
@@ -93,12 +93,25 @@ void checkStringImports(ref size_t errorCount) {
   }
 }
 
-void checkMesonConfig(ref size_t errorCount) {
-  if (exists("yguilib/meson.build")) {
-    string mb = readText("yguilib/meson.build");
+void checkMesonConfig() {
+  import std.algorithm : canFind;
+
+  struct MesonAssetCheck {
+    string mesonPath;
+    string assetRoot;
+  }
+  static immutable MesonAssetCheck[] checks = [
+    MesonAssetCheck("meson.build", "assets"),
+    MesonAssetCheck("yguilib/meson.build", "yguilib/assets"),
+  ];
+  foreach (c; checks) {
+    if (!exists(c.mesonPath) || !exists(c.assetRoot)) {
+      continue;
+    }
+    string mb = readText(c.mesonPath);
     if (!mb.canFind("d_import_dirs") || !mb.canFind("assets")) {
-      writefln("yguilib/meson.build: [warning] Missing 'assets' in "
-        ~ "d_import_dirs.");
+      writefln("%s: [warning] Missing 'assets' in d_import_dirs.",
+        c.mesonPath);
     }
   }
 }
@@ -134,14 +147,22 @@ int generateImports(string pkgName, bool dryRun) {
     ~ "module " ~ modName ~ ";\n\n"
     ~ "package(" ~ pkgName ~ "):\n";
 
+  import std.algorithm.sorting : sort;
+
+  string[] assetFiles;
   foreach (entry; dirEntries(assetDir, SpanMode.depth)) {
     if (entry.isFile) {
-      // Import paths are relative to the asset root (a d_import_dirs entry).
-      string relPath = entry.name[dirName(assetDir).length + 1 .. $];
-      string varName = toCamelCaseIdentifier(entry.name);
-      outContent ~= "enum string " ~ varName ~ "Source =\n  import(\""
-        ~ relPath ~ "\");\n\n";
+      assetFiles ~= entry.name;
     }
+  }
+  assetFiles.sort();
+
+  foreach (filePath; assetFiles) {
+    // Import paths are relative to the asset root (a d_import_dirs entry).
+    string relPath = filePath[dirName(assetDir).length + 1 .. $];
+    string varName = toCamelCaseIdentifier(filePath);
+    outContent ~= "enum string " ~ varName ~ "Source =\n  import(\""
+      ~ relPath ~ "\");\n\n";
   }
 
   if (dryRun) {
@@ -188,7 +209,7 @@ int main(string[] args) {
     size_t errorCount = 0;
     checkAssetPlacements(errorCount);
     checkStringImports(errorCount);
-    checkMesonConfig(errorCount);
+    checkMesonConfig();
 
     if (errorCount > 0) {
       writefln("Asset audit completed with %d error(s).", errorCount);

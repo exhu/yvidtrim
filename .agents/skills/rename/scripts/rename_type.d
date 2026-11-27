@@ -3,7 +3,6 @@
  */
 module rename_type;
 
-import std.algorithm : filter;
 import std.array : array;
 import std.file : readText, write;
 import std.getopt : defaultGetoptPrinter, getopt, GetoptResult;
@@ -111,6 +110,8 @@ void processFile(
       }
     }
   }
+
+  import std.algorithm : filter;
 
   Span[] spans = findIdent(file, content, oldType)
     .filter!(sp => isKindEnabled(

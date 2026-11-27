@@ -4,7 +4,6 @@
  */
 module rename_symbol;
 
-import std.algorithm : filter;
 import std.array : array;
 import std.conv : to;
 import std.file : exists, isFile, readText, write;
@@ -187,6 +186,8 @@ void processFile(
   if (!opts.findOnly && opts.checkCollision && !isMd) {
     collectCollisions(file, content, newSym, opts, summary.collisions);
   }
+
+  import std.algorithm : filter;
 
   Span[] spans = findIdent(file, content, oldSym)
     .filter!(sp => shouldReplace(sp, opts))

@@ -15,16 +15,13 @@
  */
 module check_boundaries;
 
-import core.sys.posix.sys.stat : fstat, stat_t, S_ISFIFO, S_ISREG;
-import std.algorithm : canFind, endsWith, startsWith;
 import std.array : appender, replace;
 import std.ascii : isAlphaNum, isWhite;
 import std.file : dirEntries, exists, isDir, isFile, readText, SpanMode;
 import std.getopt : defaultGetoptPrinter, getopt, GetoptResult;
 import std.path : baseName, dirName, extension;
-import std.regex : ctRegex, matchAll, matchFirst;
 import std.stdio : stderr, writeln, writefln;
-import std.string : splitLines, strip;
+import std.string : endsWith, splitLines, startsWith, strip;
 import std.typecons : Nullable, nullable;
 
 enum BoundaryViolationType {
@@ -59,6 +56,8 @@ void checkYguilibIndependence(
   if (!filePath.startsWith("yguilib/")) {
     return;
   }
+
+  import std.algorithm : canFind;
 
   string[] lines = content.splitLines();
   foreach (size_t idx, string line; lines) {
@@ -101,6 +100,9 @@ void checkPublicImportReexports(
     return;
   }
 
+  import std.algorithm : canFind;
+  import std.regex : ctRegex, matchFirst;
+
   auto publicImportRe = ctRegex!(r"^\s*public\s+import\b");
   bool inMultilineComment = false;
   string[] lines = content.splitLines();
@@ -140,6 +142,9 @@ void checkInternalEncapsulation(
   string content,
   ref BoundaryViolation[] violations
 ) {
+  import std.algorithm : canFind;
+  import std.regex : ctRegex, matchFirst;
+
   if (!filePath.canFind("/internal/")) {
     return;
   }
@@ -216,6 +221,8 @@ void checkDomainFacades(string baseDir, ref BoundaryViolation[] violations) {
       dirFiles[dir] ~= baseName(entry.name);
     }
   }
+
+  import std.algorithm : canFind;
 
   foreach (dir, files; dirFiles) {
     // Skip root package directories, internal directories, clibs, and pages
@@ -528,6 +535,8 @@ size_t lineNumberAt(string source, size_t pos) {
  * line is not an import.
  */
 Nullable!string importedModule(string line) {
+  import std.regex : ctRegex, matchFirst;
+
   auto importRe = ctRegex!(
     r"^\s*(?:(?:public|static|private)\s+)?import\s+([A-Za-z_][\w.]*)"
   );
@@ -636,7 +645,7 @@ void checkGlesImports(
       violations ~= BoundaryViolation(
         filePath,
         idx + 1,
-        BoundaryViolationType.glesImport,
+        BoundaryViolationType.directCImport,
         "D code must not import C headers directly; use a D binding: "
         ~ mod.get
       );
@@ -653,6 +662,9 @@ void checkControllerIsolation(
   string content,
   ref BoundaryViolation[] violations
 ) {
+  import std.algorithm : canFind;
+  import std.regex : ctRegex, matchFirst;
+
   if (extension(filePath) != ".d"
     || !baseName(filePath).canFind("controller")) {
     return;
@@ -705,6 +717,8 @@ struct MesonListedFile {
  * yguilib/meson.build. This is a string match; Meson is not evaluated.
  */
 MesonListedFile[] mesonListedDFiles() {
+  import std.regex : ctRegex, matchAll;
+
   auto quotedDRe = ctRegex!(r"'([^'\n]*\.d)'");
   MesonListedFile[] listed;
   foreach (string mesonFile; ["meson.build", "yguilib/meson.build"]) {
@@ -848,9 +862,9 @@ int main(string[] args) {
       ~ "  2 internal/ encapsulation (no public symbols)\n"
       ~ "  3 no umbrella package.d or public import re-exports\n"
       ~ "  4 package directory rule\n"
-      ~ "  5 private C wrapper abstraction\n"
+      ~ "  5 no direct D import of C sources or headers (use clibs/)\n"
       ~ "  6 ARCHITECTURE.md size limit\n"
-      ~ "  7 GLES only via glad2.gles2; no D import of C headers\n"
+      ~ "  7 GLES only via glad2.gles2\n"
       ~ "  8 controllers never import App/Window or create their View\n"
       ~ "  9 unittest modules are listed by a Meson file\n"
       ~ "  10 no version (unittest) main() outside test_main.d\n\n"

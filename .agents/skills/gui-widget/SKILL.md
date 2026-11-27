@@ -62,11 +62,12 @@ Before writing code, select the pattern that matches the control's lifecycle:
 
 ### Tier 1: Inline View Composition (`WidgetBuilder`)
 Use for structural sections (headers, footers, cards, panels) inside a View or
-Page class (see `source/guidemo/view.d`), and for simple clickable buttons that
-do not need hover/press animations (configure `.roundBg(...)`,
-`.roundBorder(...)`, `.text(...)`, `.textAlign(TextLabel.Alignment.center)`, and
-`.onMouseDown(...)` or `.onMouseUp(...)` directly on `WidgetBuilder`, without
-registering `AnimatedHoverButtonSystem`).
+Page class (see `source/guidemo/view.d`).
+- For plain push buttons with press animation, disabled state, and optional
+  auto-repeat, use `ButtonBuilder` (`yguilib.controls.button`): `ButtonSystem`
+  is built into `UiSystemImpl` and needs no manual registration. Use raw
+  `WidgetBuilder` + `.onMouseDown(...)`/`.onMouseUp(...)` only for custom
+  clickable surfaces that should not have button press behavior.
 - Construct widgets with `WidgetBuilder.make(ui)`.
 - Store references only to widgets mutated in `update()`.
 - Synchronize state in `View.update()` using `ModelTracker!M.update()`.
@@ -78,8 +79,9 @@ registering `AnimatedHoverButtonSystem`).
 
 ### Tier 2: Reusable Composite Widget (`*Builder` + `WidgetView`)
 Use for multi-widget controls that encapsulate child widgets, translate child
-events, or synchronize dynamic children via `WidgetArrayProvider` or
-`ScrollableArea` (see `yguilib/source/yguilib/controls/tabcontrol.d`).
+events, or synchronize dynamic children via `WidgetArrayProvider`,
+`ScrollableArea`, or `VirtListProvider` (see
+`yguilib/source/yguilib/controls/tabcontrol.d` and `virtlist.d`).
 - Define a `*Style` or `*Config` struct for visual defaults.
 - Define a fluent `*Builder` struct with
   `build(UiSystem ui, Widget parent, RectF rect)` (no default parameter
@@ -87,7 +89,9 @@ events, or synchronize dynamic children via `WidgetArrayProvider` or
 - Attach `.viewEvents(renameMap)` and `.viewName(widgetViewName)` to the root
   widget so child `MouseEvent` triggers bubble up and get translated by
   `WidgetView`.
-- Register the shared `WidgetView` and `WidgetViewController` once at startup.
+- Reuse shared composite helpers from `yguilib.controls.composite_view` and
+  register the `WidgetView` + `WidgetViewController` pair once at startup (see
+  `registerWidgetViewPair` in `yguilib.controls.common`).
 
 ### Tier 3: ECS-Style Widget (`*Component` + `WidgetSystem`)
 Use when behavior or animation applies to single-node widgets automatically
@@ -371,9 +375,10 @@ With no query flag, runs `--summary --audit`. Scans `yguilib/source`,
 
 - `-a, --audit`: Check invariants (no `new Widget()`, no external
   `.children ~=`); violations exit `1`. Also warns about production builder
-  chains without `.name(...)` or geometry (`.rect`, `.bounds`, `.pos`,
-  `.size`, `.fixedSize`); warnings do not fail. The geometry check is a text
-  heuristic.
+  chains without `.name(...)` or geometry/sizing (`.rect`, `.bounds`, `.pos`,
+  `.size`, `.fixedSize`, `.fixedWidth`, `.fixedHeight`, `.autoSize`,
+  `.fractionWidth`, `.fractionHeight`); warnings do not fail. The geometry
+  check is a text heuristic.
 - `-l, --list`: List custom `*Builder` structs and count builder chains.
 - `-s, --summary`: Summary table of widgets and components.
 - `-w, --widgets`: List `Widget` and `WidgetBuilder` call sites.

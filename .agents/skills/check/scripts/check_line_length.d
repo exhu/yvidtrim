@@ -12,6 +12,7 @@ import std.getopt : defaultGetoptPrinter, getopt, GetoptResult;
 import std.process : execute;
 import std.stdio : stderr, stdin, writefln, writeln;
 import std.string : endsWith, indexOf, isNumeric, splitLines, startsWith, strip;
+import std.typecons : Nullable, nullable;
 
 struct Violation {
   string file;
@@ -142,7 +143,11 @@ Violation[] checkDiffLines(
       continue;
     }
     if (line.startsWith("@@ ") && line.canFind(" @@")) {
-      inHunk = parseHunkStartLine(line, currentLineNum);
+      auto parsed = parseHunkStartLine(line);
+      inHunk = !parsed.isNull;
+      if (inHunk) {
+        currentLineNum = parsed.get;
+      }
       continue;
     }
     if (!inHunk) {
@@ -169,24 +174,23 @@ string parseDiffTargetPath(string path) {
   return (path != "/dev/null") ? path : "";
 }
 
-bool parseHunkStartLine(string line, out size_t startLine) {
+Nullable!size_t parseHunkStartLine(string line) {
   auto endIdx = line[3 .. $].indexOf(" @@");
   if (endIdx == -1) {
-    return false;
+    return Nullable!size_t.init;
   }
   string header = line[3 .. 3 + endIdx];
   auto plusIdx = header.indexOf('+');
   if (plusIdx == -1) {
-    return false;
+    return Nullable!size_t.init;
   }
   string newPart = header[plusIdx + 1 .. $];
   auto commaIdx = newPart.indexOf(',');
   string lineStr = (commaIdx != -1) ? newPart[0 .. commaIdx] : newPart;
   try {
-    startLine = lineStr.strip.to!size_t;
-    return true;
+    return nullable(lineStr.strip.to!size_t);
   } catch (ConvException) {
-    return false;
+    return Nullable!size_t.init;
   }
 }
 

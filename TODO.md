@@ -1,7 +1,3 @@
-- tooling
--- planning skill: scaffold `plans/<name>.md` + `-NN.md`, run phases via
-   the implementer agent, update overview status
-
 - build widget library
 -- checkbox
 -- combobox

@@ -5,7 +5,6 @@
  */
 module gui_widget;
 
-import std.algorithm : canFind, filter;
 import std.array : array;
 import std.conv : to;
 import std.getopt : defaultGetoptPrinter, getopt, GetoptResult;
@@ -102,6 +101,7 @@ ScanResults scanSources(string filterTarget) {
     "source",
   ]);
   if (filterTarget !is null) {
+    import std.algorithm : canFind, filter;
     files = files.filter!(f => f.canFind(filterTarget)).array;
   }
   ScanResults r;

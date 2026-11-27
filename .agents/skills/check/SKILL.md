@@ -288,16 +288,16 @@ rdmd .agents/skills/check/scripts/check_boundaries.d [options]
    `package.d` directories unless encapsulating `internal/` modules;
    multi-module packages do not require `package.d`.
 5. **Private C Wrapper Abstraction**:
-   Ensures D code only imports wrapper modules under `clibs/` and does not
-   bypass private C wrappers.
+   Ensures D files under `yguilib/source`, `source`, `yguilib/examples`, and
+   `yguilib/benchmarks` do not directly import a C source or header
+   (`import <name>;` where `<name>.c` or `<name>.h` sits next to the file or
+   in a `*-clibs` directory); use a D binding under `clibs/` instead.
 6. **`ARCHITECTURE.md` Size Limit**:
    Verifies that `ARCHITECTURE.md` remains under 250 lines per `AGENTS.md`.
 7. **GLES via `glad2.gles2` Only**:
    In `yguilib/source`, `source`, `yguilib/examples`, and
    `yguilib/benchmarks`, D files may import GLES only as `glad2.gles2` (no
-   `glad*`, `bindbc.opengl`, `derelict.opengl`, or `gl.*` modules). D files
-   must also not import a C source or header, i.e. `import <name>;` where
-   `<name>.c` or `<name>.h` sits next to the file or in a `*-clibs` directory.
+   `glad*`, `bindbc.opengl`, `derelict.opengl`, or `gl.*` modules).
 8. **Controller Isolation**:
    Files named `*controller*.d` under `source/` and `yguilib/examples/` must
    not import `yguilib.app` or `yguilib.window`, and must not create their

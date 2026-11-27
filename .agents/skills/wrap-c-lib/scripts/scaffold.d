@@ -1,7 +1,6 @@
 /// Helper script to scaffold a private C wrapper and D bindings.
 module scaffold;
 
-import std.algorithm : canFind, all;
 import std.ascii : isDigit, isLower;
 import std.file : exists, mkdirRecurse, write;
 import std.getopt : defaultGetoptPrinter, getopt, GetoptResult;
@@ -71,6 +70,8 @@ int main(string[] args) {
 }
 
 bool isValidLibName(string name) {
+  import std.algorithm : all;
+
   // Starts with a letter: it becomes the D module name `<proj>.clibs.<name>`.
   if (name.length == 0 || !isLower(name[0])) return false;
   return name.all!(c => isLower(c) || isDigit(c) || c == '_');
@@ -105,10 +106,10 @@ int runScaffold(const ref Config cfg) {
   }
 
   FileTemplate[] files = [
-    FileTemplate(cHeader, generateCHeader(prefix)),
-    FileTemplate(cSource, generateCSource(prefix)),
-    FileTemplate(cTest, generateCTest(prefix)),
-    FileTemplate(dModule, generateDBinding(cfg.proj, cfg.libName, prefix)),
+    FileTemplate(cHeader, makeHeaderCode(prefix)),
+    FileTemplate(cSource, makeSourceCode(prefix)),
+    FileTemplate(cTest, makeTestCode(prefix)),
+    FileTemplate(dModule, makeBindingCode(cfg.proj, cfg.libName, prefix)),
   ];
 
   // Check for existing files
@@ -138,7 +139,7 @@ int runScaffold(const ref Config cfg) {
   return 0;
 }
 
-string generateCHeader(string prefix) {
+string makeHeaderCode(string prefix) {
   return format(
     "#pragma once\n\n" ~
     "#ifdef __cplusplus\n" ~
@@ -156,7 +157,7 @@ string generateCHeader(string prefix) {
   );
 }
 
-string generateCSource(string prefix) {
+string makeSourceCode(string prefix) {
   return format(
     "#include \"%s.h\"\n\n" ~
     "int %s_hello(void) {\n" ~
@@ -167,7 +168,7 @@ string generateCSource(string prefix) {
   );
 }
 
-string generateCTest(string prefix) {
+string makeTestCode(string prefix) {
   return format(
     "#include \"%s.h\"\n" ~
     "#include <stdio.h>\n\n" ~
@@ -183,7 +184,7 @@ string generateCTest(string prefix) {
   );
 }
 
-string generateDBinding(string proj, string libName, string prefix) {
+string makeBindingCode(string proj, string libName, string prefix) {
   return format(
     "/// Bindings to %s-clibs %s C wrapper\n" ~
     "module %s.clibs.%s;\n\n" ~

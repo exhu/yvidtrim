@@ -4,11 +4,9 @@
  */
 module widget_scan;
 
-import std.algorithm : canFind, endsWith, startsWith;
 import std.file : dirEntries, exists, isFile, readText, SpanMode;
 import std.path : buildNormalizedPath, extension;
-import std.regex : ctRegex, matchFirst;
-import std.string : splitLines, strip;
+import std.string : endsWith, splitLines, startsWith, strip;
 
 enum TargetGroup {
   yguilibPublic,
@@ -19,6 +17,8 @@ enum TargetGroup {
 }
 
 TargetGroup classifyPath(string path) {
+  import std.algorithm : canFind;
+
   if (path.canFind("yguilib/source/yguilib/internal")) {
     return TargetGroup.yguilibInternal;
   }
@@ -99,6 +99,8 @@ struct CustomBuilderInfo {
  * Scans source files and discovers Widget and WidgetBuilder call sites.
  */
 CallSite[] scanWidgetCallSites(string[] files) {
+  import std.algorithm : canFind;
+
   CallSite[] sites;
 
   foreach (file; files) {
@@ -151,54 +153,12 @@ CallSite[] scanWidgetCallSites(string[] files) {
  */
 ComponentUsage[] scanComponentUsages(string[] files) {
   ComponentUsage[] usages;
-
-  string[] knownComponents = [
-    "background", "border", "textLabel", "customDraw",
-    "flexContainer", "size", "anchor",
-    "scrollableArea", "view", "focus", "defaultButton",
-    "keyboardEvent", "mouseEvent", "widgetArray"
-  ];
-
   foreach (file; files) {
     if (!exists(file) || !isFile(file)) {
       continue;
     }
-    string content = readText(file);
-    string[] lines = content.splitLines();
-
-    foreach (size_t idx, string line; lines) {
-      string trimmed = line.strip();
-      if (trimmed.startsWith("//") || trimmed.startsWith("*")) {
-        continue;
-      }
-
-      foreach (comp; knownComponents) {
-        string pattern = ".components." ~ comp;
-        if (trimmed.canFind(pattern)) {
-          usages ~= ComponentUsage(
-            file,
-            idx + 1,
-            comp,
-            trimmed,
-            false
-          );
-        }
-      }
-
-      if (trimmed.canFind(".components.set") ||
-          trimmed.canFind(".components.get") ||
-          trimmed.canFind(".components.has")) {
-        usages ~= ComponentUsage(
-          file,
-          idx + 1,
-          "custom(set/get/has)",
-          trimmed,
-          true
-        );
-      }
-    }
+    scanFileComponentUsages(file, readText(file).splitLines(), usages);
   }
-
   return usages;
 }
 
@@ -207,69 +167,13 @@ ComponentUsage[] scanComponentUsages(string[] files) {
  */
 OverloadedConstructor[] scanOverloadedConstructors(string[] files) {
   OverloadedConstructor[] overloads;
-
-  auto typeDeclRe = ctRegex!(r"^(final\s+)?(class|struct)\s+([A-Za-z0-9_]+)");
-  auto ctorRe = ctRegex!(r"^\s*this\s*\(");
-
   foreach (file; files) {
     if (!exists(file) || !isFile(file)) {
       continue;
     }
-    string content = readText(file);
-    string[] lines = content.splitLines();
-
-    string currentType = null;
-    string currentKind = null;
-    size_t[] ctorLines;
-    int typeBraceDepth = -1;
-    int braceDepth = 0;
-
-    foreach (size_t idx, string line; lines) {
-      string trimmed = line.strip();
-
-      // Check type declaration
-      auto mType = matchFirst(trimmed, typeDeclRe);
-      if (!mType.empty && typeBraceDepth == -1) {
-        currentKind = mType[2];
-        currentType = mType[3];
-        typeBraceDepth = braceDepth;
-        ctorLines = null;
-      }
-
-      // Check constructor
-      auto mCtor = matchFirst(line, ctorRe);
-      if (!mCtor.empty && currentType !is null) {
-        // Skip @disable this();
-        if (!trimmed.canFind("@disable")) {
-          ctorLines ~= (idx + 1);
-        }
-      }
-
-      // Track braces
-      foreach (c; line) {
-        if (c == '{') {
-          braceDepth++;
-        } else if (c == '}') {
-          braceDepth--;
-          if (typeBraceDepth != -1 && braceDepth <= typeBraceDepth) {
-            if (ctorLines.length > 1) {
-              overloads ~= OverloadedConstructor(
-                file,
-                currentType,
-                currentKind,
-                ctorLines.dup
-              );
-            }
-            currentType = null;
-            currentKind = null;
-            typeBraceDepth = -1;
-            ctorLines = null;
-          }
-        }
-      }
-    }
+    scanFileOverloadedConstructors(file, readText(file).splitLines(),
+      overloads);
   }
-
   return overloads;
 }
 
@@ -277,6 +181,8 @@ OverloadedConstructor[] scanOverloadedConstructors(string[] files) {
  * Scans unit tests for direct `new Widget(...)` calls instead of WidgetFixture.
  */
 CallSite[] scanTestsNeedingFixture(string[] files) {
+  import std.algorithm : canFind;
+
   CallSite[] sites;
   foreach (site; scanWidgetCallSites(files)) {
     if (site.inUnittest && site.text.canFind("new Widget(")) {
@@ -295,6 +201,8 @@ CallSite[] scanTestsNeedingFixture(string[] files) {
  *  - Direct children appending (w.children ~= ...) outside Widget class
  */
 InvariantViolation[] checkWidgetInvariants(string[] files) {
+  import std.algorithm : canFind;
+
   InvariantViolation[] violations;
 
   foreach (file; files) {
@@ -358,6 +266,8 @@ string[] collectDSourceFiles(string[] searchDirs) {
  * event builders).
  */
 CustomBuilderInfo[] scanCustomBuilders(string[] files) {
+  import std.regex : ctRegex, matchFirst;
+
   CustomBuilderInfo[] builders;
   auto structRe = ctRegex!(r"^\s*struct\s+([A-Za-z0-9_]*Builder)\b");
 
@@ -396,27 +306,138 @@ BuilderChain[] scanBuilderChains(string[] files) {
 
 private:
 
+void scanFileComponentUsages(
+  string file,
+  const string[] lines,
+  ref ComponentUsage[] usages
+) {
+  import std.algorithm : canFind;
+
+  static immutable string[] knownComponents = [
+    "background", "border", "textLabel", "customDraw",
+    "flexContainer", "size", "anchor",
+    "scrollableArea", "view", "focus", "defaultButton",
+    "keyboardEvent", "mouseEvent", "widgetArray",
+    "virtList", "debugDraw"
+  ];
+
+  foreach (size_t idx, string line; lines) {
+    string trimmed = line.strip();
+    if (trimmed.startsWith("//") || trimmed.startsWith("*")) {
+      continue;
+    }
+    foreach (comp; knownComponents) {
+      if (trimmed.canFind(".components." ~ comp)) {
+        usages ~= ComponentUsage(file, idx + 1, comp, trimmed, false);
+      }
+    }
+    if (trimmed.canFind(".components.set") ||
+        trimmed.canFind(".components.get") ||
+        trimmed.canFind(".components.has")) {
+      usages ~= ComponentUsage(
+        file, idx + 1, "custom(set/get/has)", trimmed, true
+      );
+    }
+  }
+}
+
+void scanFileOverloadedConstructors(
+  string file,
+  const string[] lines,
+  ref OverloadedConstructor[] overloads
+) {
+  import std.algorithm : canFind;
+  import std.regex : ctRegex, matchFirst;
+
+  auto typeDeclRe = ctRegex!(r"^(final\s+)?(class|struct)\s+([A-Za-z0-9_]+)");
+  auto ctorRe = ctRegex!(r"^\s*this\s*\(");
+  string currentType = null;
+  string currentKind = null;
+  size_t[] ctorLines;
+  int typeBraceDepth = -1;
+  int braceDepth = 0;
+
+  foreach (size_t idx, string line; lines) {
+    string trimmed = line.strip();
+    auto mType = matchFirst(trimmed, typeDeclRe);
+    if (!mType.empty && typeBraceDepth == -1) {
+      currentKind = mType[2];
+      currentType = mType[3];
+      typeBraceDepth = braceDepth;
+      ctorLines = null;
+    }
+    if (currentType !is null && !matchFirst(line, ctorRe).empty
+        && !trimmed.canFind("@disable")) {
+      ctorLines ~= (idx + 1);
+    }
+    foreach (c; line) {
+      if (c == '{') {
+        braceDepth++;
+      } else if (c == '}') {
+        braceDepth--;
+        if (typeBraceDepth != -1 && braceDepth <= typeBraceDepth) {
+          if (ctorLines.length > 1) {
+            overloads ~= OverloadedConstructor(
+              file, currentType, currentKind, ctorLines.dup
+            );
+          }
+          currentType = null;
+          currentKind = null;
+          typeBraceDepth = -1;
+          ctorLines = null;
+        }
+      }
+    }
+  }
+}
+
 bool hasGeometryCall(string line) {
+  import std.algorithm : canFind;
+
   return line.canFind(".rect(") ||
     line.canFind(".bounds(") ||
     line.canFind(".pos(") ||
     line.canFind(".size(") ||
-    line.canFind(".fixedSize(");
+    line.canFind(".fixedSize(") ||
+    line.canFind(".fixedWidth(") ||
+    line.canFind(".fixedHeight(") ||
+    line.canFind(".autoSize(") ||
+    line.canFind(".fractionWidth(") ||
+    line.canFind(".fractionHeight(");
+}
+
+bool isUnittestOnlyFile(string file, const string[] lines) {
+  if (file.endsWith("test_fixture.d")) {
+    return true;
+  }
+  foreach (line; lines) {
+    const string t = line.strip();
+    if (t == "version (unittest):" || t == "version(unittest):") {
+      return true;
+    }
+  }
+  return false;
 }
 
 BuilderChain[] scanFileBuilderChains(string file, const string[] lines) {
+  import std.algorithm : canFind;
+
   BuilderChain[] chains;
-  bool inUnittest = false;
+  const bool fileIsTestOnly = isUnittestOnlyFile(file, lines);
+  bool inUnittest = fileIsTestOnly;
   int braceDepth = 0;
   int unittestBraceDepth = -1;
 
   foreach (size_t idx, string line; lines) {
     const string trimmed = line.strip();
-    if (trimmed.startsWith("unittest") && trimmed.canFind("{")) {
+    if (!fileIsTestOnly && trimmed.startsWith("unittest")
+        && trimmed.canFind("{")) {
       inUnittest = true;
       unittestBraceDepth = braceDepth;
     }
-    updateBraceDepth(line, braceDepth, inUnittest, unittestBraceDepth);
+    if (!fileIsTestOnly) {
+      updateBraceDepth(line, braceDepth, inUnittest, unittestBraceDepth);
+    }
 
     if (trimmed.startsWith("//") || trimmed.startsWith("*")) {
       continue;
@@ -464,6 +485,8 @@ BuilderChain extractChain(
   string kind,
   bool inUnittest
 ) {
+  import std.algorithm : canFind;
+
   bool hasName = false;
   bool hasRect = false;
   size_t endIdx = startIdx;
@@ -507,6 +530,8 @@ BuilderChain extractChildBlock(
   size_t startIdx,
   bool inUnittest
 ) {
+  import std.algorithm : canFind;
+
   bool hasName = false;
   bool hasRect = false;
   size_t endIdx = startIdx;

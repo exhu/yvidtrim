@@ -5,7 +5,6 @@
  */
 module rename_module;
 
-import std.algorithm : filter;
 import std.array : array;
 import std.file : exists, mkdirRecurse, readText, rename, write;
 import std.getopt : defaultGetoptPrinter, getopt, GetoptResult;
@@ -165,6 +164,8 @@ void processTextFile(
     stderr.writefln("Warning: could not read %s: %s", file, e.msg);
     return;
   }
+
+  import std.algorithm : filter;
 
   Span[] spans = findDotted(file, content, oldMod)
     .filter!(sp => isKindEnabled(

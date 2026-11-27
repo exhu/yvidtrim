@@ -119,37 +119,25 @@ string[] collectSearchFiles(const Options opts, string[] explicitPaths) {
   return files;
 }
 
-bool searchFile(
+void searchFile(
   string file,
-  string[] rawPatterns,
-  const Options opts,
+  RegexList compiled,
   ref SearchMatch[] matches,
   ref FileCount[] counts
 ) {
-  import std.regex : matchFirst, regex, Regex;
+  import std.regex : matchFirst;
 
   string content;
   try {
     content = readText(file);
   } catch (Exception e) {
     stderr.writefln("Warning: could not read %s: %s", file, e.msg);
-    return true;
-  }
-
-  Regex!char[] compiled;
-  try {
-    foreach (p; rawPatterns) {
-      string pat = opts.wholeWord ? `\b(?:` ~ p ~ `)\b` : p;
-      compiled ~= opts.ignoreCase ? regex(pat, "i") : regex(pat);
-    }
-  } catch (Exception e) {
-    stderr.writefln("Error: invalid regex: %s", e.msg);
-    return false;
+    return;
   }
 
   size_t fileHits = 0;
   foreach (idx, line; content.splitLines()) {
-    foreach (re; compiled) {
+    foreach (re; compiled.items) {
       if (!matchFirst(line, re).empty) {
         fileHits++;
         matches ~= SearchMatch(file, idx + 1, line);
@@ -160,7 +148,29 @@ bool searchFile(
   if (fileHits > 0) {
     counts ~= FileCount(file, fileHits);
   }
-  return true;
+}
+
+struct RegexList {
+  import std.regex : Regex;
+
+  bool ok = false;
+  Regex!char[] items;
+}
+
+RegexList compilePatterns(string[] rawPatterns, const Options opts) {
+  import std.regex : regex;
+
+  RegexList result;
+  try {
+    foreach (p; rawPatterns) {
+      string pat = opts.wholeWord ? `\b(?:` ~ p ~ `)\b` : p;
+      result.items ~= opts.ignoreCase ? regex(pat, "i") : regex(pat);
+    }
+    result.ok = true;
+  } catch (Exception e) {
+    stderr.writefln("Error: invalid regex: %s", e.msg);
+  }
+  return result;
 }
 
 void printJsonResults(
@@ -284,13 +294,15 @@ int main(string[] args) {
       return 2;
     }
   }
+  RegexList compiled = compilePatterns(patterns, opts);
+  if (!compiled.ok) {
+    return 2;
+  }
   string[] files = collectSearchFiles(opts, paths);
   SearchMatch[] matches;
   FileCount[] counts;
   foreach (file; files) {
-    if (!searchFile(file, patterns, opts, matches, counts)) {
-      return 2;
-    }
+    searchFile(file, compiled, matches, counts);
   }
   if (opts.jsonOutput) {
     printJsonResults(matches, counts);

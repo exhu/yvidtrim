@@ -4,7 +4,6 @@
  */
 module run_checks;
 
-import std.algorithm : canFind;
 import std.getopt : arraySep, defaultGetoptPrinter, getopt, GetoptResult;
 import std.process : spawnProcess, wait;
 import std.stdio : stderr, stdin, stdout, writeln, writefln;
@@ -47,6 +46,8 @@ CheckStep[] allSteps(bool styleAll) {
 
 /** The widget audit is opt-in: `--audit-widgets` or `--only gui-widget`. */
 CheckStep[] selectSteps(const Options opts) {
+  import std.algorithm : canFind;
+
   CheckStep[] selected;
   foreach (step; allSteps(opts.styleAll)) {
     bool wanted = opts.only.length > 0
